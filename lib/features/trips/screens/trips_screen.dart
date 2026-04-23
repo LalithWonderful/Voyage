@@ -1,0 +1,349 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:voyage/core/theme/app_theme.dart';
+import 'package:voyage/features/auth/providers/auth_provider.dart';
+import 'package:voyage/features/trips/models/trip_model.dart';
+import 'package:voyage/features/trips/providers/trips_provider.dart';
+
+enum _TripFilter { upcoming, ongoing, past }
+
+List<Trip> _applyFilter(List<Trip> trips, _TripFilter filter, DateTime today) {
+  return trips.where((t) {
+    final startDay = DateTime(t.startDate.year, t.startDate.month, t.startDate.day);
+    final endDay = DateTime(t.endDate.year, t.endDate.month, t.endDate.day);
+    switch (filter) {
+      case _TripFilter.upcoming:
+        return startDay.isAfter(today);
+      case _TripFilter.ongoing:
+        return !startDay.isAfter(today) && !endDay.isBefore(today);
+      case _TripFilter.past:
+        return endDay.isBefore(today);
+    }
+  }).toList();
+}
+
+class TripsScreen extends ConsumerStatefulWidget {
+  const TripsScreen({super.key});
+
+  @override
+  ConsumerState<TripsScreen> createState() => _TripsScreenState();
+}
+
+class _TripsScreenState extends ConsumerState<TripsScreen> {
+  _TripFilter _filter = _TripFilter.upcoming;
+
+  @override
+  Widget build(BuildContext context) {
+    final user = ref.watch(currentUserProvider);
+    final tripsAsync = ref.watch(tripsProvider);
+    final firstName = (user?.userMetadata?['full_name'] as String? ?? 'Voyageur').split(' ').first;
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    final allTrips = tripsAsync.valueOrNull ?? const <Trip>[];
+    final countByFilter = {
+      _TripFilter.upcoming: _applyFilter(allTrips, _TripFilter.upcoming, today).length,
+      _TripFilter.ongoing: _applyFilter(allTrips, _TripFilter.ongoing, today).length,
+      _TripFilter.past: _applyFilter(allTrips, _TripFilter.past, today).length,
+    };
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+                color: AppColors.surface,
+                child: Row(
+                  children: [
+                    Expanded(child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Bonjour $firstName 👋', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                        const SizedBox(height: 2),
+                        Text('Mes voyages', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      ],
+                    )),
+                    GestureDetector(
+                      onTap: () => context.go('/onboarding/destination'),
+                      child: Container(
+                        width: 36, height: 36,
+                        decoration: BoxDecoration(shape: BoxShape.circle, color: AppColors.accent),
+                        child: const Center(child: Icon(Icons.add, color: Colors.white, size: 20)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(children: [
+                    _filterChip('À venir', _TripFilter.upcoming, countByFilter[_TripFilter.upcoming] ?? 0),
+                    _filterChip('En cours', _TripFilter.ongoing, countByFilter[_TripFilter.ongoing] ?? 0),
+                    _filterChip('Passés', _TripFilter.past, countByFilter[_TripFilter.past] ?? 0),
+                  ]),
+                ),
+              ),
+            ),
+            tripsAsync.when(
+              loading: () => const SliverFillRemaining(
+                child: Center(child: CircularProgressIndicator()),
+              ),
+              error: (_, __) => SliverFillRemaining(
+                child: Center(child: Text('Erreur de chargement', style: TextStyle(color: AppColors.error))),
+              ),
+              data: (trips) {
+                if (trips.isEmpty) {
+                  return SliverFillRemaining(
+                    child: _EmptyTrips(onTap: () => context.go('/onboarding/destination')),
+                  );
+                }
+                final filtered = _applyFilter(trips, _filter, today);
+                if (filtered.isEmpty) {
+                  return SliverFillRemaining(
+                    child: _EmptyFilterState(filter: _filter),
+                  );
+                }
+                return SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final trip = filtered[index];
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 14),
+                            child: Dismissible(
+                              key: ValueKey(trip.id),
+                              direction: DismissDirection.endToStart,
+                              background: Container(
+                                padding: const EdgeInsets.only(right: 20),
+                                decoration: BoxDecoration(
+                                  color: AppColors.error,
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                alignment: Alignment.centerRight,
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.delete_outline, color: Colors.white),
+                                    SizedBox(width: 6),
+                                    Text('Supprimer', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                                  ],
+                                ),
+                              ),
+                              confirmDismiss: (_) async {
+                                return await showDialog<bool>(
+                                  context: context,
+                                  builder: (dialogCtx) => AlertDialog(
+                                    title: const Text('Supprimer ce voyage ?'),
+                                    content: Text('« ${trip.title} » ainsi que toutes ses activités et trajets seront définitivement supprimés.'),
+                                    actions: [
+                                      TextButton(onPressed: () => Navigator.pop(dialogCtx, false), child: const Text('Annuler')),
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(dialogCtx, true),
+                                        style: TextButton.styleFrom(foregroundColor: AppColors.error),
+                                        child: const Text('Supprimer'),
+                                      ),
+                                    ],
+                                  ),
+                                ) ?? false;
+                              },
+                              onDismissed: (_) async {
+                                final messenger = ScaffoldMessenger.of(context);
+                                try {
+                                  await ref.read(supabaseProvider).from('trips').delete().eq('id', trip.id);
+                                  ref.invalidate(tripsProvider);
+                                  ref.invalidate(hasTripsProvider);
+                                  messenger.showSnackBar(
+                                    SnackBar(content: Text('« ${trip.title} » supprimé.')),
+                                  );
+                                } catch (e) {
+                                  ref.invalidate(tripsProvider);
+                                  messenger.showSnackBar(
+                                    SnackBar(content: Text('Erreur : $e'), backgroundColor: AppColors.error),
+                                  );
+                                }
+                              },
+                              child: _TripCard(trip: trip, onTap: () => context.go('/trips/${trip.id}')),
+                            ),
+                          );
+                        },
+                        childCount: filtered.length,
+                      ),
+                    ),
+                  );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _filterChip(String label, _TripFilter value, int count) {
+    final active = _filter == value;
+    return GestureDetector(
+      onTap: () => setState(() => _filter = value),
+      child: Container(
+        margin: const EdgeInsets.only(right: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: active ? AppColors.primary : AppColors.primaryLight,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: active ? Colors.white : AppColors.primary)),
+            if (count > 0) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(
+                  color: active ? Colors.white.withValues(alpha: 0.25) : AppColors.primary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text('$count', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: active ? Colors.white : AppColors.primary)),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyFilterState extends StatelessWidget {
+  final _TripFilter filter;
+  const _EmptyFilterState({required this.filter});
+
+  @override
+  Widget build(BuildContext context) {
+    final (emoji, title, subtitle) = switch (filter) {
+      _TripFilter.upcoming => ('🗓️', 'Aucun voyage à venir', 'Prépare ta prochaine évasion — clique sur + pour en créer un.'),
+      _TripFilter.ongoing => ('🧳', 'Aucun voyage en cours', 'Tu n\'as pas de voyage à cette date. Profite-en pour en préparer un !'),
+      _TripFilter.past => ('📜', 'Aucun voyage passé', 'Les voyages archivés apparaîtront ici quand ils seront terminés.'),
+    };
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 56)),
+            const SizedBox(height: 16),
+            Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            const SizedBox(height: 6),
+            Text(subtitle, textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.5)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TripCard extends StatelessWidget {
+  final Trip trip;
+  final VoidCallback onTap;
+  const _TripCard({required this.trip, required this.onTap});
+
+  String _countdown() {
+    final now = DateTime.now();
+    final diff = trip.startDate.difference(now).inDays;
+    if (diff < 0) return 'Passé';
+    if (diff == 0) return 'Aujourd\'hui';
+    if (diff == 1) return 'Demain';
+    return 'Dans $diff jours';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.border),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 2)],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: [
+            Container(
+              height: 90,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(colors: [Color(0xFF2563EB), Color(0xFF4F46E5)]),
+              ),
+              padding: const EdgeInsets.all(10),
+              child: Stack(
+                children: [
+                  Positioned(
+                    top: 0, right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.25), borderRadius: BorderRadius.circular(6)),
+                      child: Text(_countdown(), style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                  Align(alignment: Alignment.bottomLeft, child: Text(trip.coverEmoji, style: const TextStyle(fontSize: 28))),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(trip.title, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                  const SizedBox(height: 2),
+                  Text(trip.destination, style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                  const SizedBox(height: 6),
+                  Text('📅 ${trip.durationDays} jours', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyTrips extends StatelessWidget {
+  final VoidCallback onTap;
+  const _EmptyTrips({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text('✈️', style: TextStyle(fontSize: 64)),
+            const SizedBox(height: 20),
+            Text('Aucun voyage pour l\'instant', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            const SizedBox(height: 8),
+            Text('Créez votre premier voyage et laissez Voyage construire votre planning sur mesure.', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.5)),
+            const SizedBox(height: 32),
+            ElevatedButton.icon(
+              onPressed: onTap,
+              icon: const Icon(Icons.add),
+              label: const Text('Créer mon premier voyage'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

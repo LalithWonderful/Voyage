@@ -1,0 +1,804 @@
+import 'dart:convert';
+import 'dart:developer' as developer;
+import 'dart:typed_data';
+import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:voyage/core/constants/ai_constants.dart';
+import 'package:voyage/features/planning/models/activity_suggestion_model.dart';
+import 'package:voyage/features/planning/models/trip_activity_model.dart';
+import 'package:voyage/features/planning/models/trip_transport_model.dart';
+import 'package:voyage/features/trips/models/trip_model.dart';
+
+/// Un hébergement (hôtel/location) avec sa période, pour un prompt Gemini
+/// qui sait gérer les voyages multi-villes (plusieurs hôtels successifs).
+class HotelStay {
+  final String name;
+  final String? address;
+  final DateTime? checkIn;
+  final DateTime? checkOut;
+  const HotelStay({required this.name, this.address, this.checkIn, this.checkOut});
+}
+
+class AiRateLimitException implements Exception {
+  final String action;
+  AiRateLimitException(this.action);
+  @override
+  String toString() =>
+      'Tu as atteint la limite d\'utilisation IA pour cette action. Réessaie dans quelques minutes.';
+}
+
+class TransportSuggestion {
+  final String fromTitle;
+  final String toTitle;
+  final String defaultMode;
+  final List<TransportOption> options;
+
+  const TransportSuggestion({
+    required this.fromTitle,
+    required this.toTitle,
+    required this.defaultMode,
+    required this.options,
+  });
+
+  factory TransportSuggestion.fromJson(Map<String, dynamic> json) => TransportSuggestion(
+    fromTitle: (json['from_title'] as String?) ?? '',
+    toTitle: (json['to_title'] as String?) ?? '',
+    defaultMode: (json['default_mode'] as String?) ?? 'walk',
+    options: (json['options'] as List?)
+            ?.whereType<Map<String, dynamic>>()
+            .map((e) => TransportOption.fromJson(e))
+            .toList() ??
+        const [],
+  );
+}
+
+class SuggestionsResult {
+  final List<ActivitySuggestion> activities;
+  final List<TransportSuggestion> transports;
+  const SuggestionsResult({required this.activities, required this.transports});
+}
+
+/// Descriptions concrètes envoyées à Gemini pour chaque centre d'intérêt.
+/// Sans ça, les labels comme "Esthétique" peuvent être interprétés de travers
+/// (ex: "lieux Instagrammables" plutôt que "institut de beauté").
+/// Vocabulaire choisi pour coller aux termes qu'on trouve dans les guides de voyage
+/// (Lonely Planet, Routard, Fodor's...) — domaines où Gemini a le plus de contexte.
+const _interestExplanations = <String, String>{
+  'Randonnée': 'sentiers balisés, treks, randonnées pédestres en montagne ou forêt, parcs nationaux, GR, balades nature avec points de vue',
+  'Shopping': 'boutiques de créateurs, marchés artisanaux, concept stores, friperies vintage, centres commerciaux, souvenirs authentiques et artisanat local',
+  'Nightlife': 'bars à cocktails, clubs, discothèques, rooftops, speakeasies, lounges, concerts tard le soir, DJ sets, pubs locaux',
+  'Spots populaires': 'sites emblématiques, monuments iconiques, attractions incontournables, points de vue célèbres, lieux très photographiés / Instagrammables',
+  'Hors circuit': 'lieux peu connus des touristes, quartiers alternatifs, bars et cafés fréquentés par les habitants, pépites locales hors des sentiers battus',
+  'Bons plans': 'excellents rapports qualité/prix, happy hours, menus du jour, musées gratuits certains jours, pass combinés, astuces pour économiser',
+  'Wellness': 'spas, centres de bien-être, yoga, massages, thermes, hammams, saunas, onsens (Japon), bains thermaux, retraites méditation',
+  'Esthétique': 'instituts de beauté, manucure/pédicure, salons de coiffure, barbershops, soins du visage, épilation, salons d\'onglerie',
+  'Gastronomie': 'restaurants recommandés, food tours, cours de cuisine, spécialités locales authentiques, street food, marchés gastronomiques, dégustations',
+  'Culture': 'musées, monuments historiques, sites archéologiques, patrimoine classé, galeries d\'art, théâtres, architecture remarquable',
+  'Plage': 'plages, criques, baignade en mer, activités balnéaires, snorkeling, farniente, beach clubs',
+  'Sports': 'sports outdoor (surf, ski, escalade, VTT, kayak, paddle), cours d\'initiation, matchs locaux au stade à aller voir, sports traditionnels du pays',
+  'Nature': 'parcs naturels, jardins botaniques, observation d\'animaux, réserves naturelles, cascades, panoramas naturels, zoos et aquariums',
+  'Événements': 'festivals en cours, concerts, expositions temporaires, spectacles, fêtes traditionnelles, marchés saisonniers, événements sportifs (vérifie qu\'ils ont lieu pendant les dates du voyage)',
+};
+
+/// Descriptions concrètes des types de voyageur.
+/// Termes alignés sur le vocabulaire des guides/blogs voyage pour que Gemini
+/// calibre bien le niveau de gamme et le style d'activités attendu.
+const _travelerTypeExplanations = <String, String>{
+  'Road-trip': 'itinéraires pittoresques en voiture, villages authentiques, points de vue en chemin, étapes pittoresques, relais routiers typiques, diners/cafés d\'autoroute emblématiques',
+  'Grand luxe': 'lieux haut de gamme, restaurants étoilés Michelin, palaces, expériences VIP privées, spas de palace, boutiques de luxe, concierges, transferts privatifs',
+  'Meilleur prix': 'activités gratuites ou bon marché (<15€/personne), restos street food ou bouis-bouis authentiques, musées gratuits, marchés, évite systématiquement les lieux chers ou étoilés',
+  'Backpack': 'style sac à dos, auberges de jeunesse, activités gratuites ou très pas chères, authenticité locale, rencontres avec d\'autres voyageurs, aventure, street food',
+  'En famille': 'kid-friendly, parcs d\'attractions, zoos, aquariums, musées interactifs pour enfants, activités éducatives et ludiques, trajets courts, menus enfants',
+  'Voyage pro': 'restaurants business, lieux courts à visiter entre deux réunions, bars d\'hôtels, cafés coworking, options sans bagage, efficacité, ambiance calme',
+};
+
+/// Formate les préférences voyageur (type + intérêts) avec leurs descriptions
+/// concrètes pour Gemini. Partagé par `_buildPrompt` (suggestions journalières)
+/// et `suggestAlternatives` (alternatives pour remplacer une activité).
+({String interestsStr, String travelerTypeDescribed}) _describeProfile({
+  required String? travelerType,
+  required List<String> interests,
+}) {
+  final interestsStr = interests.isEmpty
+      ? 'aucun spécifié'
+      : interests
+          .map((i) {
+            final desc = _interestExplanations[i];
+            return desc != null ? '  • $i → $desc' : '  • $i';
+          })
+          .join('\n');
+  final travelerTypeDescribed = travelerType == null
+      ? 'non spécifié'
+      : (_travelerTypeExplanations[travelerType] != null
+          ? '$travelerType → ${_travelerTypeExplanations[travelerType]}'
+          : travelerType);
+  return (interestsStr: interestsStr, travelerTypeDescribed: travelerTypeDescribed);
+}
+
+class AiSuggestionsService {
+  final SupabaseClient _client;
+  AiSuggestionsService(this._client);
+
+  // ⚠️ DÉSACTIVÉ TEMPORAIREMENT — À RÉACTIVER AVANT PUBLICATION.
+  // Passer à `true` quand la fonction Postgres `check_and_log_ai_usage` est déployée en prod.
+  static const _rateLimitEnabled = false;
+
+  // Limites par action (max appels / fenêtre de temps)
+  static const _limits = <String, ({int maxPerWindow, int windowMinutes})>{
+    'suggest_activities': (maxPerWindow: 10, windowMinutes: 60),
+    'suggest_alternatives': (maxPerWindow: 30, windowMinutes: 60),
+    'describe_activity': (maxPerWindow: 100, windowMinutes: 60),
+    'describe_activities_batch': (maxPerWindow: 30, windowMinutes: 60),
+    'extract_document': (maxPerWindow: 30, windowMinutes: 60),
+  };
+
+  Future<void> _checkRateLimit(String action) async {
+    if (!_rateLimitEnabled) return;
+    final cfg = _limits[action];
+    if (cfg == null) return;
+    try {
+      await _client.rpc('check_and_log_ai_usage', params: {
+        'p_action': action,
+        'p_max_per_window': cfg.maxPerWindow,
+        'p_window_minutes': cfg.windowMinutes,
+      });
+    } on PostgrestException catch (e) {
+      if (e.message.contains('rate_limit_exceeded')) {
+        developer.log('Rate limit dépassé pour $action', name: 'ai');
+        throw AiRateLimitException(action);
+      }
+      // Si la fonction n'existe pas encore (PGRST202), on laisse passer silencieusement
+      if (e.code == 'PGRST202') {
+        developer.log('Fonction rate limit absente — skip ($action)', name: 'ai');
+        return;
+      }
+      rethrow;
+    }
+  }
+
+  GenerativeModel _buildModel({double temperature = 0.7}) {
+    if (AiConstants.geminiApiKey == 'COLLE_TA_CLE_ICI' || AiConstants.geminiApiKey.isEmpty) {
+      throw Exception('Clé Gemini manquante. Ajoute-la dans lib/core/constants/ai_constants.dart.');
+    }
+    return GenerativeModel(
+      model: AiConstants.geminiModel,
+      apiKey: AiConstants.geminiApiKey,
+      generationConfig: GenerationConfig(
+        responseMimeType: 'application/json',
+        temperature: temperature,
+      ),
+    );
+  }
+
+  /// Propose 5 alternatives pour REMPLACER une activité existante,
+  /// en gardant le même créneau (jour + heure + catégorie proche).
+  Future<List<ActivitySuggestion>> suggestAlternatives({
+    required TripActivity current,
+    required Trip trip,
+    required String? travelerType,
+    required List<String> interests,
+    required List<TripActivity> allActivities,
+  }) async {
+    await _checkRateLimit('suggest_alternatives');
+    final otherTitles = allActivities
+        .where((a) => a.id != current.id)
+        .map((a) => '- ${a.title}')
+        .join('\n');
+    final (:interestsStr, :travelerTypeDescribed) =
+        _describeProfile(travelerType: travelerType, interests: interests);
+
+    final prompt = '''
+Tu es un expert en voyages. Propose 5 ALTERNATIVES pour remplacer l'activité suivante dans le planning, en gardant la même dynamique (jour, heure, type d'activité).
+
+Activité actuelle à remplacer :
+- Titre : ${current.title}
+- Détail : ${current.detail ?? 'aucun'}
+- Catégorie : ${current.tag}
+- Date : ${current.dayDate.toIso8601String().split('T').first}
+- Heure : ${current.startTime}
+- Durée : ${current.durationMinutes ?? 60} minutes
+
+Contexte voyage :
+- Destination : ${trip.destination}
+- Type voyageur : $travelerTypeDescribed
+- Centres d'intérêt (IMPORTANT : les alternatives doivent coller à ces goûts, pas juste au tag de catégorie) :
+$interestsStr
+
+À NE PAS proposer (déjà dans le planning) :
+- ${current.title}
+${otherTitles.isEmpty ? '' : otherTitles}
+
+Consignes :
+- Garde la MÊME catégorie (${current.tag}) et la MÊME date/heure.
+- **IMPORTANT : chaque alternative doit être OUVERTE au créneau ${current.startTime} (durée ${current.durationMinutes ?? 60} min).** Ne propose jamais un musée/monument si l'horaire tombe la nuit, ni un bar si c'est le matin, ni un resto en dehors des heures de repas. Respecte les horaires d'ouverture typiques à ${trip.destination}.
+- Propose des lieux PRÉCIS et variés (noms réels de restos/musées/bars/spots), pas des généralités.
+- Adapte la gamme des alternatives au type de voyageur ci-dessus (prix, niveau de service) et privilégie les lieux qui matchent un des centres d'intérêt listés.
+- 5 alternatives distinctes et intéressantes.
+
+Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
+{
+  "activities": [
+    {
+      "day_date": "${current.dayDate.toIso8601String().split('T').first}",
+      "start_time": "${current.startTime}",
+      "title": "Nom précis de l'alternative",
+      "detail": "Adresse, quartier, ou raison du match",
+      "tag": "${current.tag}",
+      "duration_minutes": ${current.durationMinutes ?? 60},
+      "price_estimate": "~15€"
+    }
+  ]
+}
+''';
+
+    developer.log('Gemini alternatives pour ${current.title}', name: 'ai');
+    final model = _buildModel(temperature: 0.9);
+    final response = await model.generateContent([Content.text(prompt)]);
+    final rawText = response.text;
+    if (rawText == null || rawText.isEmpty) {
+      throw Exception('Réponse vide de Gemini.');
+    }
+    final cleaned = _stripCodeFences(rawText).trim();
+    final parsed = jsonDecode(cleaned);
+    List<dynamic> list;
+    if (parsed is List) {
+      list = parsed;
+    } else if (parsed is Map) {
+      list = (parsed['activities'] as List?) ?? const [];
+    } else {
+      list = const [];
+    }
+    final alternatives = <ActivitySuggestion>[];
+    for (final item in list) {
+      if (item is! Map<String, dynamic>) continue;
+      try {
+        alternatives.add(ActivitySuggestion.fromJson(item));
+      } catch (_) {}
+    }
+    return alternatives;
+  }
+
+  /// Génère des descriptions en BATCH pour N activités en UN SEUL appel Gemini.
+  /// Retourne la liste dans le MÊME ordre que [items].
+  /// Pour les activités dont la description ne peut pas être générée, renvoie une chaîne vide.
+  Future<List<String>> describeActivitiesBatch({
+    required List<({String title, String? detail, String? tag})> items,
+    required String destination,
+  }) async {
+    if (items.isEmpty) return [];
+    await _checkRateLimit('describe_activities_batch');
+
+    final bullets = items
+        .asMap()
+        .entries
+        .map((e) =>
+            '${e.key + 1}. ${e.value.title}'
+            '${e.value.detail != null && e.value.detail!.isNotEmpty ? ' — ${e.value.detail}' : ''}'
+            ' (catégorie: ${e.value.tag ?? "non précisée"})')
+        .join('\n');
+
+    final prompt = '''
+Tu es guide de voyage. Écris une description ENGAGEANTE de 3 à 5 phrases (en français) pour CHACUNE des activités ci-dessous.
+
+Destination commune : $destination
+
+Activités (garde le MÊME ordre dans la réponse) :
+$bullets
+
+Contraintes par description :
+- Ton chaleureux mais factuel, sans cliché ("incontournable", "dépaysement garanti" à éviter).
+- Mentionne ce qu'on y trouve/fait concrètement, l'ambiance, pourquoi c'est intéressant.
+- Pas d'intro ("Voici..."). Commence direct. Max 4-5 phrases. Pas de listes à l'intérieur.
+- Si tu ne connais PAS précisément un lieu, décris ce type d'endroit dans cette ville, sans inventer de faits spécifiques.
+
+Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
+{
+  "descriptions": [
+    "Description de l'activité 1",
+    "Description de l'activité 2"
+  ]
+}
+''';
+
+    developer.log('Gemini describe BATCH — ${items.length} activités', name: 'ai');
+    final model = _buildModel(temperature: 0.7);
+    final response = await model.generateContent([Content.text(prompt)]);
+    final rawText = response.text;
+    if (rawText == null || rawText.isEmpty) {
+      throw Exception('Réponse vide de Gemini.');
+    }
+    final cleaned = _stripCodeFences(rawText).trim();
+    final parsed = jsonDecode(cleaned);
+    List<dynamic> list;
+    if (parsed is List) {
+      list = parsed;
+    } else if (parsed is Map) {
+      list = (parsed['descriptions'] as List?) ?? const [];
+    } else {
+      list = const [];
+    }
+    final result = <String>[];
+    for (var i = 0; i < items.length; i++) {
+      final v = i < list.length ? list[i] : null;
+      result.add(v is String ? v : '');
+    }
+    return result;
+  }
+
+  /// Génère des options de trajet entre 2 activités spécifiques dans un voyage.
+  /// Retourne 2 à 4 modes avec durée et prix estimé.
+  Future<TransportSuggestion> generateTransportBetween({
+    required TripActivity from,
+    required TripActivity to,
+    required String destination,
+    String? travelerType,
+  }) async {
+    await _checkRateLimit('suggest_alternatives');
+
+    final fromLoc = from.detail != null && from.detail!.isNotEmpty ? from.detail : from.title;
+    final toLoc = to.detail != null && to.detail!.isNotEmpty ? to.detail : to.title;
+
+    final prompt = '''
+Tu es un expert en voyages. Propose des options de trajet entre ces deux points à ${destination.isEmpty ? "la destination du voyage" : destination}.
+
+Départ : "${from.title}"${fromLoc != from.title ? " ($fromLoc)" : ""}
+Arrivée : "${to.title}"${toLoc != to.title ? " ($toLoc)" : ""}
+Profil du voyageur : ${travelerType ?? "non spécifié"}
+
+Consignes :
+- Propose 2 à 4 options de déplacement réalistes pour CE trajet précis (à pied / taxi / métro / bus / vélo / voiture / train / bateau / tuk-tuk selon le pays).
+- Durée réaliste en minutes selon la distance probable.
+- Prix estimé par personne dans la devise locale (ou "Gratuit" pour la marche).
+- "default_mode" = celui le plus cohérent avec le profil (Grand luxe → taxi, Backpack → à pied/métro, En famille → taxi ou métro).
+
+Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
+{
+  "from_title": "${from.title}",
+  "to_title": "${to.title}",
+  "default_mode": "walk|taxi|metro|bus|bike|car|train|boat|tuktuk",
+  "options": [
+    {"mode": "walk", "duration_minutes": 15, "price_estimate": "Gratuit", "detail": "via le quartier X"},
+    {"mode": "taxi", "duration_minutes": 5, "price_estimate": "~8€"},
+    {"mode": "metro", "duration_minutes": 12, "price_estimate": "~2€", "detail": "ligne 3"}
+  ]
+}
+''';
+
+    developer.log('Gemini transport entre ${from.title} → ${to.title}', name: 'ai');
+    final model = _buildModel(temperature: 0.5);
+    final response = await model.generateContent([Content.text(prompt)]);
+    final rawText = response.text;
+    if (rawText == null || rawText.isEmpty) {
+      throw Exception('Réponse vide de Gemini.');
+    }
+    final cleaned = _stripCodeFences(rawText).trim();
+    final parsed = jsonDecode(cleaned);
+    if (parsed is! Map<String, dynamic>) {
+      throw Exception('Format inattendu de Gemini.');
+    }
+    return TransportSuggestion.fromJson(parsed);
+  }
+
+  /// Génère une description courte (3-5 phrases) du lieu/activité en français.
+  Future<String> describeActivity({
+    required String title,
+    String? detail,
+    required String destination,
+    String? tag,
+  }) async {
+    await _checkRateLimit('describe_activity');
+    final prompt = '''
+Tu es guide de voyage. Écris une description ENGAGEANTE de 3 à 5 phrases (en français) pour l'activité suivante, destinée à donner envie au voyageur.
+
+- Activité / lieu : $title
+- Détail / adresse : ${detail ?? 'aucun'}
+- Destination du voyage : $destination
+- Catégorie : ${tag ?? 'non précisé'}
+
+Contraintes :
+- Ton chaleureux mais factuel, sans cliché touristique ("incontournable", "dépaysement garanti" à éviter).
+- Mentionne ce qu'on y trouve/fait concrètement, l'ambiance, pourquoi c'est intéressant.
+- Pas d'intro du genre "Voici une description...". Commence direct.
+- Max 4-5 phrases. Pas de listes.
+- Si tu ne connais PAS précisément le lieu, décris ce que ce type d'endroit offre dans cette ville, sans inventer de faits spécifiques.
+
+Retourne UNIQUEMENT ce JSON (sans balises, sans texte autour) :
+{"description": "La description ici."}
+''';
+
+    developer.log('Gemini describe — $title', name: 'ai');
+    final model = _buildModel(temperature: 0.7);
+    final response = await model.generateContent([Content.text(prompt)]);
+    final rawText = response.text;
+    if (rawText == null || rawText.isEmpty) {
+      throw Exception('Réponse vide de Gemini.');
+    }
+    final cleaned = _stripCodeFences(rawText).trim();
+    final parsed = jsonDecode(cleaned);
+    if (parsed is! Map<String, dynamic>) {
+      throw Exception('Format inattendu de Gemini.');
+    }
+    final desc = parsed['description'] as String?;
+    if (desc == null || desc.isEmpty) {
+      throw Exception('Description vide.');
+    }
+    return desc;
+  }
+
+  /// Extrait les infos d'un document de voyage depuis du texte collé.
+  Future<Map<String, dynamic>> extractDocumentFromText(String text, {String? hintCategory}) async {
+    await _checkRateLimit('extract_document');
+    final prompt = _buildExtractionPrompt(hintCategory, inputLabel: 'Texte :\n---\n$text\n---');
+    return _extractDocument([Content.text(prompt)]);
+  }
+
+  /// Extrait les infos d'un document depuis une image (screenshot, photo de billet, PDF scanné...).
+  Future<Map<String, dynamic>> extractDocumentFromImage(
+    Uint8List imageBytes, {
+    required String mimeType,
+    String? hintCategory,
+  }) async {
+    await _checkRateLimit('extract_document');
+    final prompt = _buildExtractionPrompt(hintCategory, inputLabel: 'Image fournie ci-dessous. Lis attentivement le texte visible et extrais les informations.');
+    return _extractDocument([
+      Content.multi([
+        TextPart(prompt),
+        DataPart(mimeType, imageBytes),
+      ]),
+    ]);
+  }
+
+  Future<Map<String, dynamic>> _extractDocument(List<Content> contents) async {
+    developer.log('Extraction doc — appel Gemini', name: 'ai');
+    final model = _buildModel(temperature: 0.1);
+    final response = await model.generateContent(contents);
+    final rawText = response.text;
+    developer.log('Extraction doc — réponse: $rawText', name: 'ai');
+    if (rawText == null || rawText.isEmpty) {
+      throw Exception('Réponse vide de Gemini.');
+    }
+    final cleaned = _stripCodeFences(rawText).trim();
+    final parsed = jsonDecode(cleaned);
+    if (parsed is! Map<String, dynamic>) {
+      throw Exception('Format inattendu de Gemini.');
+    }
+    final name = parsed['name'] as String?;
+    if (name == null || name.isEmpty) {
+      throw Exception('Impossible d\'extraire un document de la source fournie.');
+    }
+    return parsed;
+  }
+
+  String _buildExtractionPrompt(String? hintCategory, {required String inputLabel}) {
+    final categoryHint = hintCategory == null
+        ? 'Détecte d\'abord la catégorie parmi : hotel, flight, train, car_rental, ticket, other.'
+        : 'Le document est de catégorie "$hintCategory".';
+
+    return '''
+Tu reçois un email, un texte ou une image (capture d'écran, photo de billet, PDF scanné) de confirmation de réservation de voyage. $categoryHint
+Extrais les infos et retourne UNIQUEMENT ce JSON strict, sans balises, sans texte autour :
+
+{
+  "category": "hotel | flight | train | car_rental | ticket | other",
+  "name": "Nom principal du document (nom hôtel, libellé vol, titre spectacle...)",
+  "metadata": { ... }
+}
+
+Champs de "metadata" selon "category" (tous optionnels, mets les strings vides ou oublie les clés si non trouvé) :
+
+- hotel :
+  "address" (string)
+  "check_in" (YYYY-MM-DD)
+  "check_out" (YYYY-MM-DD)
+  "reservation_number" (string)
+
+- flight :
+  "airline" (compagnie)
+  "flight_number" (ex "AF1234")
+  "from" (code IATA ou nom aéroport de départ)
+  "to" (aéroport d'arrivée)
+  "date" (YYYY-MM-DD)
+  "departure_time" ("HH:MM")
+  "arrival_time" ("HH:MM")
+  "seat" (siège)
+  "reservation_number"
+
+- train :
+  "company" (SNCF, Trenitalia, Eurostar...)
+  "train_number"
+  "from" (gare de départ)
+  "to" (gare d'arrivée)
+  "date"
+  "departure_time"
+  "arrival_time"
+  "car" (voiture)
+  "seat" (place)
+  "class" (1re, 2e...)
+  "reservation_number"
+
+- car_rental :
+  "company"
+  "pickup_location"
+  "pickup_date"
+  "pickup_time"
+  "return_location"
+  "return_date"
+  "return_time"
+  "vehicle" (modèle)
+  "reservation_number"
+
+- ticket :
+  "venue" (lieu)
+  "address"
+  "date"
+  "time"
+  "seat"
+  "reservation_number"
+
+- other :
+  "description" (string libre)
+  "date" (si pertinent)
+
+Si "name" n'est pas trouvable clairement, retourne {"name":"","category":"other","metadata":{}}.
+
+$inputLabel
+''';
+  }
+
+  Future<SuggestionsResult> suggestActivities({
+    required Trip trip,
+    required String? travelerType,
+    required List<String> interests,
+    List<TripActivity> existingActivities = const [],
+    String? hotelName,
+    String? hotelAddress,
+    List<HotelStay> hotels = const [],
+    double? userLat,
+    double? userLng,
+    int? userToDestinationTravelMin,
+  }) async {
+    await _checkRateLimit('suggest_activities');
+    final prompt = _buildPrompt(
+      trip: trip,
+      travelerType: travelerType,
+      interests: interests,
+      existingActivities: existingActivities,
+      hotelName: hotelName,
+      hotelAddress: hotelAddress,
+      hotels: hotels,
+      userLat: userLat,
+      userLng: userLng,
+      userToDestinationTravelMin: userToDestinationTravelMin,
+    );
+    developer.log('Gemini prompt:\n$prompt', name: 'ai');
+
+    final model = _buildModel();
+    final response = await model.generateContent([Content.text(prompt)]);
+    final rawText = response.text;
+
+    developer.log('Gemini raw response: $rawText', name: 'ai');
+
+    if (rawText == null || rawText.isEmpty) {
+      throw Exception('Réponse vide de Gemini.');
+    }
+
+    final cleaned = _stripCodeFences(rawText).trim();
+
+    dynamic parsed;
+    try {
+      parsed = jsonDecode(cleaned);
+    } catch (e) {
+      throw Exception('Gemini n\'a pas retourné du JSON valide.\nRéponse : ${cleaned.substring(0, cleaned.length.clamp(0, 200))}...');
+    }
+
+    List<dynamic> activitiesList;
+    List<dynamic> transportsList = [];
+    if (parsed is List) {
+      activitiesList = parsed;
+    } else if (parsed is Map) {
+      activitiesList = (parsed['activities'] as List?) ?? (parsed['suggestions'] as List?) ?? [];
+      transportsList = (parsed['transports'] as List?) ?? const [];
+    } else {
+      activitiesList = [];
+    }
+
+    final suggestions = <ActivitySuggestion>[];
+    for (final item in activitiesList) {
+      if (item is! Map<String, dynamic>) continue;
+      try {
+        suggestions.add(ActivitySuggestion.fromJson(item));
+      } catch (e) {
+        developer.log('Activité ignorée (format invalide) : $item → $e', name: 'ai');
+      }
+    }
+
+    final transports = <TransportSuggestion>[];
+    for (final item in transportsList) {
+      if (item is! Map<String, dynamic>) continue;
+      try {
+        transports.add(TransportSuggestion.fromJson(item));
+      } catch (e) {
+        developer.log('Trajet ignoré (format invalide) : $item → $e', name: 'ai');
+      }
+    }
+
+    return SuggestionsResult(activities: suggestions, transports: transports);
+  }
+
+  String _stripCodeFences(String text) {
+    var t = text.trim();
+    // enlève ```json ... ``` ou ``` ... ```
+    final fence = RegExp(r'^```(?:json)?\s*|\s*```$', multiLine: true);
+    t = t.replaceAll(fence, '').trim();
+    return t;
+  }
+
+  String _buildPrompt({
+    required Trip trip,
+    required String? travelerType,
+    required List<String> interests,
+    required List<TripActivity> existingActivities,
+    String? hotelName,
+    String? hotelAddress,
+    List<HotelStay> hotels = const [],
+    double? userLat,
+    double? userLng,
+    int? userToDestinationTravelMin,
+  }) {
+    final now = DateTime.now();
+    final todayIso = DateTime(now.year, now.month, now.day).toIso8601String().split('T').first;
+    // Effective start = max(aujourd'hui, trip.startDate) pour éviter les suggestions dans le passé
+    final effectiveStart = trip.startDate.isBefore(DateTime(now.year, now.month, now.day))
+        ? todayIso
+        : trip.startDate.toIso8601String().split('T').first;
+    final start = trip.startDate.toIso8601String().split('T').first;
+    final end = trip.endDate.toIso8601String().split('T').first;
+
+    // Buffer pour le délai d'arrivée sur place : temps de trajet réel (si connu) + 15 min de préparation
+    // Fallback 30 min si on n'a pas la position GPS.
+    final bufferMin = userToDestinationTravelMin != null ? userToDestinationTravelMin + 15 : 30;
+    final earliestMinOfDay = now.hour * 60 + now.minute + bufferMin;
+    final earliestTimeToday =
+        '${(earliestMinOfDay ~/ 60).clamp(0, 23).toString().padLeft(2, '0')}:${(earliestMinOfDay % 60).toString().padLeft(2, '0')}';
+
+    // Bloc position utilisateur (pour le prompt)
+    final userLocationBlock = (userLat != null && userLng != null)
+        ? 'Position actuelle du voyageur : lat=${userLat.toStringAsFixed(4)}, lng=${userLng.toStringAsFixed(4)}'
+            '${userToDestinationTravelMin != null ? ' (environ $userToDestinationTravelMin min de trajet du centre de ${trip.destination})' : ''}.'
+        : 'Position du voyageur : non renseignée (utilise la destination comme point de référence).';
+    final travelers = trip.travelers.isEmpty
+        ? 'solo'
+        : trip.travelers.map((t) => '${t.name} (${t.age} ans)').join(', ');
+    final hasKids = trip.travelers.any((t) => t.age < 13);
+    final (:interestsStr, :travelerTypeDescribed) =
+        _describeProfile(travelerType: travelerType, interests: interests);
+
+    // Séparer les activités des jours précédents (déjà vécues par le voyageur) de celles
+    // à venir : les premières ne doivent jamais être reproposées, même en variante ; les
+    // secondes occupent un créneau à ne pas écraser.
+    final today = DateTime(now.year, now.month, now.day);
+    bool isPastDay(TripActivity a) {
+      final dayOnly = DateTime(a.dayDate.year, a.dayDate.month, a.dayDate.day);
+      return dayOnly.isBefore(today);
+    }
+    String fmtActivity(TripActivity a) =>
+        '- ${a.dayDate.toIso8601String().split('T').first} ${a.startTime} : ${a.title}';
+
+    final pastActivities = existingActivities.where(isPastDay).toList();
+    final upcomingActivities = existingActivities.where((a) => !isPastDay(a)).toList();
+
+    final pastBlock = pastActivities.isEmpty
+        ? 'Aucune — le voyage commence aujourd\'hui ou rien n\'a encore été fait.'
+        : pastActivities.map(fmtActivity).join('\n');
+    final upcomingBlock = upcomingActivities.isEmpty
+        ? 'Aucune pour l\'instant — les jours restants sont libres.'
+        : upcomingActivities.map(fmtActivity).join('\n');
+
+    // Cas 1 : plusieurs hôtels renseignés (voyage multi-villes) → bloc détaillé par période
+    // Cas 2 : un seul hôtel (via hotels[0] OU hotelName legacy) → comportement historique
+    // Cas 3 : rien → libellé générique
+    String fmtIso(DateTime d) => d.toIso8601String().split('T').first;
+    String accommodationBlock;
+    if (hotels.length > 1) {
+      final lines = hotels.map((h) {
+        final period = (h.checkIn != null && h.checkOut != null)
+            ? 'du ${fmtIso(h.checkIn!)} au ${fmtIso(h.checkOut!)}'
+            : 'période non précisée';
+        final addr = (h.address != null && h.address!.isNotEmpty) ? ' — ${h.address}' : '';
+        return '  - "${h.name}" ($period)$addr';
+      }).join('\n');
+      accommodationBlock =
+          'Hébergements (voyage multi-villes) :\n$lines\n'
+          '→ Pour chaque jour, les activités doivent être proches de l\'hôtel couvrant ce jour '
+          '(check_in ≤ jour ≤ check_out). Les retours en fin de journée doivent utiliser EXACTEMENT '
+          'le libellé "Retour à [nom de l\'hôtel du jour]".';
+    } else {
+      final single = hotels.isNotEmpty ? hotels.first : null;
+      final resolvedHotelName = single?.name ?? hotelName ?? trip.accommodation?.name;
+      final resolvedHotelAddress = single?.address ?? hotelAddress ?? trip.accommodation?.address;
+      accommodationBlock = (resolvedHotelName == null || resolvedHotelName.isEmpty)
+          ? 'Hébergement : non renseigné → utilise le libellé générique "Retour à l\'hôtel".'
+          : 'Hébergement renseigné : "$resolvedHotelName"'
+            '${resolvedHotelAddress != null && resolvedHotelAddress.isNotEmpty ? ' ($resolvedHotelAddress)' : ''}'
+            ' → tous les retours en fin de journée doivent utiliser EXACTEMENT le nom "Retour à $resolvedHotelName".';
+    }
+
+    return '''
+Tu es un expert en voyages. Propose un planning d'activités personnalisé en français pour le voyage suivant.
+
+Voyage :
+- Destination : ${trip.destination}
+- Dates : du $start au $end (${trip.durationDays} jour${trip.durationDays > 1 ? 's' : ''})
+- Aujourd'hui : $todayIso
+- Heure actuelle : ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}
+- $userLocationBlock
+- Dates à proposer : UNIQUEMENT entre $effectiveStart et $end inclus (pas de date passée, pas de date postérieure à la fin du voyage)
+- Pour AUJOURD'HUI ($todayIso) : la première activité ne doit PAS démarrer avant $earliestTimeToday (on tient compte du trajet réel depuis la position du voyageur + 15 min de préparation). Pour les jours suivants, pas de contrainte d'heure minimum.
+- Voyageurs : $travelers${hasKids ? ' (enfants présents, activités adaptées obligatoires)' : ''}
+
+Profil (IMPORTANT : tes propositions doivent coller à ce profil, pas juste le "prendre en compte") :
+- Type de voyageur : $travelerTypeDescribed
+- Centres d'intérêt — chaque item listé doit se traduire en activités concrètes dans le planning :
+$interestsStr
+
+Activités DÉJÀ VÉCUES lors des jours précédents (à NE JAMAIS reproposer, ni en doublon, ni en variante évidente — le voyageur les a déjà faites) :
+$pastBlock
+
+Activités déjà planifiées pour aujourd'hui ou les jours suivants (créneaux à ne pas écraser, et à ne pas dupliquer) :
+$upcomingBlock
+
+$accommodationBlock
+
+Consigne :
+- Propose entre 3 et 6 activités par jour **qui reflètent concrètement les centres d'intérêt et le type de voyageur listés ci-dessus**. Règle de couverture : sur l'ensemble du planning proposé, CHAQUE centre d'intérêt listé doit apparaître au moins UNE fois (ex: "Esthétique" listé → au moins un institut de beauté/spa ; "Événements" listé → au moins un festival/concert/expo ou marché saisonnier en cours pendant les dates). Les prix et la gamme des lieux doivent matcher le type de voyageur (ex: "Meilleur prix" → privilégie gratuit ou <15€/personne ; "Grand luxe" → haut de gamme uniquement).
+- Ne propose AUCUNE activité listée dans les blocs ci-dessus (ni celles des jours précédents déjà vécues, ni celles déjà planifiées). Pour les activités des jours précédents, évite aussi les variantes évidentes (ex: si le voyageur a déjà visité un grand musée historique, ne propose pas un autre grand musée historique similaire).
+- Varie matin / midi / après-midi / soir.
+- **PÉRIMÈTRE GÉOGRAPHIQUE** : chaque activité doit être atteignable en **~45 min max de trajet** depuis ${hotels.length > 1 ? "l'hôtel couvrant le jour de l'activité (voir liste ci-dessus)" : hotels.isNotEmpty ? "l'hôtel \"${hotels.first.name}\"" : hotelName != null ? "l'hôtel \"$hotelName\"" : "le centre de ${trip.destination}"}. Pas de day-trips à 2h de route (hors voyage longue durée). Pour AUJOURD'HUI spécifiquement, privilégie des lieux proches de la position actuelle du voyageur si elle est fournie.
+- Nomme des lieux précis (restos, quartiers, musées, spots), pas des généralités.
+- Les dates doivent être comprises entre $effectiveStart et $end inclus. NE PROPOSE JAMAIS d'activité à une date déjà passée (< $todayIso).
+- **IMPORTANT : respecte les horaires d'ouverture RÉELS du type de lieu dans cette destination.** Exemples repères (à adapter aux coutumes locales) :
+  - Musées / monuments culturels : généralement 9h-17h, souvent fermés le lundi ou mardi
+  - Temples (Asie du sud-est) : 6h-18h
+  - Restaurants : déjeuner 12h-14h, dîner 19h-22h (plus tôt en Espagne/Italie, plus tard en Asie)
+  - Bars / clubs / nightlife : à partir de 21h, rarement avant 19h
+  - Marchés diurnes : 7h-14h
+  - Marchés nocturnes : 18h-minuit
+  - Shopping / centres commerciaux : 10h-20h
+  - Activités nature (rando, parcs) : 8h-17h
+  - Plage : 9h-18h
+  Ne propose JAMAIS une visite de musée à 22h, un restaurant à 7h, ou un bar à 10h. Adapte à la destination (Thaïlande, Japon, Espagne, etc. ont des rythmes différents).
+- Donne une durée estimée (en minutes) et un prix estimé par personne dans la devise locale (ou "Gratuit" si accès libre).
+- CHAQUE jour doit se TERMINER par une activité "Retour à l'hôtel" (tag "Hébergement", duration_minutes 15, price_estimate "Gratuit"). Si un hébergement précis apparaît dans les activités existantes ou que tu en proposes un, utilise son nom exact ("Retour au Memmo Alfama" par ex.) ; sinon utilise le libellé générique "Retour à l'hôtel". Garde le MÊME nom d'hébergement pour tous les retours du voyage.
+- Pour CHAQUE paire d'activités consécutives dans un même jour (y compris vers le retour à l'hôtel), génère un objet "transport" avec 2 à 4 options de déplacement (à pied / taxi / métro / bus / vélo / voiture / train / bateau / tuk-tuk selon le pays).
+- Le "default_mode" doit être cohérent avec le profil : Grand luxe → taxi, Backpack/Meilleur prix → à pied ou transports en commun, En famille → taxi ou métro selon durée.
+- Les titres "from_title"/"to_title" doivent correspondre EXACTEMENT aux titres des activités.
+
+Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
+{
+  "activities": [
+    {
+      "day_date": "YYYY-MM-DD",
+      "start_time": "HH:MM",
+      "title": "Nom précis de l'activité ou du lieu",
+      "detail": "Adresse, quartier, ou raison du match",
+      "tag": "Repas|Visite|Nightlife|Transport|Hébergement|Nature|Shopping|Culture|Wellness|Sport",
+      "duration_minutes": 90,
+      "price_estimate": "~15€"
+    }
+  ],
+  "transports": [
+    {
+      "from_title": "Titre exact de l'activité de départ",
+      "to_title": "Titre exact de l'activité d'arrivée",
+      "default_mode": "walk|taxi|metro|bus|bike|car|train|boat|tuktuk",
+      "options": [
+        {"mode": "walk", "duration_minutes": 15, "price_estimate": "Gratuit", "detail": "via le quartier historique"},
+        {"mode": "taxi", "duration_minutes": 5, "price_estimate": "~8€"},
+        {"mode": "metro", "duration_minutes": 12, "price_estimate": "~2€", "detail": "ligne 3"}
+      ]
+    }
+  ]
+}
+''';
+  }
+}

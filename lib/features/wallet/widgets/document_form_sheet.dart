@@ -1,0 +1,770 @@
+import 'dart:developer' as developer;
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:voyage/core/theme/app_theme.dart';
+import 'package:voyage/features/auth/providers/auth_provider.dart';
+import 'package:voyage/features/planning/providers/planning_provider.dart';
+import 'package:voyage/features/trips/providers/trips_provider.dart';
+import 'package:voyage/features/wallet/models/document_model.dart';
+import 'package:voyage/features/wallet/providers/wallet_provider.dart';
+import 'package:voyage/features/wallet/widgets/overlap_nights_sheet.dart';
+
+Future<void> openDocumentFormSheet(
+  BuildContext context,
+  WidgetRef ref, {
+  TripDocument? existing,
+  String? initialTripId,
+  String? initialCategory,
+}) async {
+  await showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: AppColors.background,
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    builder: (_) => _DocumentFormSheet(
+      existing: existing,
+      initialTripId: initialTripId,
+      initialCategory: initialCategory,
+    ),
+  );
+}
+
+class _DocumentFormSheet extends ConsumerStatefulWidget {
+  final TripDocument? existing;
+  final String? initialTripId;
+  final String? initialCategory;
+  const _DocumentFormSheet({this.existing, this.initialTripId, this.initialCategory});
+
+  @override
+  ConsumerState<_DocumentFormSheet> createState() => _DocumentFormSheetState();
+}
+
+class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
+  late String _category;
+  String? _tripId;
+  bool _extracting = false;
+  bool _saving = false;
+
+  final _nameCtrl = TextEditingController();
+  // Champs dynamiques stockés par clé
+  final Map<String, TextEditingController> _textCtrls = {};
+  final Map<String, DateTime?> _dates = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _category = widget.existing?.category ?? widget.initialCategory ?? DocumentCategory.hotel;
+    _tripId = widget.existing?.tripId ?? widget.initialTripId;
+    _nameCtrl.text = widget.existing?.name ?? '';
+    _hydrateFromMetadata(widget.existing?.metadata ?? const {});
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    for (final c in _textCtrls.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  // Schéma : liste des champs par catégorie : (clé, label, type, flex)
+  // type : text | multiline | date | time
+  List<_FieldSpec> get _fields {
+    switch (_category) {
+      case DocumentCategory.hotel:
+        return const [
+          _FieldSpec('address', 'Adresse', _FieldType.multiline),
+          _FieldSpec('check_in', 'Check-in', _FieldType.date),
+          _FieldSpec('check_out', 'Check-out', _FieldType.date),
+          _FieldSpec('reservation_number', 'N° de réservation', _FieldType.text),
+        ];
+      case DocumentCategory.flight:
+        return const [
+          _FieldSpec('airline', 'Compagnie', _FieldType.text),
+          _FieldSpec('flight_number', 'N° de vol', _FieldType.text),
+          _FieldSpec('from', 'Aéroport de départ', _FieldType.text),
+          _FieldSpec('to', 'Aéroport d\'arrivée', _FieldType.text),
+          _FieldSpec('date', 'Date', _FieldType.date),
+          _FieldSpec('departure_time', 'Heure de départ', _FieldType.time),
+          _FieldSpec('arrival_time', 'Heure d\'arrivée', _FieldType.time),
+          _FieldSpec('seat', 'Siège', _FieldType.text),
+          _FieldSpec('reservation_number', 'N° de réservation', _FieldType.text),
+        ];
+      case DocumentCategory.train:
+        return const [
+          _FieldSpec('company', 'Compagnie', _FieldType.text),
+          _FieldSpec('train_number', 'N° de train', _FieldType.text),
+          _FieldSpec('from', 'Gare de départ', _FieldType.text),
+          _FieldSpec('to', 'Gare d\'arrivée', _FieldType.text),
+          _FieldSpec('date', 'Date', _FieldType.date),
+          _FieldSpec('departure_time', 'Heure de départ', _FieldType.time),
+          _FieldSpec('arrival_time', 'Heure d\'arrivée', _FieldType.time),
+          _FieldSpec('car', 'Voiture', _FieldType.text),
+          _FieldSpec('seat', 'Place', _FieldType.text),
+          _FieldSpec('class', 'Classe', _FieldType.text),
+          _FieldSpec('reservation_number', 'N° de réservation', _FieldType.text),
+        ];
+      case DocumentCategory.carRental:
+        return const [
+          _FieldSpec('company', 'Agence', _FieldType.text),
+          _FieldSpec('vehicle', 'Véhicule', _FieldType.text),
+          _FieldSpec('pickup_location', 'Prise en charge', _FieldType.text),
+          _FieldSpec('pickup_date', 'Date', _FieldType.date),
+          _FieldSpec('pickup_time', 'Heure', _FieldType.time),
+          _FieldSpec('return_location', 'Retour', _FieldType.text),
+          _FieldSpec('return_date', 'Date retour', _FieldType.date),
+          _FieldSpec('return_time', 'Heure retour', _FieldType.time),
+          _FieldSpec('reservation_number', 'N° de réservation', _FieldType.text),
+        ];
+      case DocumentCategory.ticket:
+        return const [
+          _FieldSpec('venue', 'Lieu', _FieldType.text),
+          _FieldSpec('address', 'Adresse', _FieldType.multiline),
+          _FieldSpec('date', 'Date', _FieldType.date),
+          _FieldSpec('time', 'Heure', _FieldType.time),
+          _FieldSpec('seat', 'Place / rang', _FieldType.text),
+          _FieldSpec('reservation_number', 'N° de billet', _FieldType.text),
+        ];
+      default:
+        return const [
+          _FieldSpec('description', 'Description', _FieldType.multiline),
+          _FieldSpec('date', 'Date', _FieldType.date),
+        ];
+    }
+  }
+
+  TextEditingController _ctrl(String key) => _textCtrls.putIfAbsent(key, () => TextEditingController());
+
+  void _hydrateFromMetadata(Map<String, dynamic> m) {
+    _dates.clear();
+    for (final spec in _fields) {
+      final v = m[spec.key];
+      if (spec.type == _FieldType.date) {
+        if (v is String && v.isNotEmpty) {
+          _dates[spec.key] = DateTime.tryParse(v);
+        }
+      } else if (v != null) {
+        _ctrl(spec.key).text = v.toString();
+      }
+    }
+  }
+
+  Future<void> _pickDate(String key) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _dates[key] ?? now,
+      firstDate: DateTime(now.year - 2),
+      lastDate: DateTime(now.year + 5),
+      locale: const Locale('fr'),
+    );
+    if (picked != null) setState(() => _dates[key] = picked);
+  }
+
+  Future<void> _pickTime(String key) async {
+    final existing = _ctrl(key).text;
+    TimeOfDay initial = TimeOfDay.now();
+    if (existing.contains(':')) {
+      final parts = existing.split(':');
+      final h = int.tryParse(parts[0]) ?? initial.hour;
+      final m = int.tryParse(parts[1]) ?? initial.minute;
+      initial = TimeOfDay(hour: h, minute: m);
+    }
+    final picked = await showTimePicker(context: context, initialTime: initial);
+    if (picked != null) {
+      _ctrl(key).text = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+      setState(() {});
+    }
+  }
+
+  Future<void> _pickImageAndExtract(ImageSource source) async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: source, imageQuality: 85, maxWidth: 2200);
+    if (picked == null) return;
+    final bytes = await picked.readAsBytes();
+    final mimeType = picked.mimeType ?? (picked.path.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg');
+
+    setState(() => _extracting = true);
+    try {
+      final service = ref.read(aiSuggestionsServiceProvider);
+      final extracted = await service.extractDocumentFromImage(
+        bytes,
+        mimeType: mimeType,
+        hintCategory: widget.existing != null ? _category : null,
+      );
+      if (!mounted) return;
+      _applyExtracted(extracted);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Extraction impossible : $e'), backgroundColor: AppColors.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _extracting = false);
+    }
+  }
+
+  Future<void> _chooseImageSource() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Galerie (screenshots, photos)'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('Prendre une photo'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source != null) await _pickImageAndExtract(source);
+  }
+
+  Future<void> _applyExtracted(Map<String, dynamic> extracted) async {
+    final newCategory = (extracted['category'] as String?) ?? _category;
+    final name = (extracted['name'] as String?) ?? '';
+    final metadata = (extracted['metadata'] as Map?)?.cast<String, dynamic>() ?? const {};
+
+    // Auto-détection du voyage : cherche un voyage actif (non terminé)
+    // dont les dates couvrent la date principale extraite du document.
+    String? autoTripId;
+    if (_tripId == null) {
+      final docDate = _extractPrimaryDate(newCategory, metadata);
+      if (docDate != null) {
+        try {
+          final trips = await ref.read(tripsProvider.future);
+          final today = DateTime.now();
+          final todayStart = DateTime(today.year, today.month, today.day);
+          final docDay = DateTime(docDate.year, docDate.month, docDate.day);
+          final matches = trips.where((t) {
+            final startDay = DateTime(t.startDate.year, t.startDate.month, t.startDate.day);
+            final endDay = DateTime(t.endDate.year, t.endDate.month, t.endDate.day);
+            final isActive = !endDay.isBefore(todayStart);
+            final inRange = !docDay.isBefore(startDay) && !docDay.isAfter(endDay);
+            return isActive && inRange;
+          }).toList();
+          developer.log(
+            'Auto-rattachement voyage : docDate=$docDate, voyages actifs matchés=${matches.length}, '
+            'voyages total=${trips.length}',
+            name: 'wallet',
+          );
+          if (matches.length == 1) {
+            autoTripId = matches.first.id;
+          } else if (matches.isEmpty) {
+            developer.log(
+              'Aucun voyage ne couvre cette date. Voyages : '
+              '${trips.map((t) => '${t.title} (${t.startDate.toIso8601String().split('T').first}→${t.endDate.toIso8601String().split('T').first})').join(', ')}',
+              name: 'wallet',
+            );
+          }
+        } catch (e) {
+          developer.log('Erreur auto-rattachement : $e', name: 'wallet');
+        }
+      }
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _category = newCategory;
+      _nameCtrl.text = name;
+      for (final c in _textCtrls.values) {
+        c.clear();
+      }
+      _dates.clear();
+      _hydrateFromMetadata(metadata);
+      if (autoTripId != null) _tripId = autoTripId;
+    });
+
+    final msg = autoTripId != null
+        ? '✨ Détecté : ${categoryLabel(newCategory)} — voyage rattaché automatiquement.'
+        : '✨ Détecté : ${categoryLabel(newCategory)} — vérifie avant d\'enregistrer.';
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  /// Retourne la date "principale" d'un document selon sa catégorie.
+  DateTime? _extractPrimaryDate(String category, Map<String, dynamic> metadata) {
+    String? dateStr;
+    switch (category) {
+      case DocumentCategory.hotel:
+        dateStr = metadata['check_in'] as String?;
+        break;
+      case DocumentCategory.carRental:
+        dateStr = metadata['pickup_date'] as String?;
+        break;
+      default:
+        dateStr = metadata['date'] as String?;
+    }
+    if (dateStr == null || dateStr.isEmpty) return null;
+    return DateTime.tryParse(dateStr);
+  }
+
+  Future<void> _openPasteDialog() async {
+    final text = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final ctrl = TextEditingController();
+        return AlertDialog(
+          title: const Text('Coller l\'email de confirmation'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: TextField(
+              controller: ctrl,
+              maxLines: 10,
+              minLines: 6,
+              decoration: const InputDecoration(
+                hintText: 'Colle ici le mail (Booking, Airbnb, SNCF, compagnie aérienne, billetterie...)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+              child: const Text('Extraire'),
+            ),
+          ],
+        );
+      },
+    );
+    if (text == null || text.isEmpty) return;
+
+    setState(() => _extracting = true);
+    try {
+      final service = ref.read(aiSuggestionsServiceProvider);
+      final extracted = await service.extractDocumentFromText(text, hintCategory: widget.existing != null ? _category : null);
+      if (!mounted) return;
+      _applyExtracted(extracted);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Extraction impossible : $e'), backgroundColor: AppColors.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _extracting = false);
+    }
+  }
+
+  Map<String, dynamic> _buildMetadata() {
+    final m = <String, dynamic>{};
+    for (final spec in _fields) {
+      if (spec.type == _FieldType.date) {
+        final d = _dates[spec.key];
+        if (d != null) m[spec.key] = d.toIso8601String().split('T').first;
+      } else {
+        final v = _ctrl(spec.key).text.trim();
+        if (v.isNotEmpty) m[spec.key] = v;
+      }
+    }
+    return m;
+  }
+
+  Future<void> _save() async {
+    // Force le commit IME : sans ça, si l'utilisateur tape "Enregistrer" alors
+    // que l'adresse a encore le focus (saisie en cours, autocomplete pending,
+    // clavier flottant Samsung, etc.), les derniers caractères peuvent ne pas
+    // être dans le controller.text au moment de la lecture.
+    FocusManager.instance.primaryFocus?.unfocus();
+    // Laisse un tick pour que le framework traite l'unfocus avant de lire les valeurs.
+    await Future<void>.delayed(Duration.zero);
+
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Le nom est requis.')),
+      );
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      final client = ref.read(supabaseProvider);
+      final userId = client.auth.currentUser!.id;
+      final payload = {
+        'user_id': userId,
+        'trip_id': _tripId,
+        'category': _category,
+        'name': name,
+        'metadata': _buildMetadata(),
+      };
+      String? savedId;
+      if (widget.existing != null) {
+        await client.from('trip_documents').update(payload).eq('id', widget.existing!.id);
+        savedId = widget.existing!.id;
+      } else {
+        final inserted = await client.from('trip_documents').insert(payload).select();
+        if ((inserted as List).isEmpty) {
+          throw Exception('Aucun document inséré (vérifie les policies RLS).');
+        }
+        savedId = (inserted.first as Map)['id'] as String?;
+      }
+      ref.invalidate(documentsProvider);
+      if (_tripId != null) {
+        ref.invalidate(tripDocumentsProvider(_tripId!));
+        ref.invalidate(tripHotelProvider(_tripId!));
+      }
+
+      // Si c'est un hôtel attaché à un voyage et qu'il chevauche un autre hébergement,
+      // on demande à l'utilisateur de préciser où il dort chaque nuit de chevauchement.
+      // Sans réponse, le fallback heuristique (séjour le plus court) s'applique à la volée.
+      if (_category == DocumentCategory.hotel && _tripId != null && savedId != null) {
+        final hotels = await ref.read(tripHotelsProvider(_tripId!).future);
+        if (!mounted) return;
+        final savedHotel = hotels.where((h) => h.id == savedId).firstOrNull;
+        if (savedHotel != null) {
+          final overlap = overlappingNights(savedHotel, hotels);
+          if (overlap.isNotEmpty) {
+            await openOverlapNightsSheet(
+              context, ref,
+              tripId: _tripId!,
+              overlapNights: overlap,
+              allHotels: hotels,
+            );
+          }
+        }
+      }
+
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur : $e'), backgroundColor: AppColors.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _delete() async {
+    if (widget.existing == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Supprimer ce document ?'),
+        content: Text(widget.existing!.name),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await ref.read(supabaseProvider).from('trip_documents').delete().eq('id', widget.existing!.id);
+      ref.invalidate(documentsProvider);
+      if (widget.existing!.tripId != null) {
+        ref.invalidate(tripDocumentsProvider(widget.existing!.tripId!));
+        ref.invalidate(tripHotelProvider(widget.existing!.tripId!));
+      }
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur : $e'), backgroundColor: AppColors.error),
+        );
+      }
+    }
+  }
+
+  String _fmtDate(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+
+  @override
+  Widget build(BuildContext context) {
+    final tripsAsync = ref.watch(tripsProvider);
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: SizedBox(
+        height: MediaQuery.of(context).size.height * 0.9,
+        child: Column(
+          children: [
+            const SizedBox(height: 10),
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(widget.existing == null ? 'Ajouter un document' : 'Modifier le document', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                        const SizedBox(height: 2),
+                        Text('Saisie manuelle ou extraction depuis un email.', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      ],
+                    ),
+                  ),
+                  if (widget.existing != null)
+                    IconButton(
+                      onPressed: _delete,
+                      icon: Icon(Icons.delete_outline, color: AppColors.error),
+                      tooltip: 'Supprimer',
+                    ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                    color: AppColors.textSecondary,
+                    tooltip: 'Fermer',
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                children: [
+                  Text(
+                    'Pré-remplir automatiquement avec Gemini',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.3),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _extracting ? null : _openPasteDialog,
+                          icon: const Icon(Icons.content_paste, size: 16),
+                          label: const Text('Texte'),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(0, 44),
+                            foregroundColor: AppColors.accent,
+                            side: BorderSide(color: AppColors.accent),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _extracting ? null : _chooseImageSource,
+                          icon: const Icon(Icons.image_outlined, size: 16),
+                          label: const Text('Image'),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(0, 44),
+                            foregroundColor: AppColors.accent,
+                            side: BorderSide(color: AppColors.accent),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_extracting) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(height: 14, width: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+                        SizedBox(width: 8),
+                        Text('Extraction en cours...', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Sélecteur de catégorie
+                    Text('TYPE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 92,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: [
+                          for (final c in DocumentCategory.all)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: _CategoryChip(
+                                category: c,
+                                selected: _category == c,
+                                onTap: () => setState(() => _category = c),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Rattachement à un voyage
+                    Text('RATTACHÉ À UN VOYAGE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+                    const SizedBox(height: 8),
+                    tripsAsync.when(
+                      loading: () => const SizedBox(height: 40, child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
+                      error: (_, __) => Text('Erreur de chargement des voyages', style: TextStyle(fontSize: 12, color: AppColors.error)),
+                      data: (trips) => DropdownButtonFormField<String?>(
+                        value: _tripId,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          hintText: 'Aucun (document général)',
+                        ),
+                        items: [
+                          const DropdownMenuItem<String?>(value: null, child: Text('Aucun (document général)')),
+                          for (final t in trips)
+                            DropdownMenuItem<String?>(value: t.id, child: Text('${t.coverEmoji} ${t.title}', overflow: TextOverflow.ellipsis)),
+                        ],
+                        onChanged: (v) => setState(() => _tripId = v),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Nom
+                    Text('NOM *', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: _nameCtrl,
+                      decoration: InputDecoration(hintText: _hintForCategory(_category)),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Champs dynamiques
+                    for (final spec in _fields) ...[
+                      Text(spec.label.toUpperCase(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+                      const SizedBox(height: 6),
+                      _buildField(spec),
+                      const SizedBox(height: 14),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+              decoration: BoxDecoration(color: AppColors.surface, border: Border(top: BorderSide(color: AppColors.border))),
+              child: SafeArea(
+                top: false,
+                child: ElevatedButton(
+                  onPressed: _saving ? null : _save,
+                  child: _saving
+                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Text('Enregistrer'),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildField(_FieldSpec spec) {
+    switch (spec.type) {
+      case _FieldType.date:
+        final d = _dates[spec.key];
+        return GestureDetector(
+          onTap: () => _pickDate(spec.key),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              border: Border.all(color: d != null ? AppColors.primary : AppColors.border, width: d != null ? 1.5 : 1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.calendar_today, size: 16, color: AppColors.textSecondary),
+                const SizedBox(width: 8),
+                Text(d != null ? _fmtDate(d) : 'JJ/MM/AAAA', style: TextStyle(fontSize: 13, color: d != null ? AppColors.textPrimary : AppColors.textSecondary)),
+              ],
+            ),
+          ),
+        );
+      case _FieldType.time:
+        return TextField(
+          controller: _ctrl(spec.key),
+          readOnly: true,
+          onTap: () => _pickTime(spec.key),
+          decoration: const InputDecoration(hintText: 'HH:MM', suffixIcon: Icon(Icons.access_time, size: 18)),
+        );
+      case _FieldType.multiline:
+        return TextField(
+          controller: _ctrl(spec.key),
+          minLines: 1,
+          maxLines: 3,
+        );
+      case _FieldType.text:
+        return TextField(
+          controller: _ctrl(spec.key),
+        );
+    }
+  }
+
+  String _hintForCategory(String c) {
+    switch (c) {
+      case DocumentCategory.hotel: return 'Ex : Hôtel Memmo Alfama';
+      case DocumentCategory.flight: return 'Ex : Vol Paris → Lisbonne';
+      case DocumentCategory.train: return 'Ex : TGV Paris → Marseille';
+      case DocumentCategory.carRental: return 'Ex : Location Hertz Lisbonne';
+      case DocumentCategory.ticket: return 'Ex : Concert Radiohead';
+      default: return 'Nom du document';
+    }
+  }
+}
+
+class _CategoryChip extends StatelessWidget {
+  final String category;
+  final bool selected;
+  final VoidCallback onTap;
+  const _CategoryChip({required this.category, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 80,
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primaryLight : AppColors.surface,
+          border: Border.all(color: selected ? AppColors.primary : AppColors.border, width: selected ? 1.5 : 1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(categoryEmoji(category), style: const TextStyle(fontSize: 24)),
+            const SizedBox(height: 4),
+            Text(
+              categoryLabel(category),
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 10, fontWeight: selected ? FontWeight.w700 : FontWeight.w500, color: selected ? AppColors.primary : AppColors.textPrimary),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+enum _FieldType { text, multiline, date, time }
+
+class _FieldSpec {
+  final String key;
+  final String label;
+  final _FieldType type;
+  const _FieldSpec(this.key, this.label, this.type);
+}

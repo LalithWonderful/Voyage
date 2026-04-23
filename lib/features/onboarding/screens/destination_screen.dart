@@ -1,0 +1,517 @@
+import 'dart:math';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:voyage/core/theme/app_theme.dart';
+import 'package:voyage/features/auth/providers/auth_provider.dart';
+import 'package:voyage/features/trips/models/trip_model.dart';
+import 'package:voyage/features/trips/providers/trips_provider.dart';
+
+class DestinationScreen extends ConsumerStatefulWidget {
+  const DestinationScreen({super.key});
+
+  @override
+  ConsumerState<DestinationScreen> createState() => _DestinationScreenState();
+}
+
+class _DestinationScreenState extends ConsumerState<DestinationScreen> {
+  final _searchCtrl = TextEditingController();
+  DateTime? _startDate;
+  DateTime? _endDate;
+  bool _loading = false;
+  int? _selectedIndex;
+  final List<Traveler> _travelers = [];
+
+  final _destinations = const [
+    ('🇵🇹', 'Lisbonne, Portugal', 'Road-trip côtier · Nightlife · Esthétique', 98, [Color(0xFFF59E0B), Color(0xFFEF4444)]),
+    ('🇲🇦', 'Maroc, route des Atlas', 'Road-trip · Spots populaires', 94, [Color(0xFFF97316), Color(0xFFDC2626)]),
+    ('🇮🇸', 'Islande, ring road', 'Road-trip · Esthétique · Randonnée', 91, [Color(0xFF6366F1), Color(0xFF06B6D4)]),
+    ('🇮🇩', 'Bali, Indonésie', 'Nightlife · Bons plans', 86, [Color(0xFF10B981), Color(0xFF14B8A6)]),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _searchCtrl.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _addTraveler() async {
+    final result = await showDialog<Traveler>(
+      context: context,
+      builder: (_) => const _AddTravelerDialog(),
+    );
+    if (result != null) setState(() => _travelers.add(result));
+  }
+
+  Future<void> _pickDate({required bool isStart}) async {
+    final now = DateTime.now();
+    final initial = isStart ? (_startDate ?? now) : (_endDate ?? (_startDate ?? now));
+    final first = isStart ? now : (_startDate ?? now);
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial.isBefore(first) ? first : initial,
+      firstDate: first,
+      lastDate: DateTime(now.year + 3),
+      locale: const Locale('fr'),
+    );
+    if (picked == null) return;
+
+    setState(() {
+      if (isStart) {
+        _startDate = picked;
+        if (_endDate != null && _endDate!.isBefore(picked)) _endDate = null;
+      } else {
+        _endDate = picked;
+      }
+    });
+  }
+
+  String? get _chosenDestination {
+    final typed = _searchCtrl.text.trim();
+    if (typed.isNotEmpty) return typed;
+    if (_selectedIndex != null) return _destinations[_selectedIndex!].$2;
+    return null;
+  }
+
+  String? get _chosenEmoji {
+    if (_searchCtrl.text.trim().isNotEmpty) return '✈️';
+    if (_selectedIndex != null) return _destinations[_selectedIndex!].$1;
+    return '✈️';
+  }
+
+  bool get _canSave =>
+      _chosenDestination != null && _startDate != null && _endDate != null && !_loading;
+
+  Future<void> _save() async {
+    if (!_canSave) return;
+    setState(() => _loading = true);
+    try {
+      final client = ref.read(supabaseProvider);
+      final userId = client.auth.currentUser!.id;
+      final inserted = await client.from('trips').insert({
+        'user_id': userId,
+        'title': _chosenDestination!,
+        'destination': _chosenDestination!,
+        'start_date': _startDate!.toIso8601String().split('T').first,
+        'end_date': _endDate!.toIso8601String().split('T').first,
+        'cover_emoji': _chosenEmoji,
+        'status': 'upcoming',
+        'travelers': _travelers.map((t) => t.toJson()).toList(),
+      }).select();
+
+      if ((inserted as List).isEmpty) {
+        throw Exception('Voyage non créé (vérifie les policies RLS INSERT sur trips).');
+      }
+
+      await client.from('user_profiles').update({
+        'onboarding_completed_at': DateTime.now().toIso8601String(),
+      }).eq('id', userId);
+
+      ref.invalidate(tripsProvider);
+      ref.invalidate(hasTripsProvider);
+      ref.invalidate(userProfileProvider);
+      if (mounted) context.go('/trips');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur : $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _inspireMe() {
+    final random = Random();
+    final i = random.nextInt(_destinations.length);
+    setState(() {
+      _selectedIndex = i;
+      _searchCtrl.clear();
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('✨ On te propose : ${_destinations[i].$2}'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildProgress(2),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Où tu pars ?', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                    const SizedBox(height: 6),
+                    Text('Choisis une destination, ou laisse-toi inspirer.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: _searchCtrl,
+                      onChanged: (v) {
+                        if (v.trim().isNotEmpty && _selectedIndex != null) {
+                          setState(() => _selectedIndex = null);
+                        }
+                      },
+                      decoration: InputDecoration(
+                        hintText: '🔍 Pays, ville, région...',
+                        hintStyle: TextStyle(color: AppColors.textSecondary),
+                        fillColor: AppColors.surface,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    Text('PÉRIODE DU VOYAGE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(child: _DateField(
+                          label: 'Départ',
+                          value: _startDate != null ? _formatDate(_startDate!) : null,
+                          onTap: () => _pickDate(isStart: true),
+                        )),
+                        const SizedBox(width: 10),
+                        Expanded(child: _DateField(
+                          label: 'Retour',
+                          value: _endDate != null ? _formatDate(_endDate!) : null,
+                          onTap: () => _pickDate(isStart: false),
+                        )),
+                      ],
+                    ),
+                    if (_startDate != null && _endDate != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(
+                          '${_endDate!.difference(_startDate!).inDays + 1} jours',
+                          style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    const SizedBox(height: 20),
+
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('VOYAGEURS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+                        Text('${_travelers.length} ${_travelers.length > 1 ? 'personnes' : 'personne'}', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ..._travelers.asMap().entries.map((e) => _TravelerTile(
+                      traveler: e.value,
+                      onRemove: () => setState(() => _travelers.removeAt(e.key)),
+                    )),
+                    OutlinedButton.icon(
+                      onPressed: _addTraveler,
+                      icon: const Icon(Icons.person_add_alt_1, size: 18),
+                      label: const Text('Ajouter un voyageur'),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 44),
+                        foregroundColor: AppColors.primary,
+                        side: BorderSide(color: AppColors.primary),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    Text('PARFAITES POUR VOTRE PROFIL', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+                    const SizedBox(height: 10),
+                    ...List.generate(_destinations.length, (i) {
+                      final d = _destinations[i];
+                      return _DestCard(
+                        flag: d.$1, name: d.$2, meta: d.$3, match: d.$4, colors: d.$5,
+                        selected: _selectedIndex == i,
+                        onTap: () => setState(() {
+                          _selectedIndex = i;
+                          _searchCtrl.clear();
+                        }),
+                      );
+                    }),
+                    const SizedBox(height: 12),
+                    OutlinedButton(
+                      onPressed: _loading ? null : _inspireMe,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.accent,
+                        side: BorderSide(color: AppColors.accent),
+                      ),
+                      child: const Text('🎲 Inspire-moi'),
+                    ),
+                    const SizedBox(height: 10),
+                    ElevatedButton(
+                      onPressed: _canSave ? _save : null,
+                      child: _loading
+                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          : const Text('Créer mon voyage →'),
+                    ),
+                    if (!_canSave && !_loading)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          _chosenDestination == null
+                              ? 'Choisis une destination pour continuer'
+                              : 'Sélectionne les dates de départ et de retour',
+                          style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProgress(int step) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: List.generate(3, (i) => Expanded(
+            child: Container(
+              height: 3,
+              margin: EdgeInsets.only(right: i < 2 ? 6 : 0),
+              decoration: BoxDecoration(
+                color: i < step ? AppColors.success : (i == step ? AppColors.primary : AppColors.border),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ))),
+          const SizedBox(height: 8),
+          Row(children: [
+            GestureDetector(onTap: () => context.go('/onboarding/interests'), child: const Text('←', style: TextStyle(fontSize: 20))),
+            const SizedBox(width: 10),
+            Text('Étape ${step + 1} / 3', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+            const Spacer(),
+            TextButton(
+              onPressed: () => context.go('/trips'),
+              child: Text('Passer', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+            ),
+          ]),
+        ],
+      ),
+    );
+  }
+}
+
+class _DateField extends StatelessWidget {
+  final String label;
+  final String? value;
+  final VoidCallback onTap;
+
+  const _DateField({required this.label, this.value, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          border: Border.all(color: value != null ? AppColors.primary : AppColors.border, width: value != null ? 1.5 : 1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.3)),
+            const SizedBox(height: 4),
+            Text(
+              value ?? 'JJ/MM/AAAA',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: value != null ? AppColors.textPrimary : AppColors.textSecondary),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DestCard extends StatelessWidget {
+  final String flag, name, meta;
+  final int match;
+  final List<Color> colors;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _DestCard({required this.flag, required this.name, required this.meta, required this.match, required this.colors, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primaryLight : AppColors.surface,
+          border: Border.all(color: selected ? AppColors.primary : AppColors.border, width: selected ? 1.5 : 1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 50, height: 50,
+              decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), gradient: LinearGradient(colors: colors)),
+              child: Center(child: Text(flag, style: const TextStyle(fontSize: 24))),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                const SizedBox(height: 2),
+                Text(meta, style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+              ],
+            )),
+            if (selected)
+              Container(
+                width: 24, height: 24,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: AppColors.primary),
+                child: const Icon(Icons.check, size: 14, color: Colors.white),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(color: AppColors.success, borderRadius: BorderRadius.circular(10)),
+                child: Text('$match%', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TravelerTile extends StatelessWidget {
+  final Traveler traveler;
+  final VoidCallback onRemove;
+
+  const _TravelerTile({required this.traveler, required this.onRemove});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 32, height: 32,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: AppColors.primaryLight),
+            child: Center(
+              child: Text(
+                traveler.name.isNotEmpty ? traveler.name[0].toUpperCase() : '?',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.primary),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              '${traveler.name} · ${traveler.age} ans',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+            ),
+          ),
+          IconButton(
+            onPressed: onRemove,
+            icon: Icon(Icons.close, size: 18, color: AppColors.textSecondary),
+            splashRadius: 18,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AddTravelerDialog extends StatefulWidget {
+  const _AddTravelerDialog();
+
+  @override
+  State<_AddTravelerDialog> createState() => _AddTravelerDialogState();
+}
+
+class _AddTravelerDialogState extends State<_AddTravelerDialog> {
+  final _nameCtrl = TextEditingController();
+  final _ageCtrl = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _ageCtrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final name = _nameCtrl.text.trim();
+    final age = int.tryParse(_ageCtrl.text.trim());
+    if (name.isEmpty) {
+      setState(() => _error = 'Le prénom est requis.');
+      return;
+    }
+    if (age == null || age < 0 || age > 120) {
+      setState(() => _error = 'Âge invalide.');
+      return;
+    }
+    Navigator.of(context).pop(Traveler(name: name, age: age));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Ajouter un voyageur'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _nameCtrl,
+            decoration: const InputDecoration(labelText: 'Prénom'),
+            textCapitalization: TextCapitalization.words,
+            autofocus: true,
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _ageCtrl,
+            decoration: InputDecoration(labelText: 'Âge', suffixText: 'ans', errorText: _error),
+            keyboardType: TextInputType.number,
+            onSubmitted: (_) => _submit(),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Annuler')),
+        ElevatedButton(onPressed: _submit, child: const Text('Ajouter')),
+      ],
+    );
+  }
+}

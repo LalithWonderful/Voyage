@@ -1,0 +1,76 @@
+name: voyage
+description: "Voyage - Your intelligent travel companion"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # Backend
+  supabase_flutter: ^2.9.0
+
+  # AI
+  google_generative_ai: ^0.4.6
+
+  # HTTP
+  http: ^1.2.2
+
+  # Notifications locales
+  flutter_local_notifications: ^18.0.1
+  timezone: ^0.9.4
+  flutter_timezone: ^3.0.1
+
+  # Géolocalisation
+  geolocator: ^13.0.1
+
+  # Navigation
+  go_router: ^15.1.2
+
+  # State management
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+
+  # Maps
+  google_maps_flutter: ^2.10.0
+
+  # UI
+  cached_network_image: ^3.4.1
+  flutter_svg: ^2.0.17
+  shimmer: ^3.0.0
+
+  # Utils
+  intl: ^0.20.2
+  shared_preferences: ^2.5.3
+  uuid: ^4.5.1
+  image_picker: ^1.1.2
+  file_picker: ^10.1.2
+  url_launcher: ^6.3.1
+
+  # Deep links (reset password, etc.)
+  app_links: ^6.3.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  build_runner: ^2.4.15
+  riverpod_generator: ^2.6.5
+  custom_lint: ^0.7.5
+  riverpod_lint: ^2.6.5
+
+flutter:
+  uses-material-design: true
+  generate: true
+
+  assets:
+    - assets/images/
+    - assets/icons/

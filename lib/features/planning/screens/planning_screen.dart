@@ -1,0 +1,2064 @@
+import 'dart:async';
+import 'dart:developer' as developer;
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:voyage/core/services/location_service.dart';
+import 'package:voyage/core/services/notification_service.dart';
+import 'package:voyage/core/theme/app_theme.dart';
+import 'package:voyage/core/widgets/converted_price.dart';
+import 'package:voyage/features/auth/providers/auth_provider.dart';
+import 'package:voyage/features/planning/models/activity_suggestion_model.dart';
+import 'package:voyage/features/planning/models/trip_activity_model.dart';
+import 'package:voyage/features/planning/models/trip_transport_model.dart';
+import 'package:voyage/features/planning/providers/planning_provider.dart';
+import 'package:voyage/features/planning/services/places_service.dart';
+import 'package:voyage/features/planning/widgets/activity_create_sheet.dart';
+import 'package:voyage/features/planning/widgets/activity_detail_sheet.dart';
+import 'package:voyage/features/planning/widgets/suggestion_detail_sheet.dart';
+import 'package:voyage/features/planning/services/ai_suggestions_service.dart';
+import 'package:voyage/features/planning/services/document_to_activity.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:voyage/features/wallet/providers/wallet_provider.dart';
+import 'package:voyage/features/wallet/widgets/document_form_sheet.dart';
+import 'package:voyage/features/trips/models/trip_model.dart';
+import 'package:voyage/features/trips/providers/trips_provider.dart';
+
+class PlanningScreen extends ConsumerWidget {
+  final String tripId;
+  const PlanningScreen({super.key, required this.tripId});
+
+  Future<void> _generateSuggestions(BuildContext context, WidgetRef ref, Trip trip) async {
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final messenger = ScaffoldMessenger.of(context);
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      builder: (_) => const _LoadingDialog(),
+    );
+
+    bool dialogClosed = false;
+    void closeDialog() {
+      if (!dialogClosed) {
+        dialogClosed = true;
+        navigator.pop();
+      }
+    }
+
+    try {
+      final profile = await ref.read(userProfileProvider.future);
+      final interests = await ref.read(userInterestsProvider.future);
+      final existing = await ref.read(planningTimelineProvider(tripId).future);
+      final hotels = await ref.read(tripHotelsProvider(tripId).future);
+      // Préférences : trip-level si définies, sinon fallback profil utilisateur
+      final effectiveTravelerType = trip.travelerType ?? profile?['traveler_type'] as String?;
+      final effectiveInterests = (trip.interests != null && trip.interests!.isNotEmpty) ? trip.interests! : interests;
+
+      // Hôtel d'ancrage GPS : celui qui couvre aujourd'hui (ou le premier si aucun ne colle)
+      final anchorHotel = hotelForDay(hotels, DateTime.now());
+
+      // Position GPS + distance vers la destination (cached 1h, fallback silencieux si refusé)
+      final userLocation = await LocationService.instance.getCurrentLocation();
+      int? userToDestinationMin;
+      if (userLocation != null) {
+        final anchorQuery = anchorHotel?.metadata['address'] as String? ?? trip.destination;
+        final geo = await ref.read(geocodingServiceProvider).geocode(anchorQuery);
+        if (geo != null) {
+          final km = haversineKm(userLocation.latitude, userLocation.longitude, geo.latitude, geo.longitude);
+          userToDestinationMin = estimatedTravelMinutes(km);
+        }
+      }
+
+      // Convertit les hôtels du trip en HotelStay pour le prompt Gemini
+      DateTime? parseMeta(dynamic v) => v is String ? DateTime.tryParse(v) : null;
+      final hotelStays = hotels
+          .map((h) => HotelStay(
+                name: h.name,
+                address: h.metadata['address'] as String?,
+                checkIn: parseMeta(h.metadata['check_in']),
+                checkOut: parseMeta(h.metadata['check_out']),
+              ))
+          .toList();
+
+      final service = ref.read(aiSuggestionsServiceProvider);
+      final result = await service.suggestActivities(
+        trip: trip,
+        travelerType: effectiveTravelerType,
+        interests: effectiveInterests,
+        existingActivities: existing,
+        hotels: hotelStays,
+        userLat: userLocation?.latitude,
+        userLng: userLocation?.longitude,
+        userToDestinationTravelMin: userToDestinationMin,
+      );
+
+      String norm(String s) => s.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
+      final existingTitles = existing.map((a) => norm(a.title)).toSet();
+      bool isHotelReturn(String title) => title.toLowerCase().trim().startsWith('retour');
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final earliestMinToday = now.hour * 60 + now.minute + 30; // current + buffer
+
+      bool isInPast(ActivitySuggestion s) {
+        final day = DateTime(s.dayDate.year, s.dayDate.month, s.dayDate.day);
+        if (day.isBefore(today)) return true;
+        if (day.isAtSameMomentAs(today)) {
+          final parts = s.startTime.split(':');
+          if (parts.length != 2) return false;
+          final h = int.tryParse(parts[0]) ?? 0;
+          final m = int.tryParse(parts[1]) ?? 0;
+          return (h * 60 + m) < earliestMinToday;
+        }
+        return false;
+      }
+
+      final suggestions = result.activities
+          .where((s) => !existingTitles.contains(norm(s.title)))
+          .where((s) => !isHotelReturn(s.title))
+          .where((s) => !isInPast(s)) // bloque date passée ET heure passée + buffer
+          .toList();
+
+      closeDialog();
+      if (!context.mounted) return;
+      if (suggestions.isEmpty) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Aucune nouvelle suggestion — ton planning est déjà bien rempli.')),
+        );
+        return;
+      }
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: AppColors.background,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        builder: (_) => _SuggestionsSheet(
+          tripId: tripId,
+          suggestions: suggestions,
+          transportSuggestions: result.transports,
+          travelerType: effectiveTravelerType,
+        ),
+      );
+      ref.invalidate(tripActivitiesProvider(tripId));
+      ref.invalidate(tripTransportsProvider(tripId));
+    } catch (e) {
+      closeDialog();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Erreur IA : $e', maxLines: 4),
+          backgroundColor: AppColors.error,
+          duration: const Duration(seconds: 6),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tripAsync = ref.watch(tripByIdProvider(tripId));
+    final activitiesAsync = ref.watch(planningTimelineProvider(tripId));
+    final trip = tripAsync.valueOrNull;
+    final hasActivities = activitiesAsync.valueOrNull?.isNotEmpty ?? false;
+
+    // Reschedule les notifs locales dès que le timeline (activités réelles + docs) change.
+    ref.listen(tripActivitiesProvider(tripId), (_, next) {
+      final activities = next.valueOrNull;
+      if (activities == null) return;
+      final docs = ref.read(tripDocumentsProvider(tripId)).valueOrNull ?? const [];
+      NotificationService.instance.rescheduleForTrip(activities: activities, documents: docs);
+    });
+    ref.listen(tripDocumentsProvider(tripId), (_, next) {
+      final docs = next.valueOrNull;
+      if (docs == null) return;
+      final activities = ref.read(tripActivitiesProvider(tripId)).valueOrNull ?? const [];
+      NotificationService.instance.rescheduleForTrip(activities: activities, documents: docs);
+    });
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      floatingActionButton: (trip == null || !hasActivities)
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () => _generateSuggestions(context, ref, trip),
+              backgroundColor: AppColors.accent,
+              icon: const Icon(Icons.auto_awesome, color: Colors.white),
+              label: const Text('Suggérer', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+            ),
+      body: Column(
+        children: [
+          _GradientHeader(
+            tripId: tripId,
+            trip: trip,
+          ),
+          _TabBar(tripId: tripId),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () async {
+                ref.invalidate(tripActivitiesProvider(tripId));
+                await ref.read(tripActivitiesProvider(tripId).future);
+              },
+              child: Builder(builder: (context) {
+                // Garde la valeur précédente pendant un refetch pour éviter un flash
+                final activities = activitiesAsync.valueOrNull;
+                if (activities == null) {
+                  if (activitiesAsync.hasError) {
+                    return Center(child: Text('Erreur : ${activitiesAsync.error}', style: TextStyle(color: AppColors.error)));
+                  }
+                  return ListView(children: const [SizedBox(height: 200, child: Center(child: CircularProgressIndicator()))]);
+                }
+                if (activities.isEmpty) {
+                  return ListView(children: [
+                    SizedBox(
+                      height: MediaQuery.of(context).size.height * 0.5,
+                      child: _EmptyPlanning(
+                        onSuggest: trip == null ? null : () => _generateSuggestions(context, ref, trip),
+                        onAddManual: () => openActivityCreateSheet(context, ref, tripId: tripId, defaultDay: trip?.startDate ?? DateTime.now()),
+                      ),
+                    ),
+                  ]);
+                }
+                final transports = ref.watch(tripTransportsProvider(tripId)).valueOrNull ?? const [];
+                return _PlanningContent(tripId: tripId, activities: activities, transports: transports);
+              }),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LoadingDialog extends StatelessWidget {
+  const _LoadingDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('✨', style: TextStyle(fontSize: 48)),
+            SizedBox(height: 12),
+            Text('L\'IA prépare ton planning...', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            SizedBox(height: 4),
+            Text('Quelques secondes', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+            SizedBox(height: 16),
+            CircularProgressIndicator(strokeWidth: 2.5),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GradientHeader extends StatelessWidget {
+  final String tripId;
+  final Trip? trip;
+  const _GradientHeader({required this.tripId, required this.trip});
+
+  static const _months = [
+    'janv.', 'févr.', 'mars', 'avril', 'mai', 'juin',
+    'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.',
+  ];
+
+  String _formatRange() {
+    if (trip == null) return '';
+    final s = trip!.startDate;
+    final e = trip!.endDate;
+    final sameMonth = s.month == e.month && s.year == e.year;
+    if (sameMonth) {
+      return '${s.day} – ${e.day} ${_months[e.month - 1]} ${e.year}';
+    }
+    return '${s.day} ${_months[s.month - 1]} – ${e.day} ${_months[e.month - 1]} ${e.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF2563EB), Color(0xFF4F46E5)]),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                GestureDetector(onTap: () => context.go('/trips/$tripId'), child: const Icon(Icons.arrow_back, color: Colors.white)),
+                const Spacer(),
+                const Icon(Icons.more_horiz, color: Colors.white),
+              ]),
+              const SizedBox(height: 10),
+              Text(
+                trip != null ? '${trip!.title} ${trip!.coverEmoji}' : '...',
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+              Text(
+                _formatRange(),
+                style: const TextStyle(fontSize: 12, color: Colors.white70),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TabBar extends StatelessWidget {
+  final String tripId;
+  const _TabBar({required this.tripId});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.surface,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(children: [
+          _tab(context, 'Planning', active: true, onTap: null),
+          _tab(context, '🗺️ Carte', onTap: () => context.go('/trips/$tripId/map')),
+          _tab(context, '📄 Docs', onTap: () => context.go('/trips/$tripId')),
+          _tab(context, '💬 Assistant', onTap: () => context.go('/assistant')),
+        ]),
+      ),
+    );
+  }
+
+  Widget _tab(BuildContext context, String label, {bool active = false, VoidCallback? onTap}) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+      decoration: BoxDecoration(
+        color: active ? AppColors.primary : AppColors.primaryLight,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: active ? Colors.white : AppColors.primary)),
+    ),
+  );
+}
+
+class _EmptyPlanning extends StatelessWidget {
+  final VoidCallback? onSuggest;
+  final VoidCallback? onAddManual;
+  const _EmptyPlanning({this.onSuggest, this.onAddManual});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text('📅', style: TextStyle(fontSize: 56)),
+            const SizedBox(height: 16),
+            Text('Aucune activité pour l\'instant', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            const SizedBox(height: 6),
+            Text('Laisse l\'IA construire un planning ou crée tes activités à la main.', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.5)),
+            if (onSuggest != null) ...[
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: onSuggest,
+                icon: const Icon(Icons.auto_awesome),
+                label: const Text('Suggérer des activités'),
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent),
+              ),
+            ],
+            if (onAddManual != null) ...[
+              const SizedBox(height: 10),
+              TextButton.icon(
+                onPressed: onAddManual,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Ou ajouter une activité manuellement'),
+                style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SuggestionsSheet extends ConsumerStatefulWidget {
+  final String tripId;
+  final List<ActivitySuggestion> suggestions;
+  final List<TransportSuggestion> transportSuggestions;
+  final String? travelerType;
+  const _SuggestionsSheet({
+    required this.tripId,
+    required this.suggestions,
+    this.transportSuggestions = const [],
+    this.travelerType,
+  });
+
+  @override
+  ConsumerState<_SuggestionsSheet> createState() => _SuggestionsSheetState();
+}
+
+class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
+  late final Set<int> _selected;
+  bool _saving = false;
+  final Map<String, Future<PlaceInfo>> _placeCache = {};
+
+  Future<PlaceInfo> _placeInfoFor(ActivitySuggestion s) {
+    return _placeCache.putIfAbsent(s.title, () {
+      final cache = ref.read(placesCacheServiceProvider);
+      final destination = ref.read(tripByIdProvider(widget.tripId)).valueOrNull?.destination ?? '';
+      return cache.findInfo(title: s.title, destination: destination);
+    });
+  }
+
+  static const _months = [
+    'janv.', 'févr.', 'mars', 'avril', 'mai', 'juin',
+    'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = Set<int>.from(List.generate(widget.suggestions.length, (i) => i));
+  }
+
+  /// Génère en BACKGROUND les descriptions pour les nouvelles activités, en un seul appel Gemini.
+  /// Si l'utilisateur ouvre une activité avant la fin du batch, le fallback single-shot prend le relais.
+  Future<void> _generateDescriptionsInBackground(List<TripActivity> activities) async {
+    if (activities.isEmpty) return;
+    try {
+      final trip = await ref.read(tripByIdProvider(widget.tripId).future);
+      if (trip == null) return;
+      final service = ref.read(aiSuggestionsServiceProvider);
+      final descriptions = await service.describeActivitiesBatch(
+        items: activities
+            .map((a) => (title: a.title, detail: a.detail, tag: a.tag as String?))
+            .toList(),
+        destination: trip.destination,
+      );
+      final client = ref.read(supabaseProvider);
+      for (var i = 0; i < activities.length && i < descriptions.length; i++) {
+        final desc = descriptions[i];
+        if (desc.isEmpty) continue;
+        try {
+          await client.from('trip_activities').update({'description': desc}).eq('id', activities[i].id);
+        } catch (_) {}
+      }
+      ref.invalidate(tripActivitiesProvider(widget.tripId));
+      developer.log('Batch descriptions terminé (${descriptions.length})', name: 'planning');
+    } catch (e) {
+      developer.log('Erreur batch descriptions : $e', name: 'planning');
+    }
+  }
+
+  /// Insère automatiquement une activité "Retour à [hôtel]" en fin de chaque journée
+  /// couverte par au moins une réservation hôtel. Si le voyage a plusieurs hébergements
+  /// (voyage multi-villes), chaque jour utilise l'hôtel dont la période couvre ce jour.
+  /// Pas de retour ajouté si : pas d'hôtel, jour hors période, jour déjà pourvu d'un retour.
+  Future<void> _autoInsertHotelReturns(dynamic client) async {
+    final hotels = await ref.read(tripHotelsProvider(widget.tripId).future);
+    if (hotels.isEmpty) return;
+    final trip = await ref.read(tripByIdProvider(widget.tripId).future);
+    if (trip == null) return;
+
+    final all = await client
+        .from('trip_activities')
+        .select()
+        .eq('trip_id', widget.tripId);
+    final activities = (all as List).map((e) => TripActivity.fromJson(e)).toList();
+
+    final byDay = <DateTime, List<TripActivity>>{};
+    for (final a in activities) {
+      final key = DateTime(a.dayDate.year, a.dayDate.month, a.dayDate.day);
+      byDay.putIfAbsent(key, () => []).add(a);
+    }
+
+    final rows = <Map<String, dynamic>>[];
+    for (final entry in byDay.entries) {
+      final day = entry.key;
+      // Hôtel actif pour ce jour précis (ou null si aucun ne couvre ce jour)
+      final dayHotel = hotelForDay(hotels, day);
+      if (dayHotel == null) continue;
+      DateTime? tryParseDate(dynamic v) => v is String ? DateTime.tryParse(v) : null;
+      final ci = tryParseDate(dayHotel.metadata['check_in']);
+      final co = tryParseDate(dayHotel.metadata['check_out']);
+      // Si l'hôtel a des dates, on vérifie que ce jour est bien dans sa période.
+      // Sans dates, on accepte tous les jours du voyage (legacy).
+      if (ci != null && co != null) {
+        final inRange = !day.isBefore(DateTime(ci.year, ci.month, ci.day)) &&
+            !day.isAfter(DateTime(co.year, co.month, co.day));
+        if (!inRange) continue;
+      }
+
+      final hasReturn = entry.value.any((a) => a.title.toLowerCase().trim().startsWith('retour'));
+      if (hasReturn) continue;
+
+      final sorted = [...entry.value]..sort((a, b) => a.startTime.compareTo(b.startTime));
+      String returnTime = '22:00';
+      if (sorted.isNotEmpty) {
+        final last = sorted.last;
+        final parts = last.startTime.split(':');
+        if (parts.length == 2) {
+          final h = int.tryParse(parts[0]);
+          final m = int.tryParse(parts[1]);
+          if (h != null && m != null) {
+            final endMinutes = h * 60 + m + (last.durationMinutes ?? 0) + 30;
+            final finalH = (endMinutes ~/ 60).clamp(0, 23);
+            final finalM = endMinutes % 60;
+            returnTime = '${finalH.toString().padLeft(2, '0')}:${finalM.toString().padLeft(2, '0')}';
+          }
+        }
+      }
+
+      rows.add({
+        'trip_id': widget.tripId,
+        'day_date': day.toIso8601String().split('T').first,
+        'start_time': returnTime,
+        'title': 'Retour à ${dayHotel.name}',
+        'tag': 'Hébergement',
+        'duration_minutes': 15,
+        'price_estimate': 'Gratuit',
+        'suggested': true,
+      });
+    }
+
+    if (rows.isNotEmpty) {
+      developer.log('Insertion de ${rows.length} retour(s) à l\'hôtel', name: 'planning');
+      await client.from('trip_activities').insert(rows);
+    }
+  }
+
+  Future<void> _save() async {
+    if (_selected.isEmpty) return;
+    setState(() => _saving = true);
+    try {
+      final client = ref.read(supabaseProvider);
+      final selectedSuggestions = _selected.map((i) => widget.suggestions[i]).toList();
+      final rows = selectedSuggestions.map((s) => s.toInsertJson(widget.tripId)).toList();
+      developer.log('Insertion de ${rows.length} activité(s) dans trip_activities', name: 'planning');
+      final inserted = await client.from('trip_activities').insert(rows).select();
+      developer.log('Résultat insert : ${(inserted as List).length} ligne(s) retournée(s)', name: 'planning');
+      if (inserted.isEmpty) {
+        throw Exception('Aucune activité insérée (vérifie les policies RLS sur trip_activities).');
+      }
+
+      // Génération des descriptions en BATCH (fire-and-forget — l'UI n'attend pas)
+      final insertedActivities = inserted.map((e) => TripActivity.fromJson(e)).toList();
+      unawaited(_generateDescriptionsInBackground(insertedActivities));
+
+      // Insert auto des retours à l'hôtel (si hôtel renseigné + jour dans la période de la résa)
+      await _autoInsertHotelReturns(client);
+
+      // Récupère toutes les activités du voyage (existantes + nouvellement insérées) triées par jour + heure
+      final all = await client
+          .from('trip_activities')
+          .select()
+          .eq('trip_id', widget.tripId)
+          .order('day_date', ascending: true)
+          .order('start_time', ascending: true);
+      final allActivities = (all as List).map((e) => TripActivity.fromJson(e)).toList();
+
+      // Récupère les transports déjà en base pour éviter les doublons
+      final existingTransportsData = await client
+          .from('trip_transports')
+          .select('from_activity_id, to_activity_id')
+          .eq('trip_id', widget.tripId);
+      final existingPairs = (existingTransportsData as List)
+          .map((e) => '${e['from_activity_id']}|${e['to_activity_id']}')
+          .toSet();
+
+      // Indexe les suggestions de transport par (titre from, titre to) normalisés
+      String norm(String s) => s.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
+      final transportByKey = <String, TransportSuggestion>{};
+      for (final t in widget.transportSuggestions) {
+        transportByKey['${norm(t.fromTitle)}|${norm(t.toTitle)}'] = t;
+      }
+
+      // Construit les transports pour chaque paire consécutive dans un même jour
+      final transportRows = <Map<String, dynamic>>[];
+      for (var i = 0; i < allActivities.length - 1; i++) {
+        final a = allActivities[i];
+        final b = allActivities[i + 1];
+        final sameDay = a.dayDate.year == b.dayDate.year &&
+            a.dayDate.month == b.dayDate.month &&
+            a.dayDate.day == b.dayDate.day;
+        if (!sameDay) continue;
+        final pairKey = '${a.id}|${b.id}';
+        if (existingPairs.contains(pairKey)) continue;
+        final key = '${norm(a.title)}|${norm(b.title)}';
+        final t = transportByKey[key];
+        if (t == null || t.options.isEmpty) continue;
+        final defaultOpt = t.options.firstWhere(
+          (o) => o.mode == t.defaultMode,
+          orElse: () => t.options.first,
+        );
+        transportRows.add({
+          'trip_id': widget.tripId,
+          'from_activity_id': a.id,
+          'to_activity_id': b.id,
+          'selected_mode': defaultOpt.mode,
+          'selected_duration_minutes': defaultOpt.durationMinutes,
+          'selected_price_estimate': defaultOpt.priceEstimate,
+          'options': t.options.map((o) => o.toJson()).toList(),
+        });
+      }
+
+      if (transportRows.isNotEmpty) {
+        developer.log('Insertion de ${transportRows.length} trajet(s) dans trip_transports', name: 'planning');
+        await client.from('trip_transports').insert(transportRows);
+      }
+
+      ref.invalidate(tripActivitiesProvider(widget.tripId));
+      ref.invalidate(tripTransportsProvider(widget.tripId));
+      await ref.read(tripActivitiesProvider(widget.tripId).future);
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur : $e'), backgroundColor: AppColors.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final height = MediaQuery.of(context).size.height * 0.85;
+    return SizedBox(
+      height: height,
+      child: Column(
+        children: [
+          const SizedBox(height: 10),
+          Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('✨ Suggestions IA', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      SizedBox(height: 2),
+                      Text('Coche celles que tu veux ajouter à ton planning.', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                    ],
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => setState(() {
+                    if (_selected.length == widget.suggestions.length) {
+                      _selected.clear();
+                    } else {
+                      _selected.addAll(List.generate(widget.suggestions.length, (i) => i));
+                    }
+                  }),
+                  child: Text(
+                    _selected.length == widget.suggestions.length ? 'Tout décocher' : 'Tout cocher',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close),
+                  color: AppColors.textSecondary,
+                  tooltip: 'Fermer',
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+                itemCount: widget.suggestions.length,
+                itemBuilder: (_, i) {
+                  final s = widget.suggestions[i];
+                  final selected = _selected.contains(i);
+                  return FutureBuilder<PlaceInfo>(
+                    future: _placeInfoFor(s),
+                    builder: (_, snap) {
+                      final info = snap.data;
+                      final loading = snap.connectionState != ConnectionState.done;
+                      final photoUrl = info?.photos.isNotEmpty == true ? info!.photos.first.url : null;
+                      return GestureDetector(
+                        onTap: () {
+                          final destination = ref.read(tripByIdProvider(widget.tripId)).valueOrNull?.destination ?? '';
+                          openSuggestionDetailSheet(context, ref, suggestion: s, destination: destination);
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          decoration: BoxDecoration(
+                            color: selected ? AppColors.primaryLight : AppColors.surface,
+                            border: Border.all(color: selected ? AppColors.primary : AppColors.border, width: selected ? 1.5 : 1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Thumbnail
+                              SizedBox(
+                                width: 90, height: 110,
+                                child: photoUrl != null
+                                    ? CachedNetworkImage(
+                                        imageUrl: photoUrl,
+                                        fit: BoxFit.cover,
+                                        placeholder: (_, __) => Container(color: AppColors.primaryLight),
+                                        errorWidget: (_, __, ___) => Container(color: const Color(0xFFF3F4F6), child: Icon(Icons.image_outlined, size: 28, color: AppColors.textSecondary)),
+                                      )
+                                    : Container(
+                                        color: loading ? AppColors.primaryLight : const Color(0xFFF3F4F6),
+                                        child: Center(
+                                          child: loading
+                                              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                                              : Icon(Icons.image_outlined, size: 28, color: AppColors.textSecondary),
+                                        ),
+                                      ),
+                              ),
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(10),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      // Checkbox circle (tap dédié)
+                                      GestureDetector(
+                                        onTap: () => setState(() => selected ? _selected.remove(i) : _selected.add(i)),
+                                        child: Container(
+                                          width: 22, height: 22,
+                                          margin: const EdgeInsets.only(top: 2),
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            color: selected ? AppColors.primary : Colors.transparent,
+                                            border: Border.all(color: selected ? AppColors.primary : AppColors.border, width: 2),
+                                          ),
+                                          child: selected ? const Icon(Icons.check, size: 14, color: Colors.white) : null,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              '${s.dayDate.day} ${_months[s.dayDate.month - 1]} · ${s.startTime}',
+                                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.accent),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(s.title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary), maxLines: 2, overflow: TextOverflow.ellipsis),
+                                            if (info?.rating != null) ...[
+                                              const SizedBox(height: 3),
+                                              Row(
+                                                children: [
+                                                  const Icon(Icons.star, size: 12, color: Color(0xFFF59E0B)),
+                                                  const SizedBox(width: 2),
+                                                  Text(info!.rating!.toStringAsFixed(1), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                                                  if (info.ratingsCount != null) ...[
+                                                    const SizedBox(width: 3),
+                                                    Text('(${info.ratingsCount})', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                                                  ],
+                                                ],
+                                              ),
+                                            ],
+                                            if (s.detail != null && s.detail!.isNotEmpty) ...[
+                                              const SizedBox(height: 2),
+                                              Text(s.detail!, style: TextStyle(fontSize: 10, color: AppColors.textSecondary), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                            ],
+                                            const SizedBox(height: 6),
+                                            Wrap(
+                                              spacing: 4,
+                                              runSpacing: 4,
+                                              children: [
+                                                _Pill(label: s.tag, color: AppColors.primary, bg: AppColors.primaryLight),
+                                                if (s.durationMinutes != null && s.durationMinutes! > 0)
+                                                  _Pill(label: '⏱ ${formatDuration(s.durationMinutes)}', color: AppColors.textSecondary, bg: const Color(0xFFF3F4F6)),
+                                                if (info?.priceLevelLabel != null)
+                                                  _Pill(label: info!.priceLevelLabel!, color: AppColors.textSecondary, bg: const Color(0xFFF3F4F6))
+                                                else if (s.priceEstimate != null && s.priceEstimate!.isNotEmpty)
+                                                  ConvertedPricePill(rawPrice: s.priceEstimate, color: AppColors.textSecondary, bg: const Color(0xFFF3F4F6)),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+              decoration: BoxDecoration(color: AppColors.surface, border: Border(top: BorderSide(color: AppColors.border))),
+              child: SafeArea(
+                top: false,
+                child: ElevatedButton(
+                  onPressed: (_selected.isEmpty || _saving) ? null : _save,
+                  child: _saving
+                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : Text('Ajouter ${_selected.length} activité${_selected.length > 1 ? 's' : ''} au planning'),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+  }
+}
+
+class _PlanningContent extends ConsumerStatefulWidget {
+  final String tripId;
+  final List<TripActivity> activities;
+  final List<TripTransport> transports;
+  const _PlanningContent({required this.tripId, required this.activities, this.transports = const []});
+
+  @override
+  ConsumerState<_PlanningContent> createState() => _PlanningContentState();
+}
+
+class _PlanningContentState extends ConsumerState<_PlanningContent> {
+  static const _weekdays = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+  static const _monthsShort = [
+    'janv.', 'févr.', 'mars', 'avril', 'mai', 'juin',
+    'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.',
+  ];
+  static const _monthsLong = [
+    'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+    'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
+  ];
+
+  static const _overlapPalette = <(Color, Color)>[
+    (Color(0xFFDBEAFE), Color(0xFF93C5FD)),
+    (Color(0xFFFCE7F3), Color(0xFFF9A8D4)),
+    (Color(0xFFD1FAE5), Color(0xFF6EE7B7)),
+    (Color(0xFFEDE9FE), Color(0xFFC4B5FD)),
+    (Color(0xFFFFEDD5), Color(0xFFFDBA74)),
+  ];
+
+  late PageController _pageController;
+  int _currentIndex = 0;
+  List<DateTime> _sortedDays = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+    _recomputeDays();
+  }
+
+  @override
+  void didUpdateWidget(covariant _PlanningContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _recomputeDays();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _recomputeDays() {
+    String norm(String s) => s.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
+    final seen = <String>{};
+    final uniqueDays = <DateTime>{};
+    for (final a in widget.activities) {
+      final key = '${a.dayDate.toIso8601String().split('T').first}|${a.startTime}|${norm(a.title)}';
+      if (seen.add(key)) {
+        uniqueDays.add(DateTime(a.dayDate.year, a.dayDate.month, a.dayDate.day));
+      }
+    }
+    final sorted = uniqueDays.toList()..sort();
+    _sortedDays = sorted;
+
+    // Sélectionne automatiquement aujourd'hui si dans le voyage, sinon reste sur l'index courant clampé
+    final today = DateTime.now();
+    final todayKey = DateTime(today.year, today.month, today.day);
+    final todayIdx = sorted.indexWhere((d) => d.isAtSameMomentAs(todayKey));
+    if (_currentIndex == 0 && todayIdx >= 0) {
+      _currentIndex = todayIdx;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_pageController.hasClients) _pageController.jumpToPage(todayIdx);
+      });
+    }
+    if (_currentIndex >= sorted.length && sorted.isNotEmpty) {
+      _currentIndex = sorted.length - 1;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_sortedDays.isEmpty) return const SizedBox.shrink();
+
+    String norm(String s) => s.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
+    final seen = <String>{};
+    final unique = <TripActivity>[];
+    for (final a in widget.activities) {
+      final key = '${a.dayDate.toIso8601String().split('T').first}|${a.startTime}|${norm(a.title)}';
+      if (seen.add(key)) unique.add(a);
+    }
+
+    final grouped = <DateTime, List<TripActivity>>{};
+    for (final a in unique) {
+      final key = DateTime(a.dayDate.year, a.dayDate.month, a.dayDate.day);
+      grouped.putIfAbsent(key, () => []).add(a);
+    }
+
+    // Overlap coloring
+    final overlapColorByActivityId = <String, (Color, Color)>{};
+    var overlapIdx = 0;
+    for (final day in _sortedDays) {
+      final byTime = <String, List<TripActivity>>{};
+      for (final a in grouped[day] ?? const <TripActivity>[]) {
+        byTime.putIfAbsent(a.startTime, () => []).add(a);
+      }
+      final sortedTimes = byTime.keys.toList()..sort();
+      for (final time in sortedTimes) {
+        final acts = byTime[time]!;
+        if (acts.length > 1) {
+          final palette = _overlapPalette[overlapIdx % _overlapPalette.length];
+          for (final a in acts) {
+            overlapColorByActivityId[a.id] = palette;
+          }
+          overlapIdx++;
+        }
+      }
+    }
+
+    final transportByPair = <String, TripTransport>{
+      for (final t in widget.transports) '${t.fromActivityId}|${t.toActivityId}': t,
+    };
+
+    return Column(
+      children: [
+        _DayPillsBar(
+          days: _sortedDays,
+          currentIndex: _currentIndex,
+          monthsShort: _monthsShort,
+          onTap: (i) {
+            setState(() => _currentIndex = i);
+            _pageController.animateToPage(i, duration: const Duration(milliseconds: 220), curve: Curves.easeOut);
+          },
+        ),
+        Expanded(
+          child: PageView.builder(
+            controller: _pageController,
+            itemCount: _sortedDays.length,
+            onPageChanged: (i) => setState(() => _currentIndex = i),
+            itemBuilder: (_, i) {
+              final day = _sortedDays[i];
+              final dayActs = (grouped[day] ?? const <TripActivity>[]).toList()
+                ..sort((a, b) {
+                  final t = a.startTime.compareTo(b.startTime);
+                  return t != 0 ? t : a.title.compareTo(b.title);
+                });
+              return ReorderableListView.builder(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+                header: Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _DayHeader(
+                    title: 'Jour ${i + 1} · ${_weekdays[day.weekday - 1]} ${day.day} ${_monthsLong[day.month - 1]}',
+                    count: dayActs.length,
+                  ),
+                ),
+                footer: Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: OutlinedButton.icon(
+                    onPressed: () => openActivityCreateSheet(context, ref, tripId: widget.tripId, defaultDay: day),
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Ajouter une activité'),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 44),
+                      foregroundColor: AppColors.primary,
+                      side: BorderSide(color: AppColors.primary),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+                itemCount: dayActs.length,
+                onReorder: (oldIdx, newIdx) => _handleReorder(dayActs, oldIdx, newIdx),
+                itemBuilder: (_, idx) {
+                  final a = dayActs[idx];
+                  final next = idx + 1 < dayActs.length ? dayActs[idx + 1] : null;
+                  final transport = next != null ? transportByPair['${a.id}|${next.id}'] : null;
+                  // Ne proposer l'ajout que si on peut l'attacher à 2 activités réelles
+                  // (les trajets sont stockés avec des IDs réels uniquement).
+                  final canAddTransport = next != null &&
+                      transport == null &&
+                      !isVirtualActivity(a.id) &&
+                      !isVirtualActivity(next.id);
+                  return Column(
+                    key: ValueKey(a.id),
+                    children: [
+                      _ActivityItem(activity: a, overlapColors: overlapColorByActivityId[a.id]),
+                      if (transport != null && next != null)
+                        _TransportLeg(transport: transport, fromActivity: a, toActivity: next)
+                      else if (canAddTransport)
+                        _AddTransportButton(tripId: widget.tripId, fromActivity: a, toActivity: next),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  int? _timeToMin(String hhmm) {
+    final parts = hhmm.split(':');
+    if (parts.length != 2) return null;
+    final h = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    if (h == null || m == null) return null;
+    return h * 60 + m;
+  }
+
+  String _minToTime(int min) {
+    final clamped = min.clamp(0, 23 * 60 + 59);
+    final h = clamped ~/ 60;
+    final m = clamped % 60;
+    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _handleReorder(List<TripActivity> dayActs, int oldIndex, int newIndex) async {
+    if (newIndex > oldIndex) newIndex -= 1;
+    if (oldIndex == newIndex) return;
+
+    final moved = dayActs[oldIndex];
+    if (isVirtualActivity(moved.id)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cette activité est liée à un document. Modifie-la via le wallet.')),
+      );
+      return;
+    }
+
+    final reordered = [...dayActs];
+    final item = reordered.removeAt(oldIndex);
+    reordered.insert(newIndex, item);
+
+    final client = ref.read(supabaseProvider);
+
+    // Lookup des durées de trajet existantes (les deux directions fusionnées)
+    final transportDurationByPair = <String, int>{};
+    try {
+      final data = await client.from('trip_transports').select().eq('trip_id', widget.tripId);
+      for (final row in (data as List)) {
+        final t = TripTransport.fromJson(row);
+        transportDurationByPair['${t.fromActivityId}|${t.toActivityId}'] = t.selectedDurationMinutes;
+        transportDurationByPair['${t.toActivityId}|${t.fromActivityId}'] = t.selectedDurationMinutes;
+      }
+    } catch (e) {
+      developer.log('Erreur fetch transports : $e', name: 'planning');
+    }
+
+    // Slots originaux (activités réelles, ordre chronologique)
+    final chronologicalReals = [...dayActs]
+      ..sort((a, b) {
+        final t = a.startTime.compareTo(b.startTime);
+        return t != 0 ? t : a.title.compareTo(b.title);
+      });
+    final freeSlots = chronologicalReals
+        .where((a) => !isVirtualActivity(a.id))
+        .map((a) => a.startTime)
+        .toList();
+
+    final realsInNewOrder = reordered.where((a) => !isVirtualActivity(a.id)).toList();
+
+    // Recalcul : slot swap + respect de la durée + transport en cascade
+    const defaultTransportMin = 30;
+    final updates = <String, String>{};
+    int? prevEndMin;
+    String? prevId;
+
+    for (var i = 0; i < realsInNewOrder.length && i < freeSlots.length; i++) {
+      final a = realsInNewOrder[i];
+      final slotMin = _timeToMin(freeSlots[i]) ?? 9 * 60;
+      int newStartMin;
+
+      if (prevEndMin == null || prevId == null) {
+        // Première activité : garde son créneau
+        newStartMin = slotMin;
+      } else {
+        final transportMin = transportDurationByPair['$prevId|${a.id}'] ?? defaultTransportMin;
+        final earliest = prevEndMin + transportMin;
+        // Prend son créneau SI celui-ci est >= earliest, sinon on pousse
+        newStartMin = slotMin >= earliest ? slotMin : earliest;
+      }
+
+      final newTime = _minToTime(newStartMin);
+      if (newTime != a.startTime) updates[a.id] = newTime;
+
+      prevEndMin = newStartMin + (a.durationMinutes ?? 60);
+      prevId = a.id;
+    }
+
+    // Applique les updates en DB
+    for (final entry in updates.entries) {
+      try {
+        await client.from('trip_activities').update({'start_time': entry.value}).eq('id', entry.key);
+      } catch (e) {
+        developer.log('Erreur update time ${entry.key}: $e', name: 'planning');
+      }
+    }
+
+    // Réaligne les trajets sur les nouvelles adjacences
+    await _fixTransportsAfterReorder(reordered);
+
+    ref.invalidate(tripActivitiesProvider(widget.tripId));
+    ref.invalidate(tripTransportsProvider(widget.tripId));
+
+    if (mounted && updates.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Ordre mis à jour · ${updates.length} horaire${updates.length > 1 ? 's' : ''} recalculé${updates.length > 1 ? 's' : ''}.')),
+      );
+    }
+  }
+
+  /// Après un reorder, réaligne les trajets existants sur les nouvelles adjacences.
+  /// - Si from→to correspond toujours à une adjacence : ne touche à rien
+  /// - Si to→from correspond (swap direct) : inverse from/to du trajet
+  /// - Sinon : supprime le trajet devenu invalide
+  Future<void> _fixTransportsAfterReorder(List<TripActivity> reordered) async {
+    final client = ref.read(supabaseProvider);
+
+    // Adjacences des activités réelles dans le nouvel ordre
+    final realsInNewOrder = reordered.where((a) => !isVirtualActivity(a.id)).toList();
+    final newAdjacency = <String, String>{};
+    for (var i = 0; i < realsInNewOrder.length - 1; i++) {
+      newAdjacency[realsInNewOrder[i].id] = realsInNewOrder[i + 1].id;
+    }
+
+    // Récupère les trajets en base
+    List<TripTransport> transports;
+    try {
+      final data = await client.from('trip_transports').select().eq('trip_id', widget.tripId);
+      transports = (data as List).map((e) => TripTransport.fromJson(e)).toList();
+    } catch (e) {
+      developer.log('Erreur fetch transports : $e', name: 'planning');
+      return;
+    }
+
+    final realIds = realsInNewOrder.map((a) => a.id).toSet();
+    for (final t in transports) {
+      // On ne touche que les trajets dont from ET to sont dans CE jour
+      if (!realIds.contains(t.fromActivityId) || !realIds.contains(t.toActivityId)) continue;
+
+      final expectedTo = newAdjacency[t.fromActivityId];
+      if (expectedTo == t.toActivityId) continue; // déjà aligné
+
+      // Swap direct (from↔to renversés) ?
+      if (newAdjacency[t.toActivityId] == t.fromActivityId) {
+        try {
+          await client.from('trip_transports').update({
+            'from_activity_id': t.toActivityId,
+            'to_activity_id': t.fromActivityId,
+          }).eq('id', t.id);
+        } catch (_) {
+          // Contrainte unique violée ou autre souci → on supprime
+          try {
+            await client.from('trip_transports').delete().eq('id', t.id);
+          } catch (_) {}
+        }
+        continue;
+      }
+
+      // Plus valide dans aucune direction → on supprime
+      try {
+        await client.from('trip_transports').delete().eq('id', t.id);
+      } catch (_) {}
+    }
+  }
+}
+
+class _DayPillsBar extends StatelessWidget {
+  final List<DateTime> days;
+  final int currentIndex;
+  final List<String> monthsShort;
+  final ValueChanged<int> onTap;
+
+  const _DayPillsBar({
+    required this.days,
+    required this.currentIndex,
+    required this.monthsShort,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.surface,
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: SizedBox(
+        height: 56,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          itemCount: days.length,
+          itemBuilder: (_, i) {
+            final d = days[i];
+            final selected = i == currentIndex;
+            return GestureDetector(
+              onTap: () => onTap(i),
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: selected ? AppColors.primary : AppColors.primaryLight,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'J${i + 1}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: selected ? Colors.white : AppColors.primary,
+                      ),
+                    ),
+                    Text(
+                      '${d.day} ${monthsShort[d.month - 1]}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: selected ? Colors.white : AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _DayHeader extends StatelessWidget {
+  final String title;
+  final int count;
+  const _DayHeader({required this.title, required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(
+          child: Text('📅 $title', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
+        ),
+        Text('$count activité${count > 1 ? 's' : ''}', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+      ],
+    );
+  }
+}
+
+class _ActivityItem extends ConsumerWidget {
+  final TripActivity activity;
+  final (Color, Color)? overlapColors;
+  const _ActivityItem({required this.activity, this.overlapColors});
+
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Supprimer cette activité ?'),
+        content: Text(activity.title),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Annuler')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      developer.log('Suppression activité id=${activity.id}', name: 'planning');
+      await ref.read(supabaseProvider).from('trip_activities').delete().eq('id', activity.id);
+      developer.log('Supprimé, invalidation du provider', name: 'planning');
+      ref.invalidate(tripActivitiesProvider(activity.tripId));
+    } catch (e) {
+      developer.log('Erreur suppression : $e', name: 'planning');
+      messenger.showSnackBar(
+        SnackBar(content: Text('Erreur : $e'), backgroundColor: AppColors.error),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final suggested = activity.suggested;
+    final timeLabel = suggested ? '${activity.startTime} · Pour vous ✨' : activity.startTime;
+
+    // Détermine les couleurs de fond/bordure : overlap > suggested > default
+    final Color bg;
+    final Color borderColor;
+    if (overlapColors != null) {
+      bg = overlapColors!.$1;
+      borderColor = overlapColors!.$2;
+    } else if (suggested) {
+      bg = const Color(0xFFFFFBEB);
+      borderColor = const Color(0xFFFDE68A);
+    } else {
+      bg = AppColors.surface;
+      borderColor = AppColors.border;
+    }
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Column(children: [
+            Container(
+              width: 12, height: 12, margin: const EdgeInsets.only(top: 10),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: suggested ? AppColors.accent : AppColors.primary,
+                border: Border.all(color: Colors.white, width: 2),
+                boxShadow: [BoxShadow(color: (suggested ? AppColors.accent : AppColors.primary).withValues(alpha: 0.4), blurRadius: 4)],
+              ),
+            ),
+            Expanded(child: Container(width: 2, color: AppColors.border, margin: const EdgeInsets.only(left: 5))),
+          ]),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(timeLabel, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: suggested ? AppColors.accent : AppColors.textSecondary)),
+                  const SizedBox(height: 4),
+                  InkWell(
+                    onTap: () async {
+                      if (isVirtualActivity(activity.id)) {
+                        final docId = extractDocumentId(activity.id);
+                        if (docId == null) return;
+                        final docs = await ref.read(tripDocumentsProvider(activity.tripId).future);
+                        final doc = docs.where((d) => d.id == docId).firstOrNull;
+                        if (doc == null) return;
+                        if (context.mounted) {
+                          await openDocumentFormSheet(context, ref, existing: doc);
+                        }
+                      } else {
+                        openActivityDetailSheet(context, ref, activity: activity);
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                    clipBehavior: Clip.antiAlias,
+                    decoration: BoxDecoration(
+                      color: bg,
+                      // Border uniforme obligatoire pour pouvoir utiliser borderRadius
+                      // (Flutter interdit les BorderSide de couleurs différentes + borderRadius).
+                      // Le marqueur "activité virtuelle" est rendu comme un strip coloré enfant ci-dessous.
+                      border: Border.all(color: borderColor),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (isVirtualActivity(activity.id))
+                            Container(width: 4, color: AppColors.textSecondary),
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(12, 12, 4, 12),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(activity.title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                              if (activity.detail != null && activity.detail!.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(activity.detail!, style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                              ],
+                              const SizedBox(height: 6),
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 4,
+                                children: [
+                                  _Pill(
+                                    label: activity.tag,
+                                    color: suggested ? AppColors.accent : AppColors.primary,
+                                    bg: suggested ? const Color(0xFFFEF3C7) : AppColors.primaryLight,
+                                  ),
+                                  if (activity.durationMinutes != null && activity.durationMinutes! > 0)
+                                    _Pill(label: '⏱ ${formatDuration(activity.durationMinutes)}', color: AppColors.textSecondary, bg: const Color(0xFFF3F4F6)),
+                                  if (activity.priceEstimate != null && activity.priceEstimate!.isNotEmpty)
+                                    ConvertedPricePill(rawPrice: activity.priceEstimate, color: AppColors.textSecondary, bg: const Color(0xFFF3F4F6)),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (isVirtualActivity(activity.id))
+                          Padding(
+                            padding: EdgeInsets.all(6),
+                            child: Icon(Icons.link, size: 16, color: AppColors.textSecondary),
+                          )
+                        else
+                          IconButton(
+                            onPressed: () => _confirmDelete(context, ref),
+                            icon: const Icon(Icons.delete_outline, size: 18),
+                            color: AppColors.textSecondary,
+                            splashRadius: 18,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                            tooltip: 'Supprimer',
+                          ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Pill extends StatelessWidget {
+  final String label;
+  final Color color;
+  final Color bg;
+  const _Pill({required this.label, required this.color, required this.bg});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(4)),
+      child: Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: color)),
+    );
+  }
+}
+
+class _AddTransportButton extends ConsumerStatefulWidget {
+  final String tripId;
+  final TripActivity fromActivity;
+  final TripActivity toActivity;
+
+  const _AddTransportButton({
+    required this.tripId,
+    required this.fromActivity,
+    required this.toActivity,
+  });
+
+  @override
+  ConsumerState<_AddTransportButton> createState() => _AddTransportButtonState();
+}
+
+class _AddTransportButtonState extends ConsumerState<_AddTransportButton> {
+  bool _loading = false;
+
+  Future<void> _generate() async {
+    if (_loading) return;
+    setState(() => _loading = true);
+    try {
+      final trip = await ref.read(tripByIdProvider(widget.tripId).future);
+      final profile = await ref.read(userProfileProvider.future);
+      final service = ref.read(aiSuggestionsServiceProvider);
+      final suggestion = await service.generateTransportBetween(
+        from: widget.fromActivity,
+        to: widget.toActivity,
+        destination: trip?.destination ?? '',
+        travelerType: trip?.travelerType ?? profile?['traveler_type'] as String?,
+      );
+      if (!mounted) return;
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: AppColors.background,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        builder: (_) => _PickNewTransportSheet(
+          tripId: widget.tripId,
+          fromActivity: widget.fromActivity,
+          toActivity: widget.toActivity,
+          suggestion: suggestion,
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur : $e'), backgroundColor: AppColors.error, duration: const Duration(seconds: 4)),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              width: 12,
+              child: Column(
+                children: [
+                  Expanded(child: Container(width: 2, color: AppColors.border, margin: const EdgeInsets.only(left: 5))),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: InkWell(
+                onTap: _loading ? null : _generate,
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    border: Border.all(color: AppColors.border, style: BorderStyle.solid),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      if (_loading)
+                        const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                      else
+                        Icon(Icons.add, size: 16, color: AppColors.primary),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          _loading ? 'L\'IA cherche les options…' : 'Ajouter un trajet',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PickNewTransportSheet extends ConsumerStatefulWidget {
+  final String tripId;
+  final TripActivity fromActivity;
+  final TripActivity toActivity;
+  final TransportSuggestion suggestion;
+
+  const _PickNewTransportSheet({
+    required this.tripId,
+    required this.fromActivity,
+    required this.toActivity,
+    required this.suggestion,
+  });
+
+  @override
+  ConsumerState<_PickNewTransportSheet> createState() => _PickNewTransportSheetState();
+}
+
+class _PickNewTransportSheetState extends ConsumerState<_PickNewTransportSheet> {
+  String? _selectedMode;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedMode = widget.suggestion.defaultMode;
+  }
+
+  Future<void> _save() async {
+    if (_selectedMode == null || widget.suggestion.options.isEmpty) return;
+    final opt = widget.suggestion.options.firstWhere(
+      (o) => o.mode == _selectedMode,
+      orElse: () => widget.suggestion.options.first,
+    );
+    setState(() => _saving = true);
+    try {
+      await ref.read(supabaseProvider).from('trip_transports').insert({
+        'trip_id': widget.tripId,
+        'from_activity_id': widget.fromActivity.id,
+        'to_activity_id': widget.toActivity.id,
+        'selected_mode': opt.mode,
+        'selected_duration_minutes': opt.durationMinutes,
+        'selected_price_estimate': opt.priceEstimate,
+        'options': widget.suggestion.options.map((o) => o.toJson()).toList(),
+      });
+      ref.invalidate(tripTransportsProvider(widget.tripId));
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur : $e'), backgroundColor: AppColors.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final options = widget.suggestion.options;
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.6,
+      child: Column(
+        children: [
+          const SizedBox(height: 10),
+          Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Ajouter un trajet', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${widget.fromActivity.title} → ${widget.toActivity.title}',
+                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close),
+                  color: AppColors.textSecondary,
+                  tooltip: 'Fermer',
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: options.isEmpty
+                ? const Center(child: Text('Aucune option disponible.'))
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    itemCount: options.length,
+                    itemBuilder: (_, i) {
+                      final o = options[i];
+                      final selected = _selectedMode == o.mode;
+                      return GestureDetector(
+                        onTap: () => setState(() => _selectedMode = o.mode),
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: selected ? AppColors.primaryLight : AppColors.surface,
+                            border: Border.all(color: selected ? AppColors.primary : AppColors.border, width: selected ? 1.5 : 1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              Text(transportModeEmoji(o.mode), style: const TextStyle(fontSize: 24)),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(transportModeLabel(o.mode), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                                    const SizedBox(height: 2),
+                                    Text('${formatDuration(o.durationMinutes)} · ${o.priceEstimate}', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                                    if (o.detail != null && o.detail!.isNotEmpty) ...[
+                                      const SizedBox(height: 2),
+                                      Text(o.detail!, style: TextStyle(fontSize: 11, color: AppColors.textSecondary, fontStyle: FontStyle.italic)),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              if (selected)
+                                Container(
+                                  width: 24, height: 24,
+                                  decoration: BoxDecoration(shape: BoxShape.circle, color: AppColors.primary),
+                                  child: const Icon(Icons.check, size: 14, color: Colors.white),
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            decoration: BoxDecoration(color: AppColors.surface, border: Border(top: BorderSide(color: AppColors.border))),
+            child: SafeArea(
+              top: false,
+              child: ElevatedButton(
+                onPressed: (_saving || options.isEmpty) ? null : _save,
+                child: _saving
+                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : const Text('Enregistrer le trajet'),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TransportLeg extends ConsumerWidget {
+  final TripTransport transport;
+  final TripActivity fromActivity;
+  final TripActivity toActivity;
+  const _TransportLeg({required this.transport, required this.fromActivity, required this.toActivity});
+
+  // Parse "HH:MM" → minutes depuis minuit (ou null)
+  int? _parseTime(String hhmm) {
+    final parts = hhmm.split(':');
+    if (parts.length != 2) return null;
+    final h = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    if (h == null || m == null) return null;
+    return h * 60 + m;
+  }
+
+  bool get _hasConflict {
+    final fromStart = _parseTime(fromActivity.startTime);
+    final toStart = _parseTime(toActivity.startTime);
+    if (fromStart == null || toStart == null) return false;
+    final fromDuration = fromActivity.durationMinutes ?? 0;
+    final expectedArrival = fromStart + fromDuration + transport.selectedDurationMinutes;
+    return toStart < expectedArrival;
+  }
+
+  Future<void> _openChangeSheet(BuildContext context, WidgetRef ref) async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.background,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => _TransportOptionsSheet(
+        transport: transport,
+        fromActivity: fromActivity,
+        toActivity: toActivity,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final emoji = transportModeEmoji(transport.selectedMode);
+    final label = transportModeLabel(transport.selectedMode);
+    final duration = formatDuration(transport.selectedDurationMinutes);
+    final price = transport.selectedPriceEstimate;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              width: 12,
+              child: Column(
+                children: [
+                  Expanded(child: Container(width: 2, color: AppColors.border, margin: const EdgeInsets.only(left: 5))),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: InkWell(
+                onTap: () => _openChangeSheet(context, ref),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: _hasConflict ? const Color(0xFFFEF2F2) : const Color(0xFFF9FAFB),
+                    border: Border.all(color: _hasConflict ? const Color(0xFFFCA5A5) : AppColors.border, style: BorderStyle.solid),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Text(emoji, style: const TextStyle(fontSize: 14)),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '$label · ${duration.isEmpty ? '—' : duration} · $price',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (_hasConflict) ...[
+                        const SizedBox(width: 4),
+                        const Tooltip(
+                          message: 'Horaire serré : la prochaine activité démarre avant ton arrivée estimée.',
+                          child: Text('⚠️', style: TextStyle(fontSize: 12)),
+                        ),
+                      ],
+                      const SizedBox(width: 4),
+                      Icon(Icons.chevron_right, size: 14, color: AppColors.textSecondary),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TransportOptionsSheet extends ConsumerStatefulWidget {
+  final TripTransport transport;
+  final TripActivity fromActivity;
+  final TripActivity toActivity;
+  const _TransportOptionsSheet({
+    required this.transport,
+    required this.fromActivity,
+    required this.toActivity,
+  });
+
+  @override
+  ConsumerState<_TransportOptionsSheet> createState() => _TransportOptionsSheetState();
+}
+
+class _TransportOptionsSheetState extends ConsumerState<_TransportOptionsSheet> {
+  String? _selectedMode;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedMode = widget.transport.selectedMode;
+  }
+
+  static const _travelModeMap = {
+    'walk': 'walking',
+    'bike': 'bicycling',
+    'car': 'driving',
+    'taxi': 'driving',
+    'tuktuk': 'driving',
+    'metro': 'transit',
+    'bus': 'transit',
+    'train': 'transit',
+    'boat': 'transit',
+    'plane': 'transit',
+  };
+
+  Future<void> _openDirections() async {
+    final from = widget.fromActivity;
+    final to = widget.toActivity;
+    final mode = _travelModeMap[_selectedMode ?? 'walk'] ?? 'walking';
+
+    String originParam;
+    String destParam;
+    if (from.hasCoordinates) {
+      originParam = '${from.latitude},${from.longitude}';
+    } else {
+      originParam = Uri.encodeComponent('${from.title} ${from.detail ?? ''}'.trim());
+    }
+    if (to.hasCoordinates) {
+      destParam = '${to.latitude},${to.longitude}';
+    } else {
+      destParam = Uri.encodeComponent('${to.title} ${to.detail ?? ''}'.trim());
+    }
+
+    final uri = Uri.parse(
+      'https://www.google.com/maps/dir/?api=1&origin=$originParam&destination=$destParam&travelmode=$mode',
+    );
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Impossible d\'ouvrir Google Maps.')),
+      );
+    }
+  }
+
+  Future<void> _save() async {
+    final opt = widget.transport.options.firstWhere(
+      (o) => o.mode == _selectedMode,
+      orElse: () => widget.transport.options.first,
+    );
+    setState(() => _saving = true);
+    try {
+      await ref.read(supabaseProvider).from('trip_transports').update({
+        'selected_mode': opt.mode,
+        'selected_duration_minutes': opt.durationMinutes,
+        'selected_price_estimate': opt.priceEstimate,
+      }).eq('id', widget.transport.id);
+      ref.invalidate(tripTransportsProvider(widget.transport.tripId));
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur : $e'), backgroundColor: AppColors.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final options = widget.transport.options;
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.55,
+      child: Column(
+        children: [
+          const SizedBox(height: 10),
+          Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Mode de transport', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      SizedBox(height: 2),
+                      Text('Choisis comment rejoindre la prochaine activité.', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close),
+                  color: AppColors.textSecondary,
+                  tooltip: 'Fermer',
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              itemCount: options.length,
+              itemBuilder: (_, i) {
+                final o = options[i];
+                final selected = _selectedMode == o.mode;
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedMode = o.mode),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: selected ? AppColors.primaryLight : AppColors.surface,
+                      border: Border.all(color: selected ? AppColors.primary : AppColors.border, width: selected ? 1.5 : 1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Text(transportModeEmoji(o.mode), style: const TextStyle(fontSize: 24)),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(transportModeLabel(o.mode), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                              const SizedBox(height: 2),
+                              Text('${formatDuration(o.durationMinutes)} · ${o.priceEstimate}', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                              if (o.detail != null && o.detail!.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(o.detail!, style: TextStyle(fontSize: 11, color: AppColors.textSecondary, fontStyle: FontStyle.italic)),
+                              ],
+                            ],
+                          ),
+                        ),
+                        if (selected)
+                          Container(
+                            width: 24, height: 24,
+                            decoration: BoxDecoration(shape: BoxShape.circle, color: AppColors.primary),
+                            child: const Icon(Icons.check, size: 14, color: Colors.white),
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            decoration: BoxDecoration(color: AppColors.surface, border: Border(top: BorderSide(color: AppColors.border))),
+            child: SafeArea(
+              top: false,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _openDirections,
+                      icon: const Icon(Icons.navigation, size: 18),
+                      label: const Text('Itinéraire'),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(0, 48),
+                        foregroundColor: AppColors.primary,
+                        side: BorderSide(color: AppColors.primary),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _saving ? null : _save,
+                      style: ElevatedButton.styleFrom(minimumSize: const Size(0, 48)),
+                      child: _saving
+                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          : const Text('Valider'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
