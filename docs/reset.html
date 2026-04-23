@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Ouverture de Voyage…</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 100vh; margin: 0; padding: 1.5rem; text-align: center;
+      background: #F5F5F5; color: #1A1A1A;
+    }
+    .card {
+      background: white; border-radius: 16px; padding: 2rem 1.5rem;
+      max-width: 420px; width: 100%;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    }
+    h1 { font-size: 1.4rem; margin: 0 0 0.75rem; }
+    p { color: #555; line-height: 1.5; margin: 0 0 1.5rem; }
+    a.btn {
+      display: inline-block; padding: 0.9rem 1.8rem;
+      background: #2E7D32; color: white; border-radius: 10px;
+      text-decoration: none; font-weight: 600; font-size: 1rem;
+    }
+    a.btn:active { background: #1B5E20; }
+    .small { font-size: 0.85rem; color: #888; margin-top: 1.5rem; }
+    .error { color: #C62828; font-weight: 500; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Ouverture de Voyage…</h1>
+    <p id="msg">Tu vas être redirigé vers l'application. Si rien ne se passe dans quelques secondes, appuie sur le bouton.</p>
+    <a id="openBtn" class="btn" href="#">Ouvrir Voyage</a>
+    <p class="small">Si Voyage n'est pas installé sur cet appareil, demande à l'équipe pour obtenir l'APK.</p>
+  </div>
+  <script>
+    (function() {
+      var params = new URLSearchParams(window.location.search);
+      var tokenHash = params.get('token_hash');
+      var type = params.get('type') || 'recovery';
+
+      if (!tokenHash) {
+        document.getElementById('msg').innerHTML =
+          '<span class="error">Lien invalide ou expiré.</span><br>Demande un nouveau lien de réinitialisation depuis l\'app.';
+        document.getElementById('openBtn').style.display = 'none';
+        return;
+      }
+
+      var target = 'voyage://reset-password?token_hash=' + encodeURIComponent(tokenHash)
+                 + '&type=' + encodeURIComponent(type);
+      document.getElementById('openBtn').href = target;
+
+      setTimeout(function() { window.location.href = target; }, 150);
+    })();
+  </script>
+</body>
+</html>
