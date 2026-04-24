@@ -40,17 +40,47 @@ class _ActivityDetailSheet extends ConsumerWidget {
     return '${_weekdays[d.weekday - 1]} ${d.day} ${_months[d.month - 1]} ${d.year}';
   }
 
+  Future<void> _unlock(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Déverrouiller cette activité ?'),
+        content: const Text(
+          'Cette activité est dans le passé. La déverrouiller te permettra de la modifier ou la supprimer. '
+          'Elle se reverrouillera automatiquement à la prochaine ouverture de l\'app.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogCtx, false), child: const Text('Annuler')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            child: const Text('Déverrouiller'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      ref.read(unlockedPastActivitiesProvider.notifier).update((set) => {...set, activity.id});
+    }
+  }
+
   Future<void> _openInMaps(BuildContext context, WidgetRef ref) async {
     // Priorité : place_id (pin exact) > coordonnées (pin sur lat/lng) > texte fuzzy.
     // Le texte fuzzy seul donne une liste de résultats quand le titre est verbeux
     // (ex. "Dîner au restaurant O P'tit Bonheur" → page de résultats au lieu de la fiche).
     final placeId = ref.read(activityPlaceInfoProvider(activity)).valueOrNull?.placeId;
+    final isHebergement = activity.tag == 'Hébergement';
     final String uri;
     if (placeId != null && placeId.isNotEmpty) {
       final label = Uri.encodeComponent(activity.detail?.isNotEmpty == true ? activity.detail! : activity.title);
       uri = 'https://www.google.com/maps/search/?api=1&query=$label&query_place_id=$placeId';
     } else if (activity.hasCoordinates) {
       uri = 'https://www.google.com/maps/search/?api=1&query=${activity.latitude},${activity.longitude}';
+    } else if (isHebergement && activity.detail != null && activity.detail!.isNotEmpty) {
+      // Pour un hébergement, utiliser UNIQUEMENT l'adresse. Le titre contient souvent
+      // l'emoji 🏨 + préfixe "Arrivée · " ou "Départ · " qui brouille la recherche Maps
+      // et peut faire freezer l'app Google Maps.
+      final q = Uri.encodeComponent(activity.detail!);
+      uri = 'https://www.google.com/maps/search/?api=1&query=$q';
     } else {
       final q = Uri.encodeComponent('${activity.title} ${activity.detail ?? ''}'.trim());
       uri = 'https://www.google.com/maps/search/?api=1&query=$q';
@@ -66,10 +96,15 @@ class _ActivityDetailSheet extends ConsumerWidget {
     final placeInfoAsync = ref.watch(activityPlaceInfoProvider(activity));
     final photosAsync = placeInfoAsync.whenData((info) => info.photos);
     final descriptionAsync = ref.watch(activityDescriptionProvider(activity));
+    final locked = isActivityLocked(activity, ref.watch(unlockedPastActivitiesProvider));
 
-    // Rating : priorité au live fetch (Places), fallback sur la valeur persistée en DB
-    final liveRating = placeInfoAsync.valueOrNull?.rating ?? activity.rating;
-    final liveRatingsCount = placeInfoAsync.valueOrNull?.ratingsCount ?? activity.ratingsCount;
+    // Rating : priorité au live fetch (Places), fallback sur la valeur persistée en DB.
+    // Exception : pour les hébergements, on ignore AUSSI le cache DB — les notes stockées
+    // sont issues d'un faux match Places (ex: "Maison LOU" → resto "Loulou"). Forcer null
+    // masque la note même si elle avait été persistée avant le fix.
+    final isHebergement = activity.tag == 'Hébergement';
+    final liveRating = isHebergement ? null : (placeInfoAsync.valueOrNull?.rating ?? activity.rating);
+    final liveRatingsCount = isHebergement ? null : (placeInfoAsync.valueOrNull?.ratingsCount ?? activity.ratingsCount);
 
     return SizedBox(
       height: MediaQuery.of(context).size.height * 0.88,
@@ -121,17 +156,48 @@ class _ActivityDetailSheet extends ConsumerWidget {
                               child: Text(activity.tag, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.primary)),
                             ),
                             const Spacer(),
-                            IconButton(
-                              onPressed: () async {
-                                Navigator.of(context).pop();
-                                await openActivityEditSheet(context, ref, activity: activity);
-                              },
-                              icon: const Icon(Icons.edit_outlined),
-                              tooltip: 'Modifier',
-                              color: AppColors.primary,
-                            ),
+                            if (locked)
+                              IconButton(
+                                onPressed: () => _unlock(context, ref),
+                                icon: const Icon(Icons.lock_outline),
+                                tooltip: 'Déverrouiller pour modifier',
+                                color: AppColors.textSecondary,
+                              )
+                            else
+                              IconButton(
+                                onPressed: () async {
+                                  Navigator.of(context).pop();
+                                  await openActivityEditSheet(context, ref, activity: activity);
+                                },
+                                icon: const Icon(Icons.edit_outlined),
+                                tooltip: 'Modifier',
+                                color: AppColors.primary,
+                              ),
                           ],
                         ),
+                        if (locked) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF3F4F6),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.lock_outline, size: 16, color: AppColors.textSecondary),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Activité passée verrouillée. Déverrouille-la pour la modifier ou la supprimer.',
+                                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.3),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 6),
                         Text(activity.title, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                         if (liveRating != null) ...[
@@ -165,8 +231,15 @@ class _ActivityDetailSheet extends ConsumerWidget {
                               ],
                             ),
                           ),
+                        // Adresse formatée Google Places (quand un lieu précis est matché).
+                        // Priorité sur activity.detail qui est souvent une description Gemini
+                        // vague ("Centre de bien-être local...") plutôt qu'une vraie adresse.
+                        if (!isHebergement && placeInfoAsync.valueOrNull?.address != null &&
+                            placeInfoAsync.valueOrNull!.address!.isNotEmpty)
+                          _InfoTile(icon: Icons.place_outlined, text: placeInfoAsync.value!.address!),
+                        // Description/détail Gemini (sous forme de note d'ambiance)
                         if (activity.detail != null && activity.detail!.isNotEmpty)
-                          _InfoTile(icon: Icons.place_outlined, text: activity.detail!),
+                          _InfoTile(icon: Icons.info_outline, text: activity.detail!),
 
                         const SizedBox(height: 20),
 
@@ -176,9 +249,18 @@ class _ActivityDetailSheet extends ConsumerWidget {
                         // Réserver (placeholder, conditionnel selon catégorie)
                         _BookingSection(activity: activity),
 
-                        // Actions
-                        if (activity.hasCoordinates || (activity.detail != null && activity.detail!.isNotEmpty))
-                          Row(
+                        // Actions — on ne montre "Voir sur Maps" / "Y aller" que si on a une
+                        // cible exploitable (coords, placeId, ou adresse Places). Un `detail`
+                        // purement descriptif ("Un bon petit déjeuner") fait planter Maps.
+                        Builder(builder: (_) {
+                          final placeId = placeInfoAsync.valueOrNull?.placeId;
+                          final placesAddress = placeInfoAsync.valueOrNull?.address;
+                          final hasMapsTarget = activity.hasCoordinates ||
+                              (placeId != null && placeId.isNotEmpty) ||
+                              (placesAddress != null && placesAddress.trim().isNotEmpty) ||
+                              (isHebergement && activity.detail != null && activity.detail!.trim().isNotEmpty);
+                          if (!hasMapsTarget) return const SizedBox.shrink();
+                          return Row(
                             children: [
                               Expanded(
                                 child: OutlinedButton.icon(
@@ -211,21 +293,28 @@ class _ActivityDetailSheet extends ConsumerWidget {
                                 ),
                               ],
                             ],
+                          );
+                        }),
+                        // Les alternatives sont du "forward-looking" : on les cache dès que
+                        // l'activité a commencé (jour passé OU aujourd'hui avec startTime
+                        // déjà dépassée). L'édition reste possible via le bouton Modifier
+                        // pour corriger/annoter ce qui s'est vraiment passé.
+                        if (!isActivityElapsed(activity)) ...[
+                          const SizedBox(height: 10),
+                          OutlinedButton.icon(
+                            onPressed: () async {
+                              final changed = await openAlternativesSheet(context, ref, current: activity);
+                              if (changed && context.mounted) Navigator.of(context).pop();
+                            },
+                            icon: const Icon(Icons.autorenew, size: 18),
+                            label: const Text('Voir des alternatives'),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size(double.infinity, 48),
+                              foregroundColor: AppColors.accent,
+                              side: BorderSide(color: AppColors.accent),
+                            ),
                           ),
-                        const SizedBox(height: 10),
-                        OutlinedButton.icon(
-                          onPressed: () async {
-                            final changed = await openAlternativesSheet(context, ref, current: activity);
-                            if (changed && context.mounted) Navigator.of(context).pop();
-                          },
-                          icon: const Icon(Icons.autorenew, size: 18),
-                          label: const Text('Voir des alternatives'),
-                          style: OutlinedButton.styleFrom(
-                            minimumSize: const Size(double.infinity, 48),
-                            foregroundColor: AppColors.accent,
-                            side: BorderSide(color: AppColors.accent),
-                          ),
-                        ),
+                        ],
                       ],
                     ),
                   ),

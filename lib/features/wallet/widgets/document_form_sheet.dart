@@ -358,14 +358,26 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
   }
 
   Map<String, dynamic> _buildMetadata() {
-    final m = <String, dynamic>{};
+    // IMPORTANT : on part de l'existant pour préserver les clés qui ne sont pas
+    // représentées par un champ du formulaire (ex: `sleep_nights` posé par la sheet
+    // de chevauchement d'hébergements). Sans ça, éditer n'importe quel champ effacerait
+    // toutes les clés "hors formulaire".
+    final m = Map<String, dynamic>.from(widget.existing?.metadata ?? const {});
     for (final spec in _fields) {
       if (spec.type == _FieldType.date) {
         final d = _dates[spec.key];
-        if (d != null) m[spec.key] = d.toIso8601String().split('T').first;
+        if (d != null) {
+          m[spec.key] = d.toIso8601String().split('T').first;
+        } else {
+          m.remove(spec.key);
+        }
       } else {
         final v = _ctrl(spec.key).text.trim();
-        if (v.isNotEmpty) m[spec.key] = v;
+        if (v.isNotEmpty) {
+          m[spec.key] = v;
+        } else {
+          m.remove(spec.key);
+        }
       }
     }
     return m;
@@ -377,8 +389,19 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
     // clavier flottant Samsung, etc.), les derniers caractères peuvent ne pas
     // être dans le controller.text au moment de la lecture.
     FocusManager.instance.primaryFocus?.unfocus();
-    // Laisse un tick pour que le framework traite l'unfocus avant de lire les valeurs.
-    await Future<void>.delayed(Duration.zero);
+    // Délai plus long (100ms) pour laisser le temps aux IMEs pénibles (Samsung flottant,
+    // autocomplete Android) de commiter la composition avant qu'on lise les controllers.
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+
+    // DEBUG : on trace ce que les controllers contiennent au moment du save.
+    debugPrint('[SAVE DOC] name="${_nameCtrl.text}", category=$_category');
+    for (final spec in _fields) {
+      if (spec.type != _FieldType.date) {
+        debugPrint('[SAVE DOC]   field "${spec.key}" = "${_ctrl(spec.key).text}"');
+      } else {
+        debugPrint('[SAVE DOC]   date "${spec.key}" = ${_dates[spec.key]}');
+      }
+    }
 
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) {
@@ -391,12 +414,14 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
     try {
       final client = ref.read(supabaseProvider);
       final userId = client.auth.currentUser!.id;
+      final builtMeta = _buildMetadata();
+      debugPrint('[SAVE DOC] metadata built = $builtMeta');
       final payload = {
         'user_id': userId,
         'trip_id': _tripId,
         'category': _category,
         'name': name,
-        'metadata': _buildMetadata(),
+        'metadata': builtMeta,
       };
       String? savedId;
       if (widget.existing != null) {
@@ -417,18 +442,26 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
 
       // Si c'est un hôtel attaché à un voyage et qu'il chevauche un autre hébergement,
       // on demande à l'utilisateur de préciser où il dort chaque nuit de chevauchement.
-      // Sans réponse, le fallback heuristique (séjour le plus court) s'applique à la volée.
+      // On ne pose la question QUE pour les nuits non encore résolues (pas déjà confirmées
+      // dans `metadata.sleep_nights` d'un des hôtels impliqués) — évite de re-demander
+      // à chaque édition minime du doc (adresse, numéro de résa...).
       if (_category == DocumentCategory.hotel && _tripId != null && savedId != null) {
         final hotels = await ref.read(tripHotelsProvider(_tripId!).future);
         if (!mounted) return;
         final savedHotel = hotels.where((h) => h.id == savedId).firstOrNull;
         if (savedHotel != null) {
           final overlap = overlappingNights(savedHotel, hotels);
-          if (overlap.isNotEmpty) {
+          // Une nuit est "résolue" si UN des hôtels qui la couvrent l'a dans sleep_nights.
+          final unresolved = overlap.where((night) {
+            final iso = isoDay(night);
+            final candidates = hotelsSleepingOnNight(hotels, night);
+            return !candidates.any((h) => confirmedSleepNights(h).contains(iso));
+          }).toList();
+          if (unresolved.isNotEmpty) {
             await openOverlapNightsSheet(
               context, ref,
               tripId: _tripId!,
-              overlapNights: overlap,
+              overlapNights: unresolved,
               allHotels: hotels,
             );
           }

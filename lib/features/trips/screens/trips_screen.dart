@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:voyage/core/providers/currency_provider.dart';
+import 'package:voyage/core/services/currency_service.dart';
 import 'package:voyage/core/theme/app_theme.dart';
 import 'package:voyage/features/auth/providers/auth_provider.dart';
+import 'package:voyage/features/planning/providers/planning_provider.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
 
@@ -159,7 +162,7 @@ class _TripsScreenState extends ConsumerState<TripsScreen> {
                               onDismissed: (_) async {
                                 final messenger = ScaffoldMessenger.of(context);
                                 try {
-                                  await ref.read(supabaseProvider).from('trips').delete().eq('id', trip.id);
+                                  await deleteTripCascade(ref.read(supabaseProvider), trip.id);
                                   ref.invalidate(tripsProvider);
                                   ref.invalidate(hasTripsProvider);
                                   messenger.showSnackBar(
@@ -250,7 +253,7 @@ class _EmptyFilterState extends StatelessWidget {
   }
 }
 
-class _TripCard extends StatelessWidget {
+class _TripCard extends ConsumerWidget {
   final Trip trip;
   final VoidCallback onTap;
   const _TripCard({required this.trip, required this.onTap});
@@ -265,7 +268,13 @@ class _TripCard extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final budget = ref.watch(tripBudgetProvider(trip.id)).valueOrNull;
+    final userCurrency = ref.watch(userCurrencyProvider);
+    final budgetLabel = (budget != null && budget.total > 0)
+        ? '~${CurrencyService.formatAmount(budget.total, userCurrency)}'
+        : null;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -307,7 +316,15 @@ class _TripCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(trip.destination, style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                   const SizedBox(height: 6),
-                  Text('📅 ${trip.durationDays} jours', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                  Row(
+                    children: [
+                      Text('📅 ${trip.durationDays} jours', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                      if (budgetLabel != null) ...[
+                        Text(' · ', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                        Text('💰 $budgetLabel', style: TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
+                      ],
+                    ],
+                  ),
                 ],
               ),
             ),

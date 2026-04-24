@@ -85,17 +85,30 @@ class _OverlapNightsSheetState extends ConsumerState<_OverlapNightsSheet> {
       }
 
       for (final hId in affectedIds) {
-        final hotel = widget.allHotels.firstWhere((h) => h.id == hId);
-        final newSet = confirmedSleepNights(hotel).toSet();
+        // Relit le metadata frais directement depuis la DB juste avant d'écrire : évite
+        // d'écraser accidentellement les modifs récentes (adresse, check_in...) si
+        // widget.allHotels était un poil stale entre l'ouverture de la sheet et la confirmation.
+        final freshRow = await client
+            .from('trip_documents')
+            .select('metadata')
+            .eq('id', hId)
+            .maybeSingle();
+        final currentMetadata = Map<String, dynamic>.from(
+          (freshRow?['metadata'] as Map?)?.cast<String, dynamic>() ?? const {},
+        );
+        final storedNights = (currentMetadata['sleep_nights'] as List?)
+                ?.whereType<String>()
+                .toSet() ??
+            <String>{};
+        final newSet = storedNights.toSet();
         // On rewrite uniquement les nuits posées dans cette sheet (préserve les décisions
         // antérieures sur d'autres chevauchements si un 3e hôtel existait).
         newSet.removeAll(overlapIsos);
         for (final entry in _choices.entries) {
           if (entry.value == hId) newSet.add(entry.key);
         }
-        final newMetadata = Map<String, dynamic>.from(hotel.metadata);
-        newMetadata['sleep_nights'] = (newSet.toList()..sort());
-        await client.from('trip_documents').update({'metadata': newMetadata}).eq('id', hId);
+        currentMetadata['sleep_nights'] = (newSet.toList()..sort());
+        await client.from('trip_documents').update({'metadata': currentMetadata}).eq('id', hId);
       }
 
       ref.invalidate(tripDocumentsProvider(widget.tripId));

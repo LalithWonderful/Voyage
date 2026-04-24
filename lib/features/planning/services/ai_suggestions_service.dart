@@ -58,6 +58,17 @@ class SuggestionsResult {
   const SuggestionsResult({required this.activities, required this.transports});
 }
 
+/// Catégorie de suggestion demandée par l'utilisateur via le menu "Suggérer".
+/// Permet à Gemini de se concentrer sur un type précis pour plus de pertinence.
+enum SuggestionCategory {
+  /// Toutes catégories confondues — comportement historique.
+  all,
+  /// Repas uniquement (restos, cafés, street food, food tours, marchés gastro, cours de cuisine).
+  restaurants,
+  /// Activités hors repas (visites, culture, nature, wellness, nightlife, shopping...).
+  activities,
+}
+
 /// Descriptions concrètes envoyées à Gemini pour chaque centre d'intérêt.
 /// Sans ça, les labels comme "Esthétique" peuvent être interprétés de travers
 /// (ex: "lieux Instagrammables" plutôt que "institut de beauté").
@@ -556,6 +567,7 @@ $inputLabel
     double? userLat,
     double? userLng,
     int? userToDestinationTravelMin,
+    SuggestionCategory category = SuggestionCategory.all,
   }) async {
     await _checkRateLimit('suggest_activities');
     final prompt = _buildPrompt(
@@ -569,6 +581,7 @@ $inputLabel
       userLat: userLat,
       userLng: userLng,
       userToDestinationTravelMin: userToDestinationTravelMin,
+      category: category,
     );
     developer.log('Gemini prompt:\n$prompt', name: 'ai');
 
@@ -644,6 +657,7 @@ $inputLabel
     double? userLat,
     double? userLng,
     int? userToDestinationTravelMin,
+    SuggestionCategory category = SuggestionCategory.all,
   }) {
     final now = DateTime.now();
     final todayIso = DateTime(now.year, now.month, now.day).toIso8601String().split('T').first;
@@ -681,8 +695,17 @@ $inputLabel
       final dayOnly = DateTime(a.dayDate.year, a.dayDate.month, a.dayDate.day);
       return dayOnly.isBefore(today);
     }
-    String fmtActivity(TripActivity a) =>
-        '- ${a.dayDate.toIso8601String().split('T').first} ${a.startTime} : ${a.title}';
+    // Inclut l'adresse (detail) si disponible : Gemini peut raisonner par quartier
+    // et regrouper ses suggestions géographiquement (éviter les aller-retours entre
+    // quartiers A→B→A). Critiques en mode Restaurants pour matcher le repas à
+    // l'activité précédente.
+    String fmtActivity(TripActivity a) {
+      final date = a.dayDate.toIso8601String().split('T').first;
+      final addr = (a.detail != null && a.detail!.trim().isNotEmpty)
+          ? ' [📍 ${a.detail!.trim()}]'
+          : '';
+      return '- $date ${a.startTime} : ${a.title}$addr';
+    }
 
     final pastActivities = existingActivities.where(isPastDay).toList();
     final upcomingActivities = existingActivities.where((a) => !isPastDay(a)).toList();
@@ -723,8 +746,32 @@ $inputLabel
             ' → tous les retours en fin de journée doivent utiliser EXACTEMENT le nom "Retour à $resolvedHotelName".';
     }
 
+    // Override fort de catégorie : Gemini tend à mélanger les types d'activités s'il
+    // voit des consignes contradictoires (ex: "couvre tous les intérêts" vs "que des
+    // restos"). On met l'override tout en tête du prompt et on neutralise les règles
+    // qui contredisent (couverture d'intérêts, variété matin/midi/soir).
+    final categoryTopOverride = switch (category) {
+      SuggestionCategory.all => '',
+      SuggestionCategory.restaurants => '''
+🔴 MISSION EXCLUSIVE — RESTAURANTS SEULEMENT 🔴
+Tu dois proposer UNIQUEMENT des repas : petits-déjeuners, déjeuners, dîners, cafés, brunchs, street food, food tours, marchés gastronomiques, cours de cuisine.
+TOUTE activité NON alimentaire (musée, visite, balade, parc, spa, shopping, culture, événement...) est STRICTEMENT INTERDITE dans cette requête.
+Tag obligatoire : "Repas" pour petit-déj/déjeuner/dîner, "Gastronomie" pour food tours / marchés gastro / cours de cuisine.
+Si tu es tenté de proposer autre chose qu'un repas, remplace-le par un restaurant à la place.
+
+''',
+      SuggestionCategory.activities => '''
+🔴 MISSION EXCLUSIVE — VISITES & ACTIVITÉS SEULEMENT 🔴
+Tu dois proposer UNIQUEMENT des activités NON alimentaires : visites culturelles, musées, monuments, parcs naturels, plages, spas, instituts de beauté, shopping, nightlife (bars/clubs), événements, spots populaires, sports, ateliers, balades.
+TOUTE activité alimentaire (restaurant, petit-déjeuner, déjeuner, dîner, brunch, café pour manger, food tour, marché gastro) est STRICTEMENT INTERDITE dans cette requête.
+Tags autorisés : "Visite", "Culture", "Nature", "Sports", "Wellness", "Esthétique", "Plage", "Bons plans", "Événements", "Nightlife", "Shopping", "Hors circuit", "Spots populaires".
+Si tu es tenté de proposer un repas, remplace-le par une visite ou une activité à la place.
+
+''',
+    };
+
     return '''
-Tu es un expert en voyages. Propose un planning d'activités personnalisé en français pour le voyage suivant.
+${categoryTopOverride}Tu es un expert en voyages. Propose un planning d'activités personnalisé en français pour le voyage suivant.
 
 Voyage :
 - Destination : ${trip.destination}
@@ -750,10 +797,16 @@ $upcomingBlock
 $accommodationBlock
 
 Consigne :
-- Propose entre 3 et 6 activités par jour **qui reflètent concrètement les centres d'intérêt et le type de voyageur listés ci-dessus**. Règle de couverture : sur l'ensemble du planning proposé, CHAQUE centre d'intérêt listé doit apparaître au moins UNE fois (ex: "Esthétique" listé → au moins un institut de beauté/spa ; "Événements" listé → au moins un festival/concert/expo ou marché saisonnier en cours pendant les dates). Les prix et la gamme des lieux doivent matcher le type de voyageur (ex: "Meilleur prix" → privilégie gratuit ou <15€/personne ; "Grand luxe" → haut de gamme uniquement).
+${switch (category) {
+  SuggestionCategory.all => '- Propose entre 3 et 6 activités par jour **qui reflètent concrètement les centres d\'intérêt et le type de voyageur listés ci-dessus**. Règle de couverture : sur l\'ensemble du planning proposé, CHAQUE centre d\'intérêt listé doit apparaître au moins UNE fois (ex: "Esthétique" listé → au moins un institut de beauté/spa ; "Événements" listé → au moins un festival/concert/expo ou marché saisonnier en cours pendant les dates). Les prix et la gamme des lieux doivent matcher le type de voyageur (ex: "Meilleur prix" → privilégie gratuit ou <15€/personne ; "Grand luxe" → haut de gamme uniquement).',
+  SuggestionCategory.restaurants => '- Propose 2 à 3 repas par jour UNIQUEMENT (petit-déjeuner + déjeuner + dîner selon ce qui manque au planning). Ne force PAS la couverture des centres d\'intérêt non-alimentaires — tu fais UNIQUEMENT des restos ici. Les prix doivent matcher le type de voyageur ("Meilleur prix" → street food / bouis-bouis ; "Grand luxe" → restaurants étoilés).',
+  SuggestionCategory.activities => '- Propose 2 à 4 activités non-alimentaires par jour. Règle de couverture : chaque centre d\'intérêt NON ALIMENTAIRE listé (Culture, Wellness, Nature, etc.) doit apparaître au moins une fois dans le planning proposé. N\'ajoute AUCUN repas, même pour "combler" un créneau. Les prix et gamme doivent matcher le type de voyageur.',
+}}
+- **PRIORITÉ AUX CRÉNEAUX LIBRES** : si un jour a déjà plusieurs activités planifiées mais qu'il reste des trous (soir libre après la dernière activité, gap de plus de 2 heures en milieu de journée, matinée vide), **comble ces trous en priorité** avec de nouvelles activités, même si le jour approche déjà 5-6 activités. L'objectif n'est pas de respecter un quota, c'est de remplir utilement le temps disponible. Exemples : dernière activité finit à 18h ET aucune activité ensuite → propose un dîner / un bar / une sortie nocturne en fonction des intérêts. Trou entre 10h et 14h → propose une activité qui tient dans ce créneau.
 - Ne propose AUCUNE activité listée dans les blocs ci-dessus (ni celles des jours précédents déjà vécues, ni celles déjà planifiées). Pour les activités des jours précédents, évite aussi les variantes évidentes (ex: si le voyageur a déjà visité un grand musée historique, ne propose pas un autre grand musée historique similaire).
 - Varie matin / midi / après-midi / soir.
-- **PÉRIMÈTRE GÉOGRAPHIQUE** : chaque activité doit être atteignable en **~45 min max de trajet** depuis ${hotels.length > 1 ? "l'hôtel couvrant le jour de l'activité (voir liste ci-dessus)" : hotels.isNotEmpty ? "l'hôtel \"${hotels.first.name}\"" : hotelName != null ? "l'hôtel \"$hotelName\"" : "le centre de ${trip.destination}"}. Pas de day-trips à 2h de route (hors voyage longue durée). Pour AUJOURD'HUI spécifiquement, privilégie des lieux proches de la position actuelle du voyageur si elle est fournie.
+- **CONTINUITÉ GÉOGRAPHIQUE (priorité absolue)** : quand tu proposes une nouvelle activité pour un créneau, elle doit être le plus proche possible de l'activité qui la précède IMMÉDIATEMENT sur la même journée. Les adresses des activités existantes sont listées entre [📍 ...] dans les blocs ci-dessus — utilise-les pour raisonner par quartier / arrondissement / distance. Exemples : si l'activité de 10h est dans le 7e arrondissement, le déjeuner à 12h30 doit être dans le 7e, éventuellement 6e ou 8e. JAMAIS à l'autre bout de la ville. Pour les voyages multi-quartiers, groupe tes suggestions par "journée dans un même secteur" pour éviter les aller-retours inutiles A→B→A→B. Pour les journées sans activité existante, regroupe tes propositions dans 1-2 quartiers max.
+- **PÉRIMÈTRE GÉOGRAPHIQUE (contrainte large)** : chaque activité doit aussi être atteignable en **~45 min max de trajet** depuis ${hotels.length > 1 ? "l'hôtel couvrant le jour de l'activité (voir liste ci-dessus)" : hotels.isNotEmpty ? "l'hôtel \"${hotels.first.name}\"" : hotelName != null ? "l'hôtel \"$hotelName\"" : "le centre de ${trip.destination}"}. Pas de day-trips à 2h de route (hors voyage longue durée). Pour AUJOURD'HUI spécifiquement, privilégie des lieux proches de la position actuelle du voyageur si elle est fournie.
 - Nomme des lieux précis (restos, quartiers, musées, spots), pas des généralités.
 - Les dates doivent être comprises entre $effectiveStart et $end inclus. NE PROPOSE JAMAIS d'activité à une date déjà passée (< $todayIso).
 - **IMPORTANT : respecte les horaires d'ouverture RÉELS du type de lieu dans cette destination.** Exemples repères (à adapter aux coutumes locales) :
@@ -770,6 +823,7 @@ Consigne :
 - Donne une durée estimée (en minutes) et un prix estimé par personne dans la devise locale (ou "Gratuit" si accès libre).
 - CHAQUE jour doit se TERMINER par une activité "Retour à l'hôtel" (tag "Hébergement", duration_minutes 15, price_estimate "Gratuit"). Si un hébergement précis apparaît dans les activités existantes ou que tu en proposes un, utilise son nom exact ("Retour au Memmo Alfama" par ex.) ; sinon utilise le libellé générique "Retour à l'hôtel". Garde le MÊME nom d'hébergement pour tous les retours du voyage.
 - Pour CHAQUE paire d'activités consécutives dans un même jour (y compris vers le retour à l'hôtel), génère un objet "transport" avec 2 à 4 options de déplacement (à pied / taxi / métro / bus / vélo / voiture / train / bateau / tuk-tuk selon le pays).
+- **DURÉES RÉALISTES** : pour la marche, vitesse moyenne piéton = 4-5 km/h, donc 10 min = ~800 m, 30 min = ~2,5 km, 1h = ~5 km. Si tu NE CONNAIS PAS la position exacte d'une activité (ex: nom d'hébergement privé que tu ne reconnais pas), DONNE une durée pessimiste (>= 30 min à pied) plutôt qu'une estimation optimiste. **Ne propose jamais "20 min à pied" si le lieu est potentiellement à l'autre bout de la ville.** Pour les taxis/métro, compte aussi l'attente et les transferts.
 - Le "default_mode" doit être cohérent avec le profil : Grand luxe → taxi, Backpack/Meilleur prix → à pied ou transports en commun, En famille → taxi ou métro selon durée.
 - Les titres "from_title"/"to_title" doivent correspondre EXACTEMENT aux titres des activités.
 

@@ -136,6 +136,7 @@ class PlaceInfo {
   final int? ratingsCount;
   final int? priceLevel;
   final String? placeId;
+  final String? address;
   final List<PlaceReview>? reviews;
   final OpeningHours? openingHours;
 
@@ -145,6 +146,7 @@ class PlaceInfo {
     this.ratingsCount,
     this.priceLevel,
     this.placeId,
+    this.address,
     this.reviews,
     this.openingHours,
   });
@@ -176,7 +178,7 @@ class PlacesService {
       final params = {
         'input': trimmed,
         'inputtype': 'textquery',
-        'fields': 'photos,place_id,name,rating,user_ratings_total,price_level',
+        'fields': 'photos,place_id,name,rating,user_ratings_total,price_level,formatted_address',
         'key': key,
       };
       if (latitude != null && longitude != null) {
@@ -221,6 +223,7 @@ class PlacesService {
         ratingsCount: (first['user_ratings_total'] as num?)?.toInt(),
         priceLevel: (first['price_level'] as num?)?.toInt(),
         placeId: first['place_id'] as String?,
+        address: first['formatted_address'] as String?,
       );
     } catch (e) {
       developer.log('Erreur Places : $e', name: 'places');

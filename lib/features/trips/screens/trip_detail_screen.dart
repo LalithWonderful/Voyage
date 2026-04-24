@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:voyage/core/theme/app_theme.dart';
+import 'package:voyage/core/providers/currency_provider.dart';
+import 'package:voyage/core/services/currency_service.dart';
+import 'package:voyage/features/auth/providers/auth_provider.dart';
+import 'package:voyage/features/planning/providers/planning_provider.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
 import 'package:voyage/features/trips/widgets/trip_edit_sheet.dart';
@@ -65,6 +69,43 @@ class _TripDetail extends ConsumerWidget {
   String _fmtDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
+  Future<void> _confirmDeleteTrip(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final router = GoRouter.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Supprimer ce voyage ?'),
+        content: Text(
+          '« ${trip.title} » ainsi que toutes ses activités et trajets seront '
+          'définitivement supprimés. Les documents (hôtels, vols, billets) restent '
+          'dans ton wallet et peuvent être réutilisés sur un autre voyage. Action irréversible.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogCtx, false), child: const Text('Annuler')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await deleteTripCascade(ref.read(supabaseProvider), trip.id);
+      ref.invalidate(tripsProvider);
+      ref.invalidate(hasTripsProvider);
+      ref.invalidate(documentsProvider);
+      messenger.showSnackBar(SnackBar(content: Text('« ${trip.title} » supprimé.')));
+      router.go('/trips');
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Erreur : $e'), backgroundColor: AppColors.error),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final docsAsync = ref.watch(tripDocumentsProvider(trip.id));
@@ -72,6 +113,12 @@ class _TripDetail extends ConsumerWidget {
     final hotelsAsync = ref.watch(tripHotelsProvider(trip.id));
     final hotels = hotelsAsync.valueOrNull ?? const <TripDocument>[];
     final others = docs.where((d) => d.category != DocumentCategory.hotel).toList();
+
+    final budget = ref.watch(tripBudgetProvider(trip.id)).valueOrNull;
+    final userCurrency = ref.watch(userCurrencyProvider);
+    final budgetLabel = (budget != null && budget.total > 0)
+        ? '~${CurrencyService.formatAmount(budget.total, userCurrency)}'
+        : null;
 
     return CustomScrollView(
       slivers: [
@@ -89,9 +136,37 @@ class _TripDetail extends ConsumerWidget {
               tooltip: 'Modifier',
               onPressed: () => openTripEditSheet(context, ref, trip: trip),
             ),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert, color: Colors.white),
+              tooltip: 'Options',
+              onSelected: (v) {
+                if (v == 'delete') _confirmDeleteTrip(context, ref);
+              },
+              itemBuilder: (_) => [
+                PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_outline, size: 18, color: AppColors.error),
+                      const SizedBox(width: 10),
+                      const Text('Supprimer le voyage'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ],
           flexibleSpace: FlexibleSpaceBar(
-            title: Text(trip.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            title: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(trip.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                if (budgetLabel != null) ...[
+                  const SizedBox(width: 12),
+                  Text(budgetLabel, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ],
+              ],
+            ),
             background: Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(

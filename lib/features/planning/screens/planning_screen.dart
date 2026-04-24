@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:voyage/core/services/location_service.dart';
 import 'package:voyage/core/services/notification_service.dart';
+import 'package:voyage/core/providers/currency_provider.dart';
+import 'package:voyage/core/services/currency_service.dart';
 import 'package:voyage/core/theme/app_theme.dart';
 import 'package:voyage/core/widgets/converted_price.dart';
 import 'package:voyage/features/auth/providers/auth_provider.dart';
@@ -29,7 +31,55 @@ class PlanningScreen extends ConsumerWidget {
   final String tripId;
   const PlanningScreen({super.key, required this.tripId});
 
-  Future<void> _generateSuggestions(BuildContext context, WidgetRef ref, Trip trip) async {
+  /// Affiche un bottom sheet avec le choix de catégorie puis enchaîne sur la génération.
+  /// Cohérent avec la vision produit (cf. mémoire project_ai_suggestions_vision) :
+  /// laisser l'utilisateur cibler précisément ce qu'il cherche plutôt qu'un mega-prompt
+  /// qui hallucine sur 77 activités.
+  Future<void> _openSuggestionMenu(BuildContext context, WidgetRef ref, Trip trip) async {
+    final choice = await showModalBottomSheet<SuggestionCategory>(
+      context: context,
+      backgroundColor: AppColors.background,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 10),
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 18),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text('Que veux-tu suggérer ?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+            ),
+            const SizedBox(height: 10),
+            ListTile(
+              leading: const Text('✨', style: TextStyle(fontSize: 24)),
+              title: const Text('Tout', style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: const Text('Visites et repas, comble les créneaux libres'),
+              onTap: () => Navigator.pop(ctx, SuggestionCategory.all),
+            ),
+            ListTile(
+              leading: const Text('🍽️', style: TextStyle(fontSize: 24)),
+              title: const Text('Restaurants', style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: const Text('Petit-déj, déjeuner, dîner — uniquement'),
+              onTap: () => Navigator.pop(ctx, SuggestionCategory.restaurants),
+            ),
+            ListTile(
+              leading: const Text('🏛️', style: TextStyle(fontSize: 24)),
+              title: const Text('Visites & activités', style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: const Text('Culture, nature, shopping, détente — hors repas'),
+              onTap: () => Navigator.pop(ctx, SuggestionCategory.activities),
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !context.mounted) return;
+    await _generateSuggestions(context, ref, trip, category: choice);
+  }
+
+  Future<void> _generateSuggestions(BuildContext context, WidgetRef ref, Trip trip, {SuggestionCategory category = SuggestionCategory.all}) async {
     final navigator = Navigator.of(context, rootNavigator: true);
     final messenger = ScaffoldMessenger.of(context);
 
@@ -51,8 +101,40 @@ class PlanningScreen extends ConsumerWidget {
     try {
       final profile = await ref.read(userProfileProvider.future);
       final interests = await ref.read(userInterestsProvider.future);
-      final existing = await ref.read(planningTimelineProvider(tripId).future);
+      var existing = await ref.read(planningTimelineProvider(tripId).future);
       final hotels = await ref.read(tripHotelsProvider(tripId).future);
+
+      // Backfill des adresses manquantes via Places API. Critique pour que Gemini
+      // puisse raisonner par quartier et regrouper ses propositions géographiquement.
+      // Les titres déjà validés sont cachés en places_cache 30j → coût minime sur les runs suivants.
+      final missingAddress = existing.where((a) =>
+        (a.detail == null || a.detail!.trim().isEmpty) &&
+        a.tag != 'Hébergement' &&
+        !isVirtualActivity(a.id) // les activités virtuelles n'ont pas d'id DB
+      ).toList();
+      if (missingAddress.isNotEmpty) {
+        debugPrint('[BACKFILL] ${missingAddress.length} activités sans adresse → enrichissement Places');
+        final placesService = ref.read(placesCacheServiceProvider);
+        final supabaseClient = ref.read(supabaseProvider);
+        var updated = 0;
+        await Future.wait(missingAddress.map((a) async {
+          try {
+            final info = await placesService.findInfo(title: a.title, destination: trip.destination);
+            if (info.address != null && info.address!.trim().isNotEmpty) {
+              await supabaseClient.from('trip_activities')
+                  .update({'detail': info.address}).eq('id', a.id);
+              updated++;
+            }
+          } catch (_) {} // silent — un échec sur une activité ne doit pas bloquer le flow
+        }));
+        debugPrint('[BACKFILL] $updated adresses ajoutées (${missingAddress.length - updated} non trouvées)');
+        // Re-fetch pour que Gemini voit les nouvelles adresses
+        if (updated > 0) {
+          ref.invalidate(tripActivitiesProvider(tripId));
+          existing = await ref.read(planningTimelineProvider(tripId).future);
+        }
+      }
+
       // Préférences : trip-level si définies, sinon fallback profil utilisateur
       final effectiveTravelerType = trip.travelerType ?? profile?['traveler_type'] as String?;
       final effectiveInterests = (trip.interests != null && trip.interests!.isNotEmpty) ? trip.interests! : interests;
@@ -83,6 +165,7 @@ class PlanningScreen extends ConsumerWidget {
               ))
           .toList();
 
+      debugPrint('[SUGGEST] Appel Gemini (trip=${trip.destination}, existing=${existing.length}, category=${category.name})');
       final service = ref.read(aiSuggestionsServiceProvider);
       final result = await service.suggestActivities(
         trip: trip,
@@ -93,33 +176,157 @@ class PlanningScreen extends ConsumerWidget {
         userLat: userLocation?.latitude,
         userLng: userLocation?.longitude,
         userToDestinationTravelMin: userToDestinationMin,
+        category: category,
       );
+      debugPrint('[SUGGEST] Réponse Gemini reçue (${result.activities.length} activités, ${result.transports.length} trajets)');
 
-      String norm(String s) => s.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
+      // Normalisation pour le dedup : lowercase + strip emojis/ponctuation.
+      // Permet de matcher "🏨 Départ · Maison rue du pigeonnier" vs
+      // "Départ Maison rue pigeonnier" (même activité, 2 formulations).
+      String norm(String s) => s
+          .toLowerCase()
+          .replaceAll(RegExp(r'[^a-zà-ÿ0-9\s]'), ' ')
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .trim();
       final existingTitles = existing.map((a) => norm(a.title)).toSet();
-      bool isHotelReturn(String title) => title.toLowerCase().trim().startsWith('retour');
+      // Filtre large pour toutes les activités "gestion hébergement" (retour à l'hôtel,
+      // arrivée/départ = check-in/check-out). L'app les génère automatiquement depuis
+      // les documents — Gemini ne doit pas les re-proposer, peu importe la formulation
+      // (avec ou sans emoji 🏨, avec ou sans préfixe "·"). Regex sur mots entiers.
+      final hotelActionsRe = RegExp(
+        r'\b(retour|départ|depart|arrivée|arrivee|check[\s-]?in|check[\s-]?out)\b',
+        caseSensitive: false,
+      );
+      bool isHotelReturn(String title) => hotelActionsRe.hasMatch(title);
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
       final earliestMinToday = now.hour * 60 + now.minute + 30; // current + buffer
+
+      int? timeToMin(String hhmm) {
+        final parts = hhmm.split(':');
+        if (parts.length != 2) return null;
+        final h = int.tryParse(parts[0]);
+        final m = int.tryParse(parts[1]);
+        if (h == null || m == null) return null;
+        return h * 60 + m;
+      }
 
       bool isInPast(ActivitySuggestion s) {
         final day = DateTime(s.dayDate.year, s.dayDate.month, s.dayDate.day);
         if (day.isBefore(today)) return true;
         if (day.isAtSameMomentAs(today)) {
-          final parts = s.startTime.split(':');
-          if (parts.length != 2) return false;
-          final h = int.tryParse(parts[0]) ?? 0;
-          final m = int.tryParse(parts[1]) ?? 0;
-          return (h * 60 + m) < earliestMinToday;
+          final minutes = timeToMin(s.startTime);
+          if (minutes == null) return false;
+          return minutes < earliestMinToday;
         }
         return false;
       }
 
-      final suggestions = result.activities
-          .where((s) => !existingTitles.contains(norm(s.title)))
-          .where((s) => !isHotelReturn(s.title))
-          .where((s) => !isInPast(s)) // bloque date passée ET heure passée + buffer
-          .toList();
+      // Groupe les activités existantes par jour pour le check de chevauchement
+      final existingByDay = <String, List<TripActivity>>{};
+      for (final a in existing) {
+        final key = a.dayDate.toIso8601String().split('T').first;
+        existingByDay.putIfAbsent(key, () => []).add(a);
+      }
+
+      /// Vrai si la suggestion chevauche une activité existante le même jour.
+      /// Deux activités chevauchent si [s.start, s.end[ ∩ [e.start, e.end[ ≠ ∅.
+      bool hasTimeOverlap(ActivitySuggestion s) {
+        final key = s.dayDate.toIso8601String().split('T').first;
+        final sStart = timeToMin(s.startTime);
+        if (sStart == null) return false;
+        final sEnd = sStart + (s.durationMinutes ?? 60);
+        for (final e in existingByDay[key] ?? const <TripActivity>[]) {
+          final eStart = timeToMin(e.startTime);
+          if (eStart == null) continue;
+          final eEnd = eStart + (e.durationMinutes ?? 60);
+          if (sStart < eEnd && eStart < sEnd) return true;
+        }
+        return false;
+      }
+
+      // Filtre "heure tardive déraisonnable" supprimé : le seuil dépend trop de la
+      // destination (Metz ferme à 22h, Bangkok/Madrid/NYC tournent jusqu'au petit matin).
+      // On laisse le prompt Gemini gérer via ses guidelines "adapte à la destination".
+      // Si Gemini hallucine quand même, l'utilisateur peut simplement ne pas cocher
+      // la suggestion dans la sheet de sélection.
+
+      // Dedup INTRA-réponse Gemini : si Gemini renvoie 2 fois "Petit déjeuner Maison Lou",
+      // on ne garde que la 1ère. Cette dedup vient avant celle contre l'existant.
+      final seenInternal = <String>{};
+      final uniqueInternal = <ActivitySuggestion>[];
+      for (final s in result.activities) {
+        final key = norm(s.title);
+        if (seenInternal.add(key)) uniqueInternal.add(s);
+      }
+
+      // Validation catégorie stricte : Gemini glisse parfois un bar dans "Visites" ou
+      // une visite dans "Restos" malgré l'override. On vérifie le tag retourné et on
+      // rejette si incohérent avec la demande.
+      const mealTags = {'repas', 'gastronomie', 'restaurant', 'resto'};
+      bool isMealActivity(ActivitySuggestion s) {
+        final t = s.tag.toLowerCase().trim();
+        if (mealTags.contains(t)) return true;
+        // Fallback par titre si Gemini a mis un tag bidon
+        final title = s.title.toLowerCase();
+        return RegExp(r'\b(petit[\s-]?déjeuner|déjeuner|dîner|diner|brunch|restaurant|resto|café|food tour|street food)\b').hasMatch(title);
+      }
+      bool matchesCategory(ActivitySuggestion s) {
+        switch (category) {
+          case SuggestionCategory.all:
+            return true;
+          case SuggestionCategory.restaurants:
+            return isMealActivity(s);
+          case SuggestionCategory.activities:
+            return !isMealActivity(s);
+        }
+      }
+      final afterCategory = uniqueInternal.where(matchesCategory).toList();
+
+      final rawCount = result.activities.length;
+      final afterDup = afterCategory.where((s) => !existingTitles.contains(norm(s.title))).toList();
+      final afterReturn = afterDup.where((s) => !isHotelReturn(s.title)).toList();
+      final afterPast = afterReturn.where((s) => !isInPast(s)).toList();
+      final afterOverlap = afterPast.where((s) => !hasTimeOverlap(s)).toList();
+
+      // ── Validation Places API post-Gemini ──
+      // Pour chaque suggestion, on vérifie qu'un lieu existe vraiment sur Google Places.
+      // Si Places ne trouve aucun match (placeId null) → hallucination Gemini (ex: "Atelier
+      // de relaxation et méditation guidée" = pas un lieu réel), on rejette.
+      // Les activités avec tag "Hébergement" ne sont pas validées (gérées par les docs).
+      // Appels faits en parallèle (Future.wait) pour limiter la latence (~300ms pour N=50).
+      // Résultats cachés en DB par (titre, destination) → 0 coût sur les requêtes répétées.
+      final placesService = ref.read(placesCacheServiceProvider);
+      final destination = trip.destination;
+      final validationResults = await Future.wait(
+        afterOverlap.map((s) async {
+          if (s.tag == 'Hébergement') return (suggestion: s, valid: true);
+          try {
+            final info = await placesService.findInfo(
+              title: s.title,
+              destination: destination,
+            );
+            // On exige placeId ET adresse non vide — sinon le bouton "Voir sur Maps"
+            // dans la sheet détail n'aura rien à afficher et risque de faire planter
+            // l'app Maps avec un query vague (ex: "Petit déjeuner gourmand").
+            final hasPlace = info.placeId != null && info.placeId!.isNotEmpty;
+            final hasAddress = info.address != null && info.address!.trim().isNotEmpty;
+            return (suggestion: s, valid: hasPlace && hasAddress);
+          } catch (_) {
+            // Erreur réseau = on garde (ne pas pénaliser l'utilisateur pour une API qui flake)
+            return (suggestion: s, valid: true);
+          }
+        }),
+      );
+      final suggestions = validationResults.where((r) => r.valid).map((r) => r.suggestion).toList();
+
+      debugPrint(
+        '[SUGGEST] brut=$rawCount, dedup-interne=${uniqueInternal.length}, '
+        'après catégorie=${afterCategory.length}, après dedup-existant=${afterDup.length}, '
+        'après retour=${afterReturn.length}, après passé=${afterPast.length}, '
+        'après overlap=${afterOverlap.length}, après Places=${suggestions.length} '
+        '(${afterOverlap.length - suggestions.length} hallucinations rejetées)',
+      );
 
       closeDialog();
       if (!context.mounted) return;
@@ -145,6 +352,7 @@ class PlanningScreen extends ConsumerWidget {
       ref.invalidate(tripTransportsProvider(tripId));
     } catch (e) {
       closeDialog();
+      debugPrint('[SUGGEST] EXCEPTION : $e');
       messenger.showSnackBar(
         SnackBar(
           content: Text('Erreur IA : $e', maxLines: 4),
@@ -181,7 +389,7 @@ class PlanningScreen extends ConsumerWidget {
       floatingActionButton: (trip == null || !hasActivities)
           ? null
           : FloatingActionButton.extended(
-              onPressed: () => _generateSuggestions(context, ref, trip),
+              onPressed: () => _openSuggestionMenu(context, ref, trip),
               backgroundColor: AppColors.accent,
               icon: const Icon(Icons.auto_awesome, color: Colors.white),
               label: const Text('Suggérer', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
@@ -213,7 +421,7 @@ class PlanningScreen extends ConsumerWidget {
                     SizedBox(
                       height: MediaQuery.of(context).size.height * 0.5,
                       child: _EmptyPlanning(
-                        onSuggest: trip == null ? null : () => _generateSuggestions(context, ref, trip),
+                        onSuggest: trip == null ? null : () => _openSuggestionMenu(context, ref, trip),
                         onAddManual: () => openActivityCreateSheet(context, ref, tripId: tripId, defaultDay: trip?.startDate ?? DateTime.now()),
                       ),
                     ),
@@ -257,7 +465,7 @@ class _LoadingDialog extends StatelessWidget {
   }
 }
 
-class _GradientHeader extends StatelessWidget {
+class _GradientHeader extends ConsumerWidget {
   final String tripId;
   final Trip? trip;
   const _GradientHeader({required this.tripId, required this.trip});
@@ -279,7 +487,13 @@ class _GradientHeader extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final budget = ref.watch(tripBudgetProvider(tripId)).valueOrNull;
+    final userCurrency = ref.watch(userCurrencyProvider);
+    final totalLabel = (budget != null && budget.total > 0)
+        ? '~${CurrencyService.formatAmount(budget.total, userCurrency)}'
+        : null;
+
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF2563EB), Color(0xFF4F46E5)]),
@@ -297,9 +511,22 @@ class _GradientHeader extends StatelessWidget {
                 const Icon(Icons.more_horiz, color: Colors.white),
               ]),
               const SizedBox(height: 10),
-              Text(
-                trip != null ? '${trip!.title} ${trip!.coverEmoji}' : '...',
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Expanded(
+                    child: Text(
+                      trip != null ? '${trip!.title} ${trip!.coverEmoji}' : '...',
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                  ),
+                  if (totalLabel != null)
+                    Text(
+                      totalLabel,
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                ],
               ),
               Text(
                 _formatRange(),
@@ -519,11 +746,16 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
         }
       }
 
+      // Stocke l'adresse de l'hôtel dans `detail` pour que "Voir sur Maps" puisse
+      // l'utiliser directement (évite la recherche fuzzy sur le titre qui fait planter
+      // l'app Maps sur un nom d'hébergement privé).
+      final hotelAddress = dayHotel.metadata['address'] as String?;
       rows.add({
         'trip_id': widget.tripId,
         'day_date': day.toIso8601String().split('T').first,
         'start_time': returnTime,
         'title': 'Retour à ${dayHotel.name}',
+        if (hotelAddress != null && hotelAddress.isNotEmpty) 'detail': hotelAddress,
         'tag': 'Hébergement',
         'duration_minutes': 15,
         'price_estimate': 'Gratuit',
@@ -978,6 +1210,8 @@ class _PlanningContentState extends ConsumerState<_PlanningContent> {
                   child: _DayHeader(
                     title: 'Jour ${i + 1} · ${_weekdays[day.weekday - 1]} ${day.day} ${_monthsLong[day.month - 1]}',
                     count: dayActs.length,
+                    tripId: widget.tripId,
+                    day: day,
                   ),
                 ),
                 footer: Padding(
@@ -1257,13 +1491,154 @@ class _DayPillsBar extends StatelessWidget {
   }
 }
 
-class _DayHeader extends StatelessWidget {
+class _DayHeader extends ConsumerWidget {
   final String title;
   final int count;
-  const _DayHeader({required this.title, required this.count});
+  final String tripId;
+  final DateTime day;
+  const _DayHeader({required this.title, required this.count, required this.tripId, required this.day});
+
+  Future<void> _clearDay(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Vider ce jour ?'),
+        content: Text(
+          'Cette action supprime toutes les activités planifiées pour $title. '
+          'Les documents (hôtels, vols, billets) restent intacts. Action irréversible.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogCtx, false), child: const Text('Annuler')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Vider'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final client = ref.read(supabaseProvider);
+      final iso = '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+      // 1) récupère les IDs d'activités pour ce jour, pour purger les transports liés
+      final rows = await client.from('trip_activities').select('id').eq('trip_id', tripId).eq('day_date', iso);
+      final ids = (rows as List).map((r) => r['id'] as String).toList();
+      if (ids.isNotEmpty) {
+        await client.from('trip_transports').delete().inFilter('from_activity_id', ids);
+        await client.from('trip_transports').delete().inFilter('to_activity_id', ids);
+      }
+      await client.from('trip_activities').delete().eq('trip_id', tripId).eq('day_date', iso);
+      ref.invalidate(tripActivitiesProvider(tripId));
+      ref.invalidate(tripTransportsProvider(tripId));
+      if (context.mounted) {
+        messenger.showSnackBar(SnackBar(content: Text('${ids.length} activité${ids.length > 1 ? 's' : ''} supprimée${ids.length > 1 ? 's' : ''}.')));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        messenger.showSnackBar(SnackBar(content: Text('Erreur : $e'), backgroundColor: AppColors.error));
+      }
+    }
+  }
+
+  Future<void> _clearFutureTrip(BuildContext context, WidgetRef ref) async {
+    // Capture le messenger synchroneously — on peut l'utiliser après les await
+    // sans avoir à guarder chaque usage avec `context.mounted`.
+    final messenger = ScaffoldMessenger.of(context);
+    // 1) Récupère la liste complète des activités pour décider en Dart (comparaison
+    // date fiable, vs risque de décalage timezone si on laisse Supabase comparer).
+    final client = ref.read(supabaseProvider);
+    final now = DateTime.now();
+    final todayDay = DateTime(now.year, now.month, now.day);
+
+    List<Map<String, dynamic>> allRows;
+    try {
+      final res = await client.from('trip_activities').select('id, day_date, title').eq('trip_id', tripId);
+      allRows = (res as List).cast<Map<String, dynamic>>();
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Erreur lecture : $e'), backgroundColor: AppColors.error),
+      );
+      return;
+    }
+
+    final toDelete = <String>[];
+    DateTime? earliest;
+    DateTime? latest;
+    for (final r in allRows) {
+      final dateStr = r['day_date'] as String?;
+      if (dateStr == null) continue;
+      final parsed = DateTime.tryParse(dateStr);
+      if (parsed == null) continue;
+      final day = DateTime(parsed.year, parsed.month, parsed.day);
+      if (!day.isBefore(todayDay)) {
+        toDelete.add(r['id'] as String);
+        if (earliest == null || day.isBefore(earliest)) earliest = day;
+        if (latest == null || day.isAfter(latest)) latest = day;
+      }
+    }
+    debugPrint('[CLEAR] today=$todayDay, nb à supprimer=${toDelete.length}, plage=$earliest → $latest');
+
+    if (toDelete.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Aucune activité à supprimer (pas de jours à venir).')),
+        );
+      }
+      return;
+    }
+
+    // 2) Confirmation avec plage exacte
+    String fmt(DateTime d) => '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+    if (!context.mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Tout supprimer à venir ?'),
+        content: Text(
+          'Cette action supprime ${toDelete.length} activité${toDelete.length > 1 ? 's' : ''} '
+          'entre le ${fmt(earliest!)} et le ${fmt(latest!)} (inclus).\n\n'
+          'Les jours antérieurs à aujourd\'hui (${fmt(todayDay)}) sont préservés. '
+          'Les documents (hôtels, vols, billets) restent intacts. Action irréversible.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogCtx, false), child: const Text('Annuler')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Tout supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    // 3) Purge transports puis activités, par IDs explicites
+    try {
+      await client.from('trip_transports').delete().inFilter('from_activity_id', toDelete);
+      await client.from('trip_transports').delete().inFilter('to_activity_id', toDelete);
+      await client.from('trip_activities').delete().inFilter('id', toDelete);
+      ref.invalidate(tripActivitiesProvider(tripId));
+      ref.invalidate(tripTransportsProvider(tripId));
+      messenger.showSnackBar(SnackBar(content: Text('${toDelete.length} activité${toDelete.length > 1 ? 's' : ''} supprimée${toDelete.length > 1 ? 's' : ''}.')));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Erreur suppression : $e'), backgroundColor: AppColors.error));
+    }
+  }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final now = DateTime.now();
+    final todayDay = DateTime(now.year, now.month, now.day);
+    final thisDay = DateTime(day.year, day.month, day.day);
+    final isDayPast = thisDay.isBefore(todayDay);
+
+    final budget = ref.watch(tripBudgetProvider(tripId)).valueOrNull;
+    final userCurrency = ref.watch(userCurrencyProvider);
+    final iso = thisDay.toIso8601String().split('T').first;
+    final dayAmount = budget?.byDay[iso] ?? 0;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -1271,6 +1646,45 @@ class _DayHeader extends StatelessWidget {
           child: Text('📅 $title', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
         ),
         Text('$count activité${count > 1 ? 's' : ''}', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+        if (dayAmount > 0) ...[
+          const SizedBox(width: 6),
+          Text(
+            '· ~${CurrencyService.formatAmount(dayAmount, userCurrency)}',
+            style: TextStyle(fontSize: 12, color: AppColors.textPrimary, fontWeight: FontWeight.w800),
+          ),
+        ],
+        PopupMenuButton<String>(
+          icon: Icon(Icons.more_vert, size: 18, color: AppColors.textSecondary),
+          padding: EdgeInsets.zero,
+          tooltip: 'Options',
+          onSelected: (v) {
+            if (v == 'clear_day') _clearDay(context, ref);
+            if (v == 'clear_trip') _clearFutureTrip(context, ref);
+          },
+          itemBuilder: (_) => [
+            PopupMenuItem(
+              value: 'clear_day',
+              enabled: !isDayPast,
+              child: Row(
+                children: [
+                  Icon(Icons.delete_sweep_outlined, size: 18, color: isDayPast ? AppColors.textSecondary : AppColors.error),
+                  const SizedBox(width: 10),
+                  Text('Tout supprimer du jour', style: TextStyle(color: isDayPast ? AppColors.textSecondary : AppColors.textPrimary)),
+                ],
+              ),
+            ),
+            PopupMenuItem(
+              value: 'clear_trip',
+              child: Row(
+                children: [
+                  Icon(Icons.delete_forever_outlined, size: 18, color: AppColors.error),
+                  const SizedBox(width: 10),
+                  const Text('Tout supprimer à venir'),
+                ],
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -1427,6 +1841,11 @@ class _ActivityItem extends ConsumerWidget {
                           Padding(
                             padding: EdgeInsets.all(6),
                             child: Icon(Icons.link, size: 16, color: AppColors.textSecondary),
+                          )
+                        else if (isActivityLocked(activity, ref.watch(unlockedPastActivitiesProvider)))
+                          Padding(
+                            padding: const EdgeInsets.all(6),
+                            child: Icon(Icons.lock_outline, size: 16, color: AppColors.textSecondary),
                           )
                         else
                           IconButton(
