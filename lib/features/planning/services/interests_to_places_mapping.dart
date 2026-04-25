@@ -49,6 +49,12 @@ class InterestPlacesQuery {
   /// `bar_and_grill`, restos italiens avec `lounge_bar`...) — on filtre ce bruit.
   final bool excludeFoodPrimaryType;
 
+  /// Liste explicite de primary types à rejeter pour cet intérêt. Utile pour
+  /// des exclusions précises qui ne tombent pas sous excludeFoodPrimaryType :
+  /// - Gastronomie/Bons plans : exclure supermarket, grocery_store, fast_food_restaurant.
+  /// - Hors circuit : exclure tourist_attraction (par définition pas hors-circuit).
+  final List<String> excludedPrimaryTypes;
+
   /// Note libre pour documenter une règle métier qui n'a pas de représentation
   /// directe (ex: "proposer uniquement après 18h" pour Nightlife). À gérer
   /// en aval, dans le pipeline de sélection.
@@ -62,6 +68,7 @@ class InterestPlacesQuery {
     this.maxUserRatingCount,
     this.maxPriceLevel,
     this.excludeFoodPrimaryType = false,
+    this.excludedPrimaryTypes = const [],
     this.rule,
   });
 
@@ -86,6 +93,11 @@ class InterestPlacesQuery {
     if (excludeFoodPrimaryType &&
         c.types.isNotEmpty &&
         isFoodPrimaryType(c.types.first)) {
+      return false;
+    }
+    if (excludedPrimaryTypes.isNotEmpty &&
+        c.types.isNotEmpty &&
+        excludedPrimaryTypes.contains(c.types.first)) {
       return false;
     }
     return true;
@@ -123,12 +135,24 @@ const interestPlacesQueries = <String, InterestPlacesQuery>{
     // Élargi de 500 à 1500 (test Nancy 2026-04-25 : la fenêtre 30-500 ne
     // retenait quasi rien, les lieux étaient soit < 30 avis, soit > 500).
     maxUserRatingCount: 1500,
+    // Les lieux dont le primary type est `tourist_attraction` sont par
+    // définition mainstream, pas hors-circuit. Test Nancy : la cathédrale
+    // et l'église Saint-Sébastien remontaient ici, on les exclut.
+    excludedPrimaryTypes: ['tourist_attraction'],
     rule: 'éviter chaînes connues, éviter lieux trop touristiques',
   ),
   'Bons plans': InterestPlacesQuery(
     includedTypes: ['restaurant', 'cafe', 'bakery', 'park', 'museum', 'market'],
     textQueries: ['cheap', 'budget', 'gratuit', 'free'],
     maxPriceLevel: 1,
+    // Test Nancy : E.Leclerc (supermarché) remontait via la requête `bakery`,
+    // Burger King via fast_food_restaurant. Pas glamour pour un voyage.
+    excludedPrimaryTypes: [
+      'supermarket',
+      'grocery_store',
+      'convenience_store',
+      'fast_food_restaurant',
+    ],
   ),
   'Wellness': InterestPlacesQuery(
     includedTypes: ['spa', 'beauty_salon', 'gym'],
@@ -143,7 +167,17 @@ const interestPlacesQueries = <String, InterestPlacesQuery>{
   'Gastronomie': InterestPlacesQuery(
     includedTypes: ['restaurant', 'cafe', 'bakery', 'meal_takeaway'],
     textQueries: ['local food', 'traditional cuisine', 'street food', 'fine dining'],
-    minRating: 4.0,
+    // Bumpé de 4.0 à 4.3 — pour Gastronomie on ne veut pas d'options
+    // moyennes type Burger King à 4.1.
+    minRating: 4.3,
+    // Test Nancy : E.Leclerc remonté via le search `bakery` (supermarché
+    // qui a `bakery` en type secondaire). Idem Burger King via fast_food_restaurant.
+    excludedPrimaryTypes: [
+      'supermarket',
+      'grocery_store',
+      'convenience_store',
+      'fast_food_restaurant',
+    ],
   ),
   'Culture': InterestPlacesQuery(
     includedTypes: ['museum', 'art_gallery', 'library', 'church'],
