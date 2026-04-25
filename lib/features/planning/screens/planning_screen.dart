@@ -20,10 +20,8 @@ import 'package:voyage/features/planning/widgets/activity_create_sheet.dart';
 import 'package:voyage/features/planning/widgets/activity_detail_sheet.dart';
 import 'package:voyage/features/planning/widgets/suggestion_detail_sheet.dart';
 import 'package:voyage/features/planning/services/ai_suggestions_service.dart';
-import 'package:voyage/features/planning/services/day_center_service.dart';
 import 'package:voyage/features/planning/services/document_to_activity.dart';
-import 'package:voyage/features/planning/services/interests_to_places_mapping.dart';
-import 'package:voyage/features/planning/services/places_nearby_service.dart';
+import 'package:voyage/features/planning/services/places_first_pipeline.dart';
 import 'package:voyage/features/planning/services/traveler_to_places_mapping.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:voyage/features/wallet/providers/wallet_provider.dart';
@@ -306,109 +304,66 @@ class PlanningScreen extends ConsumerWidget {
     try {
       final hotels = await ref.read(tripHotelsProvider(tripId).future);
       final geocoder = ref.read(geocodingServiceProvider);
-      final center = await centerForDay(
-        trip: trip,
-        day: trip.startDate,
-        hotels: hotels,
-        geocoder: geocoder,
-      );
-      if (center == null) {
-        if (context.mounted) {
-          messenger.showSnackBar(
-            const SnackBar(content: Text('❌ Impossible de géocoder le centre du jour 1')),
-          );
-        }
-        return;
-      }
-      debugPrint('[places_test] === PLACES-FIRST TEST ===');
-      debugPrint(
-        '[places_test] Trip: ${trip.title} → centre ${center.source} (${center.latitude.toStringAsFixed(4)}, ${center.longitude.toStringAsFixed(4)})',
-      );
-      debugPrint('[places_test] Intérêts: ${trip.interests}');
+      final nearbyService = ref.read(placesNearbyServiceProvider);
 
-      // Profil voyageur → ajoute des types/textQueries et peut exclure des
-      // intérêts incompatibles (ex: En famille → exclut Nightlife).
+      debugPrint('[places_test] === PLACES-FIRST TEST (gather all days) ===');
       final travelerProfile = trip.travelerType != null
           ? travelerPlacesProfiles[trip.travelerType]
           : null;
-      // Rayon calibré "30-45 min de trajet" via le mode dominant du profil.
-      // Default 4 km pour les voyages sans profil renseigné.
       final searchRadius = travelerProfile?.searchRadiusMeters ?? defaultSearchRadiusMeters;
       debugPrint(
-        '[places_test] Type voyageur: ${trip.travelerType ?? "(non défini)"}'
-        '${travelerProfile != null ? " — profil chargé (${travelerProfile.additionalTypes.length} types add. + ${travelerProfile.additionalTextQueries.length} textQueries add.)" : " — pas de profil"}'
-        ' | radius=${searchRadius}m',
+        '[places_test] Trip: ${trip.title} | type=${trip.travelerType ?? "default"} '
+        '(radius=${searchRadius}m) | intérêts=${trip.interests}',
       );
 
-      final nearbyService = ref.read(placesNearbyServiceProvider);
-      var totalRaw = 0;
+      final stopwatch = Stopwatch()..start();
+      final pool = await gatherCandidatesForTrip(
+        trip: trip,
+        hotels: hotels,
+        geocoder: geocoder,
+        nearbyService: nearbyService,
+      );
+      stopwatch.stop();
+      debugPrint(
+        '[places_test] Récolte ${pool.length} jours en ${stopwatch.elapsedMilliseconds}ms',
+      );
+
       var totalAfterFilters = 0;
-      for (final interest in trip.interests!) {
-        final query = interestPlacesQueries[interest];
-        if (query == null) {
-          debugPrint('[places_test] "$interest" pas mappé dans interestPlacesQueries — skip');
-          continue;
-        }
-        // Veto du profil voyageur (ex: Famille exclut Nightlife)
-        if (travelerProfile != null && travelerProfile.excludedInterests.contains(interest)) {
-          debugPrint(
-            '[places_test] "$interest" exclu par profil voyageur "${trip.travelerType}" — skip',
-          );
-          continue;
-        }
-        // Merge types et textQueries du profil voyageur (additif, dédupliqué)
-        final mergedTypes = <String>{
-          ...query.includedTypes,
-          if (travelerProfile != null) ...travelerProfile.additionalTypes,
-        }.toList();
-        final mergedTextQueries = <String>[
-          ...query.textQueries,
-          if (travelerProfile != null) ...travelerProfile.additionalTextQueries,
-        ];
-        final calls = <Future<List<NearbyCandidate>>>[];
-        if (mergedTypes.isNotEmpty) {
-          calls.add(nearbyService.searchNearby(
-            latitude: center.latitude,
-            longitude: center.longitude,
-            includedTypes: mergedTypes,
-            radius: searchRadius,
-          ));
-        }
-        for (final tq in mergedTextQueries) {
-          calls.add(nearbyService.searchText(
-            textQuery: tq,
-            latitude: center.latitude,
-            longitude: center.longitude,
-            radius: searchRadius,
-          ));
-        }
-        final results = await Future.wait(calls);
-        // Dédup par place_id
-        final merged = <String, NearbyCandidate>{};
-        for (final list in results) {
-          for (final c in list) {
-            merged[c.placeId] = c;
+      for (var i = 0; i < pool.length; i++) {
+        final day = pool[i];
+        final dayIso = day.day.toIso8601String().split('T').first;
+        final byInterestSummary = day.byInterest.entries
+            .map((e) => '${e.key}=${e.value.length}')
+            .join(', ');
+        debugPrint(
+          '[places_test] Jour $dayIso (${day.center.source}, '
+          '${day.center.latitude.toStringAsFixed(3)},${day.center.longitude.toStringAsFixed(3)}) : '
+          '${day.uniqueCandidates} uniques [$byInterestSummary]',
+        );
+        totalAfterFilters += day.totalCandidates;
+        // Détail (top 5 par intérêt) seulement pour le 1er jour pour éviter
+        // de noyer la console — la pool est la même par jour en mono-ville.
+        if (i == 0) {
+          for (final entry in day.byInterest.entries) {
+            for (final c in entry.value.take(3)) {
+              debugPrint(
+                '[places_test]   [${entry.key}] ${c.name} (${c.address ?? "?"}) '
+                '★${c.rating} (${c.userRatingCount ?? 0} avis)',
+              );
+            }
           }
         }
-        final raw = merged.values.toList();
-        final filtered = raw.where((c) {
-          final r = c.rating;
-          if (r == null || r < placesGlobalMinRating) return false;
-          return query.matchesFilters(c);
-        }).toList();
-        totalRaw += raw.length;
-        totalAfterFilters += filtered.length;
-        debugPrint('[places_test] "$interest": ${raw.length} bruts → ${filtered.length} après filtres');
-        for (final c in filtered.take(5)) {
-          debugPrint(
-            '[places_test]   • ${c.name} (${c.address ?? "?"}) ★${c.rating} (${c.userRatingCount ?? 0} avis) [${c.types.take(3).join(", ")}]',
-          );
-        }
       }
-      debugPrint('[places_test] === FIN TEST: $totalAfterFilters retenus / $totalRaw bruts ===');
+      debugPrint(
+        '[places_test] === FIN : ${pool.length} jours × intérêts → $totalAfterFilters '
+        'candidats cumulés (avec doublons inter-intérêts) ===',
+      );
+      final totalUnique = pool.fold<int>(0, (sum, d) => sum + d.uniqueCandidates);
       if (context.mounted) {
         messenger.showSnackBar(SnackBar(
-          content: Text('✓ $totalAfterFilters lieux retenus / $totalRaw bruts (voir console)'),
+          content: Text(
+            '✓ ${pool.length} jours · $totalUnique lieux uniques · $totalAfterFilters cumulés (voir console)',
+          ),
           duration: const Duration(seconds: 5),
         ));
       }
