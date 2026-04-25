@@ -331,9 +331,13 @@ class PlanningScreen extends ConsumerWidget {
       final travelerProfile = trip.travelerType != null
           ? travelerPlacesProfiles[trip.travelerType]
           : null;
+      // Rayon calibré "30-45 min de trajet" via le mode dominant du profil.
+      // Default 4 km pour les voyages sans profil renseigné.
+      final searchRadius = travelerProfile?.searchRadiusMeters ?? defaultSearchRadiusMeters;
       debugPrint(
         '[places_test] Type voyageur: ${trip.travelerType ?? "(non défini)"}'
-        '${travelerProfile != null ? " — profil chargé (${travelerProfile.additionalTypes.length} types add. + ${travelerProfile.additionalTextQueries.length} textQueries add.)" : " — pas de profil"}',
+        '${travelerProfile != null ? " — profil chargé (${travelerProfile.additionalTypes.length} types add. + ${travelerProfile.additionalTextQueries.length} textQueries add.)" : " — pas de profil"}'
+        ' | radius=${searchRadius}m',
       );
 
       final nearbyService = ref.read(placesNearbyServiceProvider);
@@ -367,6 +371,7 @@ class PlanningScreen extends ConsumerWidget {
             latitude: center.latitude,
             longitude: center.longitude,
             includedTypes: mergedTypes,
+            radius: searchRadius,
           ));
         }
         for (final tq in mergedTextQueries) {
@@ -374,6 +379,7 @@ class PlanningScreen extends ConsumerWidget {
             textQuery: tq,
             latitude: center.latitude,
             longitude: center.longitude,
+            radius: searchRadius,
           ));
         }
         final results = await Future.wait(calls);
