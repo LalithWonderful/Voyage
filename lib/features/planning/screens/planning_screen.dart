@@ -46,35 +46,56 @@ Set<String> _tokenizeForMatch(String s) {
       .toSet();
 }
 
-/// Vrai si le titre Gemini a au moins un token significatif (≥4 lettres) en
-/// commun avec le nom canonique Places. Sinon c'est probablement une
-/// hallucination Gemini matchée fuzzy à un lieu sans rapport.
+/// Vrai si le titre Gemini matche correctement le nom canonique Places, selon
+/// une heuristique multi-tokens. Sinon c'est probablement une hallucination
+/// Gemini matchée fuzzy à un lieu sans rapport.
+///
+/// Règle : au moins 2 tokens significatifs en commun OU un token long (≥6
+/// lettres = nom propre/distinctif) en commun. Cette double condition évite
+/// les faux positifs sur les mots génériques courts ("café", "place", "musée")
+/// qui matchent trop de lieux sans rapport.
 ///
 /// Tolérant : si le name canonique n'est pas dispo (cache pré-migration ou
 /// Places n'a pas trouvé le lieu), on retourne `true` pour ne pas bloquer
 /// (back-compat avec les caches existants).
 ///
 /// Exemples :
-/// - "Galerie Myrtille Beck" vs "Bijouterie Lefranc" → 0 token en commun → false (rejet ✓)
-/// - "Place Stanislas" vs "Place Stanislas" → 'stanislas' commun → true ✓
-/// - "Brasserie Excelsior Nancy" vs "Brasserie Excelsior" → 'brasserie', 'excelsior' communs → true ✓
-/// - "Le Capu" vs "Le Capucin" → 'capu' inclus dans 'capucin' → true ✓
+/// - "Galerie Myrtille Beck" vs "Bijouterie Lefranc" → 0 commun → false (rejet ✓)
+/// - "Place Stanislas" vs "Place Stanislas" → 2 communs → true ✓
+/// - "Musée des Beaux-Arts" vs "Musée d'Histoire Naturelle" → 1 commun ('musée'), pas de token ≥6 partagé → false (rejet ✓)
+/// - "Caves de Vaudevilles" vs "Brasserie Excelsior" → 0 commun → false (rejet ✓)
+/// - "Café Foy" vs "Café Le Patio" → 1 commun ('café', 4 lettres < 6) → false (rejet ✓)
+/// - "Brasserie Excelsior" vs "Brasserie Excelsior Nancy" → 2 communs → true ✓
+/// - "Place Stanislas" vs "Hotel Stanislas Nancy" → 1 commun ('stanislas', 9 lettres ≥6) → true ✓
 bool _fuzzyTitleMatches(String geminiTitle, String? canonicalName) {
   if (canonicalName == null || canonicalName.trim().isEmpty) return true;
   final geminiTokens = _tokenizeForMatch(geminiTitle);
   final canonTokens = _tokenizeForMatch(canonicalName);
   if (geminiTokens.isEmpty || canonTokens.isEmpty) return true;
 
+  var commonCount = 0;
+  var hasLongCommon = false;
   for (final t in geminiTokens) {
-    if (t.length < 4) continue;
-    if (canonTokens.contains(t)) return true;
-    // Inclusion partielle : "capu" match "capucin", "stan" match "stanislas".
-    for (final c in canonTokens) {
-      if (c.length < 4) continue;
-      if (c.contains(t) || t.contains(c)) return true;
+    var matched = false;
+    if (canonTokens.contains(t)) {
+      matched = true;
+    } else if (t.length >= 4) {
+      // Inclusion partielle pour gérer pluriels / variantes : "galeries" ↔ "galerie",
+      // "capu" ↔ "capucin". Réservée aux tokens longs pour éviter les matches absurdes
+      // ("le" qui contient... rien, mais on filtre déjà via stop-words).
+      for (final c in canonTokens) {
+        if (c.length >= 4 && (c.contains(t) || t.contains(c))) {
+          matched = true;
+          break;
+        }
+      }
+    }
+    if (matched) {
+      commonCount++;
+      if (t.length >= 6) hasLongCommon = true;
     }
   }
-  return false;
+  return commonCount >= 2 || hasLongCommon;
 }
 
 class PlanningScreen extends ConsumerWidget {
@@ -1124,9 +1145,9 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
   /// Règles :
   /// - Trajet à pied ≤12 min : on privilégie "walk" (sauf Grand luxe).
   /// - Grand luxe / Voyage pro : taxi si dispo.
-  /// - Backpack / Meilleur prix : walk → metro → premier dispo.
-  /// - En famille : metro → taxi → premier dispo.
-  /// - Default : metro si dispo, sinon le premier mode retourné.
+  /// - Backpack / Meilleur prix : walk → transit → premier dispo.
+  /// - En famille : transit → taxi → premier dispo.
+  /// - Default : transit si dispo, sinon le premier mode retourné.
   String _pickDefaultMode(List<TransportOption> options, String? travelerType) {
     if (options.isEmpty) return 'walk';
     TransportOption? findMode(String m) {
@@ -1135,6 +1156,9 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
       }
       return null;
     }
+    // 'transit' = générique Routes API (couvre métro/tram/bus). On regarde aussi
+    // 'metro' pour rétrocompat avec d'éventuelles options Gemini fallback.
+    TransportOption? findTransit() => findMode('transit') ?? findMode('metro');
 
     final walk = findMode('walk');
     if (walk != null && walk.durationMinutes <= 12 && travelerType != 'Grand luxe') {
@@ -1146,11 +1170,11 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
         return findMode('taxi')?.mode ?? options.first.mode;
       case 'Backpack':
       case 'Meilleur prix':
-        return findMode('walk')?.mode ?? findMode('metro')?.mode ?? options.first.mode;
+        return findMode('walk')?.mode ?? findTransit()?.mode ?? options.first.mode;
       case 'En famille':
-        return findMode('metro')?.mode ?? findMode('taxi')?.mode ?? options.first.mode;
+        return findTransit()?.mode ?? findMode('taxi')?.mode ?? options.first.mode;
       default:
-        return findMode('metro')?.mode ?? options.first.mode;
+        return findTransit()?.mode ?? options.first.mode;
     }
   }
 

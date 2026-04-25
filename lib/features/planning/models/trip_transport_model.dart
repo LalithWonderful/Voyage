@@ -66,7 +66,9 @@ class TripTransport {
 const transportModeEmojis = {
   'walk': '🚶',
   'taxi': '🚕',
+  'transit': '🚍',
   'metro': '🚇',
+  'tram': '🚊',
   'bus': '🚌',
   'bike': '🚴',
   'car': '🚗',
@@ -79,7 +81,12 @@ const transportModeEmojis = {
 const transportModeLabels = {
   'walk': 'À pied',
   'taxi': 'Taxi',
+  // `transit` = mode générique des transports en commun retourné par Routes API
+  // quand on ne sait pas le réseau exact (métro, tram, bus selon la ville). Évite
+  // d'afficher "Métro" à Nancy qui n'en a pas, ou "Bus" à Paris où ce serait le métro.
+  'transit': 'Transports en commun',
   'metro': 'Métro',
+  'tram': 'Tram',
   'bus': 'Bus',
   'bike': 'Vélo',
   'car': 'Voiture',

@@ -62,7 +62,11 @@ class RoutesService {
     final results = await Future.wait([
       _computeOne(fromPlaceId, toPlaceId, 'WALK', 'walk', key),
       _computeOne(fromPlaceId, toPlaceId, 'DRIVE', 'taxi', key),
-      _computeOne(fromPlaceId, toPlaceId, 'TRANSIT', 'metro', key),
+      // TRANSIT = générique (métro / tram / bus / train selon la ville). On ne
+      // sait pas à l'avance et Routes API n'expose pas le réseau précis dans la
+      // réponse minimale. Étiqueté 'transit' = "Transports en commun" pour ne
+      // pas mentir au voyageur (ex: pas de métro à Nancy, juste tram + bus).
+      _computeOne(fromPlaceId, toPlaceId, 'TRANSIT', 'transit', key),
       _computeOne(fromPlaceId, toPlaceId, 'BICYCLE', 'bike', key),
     ]);
     final options = results.whereType<TransportOption>().toList();
@@ -142,7 +146,10 @@ class RoutesService {
       case 'walk':
       case 'bike':
         return 'Gratuit';
+      case 'transit':
       case 'metro':
+      case 'tram':
+      case 'bus':
         // Ticket unitaire dans la majorité des villes européennes : 1.50€-2.50€
         return '~2€';
       case 'taxi':

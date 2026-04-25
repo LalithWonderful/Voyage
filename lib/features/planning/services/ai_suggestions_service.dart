@@ -1068,16 +1068,23 @@ ${segLines.join('\n')}
     // - auto : N activités/jour, toutes seront cochées par défaut côté UI
     // - coPilot : 3 OPTIONS alternatives par créneau (matin/déjeuner/après-midi/soir),
     //   l'UI affichera les options en groupes et le voyageur cochera ce qui lui plaît
+    // Règle anti-hallucination appliquée aux 2 modes (auto + coPilot). On filtre
+    // ensuite côté client via fuzzy match sur le nom canonique Places, mais
+    // mieux vaut éviter en amont qu'avoir à rejeter en aval.
+    const namingRule =
+        '- 🚫 **NOMS DE LIEUX — règle absolue** : ne propose QUE des lieux qui existent VRAIMENT et que tu peux nommer EXACTEMENT comme sur Google Maps. Si tu n\'es pas 100% sûr du nom exact ET de l\'orthographe d\'un lieu à cette destination, NE LE PROPOSE PAS — choisis un autre lieu que tu connais. Pas de noms inventés ("Caves de Vaudevilles" si ça n\'existe pas), pas de titres génériques ("Marché couvert", "Shopping de luxe", "Promenade en ville", "Balade dans le centre", "Ruelle pittoresque"), pas de descriptions ("Restaurant local typique", "Petit café cosy"). UNIQUEMENT des noms propres vérifiables : monuments ("Place Stanislas"), enseignes ("Galeries Lafayette Nancy"), restaurants nommés ("Brasserie Excelsior"), musées ("Musée des Beaux-Arts de Nancy"). En cas de doute, choisis un autre lieu plus connu plutôt que d\'inventer.';
+
     final modeIntro = mode == PlanningMode.coPilot
         ? '''- 🎯 MODE CO-PILOTE : pour chaque jour du voyage, identifie 2 à 4 créneaux libres (ex: "Matin", "Déjeuner", "Après-midi", "Soirée") et **propose EXACTEMENT 3 options alternatives par créneau** — pas 2, pas 4, exactement 3. Si tu ne trouves pas 3 lieux distincts qui valent le coup pour un créneau, n'inclus pas ce créneau du tout.
-- 🚫 **TITRES INTERDITS — noms génériques** : ne propose JAMAIS un lieu sous un titre vague type "Marché couvert", "Place de marché", "Shopping de luxe", "Promenade en ville", "Balade dans le centre", "Visite du quartier", "Ruelle pittoresque". Ces titres ne correspondent à aucun lieu Google Maps précis et seront rejetés. Donne TOUJOURS un nom propre identifiable : nom officiel d'un monument ("Place Stanislas"), d'une enseigne ("Galeries Lafayette Nancy"), d'un restaurant ("Brasserie Excelsior"), d'un musée ("Musée des Beaux-Arts de Nancy"). Si tu n'es pas sûr du nom exact, utilise un repère géographique précis ET un nom propre ("Café Foy place Stanislas"), pas un terme générique seul.
+$namingRule
 - Les 3 options d'un même créneau doivent être de la MÊME intention (ex: 3 musées pour un créneau "Matin culture", 3 restos différents pour "Déjeuner") mais variées en gamme / quartier / ambiance pour offrir un vrai choix.
 - Pour CHAQUE option, fournis un champ `match_reason` : 1 phrase courte qui explique POURQUOI elle matche le profil voyageur (ex: "Matche ton intérêt 'Hors circuit' + budget Backpack", "Galerie d'art réputée, calme, parfait pour début de matinée"). Aide le voyageur à choisir entre les 3.'''
-        : switch (category) {
+        : '''${switch (category) {
             SuggestionCategory.all => '- Propose entre 3 et 6 activités par jour **qui reflètent concrètement les centres d\'intérêt et le type de voyageur listés ci-dessus**. Règle de couverture : sur l\'ensemble du planning proposé, CHAQUE centre d\'intérêt listé doit apparaître au moins UNE fois (ex: "Esthétique" listé → au moins un institut de beauté/spa ; "Événements" listé → au moins un festival/concert/expo ou marché saisonnier en cours pendant les dates). Les prix et la gamme des lieux doivent matcher le type de voyageur (ex: "Meilleur prix" → privilégie gratuit ou <15€/personne ; "Grand luxe" → haut de gamme uniquement).',
             SuggestionCategory.restaurants => '- Propose 2 à 3 repas par jour UNIQUEMENT (petit-déjeuner + déjeuner + dîner selon ce qui manque au planning). Ne force PAS la couverture des centres d\'intérêt non-alimentaires — tu fais UNIQUEMENT des restos ici. Les prix doivent matcher le type de voyageur ("Meilleur prix" → street food / bouis-bouis ; "Grand luxe" → restaurants étoilés).',
             SuggestionCategory.activities => '- Propose 2 à 4 activités non-alimentaires par jour. Règle de couverture : chaque centre d\'intérêt NON ALIMENTAIRE listé (Culture, Wellness, Nature, etc.) doit apparaître au moins une fois dans le planning proposé. N\'ajoute AUCUN repas, même pour "combler" un créneau. Les prix et gamme doivent matcher le type de voyageur.',
-          };
+          }}
+$namingRule''';
 
     // En mode coPilot, on ne demande PAS de transports (l'utilisateur n'a pas
     // encore choisi ses options, les paires sont inconnues — on les régénère
