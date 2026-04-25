@@ -1176,6 +1176,59 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
     }
   }
 
+  /// Remplace le titre + l'adresse Gemini de chaque suggestion par les valeurs
+  /// canoniques Google Places quand on les a en cache (déjà validées par le
+  /// pipeline via le filtre fuzzy match nom canonique).
+  ///
+  /// Pourquoi : Gemini hallucine régulièrement le nom exact ou l'adresse d'un
+  /// lieu. Si le pipeline a accepté la suggestion (= ratio fuzzy ≥60% avec le
+  /// name Places), le LIEU est correct, mais le titre/adresse stockés en DB
+  /// sont ceux que Gemini a inventés. Conséquences : "Voir sur Maps" pointe
+  /// vers un mauvais lieu, Routes API utilise un placeId qui ne correspond
+  /// pas au titre. En substituant titre + adresse par le canonique Places,
+  /// l'activité devient cohérente bout-en-bout (affichage = navigation = trajet).
+  ///
+  /// Hébergement exclu : la fiche du voyageur (= sa résa) est la source de
+  /// vérité, pas Places. Skip aussi quand Places n'a pas de match (info.name null).
+  Future<List<ActivitySuggestion>> _enrichWithCanonicalPlaces(
+    List<ActivitySuggestion> suggestions,
+  ) async {
+    final trip = ref.read(tripByIdProvider(widget.tripId)).valueOrNull;
+    if (trip == null) return suggestions;
+    final placesService = ref.read(placesCacheServiceProvider);
+
+    final enriched = await Future.wait(suggestions.map((s) async {
+      if (s.tag == 'Hébergement') return s;
+      try {
+        final dayCity = trip.cityForDay(s.dayDate);
+        final info = await placesService.findInfo(title: s.title, destination: dayCity);
+        final canonicalName = info.name?.trim();
+        final canonicalAddress = info.address?.trim();
+        if (canonicalName != null && canonicalName.isNotEmpty &&
+            canonicalAddress != null && canonicalAddress.isNotEmpty) {
+          if (canonicalName != s.title || canonicalAddress != s.detail) {
+            developer.log(
+              'Canonisation : "${s.title}" → "$canonicalName" / detail="$canonicalAddress"',
+              name: 'planning',
+            );
+          }
+          return ActivitySuggestion(
+            dayDate: s.dayDate,
+            startTime: s.startTime,
+            title: canonicalName,
+            detail: canonicalAddress,
+            tag: s.tag,
+            durationMinutes: s.durationMinutes,
+            priceEstimate: s.priceEstimate,
+            matchReason: s.matchReason,
+          );
+        }
+      } catch (_) {}
+      return s;
+    }));
+    return enriched;
+  }
+
   /// Liste plate des suggestions cochées, indépendamment du mode (auto/coPilot).
   /// Mode auto = `widget.suggestions[i]` pour `i ∈ _selected`.
   /// Mode coPilot = options cochées dans chaque groupe.
@@ -1194,10 +1247,14 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
   }
 
   Future<void> _save() async {
-    final selectedSuggestions = _collectSelectedSuggestions();
-    if (selectedSuggestions.isEmpty) return;
+    final rawSelections = _collectSelectedSuggestions();
+    if (rawSelections.isEmpty) return;
     setState(() => _saving = true);
     try {
+      // Avant l'insert, substituer titre + adresse Gemini par les valeurs
+      // canoniques Places. Garantit que titre, adresse, placeId et trajets
+      // Routes API pointent tous vers le même lieu réel (cohérence bout-en-bout).
+      final selectedSuggestions = await _enrichWithCanonicalPlaces(rawSelections);
       final client = ref.read(supabaseProvider);
       final rows = selectedSuggestions.map((s) => s.toInsertJson(widget.tripId)).toList();
       developer.log('Insertion de ${rows.length} activité(s) dans trip_activities', name: 'planning');
