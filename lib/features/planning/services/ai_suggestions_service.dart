@@ -329,6 +329,36 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
     }
   }
 
+  /// Appel Gemini brut pour les prompts custom (typiquement les prompts
+  /// Places-first construits dans `places_first_pipeline.dart`). Retourne
+  /// le texte JSON brut. Le caller est responsable du parsing et de la
+  /// validation. Cache via `gemini_cache` (action paramétrable) si dispo.
+  ///
+  /// Le `cacheKey` doit être déterministe pour le même prompt (typiquement
+  /// hash du prompt complet). Si null, pas de cache pour cet appel.
+  Future<String> generateRaw({
+    required String prompt,
+    String cacheAction = 'raw',
+    String? cacheKey,
+    double temperature = 0.7,
+  }) async {
+    if (cacheKey != null) {
+      final cached = await _cache?.get(cacheAction, cacheKey);
+      final raw = cached?['raw'] as String?;
+      if (raw != null && raw.isNotEmpty) return raw;
+    }
+    final model = _buildModel(temperature: temperature);
+    final response = await model.generateContent([Content.text(prompt)]);
+    final raw = response.text;
+    if (raw == null || raw.isEmpty) {
+      throw Exception('Réponse Gemini vide.');
+    }
+    if (cacheKey != null) {
+      await _cache?.put(cacheAction, cacheKey, {'raw': raw});
+    }
+    return raw;
+  }
+
   GenerativeModel _buildModel({double temperature = 0.7}) {
     if (AiConstants.geminiApiKey == 'COLLE_TA_CLE_ICI' || AiConstants.geminiApiKey.isEmpty) {
       throw Exception('Clé Gemini manquante. Ajoute-la dans lib/core/constants/ai_constants.dart.');

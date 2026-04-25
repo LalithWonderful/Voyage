@@ -359,13 +359,13 @@ class PlanningScreen extends ConsumerWidget {
         'candidats cumulés (avec doublons inter-intérêts) ===',
       );
 
-      // ─── ÉTAPE 4a.2 — preview prompts CoPilot (pas d'appel Gemini) ─────
+      // ─── ÉTAPE 4a.2 — preview prompts CoPilot ──────────────────────────
       final groups = groupDaysByCenter(pool);
       debugPrint(
-        '[places_test] === PROMPTS COPILOT (preview, pas d\'appel Gemini) ===',
+        '[places_test] === PROMPTS COPILOT ===',
       );
       debugPrint(
-        '[places_test] ${groups.length} groupe(s) de jours par centre — donc autant de prompts Gemini à envoyer',
+        '[places_test] ${groups.length} groupe(s) de jours par centre',
       );
       for (var g = 0; g < groups.length; g++) {
         final group = groups[g];
@@ -381,21 +381,73 @@ class PlanningScreen extends ConsumerWidget {
           '(${group.center.latitude.toStringAsFixed(3)},${group.center.longitude.toStringAsFixed(3)}) | '
           'jours=$dayList | pool=${group.poolSize} lieux | prompt=${prompt.length} chars (~$approxTokens tokens)',
         );
-        // On loggue les 50 premières lignes du prompt + 10 dernières — assez
-        // pour voir l'entête et le format JSON attendu sans noyer la console.
-        final lines = prompt.split('\n');
-        if (lines.length <= 60) {
-          for (final l in lines) {
-            debugPrint('[prompt] $l');
+      }
+
+      // ─── ÉTAPE 4a.3 (test) — appel Gemini réel sur LE PLUS PETIT groupe ─
+      // Pour économiser les tokens, on n'appelle Gemini que sur 1 groupe (le
+      // plus petit prompt). Le retour est parsé via parseCoPilotResponse et
+      // les SuggestionGroup obtenus sont logués pour validation visuelle.
+      // Cache via gemini_cache action `places_first_copilot` clé = hash du
+      // prompt → re-runs du bouton ne re-paient pas Gemini.
+      if (groups.isEmpty) {
+        debugPrint('[places_test] Aucun groupe à tester pour Gemini, fin.');
+      } else {
+        final smallest = [...groups]..sort((a, b) {
+            final pa = buildCoPilotPrompt(input: a, trip: trip, travelerProfile: travelerProfile).length;
+            final pb = buildCoPilotPrompt(input: b, trip: trip, travelerProfile: travelerProfile).length;
+            return pa.compareTo(pb);
+          });
+        final picked = smallest.first;
+        final pickedPrompt = buildCoPilotPrompt(
+          input: picked,
+          trip: trip,
+          travelerProfile: travelerProfile,
+        );
+        final pickedDays = picked.days.map((d) => d.toIso8601String().split('T').first).join(', ');
+        debugPrint(
+          '[places_test] === APPEL GEMINI sur groupe le plus petit '
+          '(${picked.center.source} $pickedDays, ${pickedPrompt.length} chars) ===',
+        );
+        try {
+          final aiService = ref.read(aiSuggestionsServiceProvider);
+          final stopwatchGemini = Stopwatch()..start();
+          final raw = await aiService.generateRaw(
+            prompt: pickedPrompt,
+            cacheAction: 'places_first_copilot',
+            cacheKey: pickedPrompt.hashCode.toString(),
+            temperature: 0.6,
+          );
+          stopwatchGemini.stop();
+          debugPrint(
+            '[places_test] Gemini répondu en ${stopwatchGemini.elapsedMilliseconds}ms, '
+            '${raw.length} chars (~${(raw.length / 4).round()} tokens)',
+          );
+          final rawLines = raw.split('\n');
+          for (var i = 0; i < rawLines.length && i < 30; i++) {
+            debugPrint('[gemini-raw] ${rawLines[i]}');
           }
-        } else {
-          for (var i = 0; i < 50; i++) {
-            debugPrint('[prompt] ${lines[i]}');
+          if (rawLines.length > 30) {
+            debugPrint('[gemini-raw] … (${rawLines.length - 30} lignes omises) …');
           }
-          debugPrint('[prompt] … (${lines.length - 60} lignes omises) …');
-          for (var i = lines.length - 10; i < lines.length; i++) {
-            debugPrint('[prompt] ${lines[i]}');
+
+          final parsed = parseCoPilotResponse(rawJson: raw, input: picked);
+          debugPrint(
+            '[places_test] === PARSING : ${parsed.length} SuggestionGroup générés ===',
+          );
+          for (final g in parsed) {
+            final dayIso = g.dayDate.toIso8601String().split('T').first;
+            debugPrint(
+              '[places_test] $dayIso · ${g.slotLabel} (${g.startTime}) : ${g.options.length} options',
+            );
+            for (final opt in g.options) {
+              debugPrint(
+                '[places_test]   • ${opt.title} [${opt.tag}] ${opt.priceEstimate ?? "?"} '
+                '(${opt.durationMinutes ?? "?"} min) — ${opt.matchReason ?? ""}',
+              );
+            }
           }
+        } catch (e) {
+          debugPrint('[places_test] Gemini exception: $e');
         }
       }
       final totalUnique = pool.fold<int>(0, (sum, d) => sum + d.uniqueCandidates);
