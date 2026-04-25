@@ -10,6 +10,7 @@ import 'package:voyage/features/planning/services/gemini_cache_service.dart';
 import 'package:voyage/features/planning/services/geocoding_service.dart';
 import 'package:voyage/features/planning/services/places_cache_service.dart';
 import 'package:voyage/features/planning/services/places_service.dart';
+import 'package:voyage/features/planning/services/routes_service.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
 import 'package:voyage/features/wallet/providers/wallet_provider.dart';
 
@@ -153,6 +154,10 @@ final planningTimelineProvider = FutureProvider.family<List<TripActivity>, Strin
 
 final geminiCacheServiceProvider = Provider<GeminiCacheService>((ref) {
   return GeminiCacheService(ref.watch(supabaseProvider));
+});
+
+final routesServiceProvider = Provider<RoutesService>((ref) {
+  return RoutesService(cache: ref.watch(geminiCacheServiceProvider));
 });
 
 final aiSuggestionsServiceProvider = Provider<AiSuggestionsService>((ref) {

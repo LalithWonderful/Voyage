@@ -1054,6 +1054,42 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
     }
   }
 
+  /// Choisit le mode de transport par défaut à pré-sélectionner pour une paire,
+  /// à partir des options dispo (Routes API) et du profil voyageur.
+  ///
+  /// Règles :
+  /// - Trajet à pied ≤12 min : on privilégie "walk" (sauf Grand luxe).
+  /// - Grand luxe / Voyage pro : taxi si dispo.
+  /// - Backpack / Meilleur prix : walk → metro → premier dispo.
+  /// - En famille : metro → taxi → premier dispo.
+  /// - Default : metro si dispo, sinon le premier mode retourné.
+  String _pickDefaultMode(List<TransportOption> options, String? travelerType) {
+    if (options.isEmpty) return 'walk';
+    TransportOption? findMode(String m) {
+      for (final o in options) {
+        if (o.mode == m) return o;
+      }
+      return null;
+    }
+
+    final walk = findMode('walk');
+    if (walk != null && walk.durationMinutes <= 12 && travelerType != 'Grand luxe') {
+      return 'walk';
+    }
+    switch (travelerType) {
+      case 'Grand luxe':
+      case 'Voyage pro':
+        return findMode('taxi')?.mode ?? options.first.mode;
+      case 'Backpack':
+      case 'Meilleur prix':
+        return findMode('walk')?.mode ?? findMode('metro')?.mode ?? options.first.mode;
+      case 'En famille':
+        return findMode('metro')?.mode ?? findMode('taxi')?.mode ?? options.first.mode;
+      default:
+        return findMode('metro')?.mode ?? options.first.mode;
+    }
+  }
+
   /// Liste plate des suggestions cochées, indépendamment du mode (auto/coPilot).
   /// Mode auto = `widget.suggestions[i]` pour `i ∈ _selected`.
   /// Mode coPilot = options cochées dans chaque groupe.
@@ -1110,15 +1146,20 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
           .map((e) => '${e['from_activity_id']}|${e['to_activity_id']}')
           .toSet();
 
-      // Indexe les suggestions de transport par (titre from, titre to) normalisés
+      // ─── Construction des transports pour chaque paire consécutive même jour ──
+      // Stratégie hybride :
+      // 1. Routes API (Google Maps) si on a les place_id des 2 activités → durées RÉELLES.
+      // 2. Fallback Gemini (mode auto seulement) si Routes a échoué et que Gemini a fourni
+      //    un bloc transport pour cette paire (durées hallucinées mais mieux que rien).
+      // 3. Skip si ni Routes ni Gemini → pas de transport pour cette pair.
       String norm(String s) => s.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
       final transportByKey = <String, TransportSuggestion>{};
       for (final t in widget.transportSuggestions) {
         transportByKey['${norm(t.fromTitle)}|${norm(t.toTitle)}'] = t;
       }
 
-      // Construit les transports pour chaque paire consécutive dans un même jour
-      final transportRows = <Map<String, dynamic>>[];
+      // Identifie les paires à traiter (consécutives même jour, pas déjà en DB).
+      final pairs = <(TripActivity, TripActivity)>[];
       for (var i = 0; i < allActivities.length - 1; i++) {
         final a = allActivities[i];
         final b = allActivities[i + 1];
@@ -1126,28 +1167,65 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
             a.dayDate.month == b.dayDate.month &&
             a.dayDate.day == b.dayDate.day;
         if (!sameDay) continue;
-        final pairKey = '${a.id}|${b.id}';
-        if (existingPairs.contains(pairKey)) continue;
-        final key = '${norm(a.title)}|${norm(b.title)}';
-        final t = transportByKey[key];
-        if (t == null || t.options.isEmpty) continue;
-        final defaultOpt = t.options.firstWhere(
-          (o) => o.mode == t.defaultMode,
-          orElse: () => t.options.first,
+        if (existingPairs.contains('${a.id}|${b.id}')) continue;
+        pairs.add((a, b));
+      }
+
+      final routesService = ref.read(routesServiceProvider);
+      final placesService = ref.read(placesCacheServiceProvider);
+      final trip = ref.read(tripByIdProvider(widget.tripId)).valueOrNull;
+      final destination = trip?.destination ?? '';
+
+      // Lance les calculs Routes en parallèle pour limiter la latence sur les
+      // gros plannings. Chaque slot fait Places lookup (cache) + Routes API call (cache).
+      final transportResults = await Future.wait(pairs.map((pair) async {
+        final (a, b) = pair;
+        final infoA = await placesService.findInfo(title: a.title, destination: destination);
+        final infoB = await placesService.findInfo(title: b.title, destination: destination);
+
+        List<TransportOption>? routesOptions;
+        if (infoA.placeId != null &&
+            infoA.placeId!.isNotEmpty &&
+            infoB.placeId != null &&
+            infoB.placeId!.isNotEmpty) {
+          routesOptions = await routesService.computeOptions(
+            fromPlaceId: infoA.placeId!,
+            toPlaceId: infoB.placeId!,
+          );
+        }
+
+        final geminiSuggest = transportByKey['${norm(a.title)}|${norm(b.title)}'];
+
+        List<TransportOption> finalOptions;
+        String? defaultMode;
+        if (routesOptions != null && routesOptions.isNotEmpty) {
+          finalOptions = routesOptions;
+          defaultMode = _pickDefaultMode(finalOptions, widget.travelerType);
+        } else if (geminiSuggest != null && geminiSuggest.options.isNotEmpty) {
+          finalOptions = geminiSuggest.options;
+          defaultMode = geminiSuggest.defaultMode;
+        } else {
+          return null;
+        }
+
+        final defaultOpt = finalOptions.firstWhere(
+          (o) => o.mode == defaultMode,
+          orElse: () => finalOptions.first,
         );
-        transportRows.add({
+        return {
           'trip_id': widget.tripId,
           'from_activity_id': a.id,
           'to_activity_id': b.id,
           'selected_mode': defaultOpt.mode,
           'selected_duration_minutes': defaultOpt.durationMinutes,
           'selected_price_estimate': defaultOpt.priceEstimate,
-          'options': t.options.map((o) => o.toJson()).toList(),
-        });
-      }
+          'options': finalOptions.map((o) => o.toJson()).toList(),
+        };
+      }));
+      final transportRows = transportResults.whereType<Map<String, dynamic>>().toList();
 
       if (transportRows.isNotEmpty) {
-        developer.log('Insertion de ${transportRows.length} trajet(s) dans trip_transports', name: 'planning');
+        developer.log('Insertion de ${transportRows.length} trajet(s) dans trip_transports (Routes API)', name: 'planning');
         await client.from('trip_transports').insert(transportRows);
       }
 
