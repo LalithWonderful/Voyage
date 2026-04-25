@@ -143,6 +143,102 @@ class AiSuggestionsService {
     'extract_document': (maxPerWindow: 30, windowMinutes: 60),
   };
 
+  /// Propose une boucle régionale autour d'une destination principale, pour les
+  /// voyageurs qui ne connaissent pas la région et veulent que l'IA leur suggère
+  /// des étapes (villes voisines, durée par étape, courte description).
+  ///
+  /// Exemple : Nancy 10 jours → [Nancy 3 nuits, Vosges 2, Strasbourg 2, Colmar 2].
+  /// Le caller affiche le résultat dans une sheet multi-select (cf. RegionalLoopSheet).
+  Future<List<({String city, String country, int nights, String description})>> suggestRegionalItinerary({
+    required String mainDestination,
+    required int durationDays,
+    String? travelerType,
+    List<String> interests = const [],
+    int radiusKm = 150,
+    bool sameCountryOnly = false,
+    List<String> excludeCities = const [],
+    int nightsAlreadyPlaced = 0,
+  }) async {
+    await _checkRateLimit('suggest_regional_itinerary');
+    final (:interestsStr, :travelerTypeDescribed) =
+        _describeProfile(travelerType: travelerType, interests: interests);
+
+    // On suggère N-1 nuits car le voyageur rentre généralement le dernier jour,
+    // moins les nuits déjà placées par l'utilisateur (étapes manuelles ou suggestions
+    // précédentes acceptées). Ne JAMAIS dépasser ce reliquat sinon le total déborde
+    // la durée du voyage et l'utilisateur ne peut plus enregistrer.
+    final tripNightsTotal = (durationDays - 1).clamp(1, 60);
+    final remainingNights = (tripNightsTotal - nightsAlreadyPlaced).clamp(1, 60);
+    final totalNights = remainingNights;
+    final alreadyPlacedBlock = nightsAlreadyPlaced > 0
+        ? '\n- ⚠️ Le voyageur a DÉJÀ placé $nightsAlreadyPlaced nuit${nightsAlreadyPlaced > 1 ? 's' : ''} dans son planning '
+            '(${excludeCities.isEmpty ? "étapes existantes" : excludeCities.join(', ')}). Tu ne dois proposer QUE des nouvelles étapes '
+            'pour combler les $remainingNights nuit${remainingNights > 1 ? 's' : ''} restantes (sur un total de $tripNightsTotal nuits de voyage).'
+        : '';
+    final mustIncludeMain = excludeCities
+            .map((c) => c.trim().toLowerCase())
+            .contains(mainDestination.trim().toLowerCase())
+        ? '- ⚠️ $mainDestination est déjà dans les étapes du voyageur — NE LA REPROPOSE PAS, propose UNIQUEMENT des villes voisines.'
+        : '- Inclus OBLIGATOIREMENT $mainDestination dans la boucle (avec assez de nuits pour la visiter, 2-3 nuits typiquement).';
+    final excludeBlock = excludeCities.isEmpty
+        ? ''
+        : '\n- NE PROPOSE PAS ces villes (elles sont déjà dans le planning du voyageur) : ${excludeCities.join(', ')}.';
+    final crossBorderRule = sameCountryOnly
+        ? '''**RESTER DANS LE PAYS** : ne propose QUE des villes du même pays que $mainDestination. Pas de villes dans des pays voisins, même si elles sont dans le rayon de $radiusKm km.'''
+        : '''**TRANSFRONTALIER OK** : si dans le rayon de $radiusKm km il y a des villes intéressantes dans des pays voisins, propose-les (ex: depuis Metz à 150km tu peux proposer Luxembourg-Ville, Trèves en Allemagne, Bruxelles si dans le rayon ; depuis Lille tu peux proposer Bruges). Le voyageur a fait 1000km pour son voyage, il sera ravi de découvrir un pays de plus à 100km.''';
+    final prompt = '''
+Tu es un expert en voyage. Le voyageur va à **$mainDestination** pour $durationDays jours et ne connaît pas la région. Propose-lui une **boucle régionale logique** de 3 à 5 étapes max dans un rayon STRICT de **$radiusKm km à vol d'oiseau autour de $mainDestination**, en incluant la destination principale + des villes intéressantes à proximité.
+
+🚫 RAYON STRICT : aucune ville à plus de $radiusKm km de $mainDestination. Avant de proposer une ville, vérifie mentalement sa distance à vol d'oiseau (pas en temps de route). Exemples pour calibrer :
+- Reims est à ~190 km de Nancy → INTERDIT si rayon ≤ 150 km
+- Strasbourg est à ~125 km de Nancy → OK si rayon ≥ 150 km
+- Luxembourg est à ~95 km de Nancy → OK si rayon ≥ 100 km
+Si tu hésites sur la distance d'une ville, NE LA PROPOSE PAS — choisis-en une autre dont tu es sûr.
+
+$crossBorderRule
+
+Profil du voyageur :
+- Type : $travelerTypeDescribed
+- Intérêts :
+$interestsStr
+
+Contraintes :
+$mustIncludeMain
+- **Total des nuits proposées = EXACTEMENT $totalNights** (ni plus, ni moins). N'invente pas de nuits supplémentaires "au cas où".$alreadyPlacedBlock
+- Étapes ordonnées géographiquement (pas d'aller-retour absurde A→B→A).
+- Pour chaque étape : une ville précise (pas une région), un nombre de nuits réaliste (1-4), le pays (en français, ex: "France", "Allemagne", "Belgique", "Luxembourg"), et 1 phrase courte d'accroche (ce qu'on y fait, pourquoi y aller).$excludeBlock
+
+Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
+{
+  "segments": [
+    {"city": "Nancy", "country": "France", "nights": 3, "description": "Capitale de la Lorraine, place Stanislas, vieille ville classée UNESCO"},
+    {"city": "Trèves", "country": "Allemagne", "nights": 2, "description": "Plus ancienne ville d'Allemagne, héritage romain (Porta Nigra), capitale du vin Riesling"},
+    ...
+  ]
+}
+''';
+
+    developer.log('Gemini regional itinerary pour $mainDestination ($durationDays j)', name: 'ai');
+    final model = _buildModel();
+    final response = await model.generateContent([Content.text(prompt)]);
+    final raw = response.text;
+    if (raw == null || raw.isEmpty) throw Exception('Réponse vide de Gemini.');
+    final cleaned = _stripCodeFences(raw).trim();
+    final parsed = jsonDecode(cleaned);
+    final segs = (parsed is Map) ? (parsed['segments'] as List?) ?? const [] : const [];
+    final result = <({String city, String country, int nights, String description})>[];
+    for (final s in segs) {
+      if (s is! Map<String, dynamic>) continue;
+      final city = (s['city'] as String?)?.trim() ?? '';
+      final country = (s['country'] as String?)?.trim() ?? '';
+      final nights = (s['nights'] as num?)?.toInt() ?? 0;
+      final desc = (s['description'] as String?)?.trim() ?? '';
+      if (city.isEmpty || nights < 1) continue;
+      result.add((city: city, country: country, nights: nights, description: desc));
+    }
+    return result;
+  }
+
   Future<void> _checkRateLimit(String action) async {
     if (!_rateLimitEnabled) return;
     final cfg = _limits[action];

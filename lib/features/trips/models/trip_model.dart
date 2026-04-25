@@ -55,14 +55,37 @@ class Accommodation {
 class TripSegment {
   final String city;
   final int nights;
+  /// Pays affiché à côté de la ville (ex: "France", "Allemagne"). Sert au visuel
+  /// (carte étape) et au prompt IA. Optionnel pour rétrocompat — les anciennes
+  /// étapes saisies avant l'ajout du champ n'ont pas de pays.
+  final String? country;
+  /// Coordonnées du centre-ville, mises en cache après le 1er géocodage.
+  /// Évite de re-payer la Geocoding API à chaque clic sur "Optimiser l'ordre".
+  final double? latitude;
+  final double? longitude;
 
-  const TripSegment({required this.city, required this.nights});
+  const TripSegment({
+    required this.city,
+    required this.nights,
+    this.country,
+    this.latitude,
+    this.longitude,
+  });
 
   factory TripSegment.fromJson(Map<String, dynamic> json) {
+    final country = (json['country'] as String?)?.trim();
+    final lat = (json['latitude'] as num?)?.toDouble();
+    final lng = (json['longitude'] as num?)?.toDouble();
     // Rétrocompat : si l'ancien format (from + to) existe encore en DB, on convertit.
     final nightsRaw = json['nights'];
     if (nightsRaw is num) {
-      return TripSegment(city: json['city'] as String, nights: nightsRaw.toInt());
+      return TripSegment(
+        city: json['city'] as String,
+        nights: nightsRaw.toInt(),
+        country: country == null || country.isEmpty ? null : country,
+        latitude: lat,
+        longitude: lng,
+      );
     }
     final fromStr = json['from'] as String?;
     final toStr = json['to'] as String?;
@@ -70,15 +93,45 @@ class TripSegment {
       final from = DateTime.parse(fromStr);
       final to = DateTime.parse(toStr);
       final n = to.difference(from).inDays + 1;
-      return TripSegment(city: json['city'] as String, nights: n.clamp(1, 365));
+      return TripSegment(
+        city: json['city'] as String,
+        nights: n.clamp(1, 365),
+        country: country == null || country.isEmpty ? null : country,
+        latitude: lat,
+        longitude: lng,
+      );
     }
-    return TripSegment(city: json['city'] as String, nights: 1);
+    return TripSegment(
+      city: json['city'] as String,
+      nights: 1,
+      country: country == null || country.isEmpty ? null : country,
+      latitude: lat,
+      longitude: lng,
+    );
   }
 
-  Map<String, dynamic> toJson() => {'city': city, 'nights': nights};
+  Map<String, dynamic> toJson() => {
+    'city': city,
+    'nights': nights,
+    if (country != null && country!.isNotEmpty) 'country': country,
+    if (latitude != null) 'latitude': latitude,
+    if (longitude != null) 'longitude': longitude,
+  };
 
-  TripSegment copyWith({String? city, int? nights}) =>
-      TripSegment(city: city ?? this.city, nights: nights ?? this.nights);
+  TripSegment copyWith({
+    String? city,
+    int? nights,
+    String? country,
+    double? latitude,
+    double? longitude,
+  }) =>
+      TripSegment(
+        city: city ?? this.city,
+        nights: nights ?? this.nights,
+        country: country ?? this.country,
+        latitude: latitude ?? this.latitude,
+        longitude: longitude ?? this.longitude,
+      );
 }
 
 /// Mode de planification choisi pour ce voyage par le voyageur.

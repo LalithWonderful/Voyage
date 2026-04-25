@@ -281,6 +281,54 @@ class PlacesService {
     }
   }
 
+  /// Résout une ville en coordonnées (lat/lng du centre) + adresse formatée pour
+  /// vérification manuelle. Utilise Places "Find Place from Text" plutôt que la
+  /// Geocoding API : meilleur sur les requêtes "Ville, Pays" libres (notamment
+  /// pour des villes ambiguës comme "Bouillon" qui peut matcher un POI vs la
+  /// vraie ville en Belgique).
+  /// Coût : ~$0.017/req. Retourne null si l'API échoue ou si la clé est absente.
+  Future<({double lat, double lng, String formattedAddress})?> findCityCoords(
+    String city, {
+    String? country,
+  }) async {
+    final key = AiConstants.googleMapsApiKey;
+    if (key.isEmpty || key == 'COLLE_TA_CLE_MAPS_ICI') return null;
+    final query = country != null && country.isNotEmpty ? '$city, $country' : city;
+    try {
+      final uri = Uri.https('maps.googleapis.com', '/maps/api/place/findplacefromtext/json', {
+        'input': query,
+        'inputtype': 'textquery',
+        'fields': 'geometry,formatted_address',
+        'language': 'fr',
+        'key': key,
+      });
+      final resp = await http.get(uri);
+      if (resp.statusCode != 200) {
+        developer.log('FindPlace city HTTP ${resp.statusCode} pour "$query"', name: 'places');
+        return null;
+      }
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      final status = data['status'] as String?;
+      if (status != 'OK') {
+        developer.log('FindPlace city status=$status pour "$query"', name: 'places');
+        return null;
+      }
+      final candidates = (data['candidates'] as List?) ?? const [];
+      if (candidates.isEmpty) return null;
+      final first = candidates.first as Map<String, dynamic>;
+      final loc = (first['geometry'] as Map<String, dynamic>?)?['location'] as Map<String, dynamic>?;
+      final lat = (loc?['lat'] as num?)?.toDouble();
+      final lng = (loc?['lng'] as num?)?.toDouble();
+      final addr = (first['formatted_address'] as String?) ?? '';
+      if (lat == null || lng == null) return null;
+      developer.log('FindPlace "$query" → $lat,$lng ($addr)', name: 'places');
+      return (lat: lat, lng: lng, formattedAddress: addr);
+    } catch (e) {
+      developer.log('Erreur FindPlace city : $e', name: 'places');
+      return null;
+    }
+  }
+
   /// Récupère reviews + horaires d'ouverture en un seul appel Places Details.
   Future<({List<PlaceReview> reviews, OpeningHours? openingHours})> getDetails(String placeId) async {
     final key = AiConstants.googleMapsApiKey;

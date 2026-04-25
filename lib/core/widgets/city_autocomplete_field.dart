@@ -22,6 +22,11 @@ class CityAutocompleteField extends ConsumerStatefulWidget {
   /// une saisie manuelle (sans avoir cliqué de suggestion). Reçoit le nom canonique.
   final void Function(String city)? onSelected;
 
+  /// Variante riche du callback : reçoit aussi le pays (déduit de la description Google,
+  /// ex: "Strasbourg, France" → country = "France") et le placeId Google. Le pays est
+  /// `null` si la sélection vient d'une saisie manuelle (sans suggestion cliquée).
+  final void Function(String city, String? country, String? placeId)? onSelectedDetailed;
+
   /// Texte d'aide affiché sous le champ quand vide.
   final String? hintText;
 
@@ -35,6 +40,7 @@ class CityAutocompleteField extends ConsumerStatefulWidget {
     super.key,
     this.initialValue,
     this.onSelected,
+    this.onSelectedDetailed,
     this.hintText,
     this.labelText,
     this.autofocus = false,
@@ -93,12 +99,24 @@ class _CityAutocompleteFieldState extends ConsumerState<CityAutocompleteField> {
     });
   }
 
+  /// Extrait le pays depuis la description Google ("Strasbourg, France" → "France",
+  /// "New York, NY, États-Unis" → "États-Unis"). Le pays est toujours le DERNIER segment.
+  String? _extractCountry(String description, String mainText) {
+    final rest = description.replaceFirst(mainText, '').trim();
+    final cleaned = rest.startsWith(',') ? rest.substring(1).trim() : rest;
+    if (cleaned.isEmpty) return null;
+    final parts = cleaned.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+    return parts.isEmpty ? null : parts.last;
+  }
+
   void _select(({String description, String mainText, String placeId}) item) {
     _justSelected = true;
     _ctrl.text = item.mainText;
     _ctrl.selection = TextSelection.collapsed(offset: item.mainText.length);
     setState(() => _suggestions = const []);
+    final country = _extractCountry(item.description, item.mainText);
     widget.onSelected?.call(item.mainText);
+    widget.onSelectedDetailed?.call(item.mainText, country, item.placeId.isEmpty ? null : item.placeId);
     FocusScope.of(context).unfocus();
   }
 
@@ -119,6 +137,7 @@ class _CityAutocompleteFieldState extends ConsumerState<CityAutocompleteField> {
               _select(_suggestions.first);
             } else {
               widget.onSelected?.call(v.trim());
+              widget.onSelectedDetailed?.call(v.trim(), null, null);
             }
           },
           decoration: InputDecoration(
