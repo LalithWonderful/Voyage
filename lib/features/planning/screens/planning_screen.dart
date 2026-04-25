@@ -627,7 +627,13 @@ class PlanningScreen extends ConsumerWidget {
       if (mode == PlanningMode.coPilot) {
         final placesService = ref.read(placesCacheServiceProvider);
         final processedGroups = <SuggestionGroup>[];
-        final seenAcrossGroups = <String>{};
+        // Compteur d'apparitions par titre normalisé. Au-delà de 2 → on considère
+        // que le lieu a déjà eu sa chance et on évite de spammer le voyageur.
+        // Avant : on bloquait dès la 2e apparition, ce qui pénalise les villes
+        // où Gemini ne connaît qu'une poignée de vrais lieux (vu à Nancy : ~5-7
+        // lieux légitimes répétés sur 28 groupes — bloqués pour rien).
+        const maxOccurrences = 2;
+        final seenAcrossGroupsCount = <String, int>{};
 
         // Compteurs cumulés pour diagnostic — explique pourquoi un groupe finit
         // avec moins de 3 options (Gemini en sort moins, ou nos filtres en jettent).
@@ -654,9 +660,10 @@ class PlanningScreen extends ConsumerWidget {
               debugPrint('[SUGGEST coPilot] ✗ existing: "${s.title}"');
               return false;
             }
-            if (seenAcrossGroups.contains(norm(s.title))) {
+            final occurrences = seenAcrossGroupsCount[norm(s.title)] ?? 0;
+            if (occurrences >= maxOccurrences) {
               rejectedBySeenAcross++;
-              debugPrint('[SUGGEST coPilot] ✗ seen-other-group: "${s.title}"');
+              debugPrint('[SUGGEST coPilot] ✗ seen-other-group ($occurrences déjà): "${s.title}"');
               return false;
             }
             if (isHotelReturn(s.title)) {
@@ -727,7 +734,8 @@ class PlanningScreen extends ConsumerWidget {
             );
           }
           for (final s in validOptions) {
-            seenAcrossGroups.add(norm(s.title));
+            final k = norm(s.title);
+            seenAcrossGroupsCount[k] = (seenAcrossGroupsCount[k] ?? 0) + 1;
           }
           processedGroups.add(group.copyWith(options: validOptions));
         }
