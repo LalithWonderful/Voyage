@@ -44,6 +44,68 @@ class Accommodation {
   };
 }
 
+/// Une étape d'un voyage multi-villes : ville + nombre de nuits sur place.
+/// Les dates exactes sont calculées au runtime depuis `trip.startDate` + l'ordre dans
+/// la liste + cumul des nuits des étapes précédentes.
+///
+/// Avantages vs (from, to) absolu :
+/// - Le voyageur peut **réordonner** les étapes sans avoir à recalculer manuellement les dates
+/// - L'IA peut suggérer une boucle régionale sans imposer de calendrier strict
+/// - Plus simple à saisir (juste "combien de nuits ?" au lieu de 2 date pickers)
+class TripSegment {
+  final String city;
+  final int nights;
+
+  const TripSegment({required this.city, required this.nights});
+
+  factory TripSegment.fromJson(Map<String, dynamic> json) {
+    // Rétrocompat : si l'ancien format (from + to) existe encore en DB, on convertit.
+    final nightsRaw = json['nights'];
+    if (nightsRaw is num) {
+      return TripSegment(city: json['city'] as String, nights: nightsRaw.toInt());
+    }
+    final fromStr = json['from'] as String?;
+    final toStr = json['to'] as String?;
+    if (fromStr != null && toStr != null) {
+      final from = DateTime.parse(fromStr);
+      final to = DateTime.parse(toStr);
+      final n = to.difference(from).inDays + 1;
+      return TripSegment(city: json['city'] as String, nights: n.clamp(1, 365));
+    }
+    return TripSegment(city: json['city'] as String, nights: 1);
+  }
+
+  Map<String, dynamic> toJson() => {'city': city, 'nights': nights};
+
+  TripSegment copyWith({String? city, int? nights}) =>
+      TripSegment(city: city ?? this.city, nights: nights ?? this.nights);
+}
+
+/// Mode de planification choisi pour ce voyage par le voyageur.
+/// - `auto` : l'IA propose un planning complet, le voyageur ajuste après
+/// - `coPilot` : l'IA propose 3 options par créneau, décochées par défaut, le voyageur choisit
+/// - `null` (non stocké) : pas encore choisi → poser la question au prochain Suggérer
+enum PlanningMode {
+  auto,
+  coPilot;
+
+  static PlanningMode? fromString(String? raw) {
+    switch (raw) {
+      case 'auto':
+        return PlanningMode.auto;
+      case 'co_pilot':
+        return PlanningMode.coPilot;
+      default:
+        return null;
+    }
+  }
+
+  String get dbValue => switch (this) {
+    PlanningMode.auto => 'auto',
+    PlanningMode.coPilot => 'co_pilot',
+  };
+}
+
 class Trip {
   final String id;
   final String userId;
@@ -57,6 +119,8 @@ class Trip {
   final Accommodation? accommodation;
   final String? travelerType;
   final List<String>? interests;
+  final PlanningMode? planningMode;
+  final List<TripSegment> itinerarySegments;
   final DateTime createdAt;
 
   const Trip({
@@ -72,8 +136,46 @@ class Trip {
     this.accommodation,
     this.travelerType,
     this.interests,
+    this.planningMode,
+    this.itinerarySegments = const [],
     required this.createdAt,
   });
+
+  /// Date de début (incluse) calculée pour un segment selon son ordre dans la liste.
+  /// Égale à `startDate` + cumul des nuits des segments précédents.
+  DateTime segmentStart(int segmentIndex) {
+    var offset = 0;
+    for (var i = 0; i < segmentIndex && i < itinerarySegments.length; i++) {
+      offset += itinerarySegments[i].nights;
+    }
+    return startDate.add(Duration(days: offset));
+  }
+
+  /// Date de fin (incluse) calculée pour un segment.
+  DateTime segmentEnd(int segmentIndex) {
+    final start = segmentStart(segmentIndex);
+    final n = itinerarySegments[segmentIndex].nights;
+    return start.add(Duration(days: n - 1));
+  }
+
+  /// Retourne la ville à utiliser pour les suggestions/validations sur ce jour précis.
+  /// Calcul : on parcourt les segments dans l'ordre, on accumule les nuits, et on
+  /// retourne la ville du segment qui couvre le jour. Sinon → fallback `destination`
+  /// (utile pour les jours résiduels après la dernière étape, ex: jour de retour).
+  String cityForDay(DateTime day) {
+    final d = DateTime(day.year, day.month, day.day);
+    final s = DateTime(startDate.year, startDate.month, startDate.day);
+    if (d.isBefore(s)) return destination;
+    final dayOffset = d.difference(s).inDays;
+    var cumulative = 0;
+    for (final seg in itinerarySegments) {
+      if (dayOffset >= cumulative && dayOffset < cumulative + seg.nights) {
+        return seg.city;
+      }
+      cumulative += seg.nights;
+    }
+    return destination;
+  }
 
   int get durationDays => endDate.difference(startDate).inDays + 1;
 
@@ -92,6 +194,12 @@ class Trip {
         : null,
     travelerType: json['traveler_type'] as String?,
     interests: (json['interests'] as List?)?.map((e) => e.toString()).toList(),
+    planningMode: PlanningMode.fromString(json['planning_mode'] as String?),
+    itinerarySegments: (json['itinerary_segments'] as List?)
+            ?.whereType<Map<String, dynamic>>()
+            .map((e) => TripSegment.fromJson(e))
+            .toList() ??
+        const [],
     createdAt: DateTime.parse(json['created_at'] as String),
   );
 }

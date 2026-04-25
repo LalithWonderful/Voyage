@@ -31,11 +31,85 @@ class PlanningScreen extends ConsumerWidget {
   final String tripId;
   const PlanningScreen({super.key, required this.tripId});
 
+  /// Premier passage sur "Suggérer" pour un voyage : on demande à l'utilisateur
+  /// son mode de planification (Auto = mass planning prêt-à-l'emploi vs Co-pilote =
+  /// 3 options par créneau, le voyageur choisit). Choix stocké dans `trips.planning_mode`,
+  /// pas re-demandé sur les Suggérer suivants. Modifiable via les paramètres du voyage.
+  Future<PlanningMode?> _askPlanningModeIfNeeded(BuildContext context, WidgetRef ref, Trip trip) async {
+    if (trip.planningMode != null) return trip.planningMode;
+    if (!context.mounted) return null;
+    final choice = await showModalBottomSheet<PlanningMode>(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: false,
+      backgroundColor: AppColors.background,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                'Comment veux-tu planifier ce voyage ?',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Tu pourras changer d\'avis plus tard dans les paramètres du voyage.',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 20),
+              _PlanningModeCard(
+                emoji: '✨',
+                title: 'Pilote auto',
+                description: 'On te propose un planning complet de A à Z. Tu ajusteras après si tu veux.',
+                color: AppColors.primary,
+                onTap: () => Navigator.pop(ctx, PlanningMode.auto),
+              ),
+              const SizedBox(height: 12),
+              _PlanningModeCard(
+                emoji: '🎯',
+                title: 'Co-pilote',
+                description: 'Tu participes à la planification. 3 options par créneau, tu choisis ce qui te plaît.',
+                color: AppColors.accent,
+                onTap: () => Navigator.pop(ctx, PlanningMode.coPilot),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (choice == null) return null;
+    // Persiste le choix sur le voyage
+    try {
+      await ref.read(supabaseProvider).from('trips').update({'planning_mode': choice.dbValue}).eq('id', trip.id);
+      ref.invalidate(tripByIdProvider(trip.id));
+      ref.invalidate(tripsProvider);
+    } catch (e) {
+      debugPrint('[PLANNING_MODE] erreur persist : $e');
+    }
+    return choice;
+  }
+
   /// Affiche un bottom sheet avec le choix de catégorie puis enchaîne sur la génération.
   /// Cohérent avec la vision produit (cf. mémoire project_ai_suggestions_vision) :
   /// laisser l'utilisateur cibler précisément ce qu'il cherche plutôt qu'un mega-prompt
   /// qui hallucine sur 77 activités.
   Future<void> _openSuggestionMenu(BuildContext context, WidgetRef ref, Trip trip) async {
+    // Si premier Suggérer sur ce voyage → on demande le mode de planification d'abord
+    final mode = await _askPlanningModeIfNeeded(context, ref, trip);
+    if (mode == null || !context.mounted) return;
     final choice = await showModalBottomSheet<SuggestionCategory>(
       context: context,
       backgroundColor: AppColors.background,
@@ -142,15 +216,26 @@ class PlanningScreen extends ConsumerWidget {
       // Hôtel d'ancrage GPS : celui qui couvre aujourd'hui (ou le premier si aucun ne colle)
       final anchorHotel = hotelForDay(hotels, DateTime.now());
 
-      // Position GPS + distance vers la destination (cached 1h, fallback silencieux si refusé)
-      final userLocation = await LocationService.instance.getCurrentLocation();
+      // Position GPS + distance vers la destination — pertinent UNIQUEMENT si le voyage
+      // est en cours (today ∈ [start_date, end_date]). Sur un voyage dans 10 jours, la
+      // position du voyageur (chez lui) n'a pas de sens, on skip la demande de permission.
+      final nowTs = DateTime.now();
+      final todayDate = DateTime(nowTs.year, nowTs.month, nowTs.day);
+      final tripStart = DateTime(trip.startDate.year, trip.startDate.month, trip.startDate.day);
+      final tripEnd = DateTime(trip.endDate.year, trip.endDate.month, trip.endDate.day);
+      final isTripInProgress = !tripStart.isAfter(todayDate) && !tripEnd.isBefore(todayDate);
+
+      UserLocation? userLocation;
       int? userToDestinationMin;
-      if (userLocation != null) {
-        final anchorQuery = anchorHotel?.metadata['address'] as String? ?? trip.destination;
-        final geo = await ref.read(geocodingServiceProvider).geocode(anchorQuery);
-        if (geo != null) {
-          final km = haversineKm(userLocation.latitude, userLocation.longitude, geo.latitude, geo.longitude);
-          userToDestinationMin = estimatedTravelMinutes(km);
+      if (isTripInProgress) {
+        userLocation = await LocationService.instance.getCurrentLocation();
+        if (userLocation != null) {
+          final anchorQuery = anchorHotel?.metadata['address'] as String? ?? trip.destination;
+          final geo = await ref.read(geocodingServiceProvider).geocode(anchorQuery);
+          if (geo != null) {
+            final km = haversineKm(userLocation.latitude, userLocation.longitude, geo.latitude, geo.longitude);
+            userToDestinationMin = estimatedTravelMinutes(km);
+          }
         }
       }
 
@@ -290,35 +375,54 @@ class PlanningScreen extends ConsumerWidget {
       final afterOverlap = afterPast.where((s) => !hasTimeOverlap(s)).toList();
 
       // ── Validation Places API post-Gemini ──
-      // Pour chaque suggestion, on vérifie qu'un lieu existe vraiment sur Google Places.
-      // Si Places ne trouve aucun match (placeId null) → hallucination Gemini (ex: "Atelier
-      // de relaxation et méditation guidée" = pas un lieu réel), on rejette.
-      // Les activités avec tag "Hébergement" ne sont pas validées (gérées par les docs).
-      // Appels faits en parallèle (Future.wait) pour limiter la latence (~300ms pour N=50).
-      // Résultats cachés en DB par (titre, destination) → 0 coût sur les requêtes répétées.
+      // Triple check :
+      // 1. Le lieu existe vraiment sur Google Places (placeId non null)
+      // 2. Il a une adresse formatée non vide (sinon "Voir sur Maps" plante)
+      // 3. L'adresse contient le nom de la destination (sinon Gemini propose des trucs
+      //    dans des villes voisines — vu en avril 2026 : Metz/Epinal proposés pour Nancy)
+      // Les Hébergements ne sont pas validés (gérés par les docs perso du voyageur).
+      // Appels faits en parallèle (Future.wait) pour limiter la latence.
+      // Résultats cachés en DB par (titre, destination) → 0 coût sur les répétitions.
       final placesService = ref.read(placesCacheServiceProvider);
-      final destination = trip.destination;
       final validationResults = await Future.wait(
         afterOverlap.map((s) async {
-          if (s.tag == 'Hébergement') return (suggestion: s, valid: true);
+          if (s.tag == 'Hébergement') return (suggestion: s, valid: true, reason: 'hébergement-skip');
           try {
+            // Pour un voyage multi-étapes, la ville à valider varie par jour.
+            // Pour un voyage mono-ville, cityForDay retourne toujours `trip.destination`.
+            final dayCity = trip.cityForDay(s.dayDate);
+            final dayCityLower = dayCity.split(',').first.trim().toLowerCase();
             final info = await placesService.findInfo(
               title: s.title,
-              destination: destination,
+              destination: dayCity,
             );
-            // On exige placeId ET adresse non vide — sinon le bouton "Voir sur Maps"
-            // dans la sheet détail n'aura rien à afficher et risque de faire planter
-            // l'app Maps avec un query vague (ex: "Petit déjeuner gourmand").
             final hasPlace = info.placeId != null && info.placeId!.isNotEmpty;
             final hasAddress = info.address != null && info.address!.trim().isNotEmpty;
-            return (suggestion: s, valid: hasPlace && hasAddress);
+            if (!hasPlace || !hasAddress) {
+              return (suggestion: s, valid: false, reason: 'no-place-or-address');
+            }
+            // City-match : l'adresse doit contenir la ville cible du jour.
+            // Tolère "Nancy" vs "Nancy, France" ou "centre-ville Nancy".
+            final inCity = info.address!.toLowerCase().contains(dayCityLower);
+            if (!inCity) {
+              return (suggestion: s, valid: false, reason: 'wrong-city ($dayCity attendu): ${info.address}');
+            }
+            return (suggestion: s, valid: true, reason: 'ok');
           } catch (_) {
             // Erreur réseau = on garde (ne pas pénaliser l'utilisateur pour une API qui flake)
-            return (suggestion: s, valid: true);
+            return (suggestion: s, valid: true, reason: 'error-keep');
           }
         }),
       );
       final suggestions = validationResults.where((r) => r.valid).map((r) => r.suggestion).toList();
+      // Log les rejets ville pour debug
+      final wrongCity = validationResults.where((r) => r.reason.startsWith('wrong-city')).toList();
+      if (wrongCity.isNotEmpty) {
+        debugPrint('[SUGGEST] ${wrongCity.length} suggestions rejetées (mauvaise ville) :');
+        for (final r in wrongCity) {
+          debugPrint('  - "${r.suggestion.title}" → ${r.reason}');
+        }
+      }
 
       debugPrint(
         '[SUGGEST] brut=$rawCount, dedup-interne=${uniqueInternal.length}, '
@@ -1871,6 +1975,63 @@ class _ActivityItem extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Carte cliquable utilisée dans le dialog de choix du mode de planification
+/// (Pilote auto / Co-pilote). Visuellement marquée avec emoji + couleur d'accent.
+class _PlanningModeCard extends StatelessWidget {
+  final String emoji;
+  final String title;
+  final String description;
+  final Color color;
+  final VoidCallback onTap;
+  const _PlanningModeCard({
+    required this.emoji,
+    required this.title,
+    required this.description,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color, width: 2),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 32)),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: color),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    description,
+                    style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.35),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios, size: 14, color: color),
+          ],
+        ),
       ),
     );
   }

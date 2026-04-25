@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:voyage/core/theme/app_theme.dart';
+import 'package:voyage/core/widgets/city_autocomplete_field.dart';
 import 'package:voyage/features/auth/providers/auth_provider.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
@@ -51,6 +52,7 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
   late List<Traveler> _travelers;
   String? _travelerType;
   late Set<String> _interests;
+  late List<TripSegment> _segments;
   bool _saving = false;
 
   @override
@@ -64,6 +66,7 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
     _travelers = [...widget.trip.travelers];
     _travelerType = widget.trip.travelerType;
     _interests = Set<String>.from(widget.trip.interests ?? const []);
+    _segments = [...widget.trip.itinerarySegments];
   }
 
   @override
@@ -122,6 +125,7 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
         'travelers': _travelers.map((t) => t.toJson()).toList(),
         'traveler_type': _travelerType,
         'interests': _interests.toList(),
+        'itinerary_segments': _segments.isEmpty ? null : _segments.map((s) => s.toJson()).toList(),
       }).eq('id', widget.trip.id);
       ref.invalidate(tripsProvider);
       ref.invalidate(tripByIdProvider(widget.trip.id));
@@ -139,6 +143,48 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
 
   String _fmtDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+
+  /// Calcule les dates effectives d'une étape selon son index dans la liste.
+  /// Renvoie un libellé compact (ex: "du 25 au 27/04" ou "du 28/04 au 02/05").
+  String _fmtSegmentDates(int index) {
+    var offsetBefore = 0;
+    for (var i = 0; i < index; i++) {
+      offsetBefore += _segments[i].nights;
+    }
+    final seg = _segments[index];
+    final from = _start.add(Duration(days: offsetBefore));
+    final to = from.add(Duration(days: seg.nights - 1));
+    final sameMonth = from.month == to.month && from.year == to.year;
+    if (sameMonth) {
+      return 'du ${from.day} au ${to.day}/${to.month.toString().padLeft(2, '0')}';
+    }
+    return 'du ${_fmtDate(from)} au ${_fmtDate(to)}';
+  }
+
+  /// Total des nuits déjà placées dans les étapes — pour comparer avec la durée du voyage.
+  int get _totalSegmentNights => _segments.fold(0, (s, seg) => s + seg.nights);
+
+  /// Durée du voyage en nuits (= durée en jours - 1, car la dernière nuit n'est pas comptée
+  /// si l'utilisateur rentre le jour du retour).
+  int get _tripNights => _end.difference(_start).inDays;
+
+  /// Ouvre un dialog d'édition pour une étape (ajout ou modif).
+  /// L'ordre des étapes est défini par leur position dans la liste — pas de tri auto
+  /// (l'utilisateur peut réordonner via drag-and-drop).
+  Future<void> _openSegmentEditor({TripSegment? existing, int? index}) async {
+    final result = await showDialog<TripSegment?>(
+      context: context,
+      builder: (ctx) => _SegmentEditorDialog(existing: existing),
+    );
+    if (result == null) return;
+    setState(() {
+      if (index != null) {
+        _segments[index] = result;
+      } else {
+        _segments.add(result);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -213,6 +259,114 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
                         const SizedBox(width: 10),
                         Expanded(child: _dateField(label: 'Retour', value: _fmtDate(_end), onTap: () => _pickDate(isStart: false))),
                       ],
+                    ),
+                    const SizedBox(height: 18),
+
+                    // Étapes du voyage (optionnel — pour les voyages multi-villes)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('ÉTAPES DU VOYAGE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+                        if (_segments.isNotEmpty)
+                          Text('${_segments.length} étape${_segments.length > 1 ? 's' : ''}', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Si tu visites plusieurs villes pendant ce voyage, ajoute chaque étape pour que les suggestions IA collent au bon endroit chaque jour. Sinon, laisse vide.',
+                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.4),
+                    ),
+                    const SizedBox(height: 8),
+                    if (_segments.isNotEmpty) ...[
+                      ReorderableListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        buildDefaultDragHandles: false,
+                        itemCount: _segments.length,
+                        onReorder: (oldIdx, newIdx) {
+                          setState(() {
+                            if (newIdx > oldIdx) newIdx--;
+                            final item = _segments.removeAt(oldIdx);
+                            _segments.insert(newIdx, item);
+                          });
+                        },
+                        itemBuilder: (ctx, i) {
+                          final seg = _segments[i];
+                          return Padding(
+                            key: ValueKey('seg-$i-${seg.city}-${seg.nights}'),
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: InkWell(
+                              onTap: () => _openSegmentEditor(existing: seg, index: i),
+                              borderRadius: BorderRadius.circular(10),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surface,
+                                  border: Border.all(color: AppColors.border),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Row(
+                                  children: [
+                                    ReorderableDragStartListener(
+                                      index: i,
+                                      child: Icon(Icons.drag_indicator, size: 18, color: AppColors.textSecondary),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Icon(Icons.place_outlined, size: 18, color: AppColors.primary),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(seg.city, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                                          Text(
+                                            '${seg.nights} nuit${seg.nights > 1 ? 's' : ''} · ${_fmtSegmentDates(i)}',
+                                            style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    IconButton(
+                                      onPressed: () => setState(() => _segments.removeAt(i)),
+                                      icon: const Icon(Icons.delete_outline, size: 18),
+                                      color: AppColors.textSecondary,
+                                      tooltip: 'Supprimer cette étape',
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      // Bilan : total des nuits placées vs durée du voyage
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6, top: 2),
+                        child: Text(
+                          _totalSegmentNights == _tripNights
+                              ? '✓ ${_totalSegmentNights} nuit${_totalSegmentNights > 1 ? 's' : ''} placée${_totalSegmentNights > 1 ? 's' : ''} · couvre tout le voyage'
+                              : _totalSegmentNights < _tripNights
+                                  ? '${_totalSegmentNights} / $_tripNights nuit${_tripNights > 1 ? 's' : ''} placées · ${_tripNights - _totalSegmentNights} restante${(_tripNights - _totalSegmentNights) > 1 ? 's' : ''} (utilisera "${_destCtrl.text.trim().isEmpty ? 'destination' : _destCtrl.text.trim()}")'
+                                  : '⚠ ${_totalSegmentNights} nuits placées dépasse les $_tripNights nuits du voyage',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: _totalSegmentNights > _tripNights ? AppColors.error : AppColors.textSecondary,
+                            fontWeight: _totalSegmentNights == _tripNights ? FontWeight.w600 : FontWeight.normal,
+                          ),
+                        ),
+                      ),
+                    ],
+                    OutlinedButton.icon(
+                      onPressed: () => _openSegmentEditor(),
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Ajouter une étape'),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 44),
+                        foregroundColor: AppColors.primary,
+                        side: BorderSide(color: AppColors.primary),
+                      ),
                     ),
                     const SizedBox(height: 18),
 
@@ -431,6 +585,107 @@ class _AddTravelerDialogState extends State<_AddTravelerDialog> {
       actions: [
         TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Annuler')),
         ElevatedButton(onPressed: _submit, child: const Text('Ajouter')),
+      ],
+    );
+  }
+}
+
+/// Dialog d'édition d'une étape (ville + nombre de nuits).
+/// Les dates exactes sont calculées au runtime depuis l'ordre dans la liste.
+/// Utilise CityAutocompleteField pour empêcher les fautes d'orthographe et
+/// la saisie de régions (ex: "Alsace") au lieu de villes.
+class _SegmentEditorDialog extends ConsumerStatefulWidget {
+  final TripSegment? existing;
+  const _SegmentEditorDialog({this.existing});
+
+  @override
+  ConsumerState<_SegmentEditorDialog> createState() => _SegmentEditorDialogState();
+}
+
+class _SegmentEditorDialogState extends ConsumerState<_SegmentEditorDialog> {
+  String _city = '';
+  late int _nights;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _city = widget.existing?.city ?? '';
+    _nights = widget.existing?.nights ?? 2;
+  }
+
+  void _submit() {
+    final city = _city.trim();
+    if (city.isEmpty) {
+      setState(() => _error = 'Le nom de la ville est requis.');
+      return;
+    }
+    if (_nights < 1) {
+      setState(() => _error = 'Au moins 1 nuit.');
+      return;
+    }
+    Navigator.of(context).pop(TripSegment(city: city, nights: _nights));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.existing == null ? 'Ajouter une étape' : 'Modifier l\'étape'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CityAutocompleteField(
+              initialValue: widget.existing?.city,
+              autofocus: widget.existing == null,
+              labelText: 'Ville',
+              hintText: 'ex: Strasbourg',
+              onSelected: (city) => setState(() {
+                _city = city;
+                _error = null;
+              }),
+            ),
+            const SizedBox(height: 16),
+            Text('NUITS SUR PLACE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                IconButton(
+                  onPressed: _nights > 1 ? () => setState(() => _nights--) : null,
+                  icon: const Icon(Icons.remove_circle_outline),
+                  color: AppColors.primary,
+                ),
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      '$_nights nuit${_nights > 1 ? 's' : ''}',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: _nights < 30 ? () => setState(() => _nights++) : null,
+                  icon: const Icon(Icons.add_circle_outline),
+                  color: AppColors.primary,
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Les dates précises sont calculées automatiquement à partir de l\'ordre des étapes.',
+              style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.4),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 10),
+              Text(_error!, style: TextStyle(color: AppColors.error, fontSize: 12)),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Annuler')),
+        ElevatedButton(onPressed: _submit, child: const Text('Valider')),
       ],
     );
   }

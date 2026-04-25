@@ -770,8 +770,37 @@ Si tu es tenté de proposer un repas, remplace-le par une visite ou une activit�
 ''',
     };
 
+    // Construction du bloc destination : mono-ville si pas d'étapes, ou per-day breakdown
+    // si l'utilisateur a structuré son voyage en étapes (ex: Nancy J1-J3, Vosges J4-J5).
+    String destinationBlock;
+    if (trip.itinerarySegments.isEmpty) {
+      destinationBlock = '''🚫 DESTINATION STRICTE : ${trip.destination} UNIQUEMENT
+- Toutes les activités doivent être PHYSIQUEMENT dans ${trip.destination} (centre-ville et proche périphérie : <15 km du centre).
+- INTERDIT de proposer des activités dans des villes voisines (ex: pour Nancy, ne propose JAMAIS Metz, Épinal, Lunéville, Strasbourg ; pour Madrid, ne propose JAMAIS Tolède, Avila ; pour Bangkok, ne propose JAMAIS Ayutthaya).
+- L'adresse formatée Google de chaque proposition doit obligatoirement contenir "${trip.destination}".
+- Si tu hésites entre 2 lieux et qu'un est dans une autre ville → choisis celui qui est dans ${trip.destination}.''';
+    } else {
+      String fmt(DateTime d) => d.toIso8601String().split('T').first;
+      // Calcul des dates effectives par segment selon l'ordre + cumul des nuits
+      final segLines = <String>[];
+      for (var i = 0; i < trip.itinerarySegments.length; i++) {
+        final s = trip.itinerarySegments[i];
+        final from = trip.segmentStart(i);
+        final to = trip.segmentEnd(i);
+        segLines.add('- du ${fmt(from)} au ${fmt(to)} (${s.nights} nuit${s.nights > 1 ? 's' : ''}) : **${s.city}**');
+      }
+      destinationBlock = '''🚫 VOYAGE MULTI-ÉTAPES — chaque jour a SA ville. Respecte impérativement le planning d'étapes ci-dessous :
+${segLines.join('\n')}
+
+- Pour chaque suggestion, l'adresse Google formatée doit contenir le nom de la VILLE de l'étape correspondante (ex: si J5 est en Alsace, propose des lieux dans Strasbourg/Colmar/Eguisheim, JAMAIS Nancy).
+- Pour les jours qui ne sont dans aucune étape (jour de transition / arrivée / retour), utilise "${trip.destination}" comme ville par défaut.
+- INTERDIT de mélanger plusieurs villes sur la même journée. Une journée = une ville. Le voyageur n'est pas téléporté entre 2 villes en cours de journée.''';
+    }
+
     return '''
-${categoryTopOverride}Tu es un expert en voyages. Propose un planning d'activités personnalisé en français pour le voyage suivant.
+$categoryTopOverride$destinationBlock
+
+Tu es un expert en voyages. Propose un planning d'activités personnalisé en français pour le voyage suivant.
 
 Voyage :
 - Destination : ${trip.destination}

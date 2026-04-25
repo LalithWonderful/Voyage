@@ -241,6 +241,46 @@ class PlacesService {
     return info.photos;
   }
 
+  /// Autocomplete de noms de villes pour un widget de saisie.
+  /// Filtre les résultats sur le type "(cities)" → exclut régions/pays/POI.
+  /// Le `description` retourné est ce qu'on affiche dans le dropdown ("Gérardmer, France").
+  /// Utilise `language=fr` pour des noms en français quand disponible.
+  /// Retourne une liste vide en cas d'erreur (silencieux, pas d'exception).
+  Future<List<({String description, String mainText, String placeId})>> autocompleteCities(String query) async {
+    final key = AiConstants.googleMapsApiKey;
+    final trimmed = query.trim();
+    if (trimmed.length < 2 || key.isEmpty || key == 'COLLE_TA_CLE_MAPS_ICI') return const [];
+    try {
+      final uri = Uri.https('maps.googleapis.com', '/maps/api/place/autocomplete/json', {
+        'input': trimmed,
+        'types': '(cities)',
+        'language': 'fr',
+        'key': key,
+      });
+      final resp = await http.get(uri);
+      if (resp.statusCode != 200) return const [];
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      if (data['status'] != 'OK' && data['status'] != 'ZERO_RESULTS') {
+        developer.log('Autocomplete status=${data['status']}', name: 'places');
+        return const [];
+      }
+      final preds = (data['predictions'] as List?) ?? const [];
+      return preds.whereType<Map<String, dynamic>>().map((p) {
+        final desc = (p['description'] as String?) ?? '';
+        final structured = p['structured_formatting'] as Map<String, dynamic>?;
+        final main = (structured?['main_text'] as String?) ?? desc.split(',').first.trim();
+        return (
+          description: desc,
+          mainText: main,
+          placeId: (p['place_id'] as String?) ?? '',
+        );
+      }).where((r) => r.description.isNotEmpty).toList();
+    } catch (e) {
+      developer.log('Erreur Autocomplete : $e', name: 'places');
+      return const [];
+    }
+  }
+
   /// Récupère reviews + horaires d'ouverture en un seul appel Places Details.
   Future<({List<PlaceReview> reviews, OpeningHours? openingHours})> getDetails(String placeId) async {
     final key = AiConstants.googleMapsApiKey;
