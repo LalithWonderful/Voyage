@@ -7,6 +7,7 @@ import 'package:voyage/core/constants/ai_constants.dart';
 import 'package:voyage/features/planning/models/activity_suggestion_model.dart';
 import 'package:voyage/features/planning/models/trip_activity_model.dart';
 import 'package:voyage/features/planning/models/trip_transport_model.dart';
+import 'package:voyage/features/planning/services/gemini_cache_service.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 
 /// Un hébergement (hôtel/location) avec sa période, pour un prompt Gemini
@@ -139,7 +140,11 @@ const _travelerTypeExplanations = <String, String>{
 
 class AiSuggestionsService {
   final SupabaseClient _client;
-  AiSuggestionsService(this._client);
+  /// Cache Gemini partagé (table `gemini_cache`). Nullable pour les usages legacy
+  /// qui n'instancieraient pas le service via le provider Riverpod ; quand null,
+  /// chaque appel Gemini est fait sans lookup ni upsert (= comportement d'origine).
+  final GeminiCacheService? _cache;
+  AiSuggestionsService(this._client, {GeminiCacheService? cache}) : _cache = cache;
 
   // ⚠️ DÉSACTIVÉ TEMPORAIREMENT — À RÉACTIVER AVANT PUBLICATION.
   // Passer à `true` quand la fonction Postgres `check_and_log_ai_usage` est déployée en prod.
@@ -172,6 +177,37 @@ class AiSuggestionsService {
     List<String> excludeCities = const [],
     int daysAlreadyPlaced = 0,
   }) async {
+    // Cache : la sortie est quasi déterministe pour les mêmes inputs (mainCity,
+    // durée, profil, rayon, étapes déjà placées). On normalise les listes en les
+    // triant pour stabiliser la clé.
+    final sortedInterests = [...interests]..sort();
+    final sortedExcludes = [...excludeCities.map(GeminiCacheService.normKey)]..sort();
+    final cacheKey = GeminiCacheService.hashKey([
+      (k: 'main', v: GeminiCacheService.normKey(mainDestination)),
+      (k: 'days', v: durationDays),
+      (k: 'type', v: GeminiCacheService.normKey(travelerType ?? '')),
+      (k: 'interests', v: sortedInterests),
+      (k: 'radius', v: radiusKm),
+      (k: 'same_country', v: sameCountryOnly),
+      (k: 'exclude', v: sortedExcludes),
+      (k: 'placed', v: daysAlreadyPlaced),
+    ]);
+    final cached = await _cache?.get('regional_itinerary', cacheKey);
+    if (cached != null) {
+      final segs = (cached['segments'] as List?) ?? const [];
+      final result = <({String city, String country, int days, String description})>[];
+      for (final s in segs) {
+        if (s is! Map) continue;
+        final city = (s['city'] as String?)?.trim() ?? '';
+        final country = (s['country'] as String?)?.trim() ?? '';
+        final days = (s['days'] as num?)?.toInt() ?? 0;
+        final desc = (s['description'] as String?)?.trim() ?? '';
+        if (city.isEmpty || days < 1) continue;
+        result.add((city: city, country: country, days: days, description: desc));
+      }
+      if (result.isNotEmpty) return result;
+    }
+
     await _checkRateLimit('suggest_regional_itinerary');
     final (:interestsStr, :travelerTypeDescribed) =
         _describeProfile(travelerType: travelerType, interests: interests);
@@ -249,6 +285,18 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
       final desc = (s['description'] as String?)?.trim() ?? '';
       if (city.isEmpty || days < 1) continue;
       result.add((city: city, country: country, days: days, description: desc));
+    }
+    if (result.isNotEmpty) {
+      await _cache?.put('regional_itinerary', cacheKey, {
+        'segments': result
+            .map((r) => {
+                  'city': r.city,
+                  'country': r.country,
+                  'days': r.days,
+                  'description': r.description,
+                })
+            .toList(),
+      });
     }
     return result;
   }
@@ -382,14 +430,47 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
   /// Génère des descriptions en BATCH pour N activités en UN SEUL appel Gemini.
   /// Retourne la liste dans le MÊME ordre que [items].
   /// Pour les activités dont la description ne peut pas être générée, renvoie une chaîne vide.
+  ///
+  /// Cache item par item (action `describe_activity`, partagée avec [describeActivity]) :
+  /// les items déjà cachés sont récupérés en lookup, seuls les misses partent en
+  /// batch chez Gemini, et chaque nouvelle description est upsert individuellement
+  /// pour qu'un futur single-shot la retrouve directement.
   Future<List<String>> describeActivitiesBatch({
     required List<({String title, String? detail, String? tag})> items,
     required String destination,
   }) async {
     if (items.isEmpty) return [];
-    await _checkRateLimit('describe_activities_batch');
 
-    final bullets = items
+    // 1. Lookup cache pour chaque item, en parallèle. Même clé que describeActivity.
+    final destNorm = GeminiCacheService.normKey(destination);
+    String keyFor(({String title, String? detail, String? tag}) it) => GeminiCacheService.hashKey([
+          (k: 'title', v: GeminiCacheService.normKey(it.title)),
+          (k: 'dest', v: destNorm),
+          (k: 'tag', v: GeminiCacheService.normKey(it.tag ?? '')),
+        ]);
+    final keys = items.map(keyFor).toList();
+    final cachedByIdx = <int, String>{};
+    if (_cache != null) {
+      final lookups = await Future.wait(keys.map((k) => _cache.get('describe_activity', k)));
+      for (var i = 0; i < lookups.length; i++) {
+        final desc = lookups[i]?['description'] as String?;
+        if (desc != null && desc.isNotEmpty) cachedByIdx[i] = desc;
+      }
+    }
+    final missingIndices = <int>[
+      for (var i = 0; i < items.length; i++)
+        if (!cachedByIdx.containsKey(i)) i,
+    ];
+    if (missingIndices.isEmpty) {
+      developer.log('Batch describe — ${items.length} hits cache, 0 appel Gemini', name: 'gemini_cache');
+      return [for (var i = 0; i < items.length; i++) cachedByIdx[i] ?? ''];
+    }
+
+    // 2. Batch-call Gemini pour les misses uniquement.
+    await _checkRateLimit('describe_activities_batch');
+    final missingItems = [for (final i in missingIndices) items[i]];
+
+    final bullets = missingItems
         .asMap()
         .entries
         .map((e) =>
@@ -421,7 +502,10 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
 }
 ''';
 
-    developer.log('Gemini describe BATCH — ${items.length} activités', name: 'ai');
+    developer.log(
+      'Gemini describe BATCH — ${missingItems.length} miss / ${items.length} total',
+      name: 'ai',
+    );
     final model = _buildModel(temperature: 0.7);
     final response = await model.generateContent([Content.text(prompt)]);
     final rawText = response.text;
@@ -438,12 +522,26 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
     } else {
       list = const [];
     }
-    final result = <String>[];
-    for (var i = 0; i < items.length; i++) {
-      final v = i < list.length ? list[i] : null;
-      result.add(v is String ? v : '');
+
+    // 3. Upsert les nouvelles descriptions, en parallèle (best-effort).
+    final newDescriptionsByIdx = <int, String>{};
+    for (var j = 0; j < missingIndices.length; j++) {
+      final v = j < list.length ? list[j] : null;
+      final desc = v is String ? v : '';
+      if (desc.isEmpty) continue;
+      newDescriptionsByIdx[missingIndices[j]] = desc;
     }
-    return result;
+    if (_cache != null && newDescriptionsByIdx.isNotEmpty) {
+      await Future.wait(newDescriptionsByIdx.entries.map(
+        (e) => _cache.put('describe_activity', keys[e.key], {'description': e.value}),
+      ));
+    }
+
+    // 4. Reconstruit la liste finale dans l'ordre original (cache + nouveau).
+    return [
+      for (var i = 0; i < items.length; i++)
+        cachedByIdx[i] ?? newDescriptionsByIdx[i] ?? '',
+    ];
   }
 
   /// Génère des options de trajet entre 2 activités spécifiques dans un voyage.
@@ -454,6 +552,21 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
     required String destination,
     String? travelerType,
   }) async {
+    // Cache : la paire (from, to) à `destination` donne le même résultat. Le
+    // `travelerType` change le default_mode → inclus dans la clé.
+    final cacheKey = GeminiCacheService.hashKey([
+      (k: 'from', v: GeminiCacheService.normKey(from.title)),
+      (k: 'to', v: GeminiCacheService.normKey(to.title)),
+      (k: 'dest', v: GeminiCacheService.normKey(destination)),
+      (k: 'type', v: GeminiCacheService.normKey(travelerType ?? '')),
+    ]);
+    final cached = await _cache?.get('transport_pair', cacheKey);
+    if (cached != null) {
+      try {
+        return TransportSuggestion.fromJson(cached);
+      } catch (_) {}
+    }
+
     await _checkRateLimit('suggest_alternatives');
 
     final fromLoc = from.detail != null && from.detail!.isNotEmpty ? from.detail : from.title;
@@ -497,6 +610,7 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
     if (parsed is! Map<String, dynamic>) {
       throw Exception('Format inattendu de Gemini.');
     }
+    await _cache?.put('transport_pair', cacheKey, parsed);
     return TransportSuggestion.fromJson(parsed);
   }
 
@@ -507,6 +621,19 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
     required String destination,
     String? tag,
   }) async {
+    // Cache : titre + destination + tag suffisent. Le `detail` (adresse) ne change
+    // pas la description du lieu de fond, on l'exclut de la clé pour maximiser les hits.
+    final cacheKey = GeminiCacheService.hashKey([
+      (k: 'title', v: GeminiCacheService.normKey(title)),
+      (k: 'dest', v: GeminiCacheService.normKey(destination)),
+      (k: 'tag', v: GeminiCacheService.normKey(tag ?? '')),
+    ]);
+    final cached = await _cache?.get('describe_activity', cacheKey);
+    if (cached != null) {
+      final desc = cached['description'] as String?;
+      if (desc != null && desc.isNotEmpty) return desc;
+    }
+
     await _checkRateLimit('describe_activity');
     final prompt = '''
 Tu es guide de voyage. Écris une description ENGAGEANTE de 3 à 5 phrases (en français) pour l'activité suivante, destinée à donner envie au voyageur.
@@ -543,6 +670,7 @@ Retourne UNIQUEMENT ce JSON (sans balises, sans texte autour) :
     if (desc == null || desc.isEmpty) {
       throw Exception('Description vide.');
     }
+    await _cache?.put('describe_activity', cacheKey, {'description': desc});
     return desc;
   }
 

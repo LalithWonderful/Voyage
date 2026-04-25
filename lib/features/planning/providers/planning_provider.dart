@@ -6,6 +6,7 @@ import 'package:voyage/features/planning/models/trip_transport_model.dart';
 import 'package:voyage/features/planning/services/ai_suggestions_service.dart';
 import 'package:voyage/features/planning/services/budget_service.dart';
 import 'package:voyage/features/planning/services/document_to_activity.dart';
+import 'package:voyage/features/planning/services/gemini_cache_service.dart';
 import 'package:voyage/features/planning/services/geocoding_service.dart';
 import 'package:voyage/features/planning/services/places_cache_service.dart';
 import 'package:voyage/features/planning/services/places_service.dart';
@@ -150,8 +151,15 @@ final planningTimelineProvider = FutureProvider.family<List<TripActivity>, Strin
   return [...activities, ...virtuals];
 });
 
+final geminiCacheServiceProvider = Provider<GeminiCacheService>((ref) {
+  return GeminiCacheService(ref.watch(supabaseProvider));
+});
+
 final aiSuggestionsServiceProvider = Provider<AiSuggestionsService>((ref) {
-  return AiSuggestionsService(ref.watch(supabaseProvider));
+  return AiSuggestionsService(
+    ref.watch(supabaseProvider),
+    cache: ref.watch(geminiCacheServiceProvider),
+  );
 });
 
 final placesServiceProvider = Provider<PlacesService>((ref) => PlacesService());
