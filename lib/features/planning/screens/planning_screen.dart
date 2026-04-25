@@ -46,27 +46,30 @@ Set<String> _tokenizeForMatch(String s) {
       .toSet();
 }
 
-/// Vrai si le titre Gemini matche correctement le nom canonique Places, selon
-/// une heuristique multi-tokens. Sinon c'est probablement une hallucination
-/// Gemini matchée fuzzy à un lieu sans rapport.
+/// Vrai si le titre Gemini matche correctement le nom canonique Places.
+/// Sinon c'est probablement une hallucination Gemini matchée fuzzy à un
+/// lieu sans rapport.
 ///
-/// Règle : au moins 2 tokens significatifs en commun OU un token long (≥6
-/// lettres = nom propre/distinctif) en commun. Cette double condition évite
-/// les faux positifs sur les mots génériques courts ("café", "place", "musée")
-/// qui matchent trop de lieux sans rapport.
+/// Règle : ratio (tokens du titre Gemini présents dans le name canonique) /
+/// (tokens significatifs du titre Gemini) ≥ 60%. Évite les faux positifs où
+/// un seul mot générique ("café", "musée", "place", "comptoir") suffit à
+/// matcher un lieu sans rapport.
 ///
 /// Tolérant : si le name canonique n'est pas dispo (cache pré-migration ou
 /// Places n'a pas trouvé le lieu), on retourne `true` pour ne pas bloquer
 /// (back-compat avec les caches existants).
 ///
 /// Exemples :
-/// - "Galerie Myrtille Beck" vs "Bijouterie Lefranc" → 0 commun → false (rejet ✓)
-/// - "Place Stanislas" vs "Place Stanislas" → 2 communs → true ✓
-/// - "Musée des Beaux-Arts" vs "Musée d'Histoire Naturelle" → 1 commun ('musée'), pas de token ≥6 partagé → false (rejet ✓)
-/// - "Caves de Vaudevilles" vs "Brasserie Excelsior" → 0 commun → false (rejet ✓)
-/// - "Café Foy" vs "Café Le Patio" → 1 commun ('café', 4 lettres < 6) → false (rejet ✓)
-/// - "Brasserie Excelsior" vs "Brasserie Excelsior Nancy" → 2 communs → true ✓
-/// - "Place Stanislas" vs "Hotel Stanislas Nancy" → 1 commun ('stanislas', 9 lettres ≥6) → true ✓
+/// - "Le Petit Comptoir" (2 tokens) vs "Comptoir des Saveurs" (3 tokens, communs=1)
+///   → 1/2 = 50% < 60% → rejet ✓
+/// - "Le Petit Comptoir" vs "Petit Comptoir" → 2/2 = 100% → accept ✓
+/// - "Galerie Myrtille Beck" (3) vs "Bijouterie Lefranc" (2) → 0/3 = 0% → rejet ✓
+/// - "Place Stanislas" (2) vs "Place Stanislas" → 2/2 = 100% → accept ✓
+/// - "Musée des Beaux-Arts" (3) vs "Musée d'Histoire Naturelle" (3, communs=1)
+///   → 1/3 = 33% → rejet ✓
+/// - "Brasserie Excelsior" (2) vs "Brasserie Excelsior Nancy" → 2/2 = 100% → accept ✓
+/// - "Restaurant La Toque Blanche" (3) vs "Toque Blanche Bistrot" (3, communs=2)
+///   → 2/3 = 66% > 60% → accept (cas légitime : variation de nom) ✓
 bool _fuzzyTitleMatches(String geminiTitle, String? canonicalName) {
   if (canonicalName == null || canonicalName.trim().isEmpty) return true;
   final geminiTokens = _tokenizeForMatch(geminiTitle);
@@ -74,28 +77,23 @@ bool _fuzzyTitleMatches(String geminiTitle, String? canonicalName) {
   if (geminiTokens.isEmpty || canonTokens.isEmpty) return true;
 
   var commonCount = 0;
-  var hasLongCommon = false;
   for (final t in geminiTokens) {
-    var matched = false;
     if (canonTokens.contains(t)) {
-      matched = true;
-    } else if (t.length >= 4) {
+      commonCount++;
+      continue;
+    }
+    if (t.length >= 4) {
       // Inclusion partielle pour gérer pluriels / variantes : "galeries" ↔ "galerie",
-      // "capu" ↔ "capucin". Réservée aux tokens longs pour éviter les matches absurdes
-      // ("le" qui contient... rien, mais on filtre déjà via stop-words).
+      // "capu" ↔ "capucin". Réservée aux tokens longs.
       for (final c in canonTokens) {
         if (c.length >= 4 && (c.contains(t) || t.contains(c))) {
-          matched = true;
+          commonCount++;
           break;
         }
       }
     }
-    if (matched) {
-      commonCount++;
-      if (t.length >= 6) hasLongCommon = true;
-    }
   }
-  return commonCount >= 2 || hasLongCommon;
+  return commonCount / geminiTokens.length >= 0.6;
 }
 
 class PlanningScreen extends ConsumerWidget {

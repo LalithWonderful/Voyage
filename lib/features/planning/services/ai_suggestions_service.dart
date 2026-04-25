@@ -1068,11 +1068,14 @@ ${segLines.join('\n')}
     // - auto : N activités/jour, toutes seront cochées par défaut côté UI
     // - coPilot : 3 OPTIONS alternatives par créneau (matin/déjeuner/après-midi/soir),
     //   l'UI affichera les options en groupes et le voyageur cochera ce qui lui plaît
-    // Règle anti-hallucination appliquée aux 2 modes (auto + coPilot). On filtre
-    // ensuite côté client via fuzzy match sur le nom canonique Places, mais
-    // mieux vaut éviter en amont qu'avoir à rejeter en aval.
+    // Règle anti-hallucination appliquée aux 2 modes. Wording équilibré : on
+    // veut éviter les noms inventés MAIS sans rendre Gemini muet sur des
+    // créneaux entiers (effet de bord vu en test : plus de proposition de
+    // dîner, plus de nightlife). La couverture des intérêts du voyageur
+    // reste prioritaire — Gemini doit choisir un lieu connu de la catégorie
+    // demandée, pas se taire.
     const namingRule =
-        '- 🚫 **NOMS DE LIEUX — règle absolue** : ne propose QUE des lieux qui existent VRAIMENT et que tu peux nommer EXACTEMENT comme sur Google Maps. Si tu n\'es pas 100% sûr du nom exact ET de l\'orthographe d\'un lieu à cette destination, NE LE PROPOSE PAS — choisis un autre lieu que tu connais. Pas de noms inventés ("Caves de Vaudevilles" si ça n\'existe pas), pas de titres génériques ("Marché couvert", "Shopping de luxe", "Promenade en ville", "Balade dans le centre", "Ruelle pittoresque"), pas de descriptions ("Restaurant local typique", "Petit café cosy"). UNIQUEMENT des noms propres vérifiables : monuments ("Place Stanislas"), enseignes ("Galeries Lafayette Nancy"), restaurants nommés ("Brasserie Excelsior"), musées ("Musée des Beaux-Arts de Nancy"). En cas de doute, choisis un autre lieu plus connu plutôt que d\'inventer.';
+        '- ⚠️ **NOMS DE LIEUX** : utilise exclusivement des lieux qui existent vraiment et que tu peux nommer comme sur Google Maps (ex: "Place Stanislas" à Nancy, "Brasserie Excelsior", "Musée des Beaux-Arts de Nancy"). Pas de noms inventés (ex: "Caves de Vaudevilles" si ça n\'existe pas), pas de titres génériques ("Marché couvert", "Shopping de luxe", "Promenade en ville", "Ruelle pittoresque"), pas de descriptions ("Petit café cosy"). En cas d\'hésitation entre deux noms pour le même lieu, choisis le plus officiel/complet. **Important** : cette règle NE DOIT PAS te faire censurer un créneau ou un intérêt — pour chaque centre d\'intérêt listé du voyageur (Nightlife, Gastronomie, Culture…) tu DOIS proposer au moins un vrai lieu connu de cette catégorie dans la ville. Si tu hésites sur un nom précis, choisis un lieu emblématique et connu plutôt que de ne rien proposer.';
 
     final modeIntro = mode == PlanningMode.coPilot
         ? '''- 🎯 MODE CO-PILOTE : pour chaque jour du voyage, identifie 2 à 4 créneaux libres (ex: "Matin", "Déjeuner", "Après-midi", "Soirée") et **propose EXACTEMENT 3 options alternatives par créneau** — pas 2, pas 4, exactement 3. Si tu ne trouves pas 3 lieux distincts qui valent le coup pour un créneau, n'inclus pas ce créneau du tout.

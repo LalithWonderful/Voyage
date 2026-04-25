@@ -167,16 +167,22 @@ class RoutesService {
         body: body,
       );
       if (resp.statusCode != 200) {
-        developer.log('Routes HTTP ${resp.statusCode} (TRANSIT): ${resp.body}', name: 'routes');
+        developer.log('Routes HTTP ${resp.statusCode} (TRANSIT) $fromPlaceId→$toPlaceId: ${resp.body}', name: 'routes');
         return null;
       }
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
       final routes = data['routes'] as List?;
-      if (routes == null || routes.isEmpty) return null;
+      if (routes == null || routes.isEmpty) {
+        developer.log('Routes TRANSIT: aucune route renvoyée pour $fromPlaceId→$toPlaceId (probablement trop proche ou pas de réseau)', name: 'routes');
+        return null;
+      }
       final route = routes.first as Map<String, dynamic>;
 
       final seconds = _parseDurationSeconds(route['duration'] as String?);
-      if (seconds == null || seconds <= 0) return null;
+      if (seconds == null || seconds <= 0) {
+        developer.log('Routes TRANSIT: durée nulle/invalide $fromPlaceId→$toPlaceId', name: 'routes');
+        return null;
+      }
       final minutes = (seconds / 60).round().clamp(1, 600);
       final distanceM = (route['distanceMeters'] as num?)?.toInt() ?? 0;
 
@@ -196,6 +202,11 @@ class RoutesService {
       if (transitSteps.isEmpty) {
         // Pas de step TRANSIT identifié (peut-être un trajet 100% marche que Google
         // a mis en TRANSIT par défaut). On renvoie une option transit générique.
+        developer.log(
+          'Routes TRANSIT: aucun segment transit dans la route $fromPlaceId→$toPlaceId '
+          '(${minutes}min, ${(distanceM / 1000).toStringAsFixed(1)}km) — fallback générique',
+          name: 'routes',
+        );
         return TransportOption(
           mode: 'transit',
           durationMinutes: minutes,
