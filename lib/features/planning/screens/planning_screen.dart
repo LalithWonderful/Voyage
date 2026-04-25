@@ -341,7 +341,7 @@ class PlanningScreen extends ConsumerWidget {
           '${day.uniqueCandidates} uniques [$byInterestSummary]',
         );
         totalAfterFilters += day.totalCandidates;
-        // Détail (top 5 par intérêt) seulement pour le 1er jour pour éviter
+        // Détail (top 3 par intérêt) seulement pour le 1er jour pour éviter
         // de noyer la console — la pool est la même par jour en mono-ville.
         if (i == 0) {
           for (final entry in day.byInterest.entries) {
@@ -355,9 +355,49 @@ class PlanningScreen extends ConsumerWidget {
         }
       }
       debugPrint(
-        '[places_test] === FIN : ${pool.length} jours × intérêts → $totalAfterFilters '
+        '[places_test] === FIN GATHER : ${pool.length} jours × intérêts → $totalAfterFilters '
         'candidats cumulés (avec doublons inter-intérêts) ===',
       );
+
+      // ─── ÉTAPE 4a.2 — preview prompts CoPilot (pas d'appel Gemini) ─────
+      final groups = groupDaysByCenter(pool);
+      debugPrint(
+        '[places_test] === PROMPTS COPILOT (preview, pas d\'appel Gemini) ===',
+      );
+      debugPrint(
+        '[places_test] ${groups.length} groupe(s) de jours par centre — donc autant de prompts Gemini à envoyer',
+      );
+      for (var g = 0; g < groups.length; g++) {
+        final group = groups[g];
+        final dayList = group.days.map((d) => d.toIso8601String().split('T').first).join(', ');
+        final prompt = buildCoPilotPrompt(
+          input: group,
+          trip: trip,
+          travelerProfile: travelerProfile,
+        );
+        final approxTokens = (prompt.length / 4).round();
+        debugPrint(
+          '[places_test] Groupe ${g + 1}/${groups.length} : centre ${group.center.source} '
+          '(${group.center.latitude.toStringAsFixed(3)},${group.center.longitude.toStringAsFixed(3)}) | '
+          'jours=$dayList | pool=${group.poolSize} lieux | prompt=${prompt.length} chars (~$approxTokens tokens)',
+        );
+        // On loggue les 50 premières lignes du prompt + 10 dernières — assez
+        // pour voir l'entête et le format JSON attendu sans noyer la console.
+        final lines = prompt.split('\n');
+        if (lines.length <= 60) {
+          for (final l in lines) {
+            debugPrint('[prompt] $l');
+          }
+        } else {
+          for (var i = 0; i < 50; i++) {
+            debugPrint('[prompt] ${lines[i]}');
+          }
+          debugPrint('[prompt] … (${lines.length - 60} lignes omises) …');
+          for (var i = lines.length - 10; i < lines.length; i++) {
+            debugPrint('[prompt] ${lines[i]}');
+          }
+        }
+      }
       final totalUnique = pool.fold<int>(0, (sum, d) => sum + d.uniqueCandidates);
       if (context.mounted) {
         messenger.showSnackBar(SnackBar(
