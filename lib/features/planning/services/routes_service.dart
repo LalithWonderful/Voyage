@@ -59,14 +59,15 @@ class RoutesService {
 
     // 4 appels en parallèle (1 par mode). Chaque échec individuel renvoie null
     // et est filtré du résultat — on garde le best-effort partiel.
+    // TRANSIT a son propre code (_computeTransit) car on parse les transitDetails
+    // pour extraire le vehicle réel (bus/tram/metro/train) et les instructions
+    // de guidage (numéro de ligne, arrêt de montée/descente, direction). C'est
+    // critique pour le guide-par-la-main : "Tram 1, arrêt Place Stanislas, dir.
+    // Vandœuvre" ≠ "Bus 4, arrêt République, dir. Centre".
     final results = await Future.wait([
       _computeOne(fromPlaceId, toPlaceId, 'WALK', 'walk', key),
       _computeOne(fromPlaceId, toPlaceId, 'DRIVE', 'taxi', key),
-      // TRANSIT = générique (métro / tram / bus / train selon la ville). On ne
-      // sait pas à l'avance et Routes API n'expose pas le réseau précis dans la
-      // réponse minimale. Étiqueté 'transit' = "Transports en commun" pour ne
-      // pas mentir au voyageur (ex: pas de métro à Nancy, juste tram + bus).
-      _computeOne(fromPlaceId, toPlaceId, 'TRANSIT', 'transit', key),
+      _computeTransit(fromPlaceId, toPlaceId, key),
       _computeOne(fromPlaceId, toPlaceId, 'BICYCLE', 'bike', key),
     ]);
     final options = results.whereType<TransportOption>().toList();
@@ -135,6 +136,159 @@ class RoutesService {
     } catch (e) {
       developer.log('Routes exception $googleMode: $e', name: 'routes');
       return null;
+    }
+  }
+
+  /// Spécifique TRANSIT : appelle Routes API avec un field mask étendu pour
+  /// récupérer les détails de chaque step (vehicle.type, numéro de ligne,
+  /// arrêts, direction). Construit une TransportOption "guidée" avec :
+  /// - `mode` = vehicle type réel (bus, tram, metro, train, boat, transit fallback)
+  /// - `detail` = ligne de guidage humaine type "Tram 1 (Pl. Stanislas → Vandœuvre,
+  ///   dir. Vandœuvre, 5 arrêts)" — coeur de la promesse "guide par la main".
+  ///
+  /// Si plusieurs segments TRANSIT (ex: bus + tram), `mode` = celui dont la
+  /// durée est la plus longue, et `detail` enchaîne les instructions avec "puis".
+  Future<TransportOption?> _computeTransit(String fromPlaceId, String toPlaceId, String key) async {
+    try {
+      final uri = Uri.https('routes.googleapis.com', '/directions/v2:computeRoutes');
+      final body = jsonEncode({
+        'origin': {'placeId': fromPlaceId},
+        'destination': {'placeId': toPlaceId},
+        'travelMode': 'TRANSIT',
+      });
+      final resp = await http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': key,
+          'X-Goog-FieldMask':
+              'routes.duration,routes.distanceMeters,routes.legs.steps.travelMode,routes.legs.steps.duration,routes.legs.steps.transitDetails',
+        },
+        body: body,
+      );
+      if (resp.statusCode != 200) {
+        developer.log('Routes HTTP ${resp.statusCode} (TRANSIT): ${resp.body}', name: 'routes');
+        return null;
+      }
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      final routes = data['routes'] as List?;
+      if (routes == null || routes.isEmpty) return null;
+      final route = routes.first as Map<String, dynamic>;
+
+      final seconds = _parseDurationSeconds(route['duration'] as String?);
+      if (seconds == null || seconds <= 0) return null;
+      final minutes = (seconds / 60).round().clamp(1, 600);
+      final distanceM = (route['distanceMeters'] as num?)?.toInt() ?? 0;
+
+      // Parse les steps TRANSIT — chaque step est un segment "bus 5" ou "tram 1".
+      // Les steps WALK intercalés (marche jusqu'à l'arrêt) sont ignorés ici, car
+      // le caller affiche déjà les transferts dans une UI dédiée.
+      final transitSteps = <Map<String, dynamic>>[];
+      for (final leg in (route['legs'] as List? ?? const [])) {
+        if (leg is! Map) continue;
+        for (final step in (leg['steps'] as List? ?? const [])) {
+          if (step is Map && step['travelMode'] == 'TRANSIT') {
+            transitSteps.add(step.cast<String, dynamic>());
+          }
+        }
+      }
+
+      if (transitSteps.isEmpty) {
+        // Pas de step TRANSIT identifié (peut-être un trajet 100% marche que Google
+        // a mis en TRANSIT par défaut). On renvoie une option transit générique.
+        return TransportOption(
+          mode: 'transit',
+          durationMinutes: minutes,
+          priceEstimate: _estimatePrice('transit', distanceM),
+          detail: distanceM > 0 ? '${(distanceM / 1000).toStringAsFixed(1)} km' : null,
+        );
+      }
+
+      String? primaryMode;
+      var primaryDurationS = -1;
+      final descriptions = <String>[];
+      for (final step in transitSteps) {
+        final transit = step['transitDetails'] as Map<String, dynamic>?;
+        if (transit == null) continue;
+        final stepDurS = _parseDurationSeconds(step['duration'] as String?) ?? 0;
+
+        final line = transit['transitLine'] as Map<String, dynamic>?;
+        // Numéro/court : `nameShort` souvent "1", "T2", "B5". Sinon `name` long.
+        final lineLabel = (line?['nameShort'] as String?)?.trim() ??
+            (line?['name'] as String?)?.trim() ??
+            '';
+        final vehicle = line?['vehicle'] as Map<String, dynamic>?;
+        final mappedMode = _mapVehicleType(vehicle?['type'] as String?);
+
+        final stops = transit['stopDetails'] as Map<String, dynamic>?;
+        final fromStop = (stops?['departureStop'] as Map?)?['name'] as String?;
+        final toStop = (stops?['arrivalStop'] as Map?)?['name'] as String?;
+        final headsign = (transit['headsign'] as String?)?.trim();
+        final stopCount = (transit['stopCount'] as num?)?.toInt();
+
+        // Format guidé : "Tram 1 (Place Stanislas → Vandœuvre, dir. Vandœuvre, 5 arrêts)"
+        final modeLabel = transportModeLabels[mappedMode] ?? mappedMode;
+        final head = lineLabel.isEmpty ? modeLabel : '$modeLabel $lineLabel';
+        final parts = <String>[];
+        if (fromStop != null && toStop != null) {
+          parts.add('$fromStop → $toStop');
+        } else if (toStop != null) {
+          parts.add('arrivée: $toStop');
+        }
+        if (headsign != null && headsign.isNotEmpty) parts.add('dir. $headsign');
+        if (stopCount != null && stopCount > 0) {
+          parts.add('$stopCount arrêt${stopCount > 1 ? 's' : ''}');
+        }
+        descriptions.add(parts.isEmpty ? head : '$head (${parts.join(', ')})');
+
+        if (stepDurS > primaryDurationS) {
+          primaryDurationS = stepDurS;
+          primaryMode = mappedMode;
+        }
+      }
+
+      if (descriptions.isEmpty || primaryMode == null) return null;
+
+      return TransportOption(
+        mode: primaryMode,
+        durationMinutes: minutes,
+        priceEstimate: _estimatePrice(primaryMode, distanceM),
+        detail: descriptions.join(' puis '),
+      );
+    } catch (e) {
+      developer.log('Routes exception TRANSIT: $e', name: 'routes');
+      return null;
+    }
+  }
+
+  /// Mappe l'enum `vehicle.type` de Routes API vers un mode Voyage.
+  /// Liste source : https://developers.google.com/maps/documentation/routes
+  /// (Google maintient ~25 types — on regroupe les plus fins, ex: ICE/maglev/etc → train).
+  String _mapVehicleType(String? type) {
+    if (type == null) return 'transit';
+    switch (type) {
+      case 'BUS':
+      case 'INTERCITY_BUS':
+      case 'TROLLEYBUS':
+      case 'SHARE_TAXI':
+        return 'bus';
+      case 'TRAM':
+      case 'LIGHT_RAIL':
+        return 'tram';
+      case 'METRO_RAIL':
+      case 'SUBWAY':
+      case 'MONORAIL':
+        return 'metro';
+      case 'HEAVY_RAIL':
+      case 'COMMUTER_TRAIN':
+      case 'HIGH_SPEED_TRAIN':
+      case 'LONG_DISTANCE_TRAIN':
+      case 'RAIL':
+        return 'train';
+      case 'FERRY':
+        return 'boat';
+      default:
+        return 'transit';
     }
   }
 
