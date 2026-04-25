@@ -11,6 +11,12 @@ class ActivitySuggestion {
   /// les cartes en mode coPilot pour aider le voyageur à choisir entre les 3
   /// options d'un même créneau. Optionnel (mode auto ne le génère pas).
   final String? matchReason;
+  /// Coordonnées Google Places (lat/lng) — uniquement renseignées par le flow
+  /// Places-first qui les a fetchées via Nearby/Text Search. Servent au check
+  /// distance haversine post-sélection (regroupement géographique du jour).
+  /// Mode auto les laisse null (pas grave, le check distance est skippé).
+  final double? latitude;
+  final double? longitude;
 
   const ActivitySuggestion({
     required this.dayDate,
@@ -21,6 +27,8 @@ class ActivitySuggestion {
     this.durationMinutes,
     this.priceEstimate,
     this.matchReason,
+    this.latitude,
+    this.longitude,
   });
 
   factory ActivitySuggestion.fromJson(Map<String, dynamic> json) => ActivitySuggestion(

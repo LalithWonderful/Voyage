@@ -408,6 +408,8 @@ List<SuggestionGroup> parseCoPilotResponse({
           durationMinutes: (optJson['duration_minutes'] as num?)?.toInt(),
           priceEstimate: (optJson['price_estimate'] as String?)?.trim(),
           matchReason: (optJson['match_reason'] as String?)?.trim(),
+          latitude: candidate.latitude,
+          longitude: candidate.longitude,
         ));
       }
       if (options.isEmpty) continue;

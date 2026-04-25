@@ -221,11 +221,11 @@ class PlanningScreen extends ConsumerWidget {
   /// laisser l'utilisateur cibler précisément ce qu'il cherche plutôt qu'un mega-prompt
   /// qui hallucine sur 77 activités.
   Future<void> _openSuggestionMenu(BuildContext context, WidgetRef ref, Trip trip) async {
-    // Le menu retourne soit une SuggestionCategory (génération normale), soit la
-    // chaîne sentinel 'test' (test Places-first debug, à supprimer après MVP),
-    // soit null (annulé). On choisit AVANT de demander le mode pour que le test
-    // puisse tourner sur un voyage qui n'a pas encore de planning_mode défini.
-    final result = await showModalBottomSheet<Object>(
+    // Le menu retourne une SuggestionCategory ou null (annulé). On le présente
+    // AVANT de demander le mode pour cohérence avec l'UX (le voyageur cible
+    // d'abord ce qu'il veut, ensuite on lui demande comment planifier si pas
+    // déjà choisi).
+    final result = await showModalBottomSheet<SuggestionCategory>(
       context: context,
       backgroundColor: AppColors.background,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
@@ -259,214 +259,15 @@ class PlanningScreen extends ConsumerWidget {
               subtitle: const Text('Culture, nature, shopping, détente — hors repas'),
               onTap: () => Navigator.pop(ctx, SuggestionCategory.activities),
             ),
-            const Divider(height: 1),
-            // ⚠️ TEMPORAIRE — bouton de validation de la refonte Places-first.
-            // À supprimer une fois la refonte intégrée au pipeline normal.
-            ListTile(
-              leading: const Text('🧪', style: TextStyle(fontSize: 24)),
-              title: const Text('Test Places-first (debug)', style: TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: const Text('Lance les requêtes Places sans Gemini et logue les résultats'),
-              onTap: () => Navigator.pop(ctx, 'test'),
-            ),
             const SizedBox(height: 12),
           ],
         ),
       ),
     );
     if (result == null || !context.mounted) return;
-    if (result == 'test') {
-      await _runPlacesNearbyTest(context, ref, trip);
-      return;
-    }
-    // Génération normale — on demande le mode si pas encore choisi.
     final mode = await _askPlanningModeIfNeeded(context, ref, trip);
     if (mode == null || !context.mounted) return;
-    await _generateSuggestions(context, ref, trip, category: result as SuggestionCategory, mode: mode);
-  }
-
-  /// ⚠️ TEMPORAIRE — sera retirée une fois la refonte Places-first branchée.
-  /// Test isolé du flow Places (Nearby + Text Search) pour chaque intérêt du
-  /// voyageur, à partir du centre géocodé du jour 1. Logue tout dans la
-  /// console (`places_test`) et résume dans un snackbar.
-  Future<void> _runPlacesNearbyTest(BuildContext context, WidgetRef ref, Trip trip) async {
-    final messenger = ScaffoldMessenger.of(context);
-    if (trip.interests == null || trip.interests!.isEmpty) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('⚠️ Aucun intérêt sur ce voyage. Édite-le pour en ajouter.')),
-      );
-      return;
-    }
-
-    messenger.showSnackBar(
-      const SnackBar(content: Text('🧪 Test Places-first lancé — voir la console (places_test)')),
-    );
-
-    try {
-      final hotels = await ref.read(tripHotelsProvider(tripId).future);
-      final geocoder = ref.read(geocodingServiceProvider);
-      final nearbyService = ref.read(placesNearbyServiceProvider);
-
-      debugPrint('[places_test] === PLACES-FIRST TEST (gather all days) ===');
-      final travelerProfile = trip.travelerType != null
-          ? travelerPlacesProfiles[trip.travelerType]
-          : null;
-      final searchRadius = travelerProfile?.searchRadiusMeters ?? defaultSearchRadiusMeters;
-      debugPrint(
-        '[places_test] Trip: ${trip.title} | type=${trip.travelerType ?? "default"} '
-        '(radius=${searchRadius}m) | intérêts=${trip.interests}',
-      );
-
-      final stopwatch = Stopwatch()..start();
-      final pool = await gatherCandidatesForTrip(
-        trip: trip,
-        hotels: hotels,
-        geocoder: geocoder,
-        nearbyService: nearbyService,
-      );
-      stopwatch.stop();
-      debugPrint(
-        '[places_test] Récolte ${pool.length} jours en ${stopwatch.elapsedMilliseconds}ms',
-      );
-
-      var totalAfterFilters = 0;
-      for (var i = 0; i < pool.length; i++) {
-        final day = pool[i];
-        final dayIso = day.day.toIso8601String().split('T').first;
-        final byInterestSummary = day.byInterest.entries
-            .map((e) => '${e.key}=${e.value.length}')
-            .join(', ');
-        debugPrint(
-          '[places_test] Jour $dayIso (${day.center.source}, '
-          '${day.center.latitude.toStringAsFixed(3)},${day.center.longitude.toStringAsFixed(3)}) : '
-          '${day.uniqueCandidates} uniques [$byInterestSummary]',
-        );
-        totalAfterFilters += day.totalCandidates;
-        // Détail (top 3 par intérêt) seulement pour le 1er jour pour éviter
-        // de noyer la console — la pool est la même par jour en mono-ville.
-        if (i == 0) {
-          for (final entry in day.byInterest.entries) {
-            for (final c in entry.value.take(3)) {
-              debugPrint(
-                '[places_test]   [${entry.key}] ${c.name} (${c.address ?? "?"}) '
-                '★${c.rating} (${c.userRatingCount ?? 0} avis)',
-              );
-            }
-          }
-        }
-      }
-      debugPrint(
-        '[places_test] === FIN GATHER : ${pool.length} jours × intérêts → $totalAfterFilters '
-        'candidats cumulés (avec doublons inter-intérêts) ===',
-      );
-
-      // ─── ÉTAPE 4a.2 — preview prompts CoPilot ──────────────────────────
-      final groups = groupDaysByCenter(pool);
-      debugPrint(
-        '[places_test] === PROMPTS COPILOT ===',
-      );
-      debugPrint(
-        '[places_test] ${groups.length} groupe(s) de jours par centre',
-      );
-      for (var g = 0; g < groups.length; g++) {
-        final group = groups[g];
-        final dayList = group.days.map((d) => d.toIso8601String().split('T').first).join(', ');
-        final prompt = buildCoPilotPrompt(
-          input: group,
-          trip: trip,
-          travelerProfile: travelerProfile,
-        );
-        final approxTokens = (prompt.length / 4).round();
-        debugPrint(
-          '[places_test] Groupe ${g + 1}/${groups.length} : centre ${group.center.source} '
-          '(${group.center.latitude.toStringAsFixed(3)},${group.center.longitude.toStringAsFixed(3)}) | '
-          'jours=$dayList | pool=${group.poolSize} lieux | prompt=${prompt.length} chars (~$approxTokens tokens)',
-        );
-      }
-
-      // ─── ÉTAPE 4a.3 (test) — appel Gemini réel sur LE PLUS PETIT groupe ─
-      // Pour économiser les tokens, on n'appelle Gemini que sur 1 groupe (le
-      // plus petit prompt). Le retour est parsé via parseCoPilotResponse et
-      // les SuggestionGroup obtenus sont logués pour validation visuelle.
-      // Cache via gemini_cache action `places_first_copilot` clé = hash du
-      // prompt → re-runs du bouton ne re-paient pas Gemini.
-      if (groups.isEmpty) {
-        debugPrint('[places_test] Aucun groupe à tester pour Gemini, fin.');
-      } else {
-        final smallest = [...groups]..sort((a, b) {
-            final pa = buildCoPilotPrompt(input: a, trip: trip, travelerProfile: travelerProfile).length;
-            final pb = buildCoPilotPrompt(input: b, trip: trip, travelerProfile: travelerProfile).length;
-            return pa.compareTo(pb);
-          });
-        final picked = smallest.first;
-        final pickedPrompt = buildCoPilotPrompt(
-          input: picked,
-          trip: trip,
-          travelerProfile: travelerProfile,
-        );
-        final pickedDays = picked.days.map((d) => d.toIso8601String().split('T').first).join(', ');
-        debugPrint(
-          '[places_test] === APPEL GEMINI sur groupe le plus petit '
-          '(${picked.center.source} $pickedDays, ${pickedPrompt.length} chars) ===',
-        );
-        try {
-          final aiService = ref.read(aiSuggestionsServiceProvider);
-          final stopwatchGemini = Stopwatch()..start();
-          final raw = await aiService.generateRaw(
-            prompt: pickedPrompt,
-            cacheAction: 'places_first_copilot',
-            cacheKey: pickedPrompt.hashCode.toString(),
-            temperature: 0.6,
-          );
-          stopwatchGemini.stop();
-          debugPrint(
-            '[places_test] Gemini répondu en ${stopwatchGemini.elapsedMilliseconds}ms, '
-            '${raw.length} chars (~${(raw.length / 4).round()} tokens)',
-          );
-          final rawLines = raw.split('\n');
-          for (var i = 0; i < rawLines.length && i < 30; i++) {
-            debugPrint('[gemini-raw] ${rawLines[i]}');
-          }
-          if (rawLines.length > 30) {
-            debugPrint('[gemini-raw] … (${rawLines.length - 30} lignes omises) …');
-          }
-
-          final parsed = parseCoPilotResponse(rawJson: raw, input: picked);
-          debugPrint(
-            '[places_test] === PARSING : ${parsed.length} SuggestionGroup générés ===',
-          );
-          for (final g in parsed) {
-            final dayIso = g.dayDate.toIso8601String().split('T').first;
-            debugPrint(
-              '[places_test] $dayIso · ${g.slotLabel} (${g.startTime}) : ${g.options.length} options',
-            );
-            for (final opt in g.options) {
-              debugPrint(
-                '[places_test]   • ${opt.title} [${opt.tag}] ${opt.priceEstimate ?? "?"} '
-                '(${opt.durationMinutes ?? "?"} min) — ${opt.matchReason ?? ""}',
-              );
-            }
-          }
-        } catch (e) {
-          debugPrint('[places_test] Gemini exception: $e');
-        }
-      }
-      final totalUnique = pool.fold<int>(0, (sum, d) => sum + d.uniqueCandidates);
-      if (context.mounted) {
-        messenger.showSnackBar(SnackBar(
-          content: Text(
-            '✓ ${pool.length} jours · $totalUnique lieux uniques · $totalAfterFilters cumulés (voir console)',
-          ),
-          duration: const Duration(seconds: 5),
-        ));
-      }
-    } catch (e, st) {
-      debugPrint('[places_test] EXCEPTION: $e\n$st');
-      if (context.mounted) {
-        messenger.showSnackBar(
-          SnackBar(content: Text('❌ Erreur test : $e')),
-        );
-      }
-    }
+    await _generateSuggestions(context, ref, trip, category: result, mode: mode);
   }
 
   Future<void> _generateSuggestions(
@@ -1417,6 +1218,45 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
     return _selected.map((i) => widget.suggestions[i]).toList();
   }
 
+  /// Mesure la distance entre activités consécutives du même jour (triées par
+  /// heure) et logue un warning si une paire dépasse le seuil du profil voyageur
+  /// (`maxConsecutiveDistanceMeters`). Pas de blocage — juste de la visibilité
+  /// pour debug. Skipped pour les suggestions sans coords (= pas générées par
+  /// le flow Places-first).
+  void _checkConsecutiveDistances(List<ActivitySuggestion> selections) {
+    final trip = ref.read(tripByIdProvider(widget.tripId)).valueOrNull;
+    final profile = trip?.travelerType != null
+        ? travelerPlacesProfiles[trip!.travelerType]
+        : null;
+    final maxMeters = profile?.maxConsecutiveDistanceMeters ?? 1500;
+
+    final byDay = <String, List<ActivitySuggestion>>{};
+    for (final s in selections) {
+      final key = s.dayDate.toIso8601String().split('T').first;
+      byDay.putIfAbsent(key, () => []).add(s);
+    }
+    for (final entry in byDay.entries) {
+      final list = [...entry.value]..sort((a, b) => a.startTime.compareTo(b.startTime));
+      for (var i = 0; i < list.length - 1; i++) {
+        final a = list[i];
+        final b = list[i + 1];
+        if (a.latitude == null || a.longitude == null ||
+            b.latitude == null || b.longitude == null) {
+          continue;
+        }
+        final km = haversineKm(a.latitude!, a.longitude!, b.latitude!, b.longitude!);
+        final meters = (km * 1000).round();
+        if (meters > maxMeters) {
+          developer.log(
+            'Distance dépassée jour ${entry.key} : "${a.title}" → "${b.title}" '
+            '= ${meters}m (seuil profil ${trip?.travelerType ?? "default"} = ${maxMeters}m)',
+            name: 'planning',
+          );
+        }
+      }
+    }
+  }
+
   Future<void> _save() async {
     final rawSelections = _collectSelectedSuggestions();
     if (rawSelections.isEmpty) return;
@@ -1424,12 +1264,24 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
       '_save START — mode=${widget.mode.name}, selected=${rawSelections.length}',
       name: 'planning',
     );
+    // Check distance haversine post-sélection (mode coPilot Places-first
+    // uniquement, car seul lui injecte les coords lat/lng dans les options).
+    // Pour chaque jour, on calcule la distance entre activités cochées
+    // consécutives (triées par heure) et on log un warning si dépassement
+    // du `maxConsecutiveDistanceMeters` du profil voyageur. Pas de blocage —
+    // le voyageur a choisi délibérément, on l'informe seulement.
+    if (widget.mode == PlanningMode.coPilot) {
+      _checkConsecutiveDistances(rawSelections);
+    }
     setState(() => _saving = true);
     try {
       // Avant l'insert, substituer titre + adresse Gemini par les valeurs
-      // canoniques Places. Garantit que titre, adresse, placeId et trajets
-      // Routes API pointent tous vers le même lieu réel (cohérence bout-en-bout).
-      final selectedSuggestions = await _enrichWithCanonicalPlaces(rawSelections);
+      // canoniques Places (mode auto uniquement). En mode coPilot Places-first,
+      // les titres et adresses viennent DÉJÀ de Places — l'enrichissement est
+      // un re-fetch gratuit mais inutile, on skip.
+      final selectedSuggestions = widget.mode == PlanningMode.coPilot
+          ? rawSelections
+          : await _enrichWithCanonicalPlaces(rawSelections);
       final client = ref.read(supabaseProvider);
       final rows = selectedSuggestions.map((s) => s.toInsertJson(widget.tripId)).toList();
       developer.log('Insertion de ${rows.length} activité(s) dans trip_activities', name: 'planning');
