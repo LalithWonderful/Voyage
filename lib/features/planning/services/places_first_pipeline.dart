@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:developer' as developer;
+import 'package:flutter/foundation.dart';
 import 'package:voyage/features/planning/models/activity_suggestion_model.dart';
 import 'package:voyage/features/planning/services/ai_suggestions_service.dart';
 import 'package:voyage/features/planning/services/day_center_service.dart';
@@ -85,7 +85,7 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
 }) async {
   final interests = interestsOverride ?? trip.interests ?? const <String>[];
   if (interests.isEmpty) {
-    developer.log('Aucun intérêt sur ce voyage — pool vide', name: 'places_first');
+    debugPrint('[places_first] Aucun intérêt sur ce voyage — pool vide');
     return [];
   }
 
@@ -101,10 +101,9 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
   for (var d = start; !d.isAfter(end); d = d.add(const Duration(days: 1))) {
     days.add(d);
   }
-  developer.log(
-    'Trip "${trip.title}" : ${days.length} jours, ${interests.length} intérêts, '
+  debugPrint(
+    '[places_first] Trip "${trip.title}" : ${days.length} jours, ${interests.length} intérêts, '
     'profil=${trip.travelerType ?? "default"}, radius=${searchRadius}m',
-    name: 'places_first',
   );
 
   // Traitement parallèle par jour. Le cache places_search dédoublonne les
@@ -117,10 +116,9 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
       geocoder: geocoder,
     );
     if (center == null) {
-      developer.log(
+      debugPrint(
         'Jour ${_iso(day)} : centre non géocodable, skip',
-        name: 'places_first',
-      );
+        );
       return null;
     }
 
@@ -181,9 +179,8 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
 
   final pool = results.whereType<DayCandidates>().toList();
   final totalUnique = pool.fold<int>(0, (sum, d) => sum + d.uniqueCandidates);
-  developer.log(
-    'Récolte terminée : ${pool.length} jours, $totalUnique lieux uniques cumulés',
-    name: 'places_first',
+  debugPrint(
+    '[places_first] Récolte terminée : ${pool.length} jours, $totalUnique lieux uniques cumulés',
   );
   return pool;
 }
@@ -370,7 +367,7 @@ List<SuggestionGroup> parseCoPilotResponse({
   try {
     parsed = jsonDecode(cleaned);
   } catch (e) {
-    developer.log('parseCoPilotResponse : JSON invalide — $e', name: 'places_first');
+    debugPrint('parseCoPilotResponse : JSON invalide — $e',);
     return [];
   }
   if (parsed is! Map) return [];
@@ -397,7 +394,7 @@ List<SuggestionGroup> parseCoPilotResponse({
         if (ref == null) continue;
         final candidate = byRef[ref];
         if (candidate == null) {
-          developer.log('Réf inconnue "$ref" dans la réponse Gemini — skip', name: 'places_first');
+          debugPrint('Réf inconnue "$ref" dans la réponse Gemini — skip',);
           continue;
         }
         // Tag déduit du primary type Places (heuristique simple, à raffiner)
@@ -517,7 +514,7 @@ Future<List<SuggestionGroup>> runCoPilotPlacesFirst({
     nearbyService: nearbyService,
   );
   if (pool.isEmpty) {
-    developer.log('CoPilot Places-first : pool vide, rien à proposer', name: 'places_first');
+    debugPrint('[places_first] CoPilot Places-first : pool vide, rien à proposer',);
     return [];
   }
 
@@ -533,9 +530,8 @@ Future<List<SuggestionGroup>> runCoPilotPlacesFirst({
   }
 
   final groups = groupDaysByCenter(pool);
-  developer.log(
-    'CoPilot Places-first : ${groups.length} groupe(s) → autant de prompts Gemini',
-    name: 'places_first',
+  debugPrint(
+    '[places_first] CoPilot Places-first : ${groups.length} groupe(s) → autant de prompts Gemini',
   );
 
   final travelerProfile = trip.travelerType != null
@@ -559,18 +555,16 @@ Future<List<SuggestionGroup>> runCoPilotPlacesFirst({
       );
       return parseCoPilotResponse(rawJson: raw, input: group);
     } catch (e) {
-      developer.log(
-        'CoPilot Places-first : Gemini exception sur groupe ${group.center.source} : $e',
-        name: 'places_first',
-      );
+      debugPrint(
+        '[places_first] CoPilot Places-first : Gemini exception sur groupe ${group.center.source} : $e',
+        );
       return <SuggestionGroup>[];
     }
   }));
 
   final merged = results.expand((g) => g).toList();
-  developer.log(
-    'CoPilot Places-first : ${merged.length} SuggestionGroup au total',
-    name: 'places_first',
+  debugPrint(
+    '[places_first] CoPilot Places-first : ${merged.length} SuggestionGroup au total',
   );
   return merged;
 }

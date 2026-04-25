@@ -579,6 +579,7 @@ class PlanningScreen extends ConsumerWidget {
       // L'ancienne branche coPilot Gemini-first plus bas est définitivement
       // supprimée — elle était cassée par les hallucinations Gemini.
       if (mode == PlanningMode.coPilot) {
+        debugPrint('[SUGGEST coPilot] Démarrage flow Places-first');
         final aiService = ref.read(aiSuggestionsServiceProvider);
         final nearbyService = ref.read(placesNearbyServiceProvider);
         final geocoder = ref.read(geocodingServiceProvider);
