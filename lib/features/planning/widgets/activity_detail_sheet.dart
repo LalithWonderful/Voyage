@@ -11,6 +11,19 @@ import 'package:voyage/features/planning/services/places_service.dart';
 import 'package:voyage/features/planning/widgets/activity_edit_sheet.dart';
 import 'package:voyage/features/planning/widgets/alternatives_sheet.dart';
 
+/// Heuristique : `s` ressemble-t-il à une adresse postale (= numéro+rue, code
+/// postal) plutôt qu'à une description ("Un petit café sympa") ? Sert à éviter
+/// d'afficher 2 adresses dans la fiche quand Gemini a stocké une adresse dans
+/// `activity.detail` ET que Places a renvoyé sa propre adresse formatée.
+bool _looksLikeAddress(String s) {
+  if (s.isEmpty) return false;
+  // Code postal 5 chiffres (FR/EU/US) — signal très fort qu'on a une adresse.
+  if (RegExp(r'\b\d{5}\b').hasMatch(s)) return true;
+  // Commence par un numéro suivi d'un mot (typique adresse "19 Rue X").
+  if (RegExp(r'^\d+[a-z]?\s+\w', caseSensitive: false).hasMatch(s.trim())) return true;
+  return false;
+}
+
 Future<void> openActivityDetailSheet(
   BuildContext context,
   WidgetRef ref, {
@@ -234,12 +247,30 @@ class _ActivityDetailSheet extends ConsumerWidget {
                         // Adresse formatée Google Places (quand un lieu précis est matché).
                         // Priorité sur activity.detail qui est souvent une description Gemini
                         // vague ("Centre de bien-être local...") plutôt qu'une vraie adresse.
-                        if (!isHebergement && placeInfoAsync.valueOrNull?.address != null &&
-                            placeInfoAsync.valueOrNull!.address!.isNotEmpty)
-                          _InfoTile(icon: Icons.place_outlined, text: placeInfoAsync.value!.address!),
-                        // Description/détail Gemini (sous forme de note d'ambiance)
-                        if (activity.detail != null && activity.detail!.isNotEmpty)
-                          _InfoTile(icon: Icons.info_outline, text: activity.detail!),
+                        Builder(builder: (_) {
+                          final placesAddr = !isHebergement
+                              ? placeInfoAsync.valueOrNull?.address
+                              : null;
+                          final hasPlacesAddr = placesAddr != null && placesAddr.isNotEmpty;
+                          final detail = activity.detail;
+                          // On supprime le detail Gemini quand il fait doublon avec
+                          // l'adresse Places (typique : Gemini a halluciné une adresse
+                          // bidon en parallèle de Places qui pointe vers un autre lieu).
+                          // Si le detail est une description (pas une adresse), on le garde.
+                          final showDetail = detail != null &&
+                              detail.isNotEmpty &&
+                              !(hasPlacesAddr && _looksLikeAddress(detail));
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (hasPlacesAddr)
+                                _InfoTile(icon: Icons.place_outlined, text: placesAddr),
+                              if (showDetail)
+                                _InfoTile(icon: Icons.info_outline, text: detail),
+                            ],
+                          );
+                        }),
 
                         const SizedBox(height: 20),
 
