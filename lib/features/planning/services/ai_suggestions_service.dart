@@ -53,9 +53,20 @@ class TransportSuggestion {
 }
 
 class SuggestionsResult {
+  /// Mode auto : liste plate d'activités, 1 par créneau, toutes cochées par défaut.
+  /// Vide en mode coPilot.
   final List<ActivitySuggestion> activities;
+  /// Mode coPilot : groupes par créneau, chaque groupe a 3 options alternatives,
+  /// toutes décochées par défaut. Vide en mode auto.
+  final List<SuggestionGroup> groups;
+  /// Trajets entre activités. En mode coPilot, généré à la volée après la
+  /// sélection (l'utilisateur ne sait pas à l'avance ce qu'il va cocher).
   final List<TransportSuggestion> transports;
-  const SuggestionsResult({required this.activities, required this.transports});
+  const SuggestionsResult({
+    this.activities = const [],
+    this.groups = const [],
+    this.transports = const [],
+  });
 }
 
 /// Catégorie de suggestion demandée par l'utilisateur via le menu "Suggérer".
@@ -667,6 +678,7 @@ $inputLabel
     double? userLng,
     int? userToDestinationTravelMin,
     SuggestionCategory category = SuggestionCategory.all,
+    PlanningMode mode = PlanningMode.auto,
   }) async {
     await _checkRateLimit('suggest_activities');
     final prompt = _buildPrompt(
@@ -681,8 +693,9 @@ $inputLabel
       userLng: userLng,
       userToDestinationTravelMin: userToDestinationTravelMin,
       category: category,
+      mode: mode,
     );
-    developer.log('Gemini prompt:\n$prompt', name: 'ai');
+    developer.log('Gemini prompt (mode=${mode.name}):\n$prompt', name: 'ai');
 
     final model = _buildModel();
     final response = await model.generateContent([Content.text(prompt)]);
@@ -703,6 +716,32 @@ $inputLabel
       throw Exception('Gemini n\'a pas retourné du JSON valide.\nRéponse : ${cleaned.substring(0, cleaned.length.clamp(0, 200))}...');
     }
 
+    // Mode coPilot : on attend `{"groups": [...], "transports": []}` (transports
+    // souvent vide car ils dépendent du choix utilisateur, on les régénère après).
+    if (mode == PlanningMode.coPilot) {
+      final groupsList = (parsed is Map) ? (parsed['groups'] as List?) ?? const [] : const [];
+      final groups = <SuggestionGroup>[];
+      for (final item in groupsList) {
+        if (item is! Map<String, dynamic>) continue;
+        try {
+          final g = SuggestionGroup.fromJson(item);
+          if (g.options.isNotEmpty) groups.add(g);
+        } catch (e) {
+          developer.log('Groupe ignoré (format invalide) : $item → $e', name: 'ai');
+        }
+      }
+      final transportsList = (parsed is Map) ? (parsed['transports'] as List?) ?? const [] : const [];
+      final transports = <TransportSuggestion>[];
+      for (final item in transportsList) {
+        if (item is! Map<String, dynamic>) continue;
+        try {
+          transports.add(TransportSuggestion.fromJson(item));
+        } catch (_) {}
+      }
+      return SuggestionsResult(groups: groups, transports: transports);
+    }
+
+    // Mode auto : structure historique `{"activities": [...], "transports": [...]}`
     List<dynamic> activitiesList;
     List<dynamic> transportsList = [];
     if (parsed is List) {
@@ -757,6 +796,7 @@ $inputLabel
     double? userLng,
     int? userToDestinationTravelMin,
     SuggestionCategory category = SuggestionCategory.all,
+    PlanningMode mode = PlanningMode.auto,
   }) {
     final now = DateTime.now();
     final todayIso = DateTime(now.year, now.month, now.day).toIso8601String().split('T').first;
@@ -896,6 +936,75 @@ ${segLines.join('\n')}
 - INTERDIT de mélanger plusieurs villes sur la même journée. Une journée = une ville. Le voyageur n'est pas téléporté entre 2 villes en cours de journée.''';
     }
 
+    // Première bullet de la consigne — diffère selon le mode :
+    // - auto : N activités/jour, toutes seront cochées par défaut côté UI
+    // - coPilot : 3 OPTIONS alternatives par créneau (matin/déjeuner/après-midi/soir),
+    //   l'UI affichera les options en groupes et le voyageur cochera ce qui lui plaît
+    final modeIntro = mode == PlanningMode.coPilot
+        ? '''- 🎯 MODE CO-PILOTE : pour chaque jour du voyage, identifie 2 à 4 créneaux libres (ex: "Matin", "Déjeuner", "Après-midi", "Soirée") et **propose EXACTEMENT 3 options alternatives par créneau**. Le voyageur cochera ce qui lui plaît parmi les 3 (multi-select).
+- Les 3 options d'un même créneau doivent être de la MÊME intention (ex: 3 musées pour un créneau "Matin culture", 3 restos différents pour "Déjeuner") mais variées en gamme / quartier / ambiance pour offrir un vrai choix.
+- Pour CHAQUE option, fournis un champ `match_reason` : 1 phrase courte qui explique POURQUOI elle matche le profil voyageur (ex: "Matche ton intérêt 'Hors circuit' + budget Backpack", "Galerie d'art réputée, calme, parfait pour début de matinée"). Aide le voyageur à choisir entre les 3.'''
+        : switch (category) {
+            SuggestionCategory.all => '- Propose entre 3 et 6 activités par jour **qui reflètent concrètement les centres d\'intérêt et le type de voyageur listés ci-dessus**. Règle de couverture : sur l\'ensemble du planning proposé, CHAQUE centre d\'intérêt listé doit apparaître au moins UNE fois (ex: "Esthétique" listé → au moins un institut de beauté/spa ; "Événements" listé → au moins un festival/concert/expo ou marché saisonnier en cours pendant les dates). Les prix et la gamme des lieux doivent matcher le type de voyageur (ex: "Meilleur prix" → privilégie gratuit ou <15€/personne ; "Grand luxe" → haut de gamme uniquement).',
+            SuggestionCategory.restaurants => '- Propose 2 à 3 repas par jour UNIQUEMENT (petit-déjeuner + déjeuner + dîner selon ce qui manque au planning). Ne force PAS la couverture des centres d\'intérêt non-alimentaires — tu fais UNIQUEMENT des restos ici. Les prix doivent matcher le type de voyageur ("Meilleur prix" → street food / bouis-bouis ; "Grand luxe" → restaurants étoilés).',
+            SuggestionCategory.activities => '- Propose 2 à 4 activités non-alimentaires par jour. Règle de couverture : chaque centre d\'intérêt NON ALIMENTAIRE listé (Culture, Wellness, Nature, etc.) doit apparaître au moins une fois dans le planning proposé. N\'ajoute AUCUN repas, même pour "combler" un créneau. Les prix et gamme doivent matcher le type de voyageur.',
+          };
+
+    // En mode coPilot, on ne demande PAS de transports (l'utilisateur n'a pas
+    // encore choisi ses options, les paires sont inconnues — on les régénère
+    // au save via `generateTransportBetween`). On retire aussi la consigne
+    // "retour à l'hôtel" (l'app les insère automatiquement après le save).
+    final transportConsigne = mode == PlanningMode.coPilot
+        ? ''
+        : '''
+- CHAQUE jour doit se TERMINER par une activité "Retour à l'hôtel" (tag "Hébergement", duration_minutes 15, price_estimate "Gratuit"). Si un hébergement précis apparaît dans les activités existantes ou que tu en proposes un, utilise son nom exact ("Retour au Memmo Alfama" par ex.) ; sinon utilise le libellé générique "Retour à l'hôtel". Garde le MÊME nom d'hébergement pour tous les retours du voyage.
+- Pour CHAQUE paire d'activités consécutives dans un même jour (y compris vers le retour à l'hôtel), génère un objet "transport" avec 2 à 4 options de déplacement (à pied / taxi / métro / bus / vélo / voiture / train / bateau / tuk-tuk selon le pays).
+- **DURÉES RÉALISTES** : pour la marche, vitesse moyenne piéton = 4-5 km/h, donc 10 min = ~800 m, 30 min = ~2,5 km, 1h = ~5 km. Si tu NE CONNAIS PAS la position exacte d'une activité (ex: nom d'hébergement privé que tu ne reconnais pas), DONNE une durée pessimiste (>= 30 min à pied) plutôt qu'une estimation optimiste. **Ne propose jamais "20 min à pied" si le lieu est potentiellement à l'autre bout de la ville.** Pour les taxis/métro, compte aussi l'attente et les transferts.
+- Le "default_mode" doit être cohérent avec le profil : Grand luxe → taxi, Backpack/Meilleur prix → à pied ou transports en commun, En famille → taxi ou métro selon durée.
+- Les titres "from_title"/"to_title" doivent correspondre EXACTEMENT aux titres des activités.
+''';
+
+    final outputFormat = mode == PlanningMode.coPilot
+        ? '''{
+  "groups": [
+    {
+      "day_date": "YYYY-MM-DD",
+      "slot_label": "Matin",
+      "start_time": "10:00",
+      "options": [
+        {"title": "Musée X", "detail": "Adresse / quartier", "tag": "Culture", "duration_minutes": 90, "price_estimate": "~12€", "start_time": "10:00", "match_reason": "Matche ton intérêt 'Culture' + créneau matin tranquille"},
+        {"title": "Galerie Y", "detail": "...", "tag": "Culture", "duration_minutes": 60, "price_estimate": "Gratuit", "start_time": "10:30", "match_reason": "Plus light, gratuit, parfait si tu veux une matinée chill"},
+        {"title": "Atelier Z", "detail": "...", "tag": "Culture", "duration_minutes": 120, "price_estimate": "~25€", "start_time": "10:00", "match_reason": "Activité interactive, idéal en famille"}
+      ]
+    }
+  ]
+}'''
+        : '''{
+  "activities": [
+    {
+      "day_date": "YYYY-MM-DD",
+      "start_time": "HH:MM",
+      "title": "Nom précis de l'activité ou du lieu",
+      "detail": "Adresse, quartier, ou raison du match",
+      "tag": "Repas|Visite|Nightlife|Transport|Hébergement|Nature|Shopping|Culture|Wellness|Sport",
+      "duration_minutes": 90,
+      "price_estimate": "~15€"
+    }
+  ],
+  "transports": [
+    {
+      "from_title": "Titre exact de l'activité de départ",
+      "to_title": "Titre exact de l'activité d'arrivée",
+      "default_mode": "walk|taxi|metro|bus|bike|car|train|boat|tuktuk",
+      "options": [
+        {"mode": "walk", "duration_minutes": 15, "price_estimate": "Gratuit", "detail": "via le quartier historique"},
+        {"mode": "taxi", "duration_minutes": 5, "price_estimate": "~8€"},
+        {"mode": "metro", "duration_minutes": 12, "price_estimate": "~2€", "detail": "ligne 3"}
+      ]
+    }
+  ]
+}''';
+
     return '''
 $categoryTopOverride$destinationBlock
 
@@ -925,11 +1034,7 @@ $upcomingBlock
 $accommodationBlock
 
 Consigne :
-${switch (category) {
-  SuggestionCategory.all => '- Propose entre 3 et 6 activités par jour **qui reflètent concrètement les centres d\'intérêt et le type de voyageur listés ci-dessus**. Règle de couverture : sur l\'ensemble du planning proposé, CHAQUE centre d\'intérêt listé doit apparaître au moins UNE fois (ex: "Esthétique" listé → au moins un institut de beauté/spa ; "Événements" listé → au moins un festival/concert/expo ou marché saisonnier en cours pendant les dates). Les prix et la gamme des lieux doivent matcher le type de voyageur (ex: "Meilleur prix" → privilégie gratuit ou <15€/personne ; "Grand luxe" → haut de gamme uniquement).',
-  SuggestionCategory.restaurants => '- Propose 2 à 3 repas par jour UNIQUEMENT (petit-déjeuner + déjeuner + dîner selon ce qui manque au planning). Ne force PAS la couverture des centres d\'intérêt non-alimentaires — tu fais UNIQUEMENT des restos ici. Les prix doivent matcher le type de voyageur ("Meilleur prix" → street food / bouis-bouis ; "Grand luxe" → restaurants étoilés).',
-  SuggestionCategory.activities => '- Propose 2 à 4 activités non-alimentaires par jour. Règle de couverture : chaque centre d\'intérêt NON ALIMENTAIRE listé (Culture, Wellness, Nature, etc.) doit apparaître au moins une fois dans le planning proposé. N\'ajoute AUCUN repas, même pour "combler" un créneau. Les prix et gamme doivent matcher le type de voyageur.',
-}}
+$modeIntro
 - **PRIORITÉ AUX CRÉNEAUX LIBRES** : si un jour a déjà plusieurs activités planifiées mais qu'il reste des trous (soir libre après la dernière activité, gap de plus de 2 heures en milieu de journée, matinée vide), **comble ces trous en priorité** avec de nouvelles activités, même si le jour approche déjà 5-6 activités. L'objectif n'est pas de respecter un quota, c'est de remplir utilement le temps disponible. Exemples : dernière activité finit à 18h ET aucune activité ensuite → propose un dîner / un bar / une sortie nocturne en fonction des intérêts. Trou entre 10h et 14h → propose une activité qui tient dans ce créneau.
 - Ne propose AUCUNE activité listée dans les blocs ci-dessus (ni celles des jours précédents déjà vécues, ni celles déjà planifiées). Pour les activités des jours précédents, évite aussi les variantes évidentes (ex: si le voyageur a déjà visité un grand musée historique, ne propose pas un autre grand musée historique similaire).
 - Varie matin / midi / après-midi / soir.
@@ -948,39 +1053,10 @@ ${switch (category) {
   - Activités nature (rando, parcs) : 8h-17h
   - Plage : 9h-18h
   Ne propose JAMAIS une visite de musée à 22h, un restaurant à 7h, ou un bar à 10h. Adapte à la destination (Thaïlande, Japon, Espagne, etc. ont des rythmes différents).
-- Donne une durée estimée (en minutes) et un prix estimé par personne dans la devise locale (ou "Gratuit" si accès libre).
-- CHAQUE jour doit se TERMINER par une activité "Retour à l'hôtel" (tag "Hébergement", duration_minutes 15, price_estimate "Gratuit"). Si un hébergement précis apparaît dans les activités existantes ou que tu en proposes un, utilise son nom exact ("Retour au Memmo Alfama" par ex.) ; sinon utilise le libellé générique "Retour à l'hôtel". Garde le MÊME nom d'hébergement pour tous les retours du voyage.
-- Pour CHAQUE paire d'activités consécutives dans un même jour (y compris vers le retour à l'hôtel), génère un objet "transport" avec 2 à 4 options de déplacement (à pied / taxi / métro / bus / vélo / voiture / train / bateau / tuk-tuk selon le pays).
-- **DURÉES RÉALISTES** : pour la marche, vitesse moyenne piéton = 4-5 km/h, donc 10 min = ~800 m, 30 min = ~2,5 km, 1h = ~5 km. Si tu NE CONNAIS PAS la position exacte d'une activité (ex: nom d'hébergement privé que tu ne reconnais pas), DONNE une durée pessimiste (>= 30 min à pied) plutôt qu'une estimation optimiste. **Ne propose jamais "20 min à pied" si le lieu est potentiellement à l'autre bout de la ville.** Pour les taxis/métro, compte aussi l'attente et les transferts.
-- Le "default_mode" doit être cohérent avec le profil : Grand luxe → taxi, Backpack/Meilleur prix → à pied ou transports en commun, En famille → taxi ou métro selon durée.
-- Les titres "from_title"/"to_title" doivent correspondre EXACTEMENT aux titres des activités.
+- Donne une durée estimée (en minutes) et un prix estimé par personne dans la devise locale (ou "Gratuit" si accès libre).$transportConsigne
 
 Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
-{
-  "activities": [
-    {
-      "day_date": "YYYY-MM-DD",
-      "start_time": "HH:MM",
-      "title": "Nom précis de l'activité ou du lieu",
-      "detail": "Adresse, quartier, ou raison du match",
-      "tag": "Repas|Visite|Nightlife|Transport|Hébergement|Nature|Shopping|Culture|Wellness|Sport",
-      "duration_minutes": 90,
-      "price_estimate": "~15€"
-    }
-  ],
-  "transports": [
-    {
-      "from_title": "Titre exact de l'activité de départ",
-      "to_title": "Titre exact de l'activité d'arrivée",
-      "default_mode": "walk|taxi|metro|bus|bike|car|train|boat|tuktuk",
-      "options": [
-        {"mode": "walk", "duration_minutes": 15, "price_estimate": "Gratuit", "detail": "via le quartier historique"},
-        {"mode": "taxi", "duration_minutes": 5, "price_estimate": "~8€"},
-        {"mode": "metro", "duration_minutes": 12, "price_estimate": "~2€", "detail": "ligne 3"}
-      ]
-    }
-  ]
-}
+$outputFormat
 ''';
   }
 }

@@ -150,10 +150,16 @@ class PlanningScreen extends ConsumerWidget {
       ),
     );
     if (choice == null || !context.mounted) return;
-    await _generateSuggestions(context, ref, trip, category: choice);
+    await _generateSuggestions(context, ref, trip, category: choice, mode: mode);
   }
 
-  Future<void> _generateSuggestions(BuildContext context, WidgetRef ref, Trip trip, {SuggestionCategory category = SuggestionCategory.all}) async {
+  Future<void> _generateSuggestions(
+    BuildContext context,
+    WidgetRef ref,
+    Trip trip, {
+    SuggestionCategory category = SuggestionCategory.all,
+    required PlanningMode mode,
+  }) async {
     final navigator = Navigator.of(context, rootNavigator: true);
     final messenger = ScaffoldMessenger.of(context);
 
@@ -250,7 +256,7 @@ class PlanningScreen extends ConsumerWidget {
               ))
           .toList();
 
-      debugPrint('[SUGGEST] Appel Gemini (trip=${trip.destination}, existing=${existing.length}, category=${category.name})');
+      debugPrint('[SUGGEST] Appel Gemini (trip=${trip.destination}, existing=${existing.length}, category=${category.name}, mode=${mode.name})');
       final service = ref.read(aiSuggestionsServiceProvider);
       final result = await service.suggestActivities(
         trip: trip,
@@ -262,8 +268,13 @@ class PlanningScreen extends ConsumerWidget {
         userLng: userLocation?.longitude,
         userToDestinationTravelMin: userToDestinationMin,
         category: category,
+        mode: mode,
       );
-      debugPrint('[SUGGEST] Réponse Gemini reçue (${result.activities.length} activités, ${result.transports.length} trajets)');
+      debugPrint(
+        '[SUGGEST] Réponse Gemini reçue (mode=${mode.name}, '
+        'activités=${result.activities.length}, groupes=${result.groups.length}, '
+        'trajets=${result.transports.length})',
+      );
 
       // Normalisation pour le dedup : lowercase + strip emojis/ponctuation.
       // Permet de matcher "🏨 Départ · Maison rue du pigeonnier" vs
@@ -366,6 +377,85 @@ class PlanningScreen extends ConsumerWidget {
             return !isMealActivity(s);
         }
       }
+
+      // ─── Branche mode coPilot ──────────────────────────────────────────
+      // Gemini renvoie ici des `groups` (3 options/créneau) au lieu d'une
+      // liste plate. On filtre option par option (mêmes garde-fous que le
+      // mode auto), on valide chaque option contre Places, on drop les
+      // groupes qui n'ont plus aucune option valide.
+      if (mode == PlanningMode.coPilot) {
+        final placesService = ref.read(placesCacheServiceProvider);
+        final processedGroups = <SuggestionGroup>[];
+        final seenAcrossGroups = <String>{};
+
+        for (final group in result.groups) {
+          final candidates = group.options.where((s) {
+            if (existingTitles.contains(norm(s.title))) return false;
+            if (seenAcrossGroups.contains(norm(s.title))) return false;
+            if (isHotelReturn(s.title)) return false;
+            if (isInPast(s)) return false;
+            if (hasTimeOverlap(s)) return false;
+            if (!matchesCategory(s)) return false;
+            return true;
+          }).toList();
+          if (candidates.isEmpty) continue;
+
+          final validated = await Future.wait(candidates.map((s) async {
+            if (s.tag == 'Hébergement') return s;
+            try {
+              final dayCity = trip.cityForDay(s.dayDate);
+              final dayCityLower = dayCity.split(',').first.trim().toLowerCase();
+              final info = await placesService.findInfo(title: s.title, destination: dayCity);
+              final hasPlace = info.placeId != null && info.placeId!.isNotEmpty;
+              final hasAddress = info.address != null && info.address!.trim().isNotEmpty;
+              if (!hasPlace || !hasAddress) return null;
+              if (!info.address!.toLowerCase().contains(dayCityLower)) return null;
+              return s;
+            } catch (_) {
+              // Tolère un flake réseau Places pour ne pas pénaliser l'utilisateur
+              return s;
+            }
+          }));
+          final validOptions = validated.whereType<ActivitySuggestion>().toList();
+          if (validOptions.isEmpty) continue;
+          for (final s in validOptions) {
+            seenAcrossGroups.add(norm(s.title));
+          }
+          processedGroups.add(group.copyWith(options: validOptions));
+        }
+
+        debugPrint(
+          '[SUGGEST coPilot] ${result.groups.length} groupes Gemini → '
+          '${processedGroups.length} groupes après filtrage '
+          '(${processedGroups.fold<int>(0, (sum, g) => sum + g.options.length)} options validées)',
+        );
+
+        closeDialog();
+        if (!context.mounted) return;
+        if (processedGroups.isEmpty) {
+          messenger.showSnackBar(
+            const SnackBar(content: Text('Aucune nouvelle suggestion — ton planning est déjà bien rempli.')),
+          );
+          return;
+        }
+        await showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: AppColors.background,
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+          builder: (_) => _SuggestionsSheet(
+            tripId: tripId,
+            groups: processedGroups,
+            travelerType: effectiveTravelerType,
+            mode: PlanningMode.coPilot,
+          ),
+        );
+        ref.invalidate(tripActivitiesProvider(tripId));
+        ref.invalidate(tripTransportsProvider(tripId));
+        return;
+      }
+      // ─── Fin branche coPilot ───────────────────────────────────────────
+
       final afterCategory = uniqueInternal.where(matchesCategory).toList();
 
       final rawCount = result.activities.length;
@@ -724,14 +814,23 @@ class _EmptyPlanning extends StatelessWidget {
 
 class _SuggestionsSheet extends ConsumerStatefulWidget {
   final String tripId;
+  /// Liste plate, utilisée en mode auto. Vide en mode coPilot.
   final List<ActivitySuggestion> suggestions;
+  /// Groupes par créneau, utilisés en mode coPilot (3 options/créneau). Vide en mode auto.
+  final List<SuggestionGroup> groups;
   final List<TransportSuggestion> transportSuggestions;
   final String? travelerType;
+  /// Mode de planification utilisé pour la génération. Détermine le rendu UI :
+  /// - auto : liste plate, tout coché par défaut, le voyageur décoche.
+  /// - coPilot : sections par créneau avec 3 options, tout décoché par défaut, le voyageur coche.
+  final PlanningMode mode;
   const _SuggestionsSheet({
     required this.tripId,
-    required this.suggestions,
+    this.suggestions = const [],
+    this.groups = const [],
     this.transportSuggestions = const [],
     this.travelerType,
+    this.mode = PlanningMode.auto,
   });
 
   @override
@@ -739,7 +838,11 @@ class _SuggestionsSheet extends ConsumerStatefulWidget {
 }
 
 class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
+  /// Mode auto : indices sélectionnés dans `widget.suggestions`. Tous cochés au départ.
   late final Set<int> _selected;
+  /// Mode coPilot : pour chaque groupe (clé = index dans `widget.groups`), set des
+  /// indices d'options cochées dans ce groupe. Multi-select libre. Vide au départ.
+  final Map<int, Set<int>> _selectedByGroup = {};
   bool _saving = false;
   final Map<String, Future<PlaceInfo>> _placeCache = {};
 
@@ -755,11 +858,21 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
     'janv.', 'févr.', 'mars', 'avril', 'mai', 'juin',
     'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.',
   ];
+  static const _weekdays = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+
+  /// Total d'options cochées tous groupes confondus (mode coPilot).
+  int get _coPilotSelectedCount =>
+      _selectedByGroup.values.fold<int>(0, (sum, s) => sum + s.length);
 
   @override
   void initState() {
     super.initState();
-    _selected = Set<int>.from(List.generate(widget.suggestions.length, (i) => i));
+    if (widget.mode == PlanningMode.coPilot) {
+      // Tout décoché par défaut — le voyageur coche ce qui lui plaît.
+      _selected = <int>{};
+    } else {
+      _selected = Set<int>.from(List.generate(widget.suggestions.length, (i) => i));
+    }
   }
 
   /// Génère en BACKGROUND les descriptions pour les nouvelles activités, en un seul appel Gemini.
@@ -873,12 +986,29 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
     }
   }
 
+  /// Liste plate des suggestions cochées, indépendamment du mode (auto/coPilot).
+  /// Mode auto = `widget.suggestions[i]` pour `i ∈ _selected`.
+  /// Mode coPilot = options cochées dans chaque groupe.
+  List<ActivitySuggestion> _collectSelectedSuggestions() {
+    if (widget.mode == PlanningMode.coPilot) {
+      final out = <ActivitySuggestion>[];
+      for (final entry in _selectedByGroup.entries) {
+        final group = widget.groups[entry.key];
+        for (final optIdx in entry.value) {
+          out.add(group.options[optIdx]);
+        }
+      }
+      return out;
+    }
+    return _selected.map((i) => widget.suggestions[i]).toList();
+  }
+
   Future<void> _save() async {
-    if (_selected.isEmpty) return;
+    final selectedSuggestions = _collectSelectedSuggestions();
+    if (selectedSuggestions.isEmpty) return;
     setState(() => _saving = true);
     try {
       final client = ref.read(supabaseProvider);
-      final selectedSuggestions = _selected.map((i) => widget.suggestions[i]).toList();
       final rows = selectedSuggestions.map((s) => s.toInsertJson(widget.tripId)).toList();
       developer.log('Insertion de ${rows.length} activité(s) dans trip_activities', name: 'planning');
       final inserted = await client.from('trip_activities').insert(rows).select();
@@ -970,7 +1100,11 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final isCoPilot = widget.mode == PlanningMode.coPilot;
     final height = MediaQuery.of(context).size.height * 0.85;
+    final selectedCount = isCoPilot ? _coPilotSelectedCount : _selected.length;
+    final canSave = !_saving && selectedCount > 0;
+
     return SizedBox(
       height: height,
       child: Column(
@@ -986,25 +1120,34 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('✨ Suggestions IA', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                      SizedBox(height: 2),
-                      Text('Coche celles que tu veux ajouter à ton planning.', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      Text(
+                        isCoPilot ? '🎯 Co-pilote IA' : '✨ Suggestions IA',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        isCoPilot
+                            ? 'Pour chaque créneau, choisis la ou les options qui te plaisent.'
+                            : 'Coche celles que tu veux ajouter à ton planning.',
+                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      ),
                     ],
                   ),
                 ),
-                TextButton(
-                  onPressed: () => setState(() {
-                    if (_selected.length == widget.suggestions.length) {
-                      _selected.clear();
-                    } else {
-                      _selected.addAll(List.generate(widget.suggestions.length, (i) => i));
-                    }
-                  }),
-                  child: Text(
-                    _selected.length == widget.suggestions.length ? 'Tout décocher' : 'Tout cocher',
-                    style: const TextStyle(fontSize: 12),
+                if (!isCoPilot)
+                  TextButton(
+                    onPressed: () => setState(() {
+                      if (_selected.length == widget.suggestions.length) {
+                        _selected.clear();
+                      } else {
+                        _selected.addAll(List.generate(widget.suggestions.length, (i) => i));
+                      }
+                    }),
+                    child: Text(
+                      _selected.length == widget.suggestions.length ? 'Tout décocher' : 'Tout cocher',
+                      style: const TextStyle(fontSize: 12),
+                    ),
                   ),
-                ),
                 IconButton(
                   onPressed: () => Navigator.of(context).pop(),
                   icon: const Icon(Icons.close),
@@ -1015,149 +1158,266 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
             ),
           ),
           const SizedBox(height: 12),
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-                itemCount: widget.suggestions.length,
-                itemBuilder: (_, i) {
-                  final s = widget.suggestions[i];
-                  final selected = _selected.contains(i);
-                  return FutureBuilder<PlaceInfo>(
-                    future: _placeInfoFor(s),
-                    builder: (_, snap) {
-                      final info = snap.data;
-                      final loading = snap.connectionState != ConnectionState.done;
-                      final photoUrl = info?.photos.isNotEmpty == true ? info!.photos.first.url : null;
-                      return GestureDetector(
-                        onTap: () {
-                          final destination = ref.read(tripByIdProvider(widget.tripId)).valueOrNull?.destination ?? '';
-                          openSuggestionDetailSheet(context, ref, suggestion: s, destination: destination);
-                        },
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          decoration: BoxDecoration(
-                            color: selected ? AppColors.primaryLight : AppColors.surface,
-                            border: Border.all(color: selected ? AppColors.primary : AppColors.border, width: selected ? 1.5 : 1),
-                            borderRadius: BorderRadius.circular(12),
+          Expanded(child: isCoPilot ? _buildCoPilotBody() : _buildAutoBody()),
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            decoration: BoxDecoration(color: AppColors.surface, border: Border(top: BorderSide(color: AppColors.border))),
+            child: SafeArea(
+              top: false,
+              child: ElevatedButton(
+                onPressed: canSave ? _save : null,
+                child: _saving
+                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : Text(
+                        selectedCount == 0
+                            ? 'Sélectionne au moins une option'
+                            : 'Ajouter $selectedCount activité${selectedCount > 1 ? 's' : ''} au planning',
+                      ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Mode auto : liste plate des suggestions, tout coché par défaut.
+  Widget _buildAutoBody() {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      itemCount: widget.suggestions.length,
+      itemBuilder: (_, i) {
+        final s = widget.suggestions[i];
+        final selected = _selected.contains(i);
+        return _buildOptionCard(
+          s,
+          isSelected: selected,
+          onToggle: () => setState(() => selected ? _selected.remove(i) : _selected.add(i)),
+          showDateChip: true,
+        );
+      },
+    );
+  }
+
+  /// Mode coPilot : sections par créneau (une section par groupe), 3 cartes
+  /// par section, toutes décochées au départ. Multi-select libre dans un groupe.
+  Widget _buildCoPilotBody() {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      itemCount: widget.groups.length,
+      itemBuilder: (_, gIdx) {
+        final group = widget.groups[gIdx];
+        final selectedSet = _selectedByGroup[gIdx] ?? const <int>{};
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(2, 14, 2, 8),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.accent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      group.slotLabel.toUpperCase(),
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.accent, letterSpacing: 0.6),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _formatGroupDate(group.dayDate, group.startTime),
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (selectedSet.isNotEmpty)
+                    Text(
+                      '${selectedSet.length}/${group.options.length}',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.primary),
+                    ),
+                ],
+              ),
+            ),
+            ...List.generate(group.options.length, (oIdx) {
+              final s = group.options[oIdx];
+              final isSel = selectedSet.contains(oIdx);
+              return _buildOptionCard(
+                s,
+                isSelected: isSel,
+                onToggle: () => setState(() {
+                  final set = _selectedByGroup.putIfAbsent(gIdx, () => <int>{});
+                  if (isSel) {
+                    set.remove(oIdx);
+                    if (set.isEmpty) _selectedByGroup.remove(gIdx);
+                  } else {
+                    set.add(oIdx);
+                  }
+                }),
+                showDateChip: false,
+              );
+            }),
+          ],
+        );
+      },
+    );
+  }
+
+  String _formatGroupDate(DateTime d, String startTime) {
+    final wd = _weekdays[(d.weekday - 1).clamp(0, 6)];
+    final timePart = startTime.isEmpty ? '' : ' · $startTime';
+    return '$wd ${d.day} ${_months[d.month - 1]}$timePart';
+  }
+
+  /// Carte d'une option (auto OU coPilot). Photo Places + checkbox + détails +
+  /// raison du match (coPilot uniquement). Tap sur la carte = ouvre le détail,
+  /// tap sur la checkbox = toggle de la sélection.
+  Widget _buildOptionCard(
+    ActivitySuggestion s, {
+    required bool isSelected,
+    required VoidCallback onToggle,
+    required bool showDateChip,
+  }) {
+    return FutureBuilder<PlaceInfo>(
+      future: _placeInfoFor(s),
+      builder: (_, snap) {
+        final info = snap.data;
+        final loading = snap.connectionState != ConnectionState.done;
+        final photoUrl = info?.photos.isNotEmpty == true ? info!.photos.first.url : null;
+        return GestureDetector(
+          onTap: () {
+            final destination = ref.read(tripByIdProvider(widget.tripId)).valueOrNull?.destination ?? '';
+            openSuggestionDetailSheet(context, ref, suggestion: s, destination: destination);
+          },
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            decoration: BoxDecoration(
+              color: isSelected ? AppColors.primaryLight : AppColors.surface,
+              border: Border.all(color: isSelected ? AppColors.primary : AppColors.border, width: isSelected ? 1.5 : 1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 90, height: 110,
+                  child: photoUrl != null
+                      ? CachedNetworkImage(
+                          imageUrl: photoUrl,
+                          fit: BoxFit.cover,
+                          placeholder: (_, _) => Container(color: AppColors.primaryLight),
+                          errorWidget: (_, _, _) => Container(color: const Color(0xFFF3F4F6), child: Icon(Icons.image_outlined, size: 28, color: AppColors.textSecondary)),
+                        )
+                      : Container(
+                          color: loading ? AppColors.primaryLight : const Color(0xFFF3F4F6),
+                          child: Center(
+                            child: loading
+                                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                                : Icon(Icons.image_outlined, size: 28, color: AppColors.textSecondary),
                           ),
-                          clipBehavior: Clip.antiAlias,
-                          child: Row(
+                        ),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        GestureDetector(
+                          onTap: onToggle,
+                          child: Container(
+                            width: 22, height: 22,
+                            margin: const EdgeInsets.only(top: 2),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: isSelected ? AppColors.primary : Colors.transparent,
+                              border: Border.all(color: isSelected ? AppColors.primary : AppColors.border, width: 2),
+                            ),
+                            child: isSelected ? const Icon(Icons.check, size: 14, color: Colors.white) : null,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // Thumbnail
-                              SizedBox(
-                                width: 90, height: 110,
-                                child: photoUrl != null
-                                    ? CachedNetworkImage(
-                                        imageUrl: photoUrl,
-                                        fit: BoxFit.cover,
-                                        placeholder: (_, __) => Container(color: AppColors.primaryLight),
-                                        errorWidget: (_, __, ___) => Container(color: const Color(0xFFF3F4F6), child: Icon(Icons.image_outlined, size: 28, color: AppColors.textSecondary)),
-                                      )
-                                    : Container(
-                                        color: loading ? AppColors.primaryLight : const Color(0xFFF3F4F6),
-                                        child: Center(
-                                          child: loading
-                                              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                                              : Icon(Icons.image_outlined, size: 28, color: AppColors.textSecondary),
-                                        ),
-                                      ),
-                              ),
-                              Expanded(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(10),
-                                  child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      // Checkbox circle (tap dédié)
-                                      GestureDetector(
-                                        onTap: () => setState(() => selected ? _selected.remove(i) : _selected.add(i)),
-                                        child: Container(
-                                          width: 22, height: 22,
-                                          margin: const EdgeInsets.only(top: 2),
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            color: selected ? AppColors.primary : Colors.transparent,
-                                            border: Border.all(color: selected ? AppColors.primary : AppColors.border, width: 2),
-                                          ),
-                                          child: selected ? const Icon(Icons.check, size: 14, color: Colors.white) : null,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              '${s.dayDate.day} ${_months[s.dayDate.month - 1]} · ${s.startTime}',
-                                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.accent),
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Text(s.title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary), maxLines: 2, overflow: TextOverflow.ellipsis),
-                                            if (info?.rating != null) ...[
-                                              const SizedBox(height: 3),
-                                              Row(
-                                                children: [
-                                                  const Icon(Icons.star, size: 12, color: Color(0xFFF59E0B)),
-                                                  const SizedBox(width: 2),
-                                                  Text(info!.rating!.toStringAsFixed(1), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
-                                                  if (info.ratingsCount != null) ...[
-                                                    const SizedBox(width: 3),
-                                                    Text('(${info.ratingsCount})', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
-                                                  ],
-                                                ],
-                                              ),
-                                            ],
-                                            if (s.detail != null && s.detail!.isNotEmpty) ...[
-                                              const SizedBox(height: 2),
-                                              Text(s.detail!, style: TextStyle(fontSize: 10, color: AppColors.textSecondary), maxLines: 1, overflow: TextOverflow.ellipsis),
-                                            ],
-                                            const SizedBox(height: 6),
-                                            Wrap(
-                                              spacing: 4,
-                                              runSpacing: 4,
-                                              children: [
-                                                _Pill(label: s.tag, color: AppColors.primary, bg: AppColors.primaryLight),
-                                                if (s.durationMinutes != null && s.durationMinutes! > 0)
-                                                  _Pill(label: '⏱ ${formatDuration(s.durationMinutes)}', color: AppColors.textSecondary, bg: const Color(0xFFF3F4F6)),
-                                                if (info?.priceLevelLabel != null)
-                                                  _Pill(label: info!.priceLevelLabel!, color: AppColors.textSecondary, bg: const Color(0xFFF3F4F6))
-                                                else if (s.priceEstimate != null && s.priceEstimate!.isNotEmpty)
-                                                  ConvertedPricePill(rawPrice: s.priceEstimate, color: AppColors.textSecondary, bg: const Color(0xFFF3F4F6)),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ),
+                              if (showDateChip)
+                                Text(
+                                  '${s.dayDate.day} ${_months[s.dayDate.month - 1]} · ${s.startTime}',
+                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.accent),
+                                )
+                              else if (s.startTime.isNotEmpty)
+                                Text(
+                                  s.startTime,
+                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.accent),
+                                ),
+                              if (showDateChip || s.startTime.isNotEmpty) const SizedBox(height: 2),
+                              Text(s.title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary), maxLines: 2, overflow: TextOverflow.ellipsis),
+                              if (info?.rating != null) ...[
+                                const SizedBox(height: 3),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.star, size: 12, color: Color(0xFFF59E0B)),
+                                    const SizedBox(width: 2),
+                                    Text(info!.rating!.toStringAsFixed(1), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                                    if (info.ratingsCount != null) ...[
+                                      const SizedBox(width: 3),
+                                      Text('(${info.ratingsCount})', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
                                     ],
+                                  ],
+                                ),
+                              ],
+                              if (s.detail != null && s.detail!.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(s.detail!, style: TextStyle(fontSize: 10, color: AppColors.textSecondary), maxLines: 1, overflow: TextOverflow.ellipsis),
+                              ],
+                              if (s.matchReason != null && s.matchReason!.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.accent.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    '✨ ${s.matchReason!}',
+                                    style: TextStyle(fontSize: 10, color: AppColors.accent, fontWeight: FontWeight.w600, height: 1.3),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
+                              ],
+                              const SizedBox(height: 6),
+                              Wrap(
+                                spacing: 4,
+                                runSpacing: 4,
+                                children: [
+                                  _Pill(label: s.tag, color: AppColors.primary, bg: AppColors.primaryLight),
+                                  if (s.durationMinutes != null && s.durationMinutes! > 0)
+                                    _Pill(label: '⏱ ${formatDuration(s.durationMinutes)}', color: AppColors.textSecondary, bg: const Color(0xFFF3F4F6)),
+                                  if (info?.priceLevelLabel != null)
+                                    _Pill(label: info!.priceLevelLabel!, color: AppColors.textSecondary, bg: const Color(0xFFF3F4F6))
+                                  else if (s.priceEstimate != null && s.priceEstimate!.isNotEmpty)
+                                    ConvertedPricePill(rawPrice: s.priceEstimate, color: AppColors.textSecondary, bg: const Color(0xFFF3F4F6)),
+                                ],
                               ),
                             ],
                           ),
                         ),
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-              decoration: BoxDecoration(color: AppColors.surface, border: Border(top: BorderSide(color: AppColors.border))),
-              child: SafeArea(
-                top: false,
-                child: ElevatedButton(
-                  onPressed: (_selected.isEmpty || _saving) ? null : _save,
-                  child: _saving
-                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : Text('Ajouter ${_selected.length} activité${_selected.length > 1 ? 's' : ''} au planning'),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
-      );
+          ),
+        );
+      },
+    );
   }
 }
 
