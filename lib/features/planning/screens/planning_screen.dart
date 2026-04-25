@@ -408,6 +408,12 @@ class PlanningScreen extends ConsumerWidget {
 
         for (final group in result.groups) {
           totalRawOptions += group.options.length;
+          // Mode coPilot — filtres volontairement permissifs : on laisse passer les
+          // chevauchements horaires et le passé, parce que le voyageur veut pouvoir
+          // importer une option même si elle conflicte avec une activité existante,
+          // pour la déplacer ensuite dans le planning vers un autre jour/créneau libre.
+          // En revanche on garde le dedup contre les activités déjà au planning et le
+          // dedup inter-groupe (sinon le même titre apparaît 3× dans 3 groupes = bruit).
           final candidates = group.options.where((s) {
             if (existingTitles.contains(norm(s.title))) {
               rejectedByExisting++;
@@ -421,15 +427,6 @@ class PlanningScreen extends ConsumerWidget {
             }
             if (isHotelReturn(s.title)) {
               rejectedByHotelReturn++;
-              return false;
-            }
-            if (isInPast(s)) {
-              rejectedByPast++;
-              return false;
-            }
-            if (hasTimeOverlap(s)) {
-              rejectedByOverlap++;
-              debugPrint('[SUGGEST coPilot] ✗ overlap: "${s.title}" (${s.startTime})');
               return false;
             }
             if (!matchesCategory(s)) {
@@ -930,6 +927,11 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
   int get _coPilotSelectedCount =>
       _selectedByGroup.values.fold<int>(0, (sum, s) => sum + s.length);
 
+  /// Total d'options proposées tous groupes confondus (mode coPilot).
+  /// Sert à savoir si "Tout cocher" doit basculer en "Tout décocher".
+  int get _coPilotTotalOptions =>
+      widget.groups.fold<int>(0, (sum, g) => sum + g.options.length);
+
   @override
   void initState() {
     super.initState();
@@ -1200,7 +1202,29 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
                     ],
                   ),
                 ),
-                if (!isCoPilot)
+                if (isCoPilot)
+                  TextButton(
+                    onPressed: () => setState(() {
+                      if (_coPilotSelectedCount == _coPilotTotalOptions) {
+                        // Tout coché actuellement → tout décocher = reset
+                        _selectedByGroup.clear();
+                      } else {
+                        // Cocher toutes les options de tous les groupes — utile pour
+                        // un import massif que le voyageur va trier ensuite dans le planning.
+                        _selectedByGroup.clear();
+                        for (var gIdx = 0; gIdx < widget.groups.length; gIdx++) {
+                          _selectedByGroup[gIdx] = Set<int>.from(
+                            List.generate(widget.groups[gIdx].options.length, (i) => i),
+                          );
+                        }
+                      }
+                    }),
+                    child: Text(
+                      _coPilotSelectedCount == _coPilotTotalOptions ? 'Tout décocher' : 'Tout cocher',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  )
+                else
                   TextButton(
                     onPressed: () => setState(() {
                       if (_selected.length == widget.suggestions.length) {
