@@ -393,16 +393,6 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
     // autocomplete Android) de commiter la composition avant qu'on lise les controllers.
     await Future<void>.delayed(const Duration(milliseconds: 100));
 
-    // DEBUG : on trace ce que les controllers contiennent au moment du save.
-    debugPrint('[SAVE DOC] name="${_nameCtrl.text}", category=$_category');
-    for (final spec in _fields) {
-      if (spec.type != _FieldType.date) {
-        debugPrint('[SAVE DOC]   field "${spec.key}" = "${_ctrl(spec.key).text}"');
-      } else {
-        debugPrint('[SAVE DOC]   date "${spec.key}" = ${_dates[spec.key]}');
-      }
-    }
-
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -415,7 +405,6 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
       final client = ref.read(supabaseProvider);
       final userId = client.auth.currentUser!.id;
       final builtMeta = _buildMetadata();
-      debugPrint('[SAVE DOC] metadata built = $builtMeta');
       final payload = {
         'user_id': userId,
         'trip_id': _tripId,
@@ -425,7 +414,17 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
       };
       String? savedId;
       if (widget.existing != null) {
-        await client.from('trip_documents').update(payload).eq('id', widget.existing!.id);
+        // .select() au lieu de .update() seul : si rows=0, on peut détecter
+        // un problème de policy RLS et alerter l'utilisateur au lieu d'un échec
+        // silencieux (cas vécu sur trip_documents en avril 2026).
+        final updateRes = await client
+            .from('trip_documents')
+            .update(payload)
+            .eq('id', widget.existing!.id)
+            .select();
+        if ((updateRes as List).isEmpty) {
+          throw Exception('Aucune ligne mise à jour. Vérifie les policies RLS UPDATE sur trip_documents (auth.uid() = user_id).');
+        }
         savedId = widget.existing!.id;
       } else {
         final inserted = await client.from('trip_documents').insert(payload).select();
