@@ -9,6 +9,7 @@ import 'package:voyage/features/planning/services/document_to_activity.dart';
 import 'package:voyage/features/planning/services/gemini_cache_service.dart';
 import 'package:voyage/features/planning/services/geocoding_service.dart';
 import 'package:voyage/features/planning/services/places_cache_service.dart';
+import 'package:voyage/features/planning/services/places_nearby_service.dart';
 import 'package:voyage/features/planning/services/places_service.dart';
 import 'package:voyage/features/planning/services/routes_service.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
@@ -158,6 +159,10 @@ final geminiCacheServiceProvider = Provider<GeminiCacheService>((ref) {
 
 final routesServiceProvider = Provider<RoutesService>((ref) {
   return RoutesService(cache: ref.watch(geminiCacheServiceProvider));
+});
+
+final placesNearbyServiceProvider = Provider<PlacesNearbyService>((ref) {
+  return PlacesNearbyService(cache: ref.watch(geminiCacheServiceProvider));
 });
 
 final aiSuggestionsServiceProvider = Provider<AiSuggestionsService>((ref) {
