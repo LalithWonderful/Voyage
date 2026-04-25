@@ -57,6 +57,9 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
   String? _travelerType;
   late Set<String> _interests;
   late List<TripSegment> _segments;
+  /// Mode de planification choisi pour ce voyage (null = pas encore choisi,
+  /// la question sera posée au 1er "Suggérer"). Modifiable ici à tout moment.
+  PlanningMode? _planningMode;
   bool _saving = false;
   /// La card "ÉTAPES DU VOYAGE" est en mode CTA collapsed quand le voyage est
   /// mono-ville (segments vide), pour ne pas overwhelm le voyageur. Devient
@@ -76,6 +79,7 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
     _travelerType = widget.trip.travelerType;
     _interests = Set<String>.from(widget.trip.interests ?? const []);
     _segments = [...widget.trip.itinerarySegments];
+    _planningMode = widget.trip.planningMode;
   }
 
   @override
@@ -147,6 +151,7 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
         'traveler_type': _travelerType,
         'interests': _interests.toList(),
         'itinerary_segments': _segments.isEmpty ? null : _segments.map((s) => s.toJson()).toList(),
+        'planning_mode': _planningMode?.dbValue,
       }).eq('id', widget.trip.id);
       ref.invalidate(tripsProvider);
       ref.invalidate(tripByIdProvider(widget.trip.id));
@@ -508,7 +513,8 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
                     ),
                     const SizedBox(height: 22),
 
-                    // ─── Cards de configuration (ordre : préférences IA → voyageurs → étapes) ──
+                    // ─── Cards de configuration (ordre : mode IA → préférences → voyageurs → étapes) ──
+                    _buildPlanningModeCard(),
                     _buildStyleCard(),
                     _buildInterestsCard(),
                     _buildTravelersCard(),
@@ -601,6 +607,82 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
           const SizedBox(height: 12),
           child,
         ],
+      ),
+    );
+  }
+
+  /// Card "Mode de planification" — toggle Auto vs Co-pilote pour ce voyage.
+  /// Le mode pilote le comportement de "Suggérer" : auto = mass suggestion tout
+  /// coché, coPilot = 3 options/créneau décochées. Si null (jamais choisi),
+  /// la question est posée au 1er Suggérer.
+  Widget _buildPlanningModeCard() {
+    return _formCard(
+      title: 'MODE DE PLANIFICATION',
+      hint: _planningMode == null
+          ? 'Pas encore choisi — la question sera posée au prochain "Suggérer".'
+          : _planningMode == PlanningMode.auto
+              ? 'On te propose un planning complet, tu ajustes après.'
+              : 'Tu participes à la planification : 3 options par créneau, tu choisis.',
+      child: Row(
+        children: [
+          Expanded(
+            child: _planningModeOption(
+              emoji: '✨',
+              title: 'Pilote auto',
+              isSelected: _planningMode == PlanningMode.auto,
+              accent: AppColors.primary,
+              onTap: () => setState(() => _planningMode = PlanningMode.auto),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _planningModeOption(
+              emoji: '🎯',
+              title: 'Co-pilote',
+              isSelected: _planningMode == PlanningMode.coPilot,
+              accent: AppColors.accent,
+              onTap: () => setState(() => _planningMode = PlanningMode.coPilot),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _planningModeOption({
+    required String emoji,
+    required String title,
+    required bool isSelected,
+    required Color accent,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? accent.withValues(alpha: 0.12) : AppColors.background,
+          border: Border.all(
+            color: isSelected ? accent : AppColors.border,
+            width: isSelected ? 1.5 : 1,
+          ),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 22)),
+            const SizedBox(height: 4),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: isSelected ? accent : AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
