@@ -46,6 +46,42 @@ Set<String> _tokenizeForMatch(String s) {
       .toSet();
 }
 
+/// Vrai si le lieu (via son nom canonique Places) est manifestement
+/// inapproprié pour le tag Gemini de la suggestion. Filtre les cas où
+/// Gemini propose un lieu réel mais hors-contexte — ex: "Club 87 Nancy"
+/// (club libertin) suggéré pour un déjeuner du dimanche midi.
+///
+/// Heuristique par mots-clés sur le name canonique. Pour une détection
+/// vraiment fiable il faudrait parser les `types` Places (`night_club`,
+/// `adult_entertainment`, etc.), ce qui demande une migration de la table
+/// places_cache. Cette version regex couvre déjà les cas les plus crus.
+bool _placesInappropriateForTag(String? canonicalName, String tag) {
+  if (canonicalName == null || canonicalName.isEmpty) return false;
+  final n = canonicalName.toLowerCase();
+
+  // Lieux pour adultes : rejet inconditionnel — le voyageur ne les demande
+  // jamais implicitement, et Gemini les confond souvent avec des restos/bars
+  // par hasard de nom.
+  if (RegExp(
+    r'\b(sex[\s-]?shop|libertin(?:e|s)?|swing(?:ers?|ing)|erotic|nudist|adult\s+only)\b',
+  ).hasMatch(n)) {
+    return true;
+  }
+
+  // Tags repas : pas de night-club/cabaret/disco (Gemini propose souvent un
+  // club du soir pour un déjeuner s'il connaît mal la ville).
+  if (tag == 'Repas' || tag == 'Gastronomie') {
+    if (RegExp(r'\b(night[\s-]?club|nightclub|cabaret|discoth[èe]que|disco)\b').hasMatch(n)) {
+      return true;
+    }
+    // "Club X" en tête de nom (vs "Restaurant Le Club ..."). Évite d'attraper
+    // les restos qui ont juste le mot "club" dans leur libellé.
+    if (RegExp(r'^club\s').hasMatch(n)) return true;
+  }
+
+  return false;
+}
+
 /// Vrai si le titre Gemini matche correctement le nom canonique Places.
 /// Sinon c'est probablement une hallucination Gemini matchée fuzzy à un
 /// lieu sans rapport.
@@ -535,6 +571,12 @@ class PlanningScreen extends ConsumerWidget {
                 debugPrint('[SUGGEST coPilot] ✗ Places name-mismatch: "${s.title}" → name="${info.name}"');
                 return null;
               }
+              // Hors-contexte : le lieu existe mais n'a rien à faire dans cette
+              // catégorie (ex: "Club 87 Nancy" club libertin suggéré pour repas).
+              if (_placesInappropriateForTag(info.name, s.tag)) {
+                debugPrint('[SUGGEST coPilot] ✗ Places inappropriate-for-tag (${s.tag}): "${s.title}" → name="${info.name}"');
+                return null;
+              }
               return s;
             } catch (_) {
               // Tolère un flake réseau Places pour ne pas pénaliser l'utilisateur
@@ -642,6 +684,11 @@ class PlanningScreen extends ConsumerWidget {
             // → matché à une bijouterie).
             if (!_fuzzyTitleMatches(s.title, info.name)) {
               return (suggestion: s, valid: false, reason: 'name-mismatch (canonique: "${info.name}")');
+            }
+            // Hors-contexte : le lieu existe mais n'a rien à faire dans cette
+            // catégorie (ex: club libertin suggéré pour un repas).
+            if (_placesInappropriateForTag(info.name, s.tag)) {
+              return (suggestion: s, valid: false, reason: 'inappropriate-for-tag ${s.tag} (canonique: "${info.name}")');
             }
             return (suggestion: s, valid: true, reason: 'ok');
           } catch (_) {
