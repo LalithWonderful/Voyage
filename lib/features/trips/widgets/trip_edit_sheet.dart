@@ -58,6 +58,11 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
   late Set<String> _interests;
   late List<TripSegment> _segments;
   bool _saving = false;
+  /// La card "ÉTAPES DU VOYAGE" est en mode CTA collapsed quand le voyage est
+  /// mono-ville (segments vide), pour ne pas overwhelm le voyageur. Devient
+  /// visible automatiquement dès qu'une étape est ajoutée OU quand l'utilisateur
+  /// clique sur le CTA pour révéler les boutons Ajouter/Suggérer.
+  bool _segmentsCardExpanded = false;
 
   @override
   void initState() {
@@ -463,6 +468,7 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // ─── Section haut : infos de base (sans card) ─────────────
                     Text('EMOJI', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
                     const SizedBox(height: 8),
                     Wrap(
@@ -485,17 +491,14 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
                       }).toList(),
                     ),
                     const SizedBox(height: 16),
-
                     Text('TITRE *', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
                     const SizedBox(height: 6),
                     TextField(controller: _titleCtrl),
                     const SizedBox(height: 14),
-
                     Text('DESTINATION *', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
                     const SizedBox(height: 6),
                     TextField(controller: _destCtrl),
                     const SizedBox(height: 14),
-
                     Row(
                       children: [
                         Expanded(child: _dateField(label: 'Départ', value: _fmtDate(_start), onTap: () => _pickDate(isStart: true))),
@@ -503,280 +506,15 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
                         Expanded(child: _dateField(label: 'Retour', value: _fmtDate(_end), onTap: () => _pickDate(isStart: false))),
                       ],
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 22),
 
-                    // Étapes du voyage (optionnel — pour les voyages multi-villes)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('ÉTAPES DU VOYAGE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
-                        if (_segments.isNotEmpty)
-                          Text('${_segments.length} étape${_segments.length > 1 ? 's' : ''}', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Si tu visites plusieurs villes pendant ce voyage, ajoute chaque étape pour que les suggestions IA collent au bon endroit chaque jour. Sinon, laisse vide.',
-                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.4),
-                    ),
-                    const SizedBox(height: 8),
-                    if (_segments.isNotEmpty) ...[
-                      ReorderableListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        buildDefaultDragHandles: false,
-                        itemCount: _segments.length,
-                        onReorder: (oldIdx, newIdx) {
-                          setState(() {
-                            if (newIdx > oldIdx) newIdx--;
-                            final item = _segments.removeAt(oldIdx);
-                            _segments.insert(newIdx, item);
-                          });
-                        },
-                        itemBuilder: (ctx, i) {
-                          final seg = _segments[i];
-                          return Padding(
-                            key: ValueKey('seg-$i-${seg.city}-${seg.days}'),
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: InkWell(
-                              onTap: () => _openSegmentEditor(existing: seg, index: i),
-                              borderRadius: BorderRadius.circular(10),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                decoration: BoxDecoration(
-                                  color: AppColors.surface,
-                                  border: Border.all(color: AppColors.border),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Row(
-                                  children: [
-                                    ReorderableDragStartListener(
-                                      index: i,
-                                      child: Icon(Icons.drag_indicator, size: 18, color: AppColors.textSecondary),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Icon(Icons.place_outlined, size: 18, color: AppColors.primary),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Flexible(
-                                                child: Text(seg.city, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
-                                              ),
-                                              if (seg.country != null && seg.country!.isNotEmpty) ...[
-                                                const SizedBox(width: 6),
-                                                Text('· ${seg.country}', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                                              ],
-                                            ],
-                                          ),
-                                          Text(
-                                            '${seg.days} jour${seg.days > 1 ? 's' : ''} · ${_fmtSegmentDates(i)}',
-                                            style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    IconButton(
-                                      onPressed: () => setState(() => _segments.removeAt(i)),
-                                      icon: const Icon(Icons.delete_outline, size: 18),
-                                      color: AppColors.textSecondary,
-                                      tooltip: 'Supprimer cette étape',
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                      // Bilan : total des jours placés vs durée du voyage
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 6, top: 2),
-                        child: Text(
-                          _totalSegmentDays == _tripDays
-                              ? '✓ $_totalSegmentDays jour${_totalSegmentDays > 1 ? 's' : ''} placé${_totalSegmentDays > 1 ? 's' : ''} · couvre tout le voyage'
-                              : _totalSegmentDays < _tripDays
-                                  ? '$_totalSegmentDays / $_tripDays jour${_tripDays > 1 ? 's' : ''} placés · ${_tripDays - _totalSegmentDays} restant${(_tripDays - _totalSegmentDays) > 1 ? 's' : ''} (utilisera "${_destCtrl.text.trim().isEmpty ? 'destination' : _destCtrl.text.trim()}")'
-                                  : '⚠ $_totalSegmentDays jours placés dépasse les $_tripDays jours du voyage',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: _totalSegmentDays > _tripDays ? AppColors.error : AppColors.textSecondary,
-                            fontWeight: _totalSegmentDays == _tripDays ? FontWeight.w600 : FontWeight.normal,
-                          ),
-                        ),
-                      ),
-                    ],
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () => _openSegmentEditor(),
-                            icon: const Icon(Icons.add, size: 18),
-                            label: const Text('Ajouter'),
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size(0, 44),
-                              foregroundColor: AppColors.primary,
-                              side: BorderSide(color: AppColors.primary),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _openRegionalLoop,
-                            icon: const Text('💡', style: TextStyle(fontSize: 16)),
-                            label: const Text('Suggérer'),
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size(0, 44),
-                              foregroundColor: AppColors.accent,
-                              side: BorderSide(color: AppColors.accent),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (_segments.length >= 3) ...[
-                      const SizedBox(height: 8),
-                      // Optimisation de l'ordre : utile quand le voyageur ne connaît pas
-                      // la géographie locale (ex: Nancy → Metz → Épinal → Luxembourg
-                      // zigzague, alors que Nancy → Épinal → Metz → Luxembourg est plus
-                      // direct).
-                      SizedBox(
-                        width: double.infinity,
-                        child: TextButton.icon(
-                          onPressed: _optimizeOrder,
-                          icon: const Text('🧭', style: TextStyle(fontSize: 14)),
-                          label: const Text('Optimiser l\'ordre des étapes'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: AppColors.primary,
-                            minimumSize: const Size(0, 38),
-                            textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                      ),
-                      Text(
-                        'Réorganise tes étapes pour limiter les allers-retours géographiques.',
-                        style: TextStyle(fontSize: 10, color: AppColors.textSecondary, fontStyle: FontStyle.italic),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                    const SizedBox(height: 18),
+                    // ─── Cards de configuration (ordre : préférences IA → voyageurs → étapes) ──
+                    _buildStyleCard(),
+                    _buildInterestsCard(),
+                    _buildTravelersCard(),
+                    _buildSegmentsCard(),
 
-                    // Style de ce voyage (optionnel, override du profil global)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('STYLE DE CE VOYAGE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
-                        if (_travelerType != null || _interests.isNotEmpty)
-                          TextButton(
-                            onPressed: () => setState(() {
-                              _travelerType = null;
-                              _interests.clear();
-                            }),
-                            style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                            child: Text('Utiliser mon profil', style: TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w600)),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _travelerType == null && _interests.isEmpty
-                          ? 'Vide = l\'IA utilise ton profil voyageur global.'
-                          : 'Préférences spécifiques à ce voyage, utilisées par l\'IA.',
-                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary, fontStyle: FontStyle.italic),
-                    ),
-                    const SizedBox(height: 10),
-
-                    Text('Type de voyageur', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
                     const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: _travelerTypes.map((t) {
-                        final sel = _travelerType == t.$2;
-                        return GestureDetector(
-                          onTap: () => setState(() => _travelerType = sel ? null : t.$2),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: sel ? AppColors.primary : AppColors.primaryLight,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text('${t.$1} ${t.$2}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: sel ? Colors.white : AppColors.primary)),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 12),
-
-                    Text('Centres d\'intérêt', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: _availableInterests.map((t) {
-                        final sel = _interests.contains(t.$2);
-                        return GestureDetector(
-                          onTap: () => setState(() => sel ? _interests.remove(t.$2) : _interests.add(t.$2)),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: sel ? AppColors.primary : AppColors.primaryLight,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text('${t.$1} ${t.$2}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: sel ? Colors.white : AppColors.primary)),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 18),
-
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('VOYAGEURS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
-                        Text('${_travelers.length} ${_travelers.length > 1 ? 'personnes' : 'personne'}', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    ..._travelers.asMap().entries.map((e) => Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        border: Border.all(color: AppColors.border),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(child: Text('${e.value.name} · ${e.value.age} ans', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
-                          IconButton(
-                            onPressed: () => setState(() => _travelers.removeAt(e.key)),
-                            icon: const Icon(Icons.close, size: 18),
-                            color: AppColors.textSecondary,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                          ),
-                        ],
-                      ),
-                    )),
-                    OutlinedButton.icon(
-                      onPressed: _addTraveler,
-                      icon: const Icon(Icons.person_add_alt_1, size: 18),
-                      label: const Text('Ajouter un voyageur'),
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size(double.infinity, 44),
-                        foregroundColor: AppColors.primary,
-                        side: BorderSide(color: AppColors.primary),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
                   ],
                 ),
               ),
@@ -824,6 +562,370 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
             ),
           ),
         ),
+      ],
+    );
+  }
+
+  /// Conteneur uniforme pour chaque section configurable du voyage. Header avec
+  /// titre (small caps) + slot trailing optionnel (compteur, action), hint en
+  /// italique sous le titre, puis le contenu.
+  Widget _formCard({
+    required String title,
+    Widget? trailing,
+    String? hint,
+    required Widget child,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(title, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textSecondary, letterSpacing: 0.5)),
+              ),
+              if (trailing != null) trailing,
+            ],
+          ),
+          if (hint != null) ...[
+            const SizedBox(height: 4),
+            Text(hint, style: TextStyle(fontSize: 11, color: AppColors.textSecondary, fontStyle: FontStyle.italic, height: 1.35)),
+          ],
+          const SizedBox(height: 12),
+          child,
+        ],
+      ),
+    );
+  }
+
+  /// Card "Style de ce voyage" — chips de type voyageur, override du profil global.
+  Widget _buildStyleCard() {
+    return _formCard(
+      title: 'STYLE DE CE VOYAGE',
+      trailing: _travelerType != null
+          ? TextButton(
+              onPressed: () => setState(() => _travelerType = null),
+              style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+              child: Text('Réinitialiser', style: TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w600)),
+            )
+          : null,
+      hint: _travelerType == null
+          ? 'Optionnel — vide = on utilise ton profil voyageur global.'
+          : 'Préférences spécifiques à ce voyage, utilisées par l\'IA.',
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: _travelerTypes.map((t) {
+          final sel = _travelerType == t.$2;
+          return GestureDetector(
+            onTap: () => setState(() => _travelerType = sel ? null : t.$2),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: sel ? AppColors.primary : AppColors.primaryLight,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text('${t.$1} ${t.$2}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: sel ? Colors.white : AppColors.primary)),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  /// Card "Centres d'intérêt" — multi-select de tags.
+  Widget _buildInterestsCard() {
+    return _formCard(
+      title: 'CENTRES D\'INTÉRÊT',
+      trailing: _interests.isNotEmpty
+          ? TextButton(
+              onPressed: () => setState(() => _interests.clear()),
+              style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+              child: Text('Réinitialiser', style: TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w600)),
+            )
+          : null,
+      hint: _interests.isEmpty
+          ? 'Optionnel — vide = on utilise les intérêts de ton profil global.'
+          : '${_interests.length} sélectionné${_interests.length > 1 ? 's' : ''} pour ce voyage.',
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: _availableInterests.map((t) {
+          final sel = _interests.contains(t.$2);
+          return GestureDetector(
+            onTap: () => setState(() => sel ? _interests.remove(t.$2) : _interests.add(t.$2)),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: sel ? AppColors.primary : AppColors.primaryLight,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text('${t.$1} ${t.$2}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: sel ? Colors.white : AppColors.primary)),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  /// Card "Voyageurs" — liste éditable + bouton d'ajout.
+  Widget _buildTravelersCard() {
+    return _formCard(
+      title: 'VOYAGEURS',
+      trailing: Text('${_travelers.length} ${_travelers.length > 1 ? 'personnes' : 'personne'}', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ..._travelers.asMap().entries.map((e) => Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              border: Border.all(color: AppColors.border),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                Expanded(child: Text('${e.value.name} · ${e.value.age} ans', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+                IconButton(
+                  onPressed: () => setState(() => _travelers.removeAt(e.key)),
+                  icon: const Icon(Icons.close, size: 18),
+                  color: AppColors.textSecondary,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                ),
+              ],
+            ),
+          )),
+          OutlinedButton.icon(
+            onPressed: _addTraveler,
+            icon: const Icon(Icons.person_add_alt_1, size: 18),
+            label: const Text('Ajouter un voyageur'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 44),
+              foregroundColor: AppColors.primary,
+              side: BorderSide(color: AppColors.primary),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Card "Étapes du voyage" — collapsed quand `_segments` vide ET non révélé,
+  /// sinon affiche la liste réordonnable + boutons + optimiser.
+  Widget _buildSegmentsCard() {
+    final showFull = _segments.isNotEmpty || _segmentsCardExpanded;
+    return _formCard(
+      title: 'ÉTAPES DU VOYAGE',
+      trailing: _segments.isNotEmpty
+          ? Text('${_segments.length} étape${_segments.length > 1 ? 's' : ''}', style: TextStyle(fontSize: 11, color: AppColors.textSecondary))
+          : null,
+      hint: showFull
+          ? 'Découpe ton voyage par ville où tu es basé. Une étape = "où je dors". Tu peux quand même planifier des activités dans une ville voisine sur une journée.'
+          : null,
+      child: showFull ? _buildSegmentsContent() : _buildSegmentsCta(),
+    );
+  }
+
+  /// État collapsed : un simple CTA cliquable qui révèle la card complète.
+  /// Pour les voyages mono-ville, ça évite l'overwhelm visuel par défaut.
+  Widget _buildSegmentsCta() {
+    return InkWell(
+      onTap: () => setState(() => _segmentsCardExpanded = true),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          border: Border.all(color: AppColors.border, style: BorderStyle.solid),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.primaryLight,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Icon(Icons.add_location_alt_outlined, size: 20, color: AppColors.primary),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Voyage multi-villes ?', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Ajoute des étapes pour que l\'IA colle au bon endroit chaque jour.',
+                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.35),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(Icons.chevron_right, size: 20, color: AppColors.textSecondary),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// État développé : liste réordonnable + bilan jours + boutons + optimiser.
+  Widget _buildSegmentsContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_segments.isNotEmpty) ...[
+          ReorderableListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            buildDefaultDragHandles: false,
+            itemCount: _segments.length,
+            onReorder: (oldIdx, newIdx) {
+              setState(() {
+                if (newIdx > oldIdx) newIdx--;
+                final item = _segments.removeAt(oldIdx);
+                _segments.insert(newIdx, item);
+              });
+            },
+            itemBuilder: (ctx, i) {
+              final seg = _segments[i];
+              return Padding(
+                key: ValueKey('seg-$i-${seg.city}-${seg.days}'),
+                padding: const EdgeInsets.only(bottom: 8),
+                child: InkWell(
+                  onTap: () => _openSegmentEditor(existing: seg, index: i),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      border: Border.all(color: AppColors.border),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        ReorderableDragStartListener(
+                          index: i,
+                          child: Icon(Icons.drag_indicator, size: 18, color: AppColors.textSecondary),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(Icons.place_outlined, size: 18, color: AppColors.primary),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(seg.city, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
+                                  ),
+                                  if (seg.country != null && seg.country!.isNotEmpty) ...[
+                                    const SizedBox(width: 6),
+                                    Text('· ${seg.country}', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                                  ],
+                                ],
+                              ),
+                              Text(
+                                '${seg.days} jour${seg.days > 1 ? 's' : ''} · ${_fmtSegmentDates(i)}',
+                                style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => setState(() => _segments.removeAt(i)),
+                          icon: const Icon(Icons.delete_outline, size: 18),
+                          color: AppColors.textSecondary,
+                          tooltip: 'Supprimer cette étape',
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+          // Bilan : total des jours placés vs durée du voyage
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6, top: 2),
+            child: Text(
+              _totalSegmentDays == _tripDays
+                  ? '✓ $_totalSegmentDays jour${_totalSegmentDays > 1 ? 's' : ''} placé${_totalSegmentDays > 1 ? 's' : ''} · couvre tout le voyage'
+                  : _totalSegmentDays < _tripDays
+                      ? '$_totalSegmentDays / $_tripDays jour${_tripDays > 1 ? 's' : ''} placés · ${_tripDays - _totalSegmentDays} restant${(_tripDays - _totalSegmentDays) > 1 ? 's' : ''} (utilisera "${_destCtrl.text.trim().isEmpty ? 'destination' : _destCtrl.text.trim()}")'
+                      : '⚠ $_totalSegmentDays jours placés dépasse les $_tripDays jours du voyage',
+              style: TextStyle(
+                fontSize: 11,
+                color: _totalSegmentDays > _tripDays ? AppColors.error : AppColors.textSecondary,
+                fontWeight: _totalSegmentDays == _tripDays ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ),
+        ],
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => _openSegmentEditor(),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Ajouter'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, 44),
+                  foregroundColor: AppColors.primary,
+                  side: BorderSide(color: AppColors.primary),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _openRegionalLoop,
+                icon: const Text('💡', style: TextStyle(fontSize: 16)),
+                label: const Text('Suggérer'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, 44),
+                  foregroundColor: AppColors.accent,
+                  side: BorderSide(color: AppColors.accent),
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (_segments.length >= 3) ...[
+          const SizedBox(height: 6),
+          // Optimisation de l'ordre : utile quand le voyageur ne connaît pas
+          // la géographie locale (ex: Nancy → Metz → Épinal → Luxembourg
+          // zigzague, alors que Nancy → Épinal → Metz → Luxembourg est plus
+          // direct).
+          SizedBox(
+            width: double.infinity,
+            child: TextButton.icon(
+              onPressed: _optimizeOrder,
+              icon: const Text('🧭', style: TextStyle(fontSize: 14)),
+              label: const Text('Optimiser l\'ordre des étapes'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                minimumSize: const Size(0, 38),
+                textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
