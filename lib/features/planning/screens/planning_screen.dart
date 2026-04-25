@@ -388,17 +388,56 @@ class PlanningScreen extends ConsumerWidget {
         final processedGroups = <SuggestionGroup>[];
         final seenAcrossGroups = <String>{};
 
+        // Compteurs cumulés pour diagnostic — explique pourquoi un groupe finit
+        // avec moins de 3 options (Gemini en sort moins, ou nos filtres en jettent).
+        var totalRawOptions = 0;
+        var rejectedByExisting = 0;
+        var rejectedBySeenAcross = 0;
+        var rejectedByHotelReturn = 0;
+        var rejectedByPast = 0;
+        var rejectedByOverlap = 0;
+        var rejectedByCategory = 0;
+        var rejectedByPlaces = 0;
+
         for (final group in result.groups) {
+          totalRawOptions += group.options.length;
           final candidates = group.options.where((s) {
-            if (existingTitles.contains(norm(s.title))) return false;
-            if (seenAcrossGroups.contains(norm(s.title))) return false;
-            if (isHotelReturn(s.title)) return false;
-            if (isInPast(s)) return false;
-            if (hasTimeOverlap(s)) return false;
-            if (!matchesCategory(s)) return false;
+            if (existingTitles.contains(norm(s.title))) {
+              rejectedByExisting++;
+              debugPrint('[SUGGEST coPilot] ✗ existing: "${s.title}"');
+              return false;
+            }
+            if (seenAcrossGroups.contains(norm(s.title))) {
+              rejectedBySeenAcross++;
+              debugPrint('[SUGGEST coPilot] ✗ seen-other-group: "${s.title}"');
+              return false;
+            }
+            if (isHotelReturn(s.title)) {
+              rejectedByHotelReturn++;
+              return false;
+            }
+            if (isInPast(s)) {
+              rejectedByPast++;
+              return false;
+            }
+            if (hasTimeOverlap(s)) {
+              rejectedByOverlap++;
+              debugPrint('[SUGGEST coPilot] ✗ overlap: "${s.title}" (${s.startTime})');
+              return false;
+            }
+            if (!matchesCategory(s)) {
+              rejectedByCategory++;
+              return false;
+            }
             return true;
           }).toList();
-          if (candidates.isEmpty) continue;
+          if (candidates.isEmpty) {
+            debugPrint(
+              '[SUGGEST coPilot] groupe "${group.slotLabel}" '
+              '(${group.dayDate.toIso8601String().split('T').first}) DROP — toutes les options filtrées avant Places',
+            );
+            continue;
+          }
 
           final validated = await Future.wait(candidates.map((s) async {
             if (s.tag == 'Hébergement') return s;
@@ -408,8 +447,14 @@ class PlanningScreen extends ConsumerWidget {
               final info = await placesService.findInfo(title: s.title, destination: dayCity);
               final hasPlace = info.placeId != null && info.placeId!.isNotEmpty;
               final hasAddress = info.address != null && info.address!.trim().isNotEmpty;
-              if (!hasPlace || !hasAddress) return null;
-              if (!info.address!.toLowerCase().contains(dayCityLower)) return null;
+              if (!hasPlace || !hasAddress) {
+                debugPrint('[SUGGEST coPilot] ✗ Places no-place-or-address: "${s.title}"');
+                return null;
+              }
+              if (!info.address!.toLowerCase().contains(dayCityLower)) {
+                debugPrint('[SUGGEST coPilot] ✗ Places wrong-city: "${s.title}" → ${info.address}');
+                return null;
+              }
               return s;
             } catch (_) {
               // Tolère un flake réseau Places pour ne pas pénaliser l'utilisateur
@@ -417,17 +462,31 @@ class PlanningScreen extends ConsumerWidget {
             }
           }));
           final validOptions = validated.whereType<ActivitySuggestion>().toList();
-          if (validOptions.isEmpty) continue;
+          rejectedByPlaces += candidates.length - validOptions.length;
+          if (validOptions.isEmpty) {
+            debugPrint(
+              '[SUGGEST coPilot] groupe "${group.slotLabel}" '
+              '(${group.dayDate.toIso8601String().split('T').first}) DROP — toutes les options rejetées par Places',
+            );
+            continue;
+          }
+          if (validOptions.length < group.options.length) {
+            debugPrint(
+              '[SUGGEST coPilot] groupe "${group.slotLabel}" rabote ${group.options.length} → ${validOptions.length} options',
+            );
+          }
           for (final s in validOptions) {
             seenAcrossGroups.add(norm(s.title));
           }
           processedGroups.add(group.copyWith(options: validOptions));
         }
 
+        final keptOptions = processedGroups.fold<int>(0, (sum, g) => sum + g.options.length);
         debugPrint(
-          '[SUGGEST coPilot] ${result.groups.length} groupes Gemini → '
-          '${processedGroups.length} groupes après filtrage '
-          '(${processedGroups.fold<int>(0, (sum, g) => sum + g.options.length)} options validées)',
+          '[SUGGEST coPilot] BILAN — Gemini: ${result.groups.length} groupes, $totalRawOptions options brutes ; '
+          'rejetés: existing=$rejectedByExisting, seen-other=$rejectedBySeenAcross, hotel-return=$rejectedByHotelReturn, '
+          'past=$rejectedByPast, overlap=$rejectedByOverlap, category=$rejectedByCategory, places=$rejectedByPlaces ; '
+          'gardés: ${processedGroups.length} groupes, $keptOptions options',
         );
 
         closeDialog();

@@ -501,7 +501,30 @@ class _OpeningStatusRow extends ConsumerWidget {
       loading: () => const SizedBox.shrink(),
       error: (_, __) => const SizedBox.shrink(),
       data: (hours) {
-        if (hours == null || hours.weekdayText.isEmpty) return const SizedBox.shrink();
+        if (hours == null || hours.weekdayText.isEmpty) {
+          // Levée d'ambiguïté : sans cette pastille, le voyageur ne sait pas si
+          // l'app a échoué à charger les horaires ou si Google Places n'en a tout
+          // simplement pas (cas fréquent sur les bibliothèques publiques, certains
+          // monuments mineurs, restos peu cartographiés).
+          return Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF3F4F6),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                'Horaires non disponibles',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+          );
+        }
         final now = DateTime.now();
         final isOpen = hours.isOpenAt(now);
         final todayText = hours.todayText(now);
