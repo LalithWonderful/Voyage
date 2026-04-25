@@ -118,11 +118,11 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
       );
       return;
     }
-    if (_totalSegmentNights > _tripNights) {
+    if (_totalSegmentDays > _tripDays) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Tes étapes totalisent $_totalSegmentNights nuits mais le voyage ne dure que $_tripNights nuits. '
+            'Tes étapes totalisent $_totalSegmentDays jours mais le voyage ne dure que $_tripDays jours. '
             'Réduis ou supprime des étapes pour pouvoir enregistrer.',
           ),
           backgroundColor: AppColors.error,
@@ -165,11 +165,11 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
   String _fmtSegmentDates(int index) {
     var offsetBefore = 0;
     for (var i = 0; i < index; i++) {
-      offsetBefore += _segments[i].nights;
+      offsetBefore += _segments[i].days;
     }
     final seg = _segments[index];
     final from = _start.add(Duration(days: offsetBefore));
-    final to = from.add(Duration(days: seg.nights - 1));
+    final to = from.add(Duration(days: seg.days - 1));
     final sameMonth = from.month == to.month && from.year == to.year;
     if (sameMonth) {
       return 'du ${from.day} au ${to.day}/${to.month.toString().padLeft(2, '0')}';
@@ -177,12 +177,14 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
     return 'du ${_fmtDate(from)} au ${_fmtDate(to)}';
   }
 
-  /// Total des nuits déjà placées dans les étapes — pour comparer avec la durée du voyage.
-  int get _totalSegmentNights => _segments.fold(0, (s, seg) => s + seg.nights);
+  /// Total des jours déjà placés dans les étapes — pour comparer avec la durée du voyage.
+  int get _totalSegmentDays => _segments.fold(0, (s, seg) => s + seg.days);
 
-  /// Durée du voyage en nuits (= durée en jours - 1, car la dernière nuit n'est pas comptée
-  /// si l'utilisateur rentre le jour du retour).
-  int get _tripNights => _end.difference(_start).inDays;
+  /// Durée totale du voyage en jours calendaires (J1 inclus → Jfin inclus).
+  /// On vise une couverture pleine : somme des jours des étapes = `_tripDays`.
+  /// Sémantique "jours" : "Nancy 9 jours" couvre tout un voyage de 9 jours, pas
+  /// besoin d'enlever 1 pour le retour.
+  int get _tripDays => _end.difference(_start).inDays + 1;
 
   /// Ouvre la sheet "Suggérer une boucle régionale" qui appelle Gemini pour
   /// proposer 3-5 villes autour de la destination principale. Les étapes
@@ -210,7 +212,7 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
       travelerType: _travelerType,
       interests: _interests.toList(),
       existingCities: _segments.map((s) => s.city).toList(),
-      existingNightsPlaced: _totalSegmentNights,
+      existingDaysPlaced: _totalSegmentDays,
     );
     if (result == null || result.isEmpty || !mounted) return;
     setState(() => _segments.addAll(result));
@@ -534,7 +536,7 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
                         itemBuilder: (ctx, i) {
                           final seg = _segments[i];
                           return Padding(
-                            key: ValueKey('seg-$i-${seg.city}-${seg.nights}'),
+                            key: ValueKey('seg-$i-${seg.city}-${seg.days}'),
                             padding: const EdgeInsets.only(bottom: 8),
                             child: InkWell(
                               onTap: () => _openSegmentEditor(existing: seg, index: i),
@@ -571,7 +573,7 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
                                             ],
                                           ),
                                           Text(
-                                            '${seg.nights} nuit${seg.nights > 1 ? 's' : ''} · ${_fmtSegmentDates(i)}',
+                                            '${seg.days} jour${seg.days > 1 ? 's' : ''} · ${_fmtSegmentDates(i)}',
                                             style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
                                           ),
                                         ],
@@ -592,19 +594,19 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
                           );
                         },
                       ),
-                      // Bilan : total des nuits placées vs durée du voyage
+                      // Bilan : total des jours placés vs durée du voyage
                       Padding(
                         padding: const EdgeInsets.only(bottom: 6, top: 2),
                         child: Text(
-                          _totalSegmentNights == _tripNights
-                              ? '✓ ${_totalSegmentNights} nuit${_totalSegmentNights > 1 ? 's' : ''} placée${_totalSegmentNights > 1 ? 's' : ''} · couvre tout le voyage'
-                              : _totalSegmentNights < _tripNights
-                                  ? '${_totalSegmentNights} / $_tripNights nuit${_tripNights > 1 ? 's' : ''} placées · ${_tripNights - _totalSegmentNights} restante${(_tripNights - _totalSegmentNights) > 1 ? 's' : ''} (utilisera "${_destCtrl.text.trim().isEmpty ? 'destination' : _destCtrl.text.trim()}")'
-                                  : '⚠ ${_totalSegmentNights} nuits placées dépasse les $_tripNights nuits du voyage',
+                          _totalSegmentDays == _tripDays
+                              ? '✓ $_totalSegmentDays jour${_totalSegmentDays > 1 ? 's' : ''} placé${_totalSegmentDays > 1 ? 's' : ''} · couvre tout le voyage'
+                              : _totalSegmentDays < _tripDays
+                                  ? '$_totalSegmentDays / $_tripDays jour${_tripDays > 1 ? 's' : ''} placés · ${_tripDays - _totalSegmentDays} restant${(_tripDays - _totalSegmentDays) > 1 ? 's' : ''} (utilisera "${_destCtrl.text.trim().isEmpty ? 'destination' : _destCtrl.text.trim()}")'
+                                  : '⚠ $_totalSegmentDays jours placés dépasse les $_tripDays jours du voyage',
                           style: TextStyle(
                             fontSize: 11,
-                            color: _totalSegmentNights > _tripNights ? AppColors.error : AppColors.textSecondary,
-                            fontWeight: _totalSegmentNights == _tripNights ? FontWeight.w600 : FontWeight.normal,
+                            color: _totalSegmentDays > _tripDays ? AppColors.error : AppColors.textSecondary,
+                            fontWeight: _totalSegmentDays == _tripDays ? FontWeight.w600 : FontWeight.normal,
                           ),
                         ),
                       ),
@@ -885,7 +887,7 @@ class _AddTravelerDialogState extends State<_AddTravelerDialog> {
   }
 }
 
-/// Dialog d'édition d'une étape (ville + nombre de nuits).
+/// Dialog d'édition d'une étape (ville + nombre de jours).
 /// Les dates exactes sont calculées au runtime depuis l'ordre dans la liste.
 /// Utilise CityAutocompleteField pour empêcher les fautes d'orthographe et
 /// la saisie de régions (ex: "Alsace") au lieu de villes.
@@ -900,7 +902,7 @@ class _SegmentEditorDialog extends ConsumerStatefulWidget {
 class _SegmentEditorDialogState extends ConsumerState<_SegmentEditorDialog> {
   String _city = '';
   String? _country;
-  late int _nights;
+  late int _days;
   String? _error;
 
   @override
@@ -908,7 +910,7 @@ class _SegmentEditorDialogState extends ConsumerState<_SegmentEditorDialog> {
     super.initState();
     _city = widget.existing?.city ?? '';
     _country = widget.existing?.country;
-    _nights = widget.existing?.nights ?? 2;
+    _days = widget.existing?.days ?? 2;
   }
 
   void _submit() {
@@ -917,14 +919,14 @@ class _SegmentEditorDialogState extends ConsumerState<_SegmentEditorDialog> {
       setState(() => _error = 'Le nom de la ville est requis.');
       return;
     }
-    if (_nights < 1) {
-      setState(() => _error = 'Au moins 1 nuit.');
+    if (_days < 1) {
+      setState(() => _error = 'Au moins 1 jour.');
       return;
     }
     // Si l'utilisateur édite la ville sans changer la sélection autocomplete, on
     // garde le pays existant (cas modif d'une étape déjà saisie). Si la ville a
     // changé via la saisie manuelle, _country a été reset à null.
-    Navigator.of(context).pop(TripSegment(city: city, nights: _nights, country: _country));
+    Navigator.of(context).pop(TripSegment(city: city, days: _days, country: _country));
   }
 
   @override
@@ -948,25 +950,25 @@ class _SegmentEditorDialogState extends ConsumerState<_SegmentEditorDialog> {
               }),
             ),
             const SizedBox(height: 16),
-            Text('NUITS SUR PLACE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+            Text('JOURS SUR PLACE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
             const SizedBox(height: 6),
             Row(
               children: [
                 IconButton(
-                  onPressed: _nights > 1 ? () => setState(() => _nights--) : null,
+                  onPressed: _days > 1 ? () => setState(() => _days--) : null,
                   icon: const Icon(Icons.remove_circle_outline),
                   color: AppColors.primary,
                 ),
                 Expanded(
                   child: Center(
                     child: Text(
-                      '$_nights nuit${_nights > 1 ? 's' : ''}',
+                      '$_days jour${_days > 1 ? 's' : ''}',
                       style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                     ),
                   ),
                 ),
                 IconButton(
-                  onPressed: _nights < 30 ? () => setState(() => _nights++) : null,
+                  onPressed: _days < 60 ? () => setState(() => _days++) : null,
                   icon: const Icon(Icons.add_circle_outline),
                   color: AppColors.primary,
                 ),
@@ -1017,7 +1019,7 @@ class _OrderPreviewDialog extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'En partant de $anchorName, l\'IA propose ce nouvel ordre pour limiter les zigzags. Les nuits par étape restent les mêmes.',
+              'En partant de $anchorName, l\'IA propose ce nouvel ordre pour limiter les zigzags. Le nombre de jours par étape reste le même.',
               style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4),
             ),
             const SizedBox(height: 16),
@@ -1075,7 +1077,7 @@ class _OrderPreviewDialog extends StatelessWidget {
                 ),
               ),
               Text(
-                '${list[i].nights}n',
+                '${list[i].days}j',
                 style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
               ),
             ],

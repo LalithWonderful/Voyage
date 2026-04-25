@@ -147,9 +147,11 @@ class AiSuggestionsService {
   /// voyageurs qui ne connaissent pas la région et veulent que l'IA leur suggère
   /// des étapes (villes voisines, durée par étape, courte description).
   ///
-  /// Exemple : Nancy 10 jours → [Nancy 3 nuits, Vosges 2, Strasbourg 2, Colmar 2].
+  /// Exemple : Nancy 10 jours → [Nancy 3 jours, Strasbourg 3, Colmar 2, Trèves 2].
+  /// Sémantique "jours" : la somme des `days` de toutes les étapes doit couvrir
+  /// la durée du voyage (ex: 9 jours = somme = 9). Voir `TripSegment` pour le détail.
   /// Le caller affiche le résultat dans une sheet multi-select (cf. RegionalLoopSheet).
-  Future<List<({String city, String country, int nights, String description})>> suggestRegionalItinerary({
+  Future<List<({String city, String country, int days, String description})>> suggestRegionalItinerary({
     required String mainDestination,
     required int durationDays,
     String? travelerType,
@@ -157,29 +159,28 @@ class AiSuggestionsService {
     int radiusKm = 150,
     bool sameCountryOnly = false,
     List<String> excludeCities = const [],
-    int nightsAlreadyPlaced = 0,
+    int daysAlreadyPlaced = 0,
   }) async {
     await _checkRateLimit('suggest_regional_itinerary');
     final (:interestsStr, :travelerTypeDescribed) =
         _describeProfile(travelerType: travelerType, interests: interests);
 
-    // On suggère N-1 nuits car le voyageur rentre généralement le dernier jour,
-    // moins les nuits déjà placées par l'utilisateur (étapes manuelles ou suggestions
-    // précédentes acceptées). Ne JAMAIS dépasser ce reliquat sinon le total déborde
-    // la durée du voyage et l'utilisateur ne peut plus enregistrer.
-    final tripNightsTotal = (durationDays - 1).clamp(1, 60);
-    final remainingNights = (tripNightsTotal - nightsAlreadyPlaced).clamp(1, 60);
-    final totalNights = remainingNights;
-    final alreadyPlacedBlock = nightsAlreadyPlaced > 0
-        ? '\n- ⚠️ Le voyageur a DÉJÀ placé $nightsAlreadyPlaced nuit${nightsAlreadyPlaced > 1 ? 's' : ''} dans son planning '
+    // On suggère le reliquat de jours non encore couvert par les étapes existantes.
+    // Ne JAMAIS dépasser ce reliquat sinon le total déborde la durée du voyage et
+    // l'utilisateur ne peut plus enregistrer.
+    final tripDaysTotal = durationDays.clamp(1, 60);
+    final remainingDays = (tripDaysTotal - daysAlreadyPlaced).clamp(1, 60);
+    final totalDays = remainingDays;
+    final alreadyPlacedBlock = daysAlreadyPlaced > 0
+        ? '\n- ⚠️ Le voyageur a DÉJÀ placé $daysAlreadyPlaced jour${daysAlreadyPlaced > 1 ? 's' : ''} dans son planning '
             '(${excludeCities.isEmpty ? "étapes existantes" : excludeCities.join(', ')}). Tu ne dois proposer QUE des nouvelles étapes '
-            'pour combler les $remainingNights nuit${remainingNights > 1 ? 's' : ''} restantes (sur un total de $tripNightsTotal nuits de voyage).'
+            'pour combler les $remainingDays jour${remainingDays > 1 ? 's' : ''} restants (sur un total de $tripDaysTotal jours de voyage).'
         : '';
     final mustIncludeMain = excludeCities
             .map((c) => c.trim().toLowerCase())
             .contains(mainDestination.trim().toLowerCase())
         ? '- ⚠️ $mainDestination est déjà dans les étapes du voyageur — NE LA REPROPOSE PAS, propose UNIQUEMENT des villes voisines.'
-        : '- Inclus OBLIGATOIREMENT $mainDestination dans la boucle (avec assez de nuits pour la visiter, 2-3 nuits typiquement).';
+        : '- Inclus OBLIGATOIREMENT $mainDestination dans la boucle (avec assez de jours pour la visiter, 2-3 jours typiquement).';
     final excludeBlock = excludeCities.isEmpty
         ? ''
         : '\n- NE PROPOSE PAS ces villes (elles sont déjà dans le planning du voyageur) : ${excludeCities.join(', ')}.';
@@ -204,15 +205,15 @@ $interestsStr
 
 Contraintes :
 $mustIncludeMain
-- **Total des nuits proposées = EXACTEMENT $totalNights** (ni plus, ni moins). N'invente pas de nuits supplémentaires "au cas où".$alreadyPlacedBlock
+- **Total des jours proposés = EXACTEMENT $totalDays** (ni plus, ni moins). Un "jour" = une journée calendaire que le voyageur passe basé dans cette ville (où il dort). N'invente pas de jours supplémentaires "au cas où".$alreadyPlacedBlock
 - Étapes ordonnées géographiquement (pas d'aller-retour absurde A→B→A).
-- Pour chaque étape : une ville précise (pas une région), un nombre de nuits réaliste (1-4), le pays (en français, ex: "France", "Allemagne", "Belgique", "Luxembourg"), et 1 phrase courte d'accroche (ce qu'on y fait, pourquoi y aller).$excludeBlock
+- Pour chaque étape : une ville précise (pas une région), un nombre de jours réaliste (1-4), le pays (en français, ex: "France", "Allemagne", "Belgique", "Luxembourg"), et 1 phrase courte d'accroche (ce qu'on y fait, pourquoi y aller).$excludeBlock
 
 Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
 {
   "segments": [
-    {"city": "Nancy", "country": "France", "nights": 3, "description": "Capitale de la Lorraine, place Stanislas, vieille ville classée UNESCO"},
-    {"city": "Trèves", "country": "Allemagne", "nights": 2, "description": "Plus ancienne ville d'Allemagne, héritage romain (Porta Nigra), capitale du vin Riesling"},
+    {"city": "Nancy", "country": "France", "days": 3, "description": "Capitale de la Lorraine, place Stanislas, vieille ville classée UNESCO"},
+    {"city": "Trèves", "country": "Allemagne", "days": 2, "description": "Plus ancienne ville d'Allemagne, héritage romain (Porta Nigra), capitale du vin Riesling"},
     ...
   ]
 }
@@ -226,15 +227,17 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
     final cleaned = _stripCodeFences(raw).trim();
     final parsed = jsonDecode(cleaned);
     final segs = (parsed is Map) ? (parsed['segments'] as List?) ?? const [] : const [];
-    final result = <({String city, String country, int nights, String description})>[];
+    final result = <({String city, String country, int days, String description})>[];
     for (final s in segs) {
       if (s is! Map<String, dynamic>) continue;
       final city = (s['city'] as String?)?.trim() ?? '';
       final country = (s['country'] as String?)?.trim() ?? '';
-      final nights = (s['nights'] as num?)?.toInt() ?? 0;
+      // Lecture tolérante : on accepte `days` (nouveau prompt) OU `nights` (au cas
+      // où Gemini retombe sur l'ancien vocabulaire malgré la consigne).
+      final days = ((s['days'] as num?) ?? (s['nights'] as num?))?.toInt() ?? 0;
       final desc = (s['description'] as String?)?.trim() ?? '';
-      if (city.isEmpty || nights < 1) continue;
-      result.add((city: city, country: country, nights: nights, description: desc));
+      if (city.isEmpty || days < 1) continue;
+      result.add((city: city, country: country, days: days, description: desc));
     }
     return result;
   }
@@ -877,13 +880,13 @@ Si tu es tenté de proposer un repas, remplace-le par une visite ou une activit�
 - Si tu hésites entre 2 lieux et qu'un est dans une autre ville → choisis celui qui est dans ${trip.destination}.''';
     } else {
       String fmt(DateTime d) => d.toIso8601String().split('T').first;
-      // Calcul des dates effectives par segment selon l'ordre + cumul des nuits
+      // Calcul des dates effectives par segment selon l'ordre + cumul des jours
       final segLines = <String>[];
       for (var i = 0; i < trip.itinerarySegments.length; i++) {
         final s = trip.itinerarySegments[i];
         final from = trip.segmentStart(i);
         final to = trip.segmentEnd(i);
-        segLines.add('- du ${fmt(from)} au ${fmt(to)} (${s.nights} nuit${s.nights > 1 ? 's' : ''}) : **${s.city}**');
+        segLines.add('- du ${fmt(from)} au ${fmt(to)} (${s.days} jour${s.days > 1 ? 's' : ''}) : **${s.city}**');
       }
       destinationBlock = '''🚫 VOYAGE MULTI-ÉTAPES — chaque jour a SA ville. Respecte impérativement le planning d'étapes ci-dessous :
 ${segLines.join('\n')}

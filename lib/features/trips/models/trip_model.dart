@@ -44,29 +44,35 @@ class Accommodation {
   };
 }
 
-/// Une étape d'un voyage multi-villes : ville + nombre de nuits sur place.
+/// Une étape d'un voyage multi-villes : ville + nombre de **jours** sur place.
 /// Les dates exactes sont calculées au runtime depuis `trip.startDate` + l'ordre dans
-/// la liste + cumul des nuits des étapes précédentes.
+/// la liste + cumul des jours des étapes précédentes.
+///
+/// Sémantique "jours" (pas "nuits") : pour un voyage 9 jours mono-ville, on entre
+/// "Nancy 9 jours" (1 segment qui couvre tout). Le voyageur peut louer un appart
+/// pour la durée et faire des day-trips. Somme cible des jours = `trip.durationDays`.
 ///
 /// Avantages vs (from, to) absolu :
 /// - Le voyageur peut **réordonner** les étapes sans avoir à recalculer manuellement les dates
 /// - L'IA peut suggérer une boucle régionale sans imposer de calendrier strict
-/// - Plus simple à saisir (juste "combien de nuits ?" au lieu de 2 date pickers)
+/// - Plus simple à saisir (juste "combien de jours ?" au lieu de 2 date pickers)
 class TripSegment {
   final String city;
-  final int nights;
+  /// Nombre de jours calendaires que le voyageur passe basé dans cette ville.
+  /// Stocké en JSON sous la clé `days` (anciennement `nights` — lecture rétrocompat).
+  final int days;
   /// Pays affiché à côté de la ville (ex: "France", "Allemagne"). Sert au visuel
   /// (carte étape) et au prompt IA. Optionnel pour rétrocompat — les anciennes
   /// étapes saisies avant l'ajout du champ n'ont pas de pays.
   final String? country;
   /// Coordonnées du centre-ville, mises en cache après le 1er géocodage.
-  /// Évite de re-payer la Geocoding API à chaque clic sur "Optimiser l'ordre".
+  /// Évite de re-payer la Places API à chaque clic sur "Optimiser l'ordre".
   final double? latitude;
   final double? longitude;
 
   const TripSegment({
     required this.city,
-    required this.nights,
+    required this.days,
     this.country,
     this.latitude,
     this.longitude,
@@ -76,17 +82,21 @@ class TripSegment {
     final country = (json['country'] as String?)?.trim();
     final lat = (json['latitude'] as num?)?.toDouble();
     final lng = (json['longitude'] as num?)?.toDouble();
-    // Rétrocompat : si l'ancien format (from + to) existe encore en DB, on convertit.
-    final nightsRaw = json['nights'];
-    if (nightsRaw is num) {
+    // Lecture : on accepte `days` (nouveau) ET `nights` (legacy).
+    // À la suite de la migration sémantique nuits→jours, on interprète l'ancien
+    // entier `nights` comme un nombre de jours (les valeurs étaient sur la même
+    // échelle, juste l'étiquette change). Pas de DB migration nécessaire.
+    final daysRaw = json['days'] ?? json['nights'];
+    if (daysRaw is num) {
       return TripSegment(
         city: json['city'] as String,
-        nights: nightsRaw.toInt(),
+        days: daysRaw.toInt(),
         country: country == null || country.isEmpty ? null : country,
         latitude: lat,
         longitude: lng,
       );
     }
+    // Rétrocompat ancien format (from + to)
     final fromStr = json['from'] as String?;
     final toStr = json['to'] as String?;
     if (fromStr != null && toStr != null) {
@@ -95,7 +105,7 @@ class TripSegment {
       final n = to.difference(from).inDays + 1;
       return TripSegment(
         city: json['city'] as String,
-        nights: n.clamp(1, 365),
+        days: n.clamp(1, 365),
         country: country == null || country.isEmpty ? null : country,
         latitude: lat,
         longitude: lng,
@@ -103,7 +113,7 @@ class TripSegment {
     }
     return TripSegment(
       city: json['city'] as String,
-      nights: 1,
+      days: 1,
       country: country == null || country.isEmpty ? null : country,
       latitude: lat,
       longitude: lng,
@@ -112,7 +122,7 @@ class TripSegment {
 
   Map<String, dynamic> toJson() => {
     'city': city,
-    'nights': nights,
+    'days': days,
     if (country != null && country!.isNotEmpty) 'country': country,
     if (latitude != null) 'latitude': latitude,
     if (longitude != null) 'longitude': longitude,
@@ -120,14 +130,14 @@ class TripSegment {
 
   TripSegment copyWith({
     String? city,
-    int? nights,
+    int? days,
     String? country,
     double? latitude,
     double? longitude,
   }) =>
       TripSegment(
         city: city ?? this.city,
-        nights: nights ?? this.nights,
+        days: days ?? this.days,
         country: country ?? this.country,
         latitude: latitude ?? this.latitude,
         longitude: longitude ?? this.longitude,
@@ -195,11 +205,11 @@ class Trip {
   });
 
   /// Date de début (incluse) calculée pour un segment selon son ordre dans la liste.
-  /// Égale à `startDate` + cumul des nuits des segments précédents.
+  /// Égale à `startDate` + cumul des jours des segments précédents.
   DateTime segmentStart(int segmentIndex) {
     var offset = 0;
     for (var i = 0; i < segmentIndex && i < itinerarySegments.length; i++) {
-      offset += itinerarySegments[i].nights;
+      offset += itinerarySegments[i].days;
     }
     return startDate.add(Duration(days: offset));
   }
@@ -207,14 +217,14 @@ class Trip {
   /// Date de fin (incluse) calculée pour un segment.
   DateTime segmentEnd(int segmentIndex) {
     final start = segmentStart(segmentIndex);
-    final n = itinerarySegments[segmentIndex].nights;
+    final n = itinerarySegments[segmentIndex].days;
     return start.add(Duration(days: n - 1));
   }
 
   /// Retourne la ville à utiliser pour les suggestions/validations sur ce jour précis.
-  /// Calcul : on parcourt les segments dans l'ordre, on accumule les nuits, et on
+  /// Calcul : on parcourt les segments dans l'ordre, on accumule les jours, et on
   /// retourne la ville du segment qui couvre le jour. Sinon → fallback `destination`
-  /// (utile pour les jours résiduels après la dernière étape, ex: jour de retour).
+  /// (utile pour les jours résiduels après la dernière étape).
   String cityForDay(DateTime day) {
     final d = DateTime(day.year, day.month, day.day);
     final s = DateTime(startDate.year, startDate.month, startDate.day);
@@ -222,10 +232,10 @@ class Trip {
     final dayOffset = d.difference(s).inDays;
     var cumulative = 0;
     for (final seg in itinerarySegments) {
-      if (dayOffset >= cumulative && dayOffset < cumulative + seg.nights) {
+      if (dayOffset >= cumulative && dayOffset < cumulative + seg.days) {
         return seg.city;
       }
-      cumulative += seg.nights;
+      cumulative += seg.days;
     }
     return destination;
   }

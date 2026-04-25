@@ -11,7 +11,7 @@ import 'package:voyage/features/trips/models/trip_model.dart';
 ///
 /// [existingCities] : villes déjà présentes dans les étapes du voyage. Sont
 /// affichées en grisé "déjà ajoutée" pour éviter les doublons sur 2e clic.
-/// [existingNightsPlaced] : total des nuits déjà placées dans les étapes — Gemini
+/// [existingDaysPlaced] : total des jours déjà placés dans les étapes — Gemini
 /// reçoit cette info pour ne proposer que le reliquat (évite que la somme dépasse
 /// la durée du voyage sur un 2e clic).
 Future<List<TripSegment>?> openRegionalLoopSheet(
@@ -22,7 +22,7 @@ Future<List<TripSegment>?> openRegionalLoopSheet(
   String? travelerType,
   List<String> interests = const [],
   List<String> existingCities = const [],
-  int existingNightsPlaced = 0,
+  int existingDaysPlaced = 0,
 }) async {
   return await showModalBottomSheet<List<TripSegment>?>(
     context: context,
@@ -35,7 +35,7 @@ Future<List<TripSegment>?> openRegionalLoopSheet(
       travelerType: travelerType,
       interests: interests,
       existingCities: existingCities,
-      existingNightsPlaced: existingNightsPlaced,
+      existingDaysPlaced: existingDaysPlaced,
     ),
   );
 }
@@ -46,14 +46,14 @@ class _RegionalLoopSheet extends ConsumerStatefulWidget {
   final String? travelerType;
   final List<String> interests;
   final List<String> existingCities;
-  final int existingNightsPlaced;
+  final int existingDaysPlaced;
   const _RegionalLoopSheet({
     required this.mainDestination,
     required this.durationDays,
     required this.travelerType,
     required this.interests,
     required this.existingCities,
-    required this.existingNightsPlaced,
+    required this.existingDaysPlaced,
   });
 
   @override
@@ -74,7 +74,7 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
   bool _loading = false;
   bool _hasFetchedOnce = false;
   String? _error;
-  List<({String city, String country, int nights, String description})> _suggestions = const [];
+  List<({String city, String country, int days, String description})> _suggestions = const [];
   Set<int> _selected = {};
 
   /// Villes déjà proposées par Gemini dans cette session (cumulé entre re-fetch
@@ -124,7 +124,7 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
         radiusKm: _radiusKm,
         sameCountryOnly: _sameCountryOnly,
         excludeCities: excludeAll,
-        nightsAlreadyPlaced: widget.existingNightsPlaced,
+        daysAlreadyPlaced: widget.existingDaysPlaced,
       );
       if (!mounted) return;
       // Coche tout par défaut SAUF les villes déjà ajoutées au voyage
@@ -154,21 +154,22 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
     }
   }
 
-  int get _totalNightsSelected =>
-      _selected.fold(0, (sum, i) => sum + _suggestions[i].nights);
+  int get _totalDaysSelected =>
+      _selected.fold(0, (sum, i) => sum + _suggestions[i].days);
 
-  /// Total nuits du voyage = durée - 1 (le dernier jour est typiquement le retour).
-  int get _tripNights => (widget.durationDays - 1).clamp(1, 60);
+  /// Durée totale du voyage en jours calendaires (couverture pleine = `_tripDays`).
+  /// Sémantique "jours" : un voyage de 9 jours peut être couvert par "Nancy 9 jours".
+  int get _tripDays => widget.durationDays.clamp(1, 60);
 
   /// Total projeté si l'utilisateur valide la sélection courante (existant + nouveau).
-  int get _projectedTotal => widget.existingNightsPlaced + _totalNightsSelected;
+  int get _projectedTotal => widget.existingDaysPlaced + _totalDaysSelected;
 
   void _confirm() {
     final selectedSegments = _selected
         .toList()
         .map((i) => TripSegment(
               city: _suggestions[i].city,
-              nights: _suggestions[i].nights,
+              days: _suggestions[i].days,
               country: _suggestions[i].country.isEmpty ? null : _suggestions[i].country,
             ))
         .toList();
@@ -311,21 +312,21 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
                   child: Column(
                     children: [
                       Text(
-                        '${_selected.length} étape${_selected.length > 1 ? 's' : ''} sélectionnée${_selected.length > 1 ? 's' : ''} · $_totalNightsSelected nuits',
+                        '${_selected.length} étape${_selected.length > 1 ? 's' : ''} sélectionnée${_selected.length > 1 ? 's' : ''} · $_totalDaysSelected jours',
                         style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                       ),
-                      if (widget.existingNightsPlaced > 0 || _projectedTotal != _tripNights) ...[
+                      if (widget.existingDaysPlaced > 0 || _projectedTotal != _tripDays) ...[
                         const SizedBox(height: 2),
                         Text(
-                          _projectedTotal > _tripNights
-                              ? '⚠ Total projeté : $_projectedTotal nuits (dépasse les $_tripNights nuits du voyage)'
-                              : _projectedTotal == _tripNights
-                                  ? '✓ Total projeté : $_projectedTotal / $_tripNights nuits — couvre tout le voyage'
-                                  : 'Total projeté : $_projectedTotal / $_tripNights nuits',
+                          _projectedTotal > _tripDays
+                              ? '⚠ Total projeté : $_projectedTotal jours (dépasse les $_tripDays jours du voyage)'
+                              : _projectedTotal == _tripDays
+                                  ? '✓ Total projeté : $_projectedTotal / $_tripDays jours — couvre tout le voyage'
+                                  : 'Total projeté : $_projectedTotal / $_tripDays jours',
                           style: TextStyle(
                             fontSize: 11,
-                            color: _projectedTotal > _tripNights ? AppColors.error : AppColors.textSecondary,
-                            fontWeight: _projectedTotal == _tripNights ? FontWeight.w600 : FontWeight.normal,
+                            color: _projectedTotal > _tripDays ? AppColors.error : AppColors.textSecondary,
+                            fontWeight: _projectedTotal == _tripDays ? FontWeight.w600 : FontWeight.normal,
                           ),
                         ),
                       ],
@@ -493,7 +494,7 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Text(
-                                '${item.nights} nuit${item.nights > 1 ? 's' : ''}',
+                                '${item.days} jour${item.days > 1 ? 's' : ''}',
                                 style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary),
                               ),
                             ),
