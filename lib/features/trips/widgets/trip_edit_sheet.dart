@@ -12,14 +12,25 @@ import 'package:voyage/features/trips/widgets/regional_loop_sheet.dart';
 
 const _coverEmojis = ['✈️', '🏝️', '🏔️', '🏙️', '🏞️', '🌴', '🛶', '🚐', '🎡', '🎿', '🗺️', '🌍'];
 
-const _travelerTypes = [
-  ('🚐', 'Road-trip'),
-  ('✨', 'Grand luxe'),
+/// 2 rangées séparées dans la card "Style de voyage" pour ne pas surcharger
+/// visuellement avec 10 chips d'affilée. Ordre validé Lalith 2026-04-25
+/// (cf. project_traveler_types_places_mapping en mémoire).
+const _travelerTypesRow1 = [
   ('💰', 'Meilleur prix'),
-  ('🎒', 'Backpack'),
   ('👨‍👩‍👧', 'En famille'),
-  ('💼', 'Voyage pro'),
+  ('🚗', 'Road-trip'),
+  ('🎒', 'Backpack'),
+  ('❤️', 'Couple'),
+  ('🧘', 'Chill'),
 ];
+
+const _travelerTypesRow2 = [
+  ('🎉', 'Fun'),
+  ('💼', 'Voyage pro'),
+  ('✨', 'Grand luxe'),
+  ('👴', 'Senior'),
+];
+
 
 const _availableInterests = [
   ('🥾', 'Randonnée'), ('🛍️', 'Shopping'), ('🌙', 'Nightlife'),
@@ -687,7 +698,9 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
     );
   }
 
-  /// Card "Style de ce voyage" — chips de type voyageur, override du profil global.
+  /// Card "Style de ce voyage" — chips de type voyageur en 2 rangées (cf.
+  /// project_traveler_types_places_mapping en mémoire). 6 chips "primaires"
+  /// en row 1 (les plus communs) + 4 chips "secondaires" en row 2.
   Widget _buildStyleCard() {
     return _formCard(
       title: 'STYLE DE CE VOYAGE',
@@ -701,23 +714,44 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
       hint: _travelerType == null
           ? 'Optionnel — vide = on utilise ton profil voyageur global.'
           : 'Préférences spécifiques à ce voyage, utilisées par l\'IA.',
-      child: Wrap(
-        spacing: 6,
-        runSpacing: 6,
-        children: _travelerTypes.map((t) {
-          final sel = _travelerType == t.$2;
-          return GestureDetector(
-            onTap: () => setState(() => _travelerType = sel ? null : t.$2),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: sel ? AppColors.primary : AppColors.primaryLight,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text('${t.$1} ${t.$2}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: sel ? Colors.white : AppColors.primary)),
-            ),
-          );
-        }).toList(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: _travelerTypesRow1.map(_travelerChip).toList(),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: _travelerTypesRow2.map(_travelerChip).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Construit une chip de type voyageur (helper partagé entre les 2 rows).
+  Widget _travelerChip((String, String) t) {
+    final sel = _travelerType == t.$2;
+    return GestureDetector(
+      onTap: () => setState(() => _travelerType = sel ? null : t.$2),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: sel ? AppColors.primary : AppColors.primaryLight,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          '${t.$1} ${t.$2}',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: sel ? Colors.white : AppColors.primary,
+          ),
+        ),
       ),
     );
   }

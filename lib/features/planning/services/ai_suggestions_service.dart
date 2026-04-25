@@ -111,8 +111,12 @@ const _travelerTypeExplanations = <String, String>{
   'Grand luxe': 'lieux haut de gamme, restaurants étoilés Michelin, palaces, expériences VIP privées, spas de palace, boutiques de luxe, concierges, transferts privatifs',
   'Meilleur prix': 'activités gratuites ou bon marché (<15€/personne), restos street food ou bouis-bouis authentiques, musées gratuits, marchés, évite systématiquement les lieux chers ou étoilés',
   'Backpack': 'style sac à dos, auberges de jeunesse, activités gratuites ou très pas chères, authenticité locale, rencontres avec d\'autres voyageurs, aventure, street food',
-  'En famille': 'kid-friendly, parcs d\'attractions, zoos, aquariums, musées interactifs pour enfants, activités éducatives et ludiques, trajets courts, menus enfants',
+  'En famille': 'kid-friendly, parcs d\'attractions, zoos, aquariums, musées interactifs pour enfants, activités éducatives et ludiques, trajets courts, menus enfants. Pas d\'activités nightlife/clubs/bars (incompatibles avec enfants)',
   'Voyage pro': 'restaurants business, lieux courts à visiter entre deux réunions, bars d\'hôtels, cafés coworking, options sans bagage, efficacité, ambiance calme',
+  'Couple': 'restaurants romantiques avec ambiance, bars à cocktails et rooftops, spas pour couple, points de vue / coucher de soleil, hébergements de charme, balades à 2 dans des quartiers pittoresques, expériences intimes',
+  'Chill': 'rythme lent (1-2 activités max par jour), beaucoup de temps libre, spas, parcs et jardins botaniques, cafés tranquilles, plages, lieux apaisants, peu de transport, pas d\'agenda chargé',
+  'Fun': 'lieux animés et photogéniques, bars/clubs, fin de journée et soirée, food halls, marchés nocturnes, parcs d\'attractions, plages festives, expériences fun en groupe, lieux Instagrammables',
+  'Senior': 'rythme tranquille, peu de marche entre activités (≤300m idéal), pauses fréquentes, musées avec sièges, restaurants confortables (pas trop bruyants), parcs accessibles, monuments historiques, éviter activités physiques intenses et fortes chaleurs',
 };
 
 /// Formate les préférences voyageur (type + intérêts) avec leurs descriptions
