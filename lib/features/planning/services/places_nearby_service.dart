@@ -199,10 +199,12 @@ class PlacesNearbyService {
     }
   }
 
-  /// Recherche par mot-clé en langage naturel. Biaisée vers une zone
-  /// géographique (pas restreinte stricte — Places peut retourner des lieux
-  /// proches mais hors du cercle si très pertinents). Utile pour les concepts
-  /// qui n'ont pas de type officiel ("hiking", "outlet", "facial").
+  /// Recherche par mot-clé en langage naturel. **Restreinte strictement** au
+  /// cercle (lat/lng + radius) : on utilise `locationRestriction` et pas
+  /// `locationBias` car ce dernier laissait passer des lieux hors zone (ex:
+  /// "USA Guided Tours" à NYC remonté pour un voyage Nancy avec textQuery
+  /// "guided tour"). Utile pour les concepts qui n'ont pas de type officiel
+  /// Places ("hiking", "outlet", "facial").
   Future<List<NearbyCandidate>> searchText({
     required String textQuery,
     required double latitude,
@@ -238,7 +240,10 @@ class PlacesNearbyService {
       final body = jsonEncode({
         'textQuery': query,
         'maxResultCount': maxResults.clamp(1, 20),
-        'locationBias': {
+        // locationRestriction (pas Bias) : exclut tout ce qui est hors du
+        // cercle. Indispensable car des textQueries génériques type "guided tour"
+        // déclenchent sinon des résultats à l'autre bout du monde.
+        'locationRestriction': {
           'circle': {
             'center': {'latitude': latitude, 'longitude': longitude},
             'radius': radius,
