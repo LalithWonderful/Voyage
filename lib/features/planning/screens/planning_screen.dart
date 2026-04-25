@@ -36,6 +36,7 @@ class PlanningScreen extends ConsumerWidget {
   /// 3 options par créneau, le voyageur choisit). Choix stocké dans `trips.planning_mode`,
   /// pas re-demandé sur les Suggérer suivants. Modifiable via les paramètres du voyage.
   Future<PlanningMode?> _askPlanningModeIfNeeded(BuildContext context, WidgetRef ref, Trip trip) async {
+    debugPrint('[PLANNING_MODE] trip.planningMode lu = ${trip.planningMode} (id=${trip.id})');
     if (trip.planningMode != null) return trip.planningMode;
     if (!context.mounted) return null;
     final choice = await showModalBottomSheet<PlanningMode>(
@@ -93,7 +94,13 @@ class PlanningScreen extends ConsumerWidget {
     if (choice == null) return null;
     // Persiste le choix sur le voyage
     try {
-      await ref.read(supabaseProvider).from('trips').update({'planning_mode': choice.dbValue}).eq('id', trip.id);
+      final res = await ref
+          .read(supabaseProvider)
+          .from('trips')
+          .update({'planning_mode': choice.dbValue})
+          .eq('id', trip.id)
+          .select('id, planning_mode');
+      debugPrint('[PLANNING_MODE] persist OK → ${res.isEmpty ? "(0 rows updated, RLS?)" : res.first}');
       ref.invalidate(tripByIdProvider(trip.id));
       ref.invalidate(tripsProvider);
     } catch (e) {
