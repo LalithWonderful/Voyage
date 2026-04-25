@@ -1,5 +1,25 @@
 import 'package:voyage/features/planning/services/places_nearby_service.dart';
 
+/// Vrai si `primaryType` (= types[0] retourné par Places) désigne un lieu de
+/// restauration. Sert au flag `excludeFoodPrimaryType` ci-dessous : Places
+/// inclut souvent des restos dans les résultats `night_club`/`bar` parce
+/// qu'ils ont ces tags en secondaire (ex: Burger King avec `bar_and_grill`).
+/// Pour Nightlife / Événements on veut filtrer ce bruit.
+bool isFoodPrimaryType(String primaryType) {
+  if (primaryType.contains('restaurant')) return true;
+  return const {
+    'cafe',
+    'bakery',
+    'meal_delivery',
+    'meal_takeaway',
+    'catering_service',
+    'food_court',
+    'ice_cream_shop',
+    'pizza',
+    'sandwich_shop',
+  }.contains(primaryType);
+}
+
 /// Une stratégie de fetch Places pour un centre d'intérêt voyageur.
 /// Combine 1+ requêtes (Nearby par types et/ou Text Search par mot-clé)
 /// et un set de filtres post-fetch.
@@ -23,6 +43,12 @@ class InterestPlacesQuery {
   /// Niveau max acceptable. 0 = gratuit, 4 = très cher. Null = pas de filtre.
   final int? maxPriceLevel;
 
+  /// Si true, exclut les candidats dont le `types[0]` (primary type Places) est
+  /// un type de restauration. Utile pour Nightlife/Événements : Places inclut
+  /// souvent des restos dans les résultats `night_club`/`bar` (Burger King avec
+  /// `bar_and_grill`, restos italiens avec `lounge_bar`...) — on filtre ce bruit.
+  final bool excludeFoodPrimaryType;
+
   /// Note libre pour documenter une règle métier qui n'a pas de représentation
   /// directe (ex: "proposer uniquement après 18h" pour Nightlife). À gérer
   /// en aval, dans le pipeline de sélection.
@@ -35,6 +61,7 @@ class InterestPlacesQuery {
     this.minUserRatingCount,
     this.maxUserRatingCount,
     this.maxPriceLevel,
+    this.excludeFoodPrimaryType = false,
     this.rule,
   });
 
@@ -54,6 +81,11 @@ class InterestPlacesQuery {
     }
     if (maxPriceLevel != null &&
         (c.priceLevel != null && c.priceLevel! > maxPriceLevel!)) {
+      return false;
+    }
+    if (excludeFoodPrimaryType &&
+        c.types.isNotEmpty &&
+        isFoodPrimaryType(c.types.first)) {
       return false;
     }
     return true;
@@ -76,6 +108,7 @@ const interestPlacesQueries = <String, InterestPlacesQuery>{
     includedTypes: ['bar', 'night_club'],
     minRating: 4.0,
     minUserRatingCount: 100,
+    excludeFoodPrimaryType: true,
     rule: 'proposer uniquement après 18h',
   ),
   'Spots populaires': InterestPlacesQuery(
@@ -87,7 +120,9 @@ const interestPlacesQueries = <String, InterestPlacesQuery>{
     includedTypes: ['restaurant', 'cafe', 'art_gallery', 'park', 'tourist_attraction'],
     minRating: 4.2,
     minUserRatingCount: 30,
-    maxUserRatingCount: 500,
+    // Élargi de 500 à 1500 (test Nancy 2026-04-25 : la fenêtre 30-500 ne
+    // retenait quasi rien, les lieux étaient soit < 30 avis, soit > 500).
+    maxUserRatingCount: 1500,
     rule: 'éviter chaînes connues, éviter lieux trop touristiques',
   ),
   'Bons plans': InterestPlacesQuery(
@@ -136,6 +171,7 @@ const interestPlacesQueries = <String, InterestPlacesQuery>{
     includedTypes: ['stadium', 'night_club'],
     textQueries: ['concert hall', 'theater', 'event venue'],
     minRating: 4.0,
+    excludeFoodPrimaryType: true,
     rule: 'Places valide le venue mais pas l\'événement réel — à compléter post-MVP avec une API événementielle',
   ),
 };
