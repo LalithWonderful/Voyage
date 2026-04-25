@@ -572,6 +572,72 @@ class PlanningScreen extends ConsumerWidget {
               ))
           .toList();
 
+      // ─── MODE COPILOT — flow Places-first (refonte 2026-04-25) ──────────
+      // Bypass complet de l'ancien pipeline Gemini-first. On va directement
+      // chercher des lieux RÉELS via Places API, puis demander à Gemini de
+      // SÉLECTIONNER dans cette liste (zéro hallucination par construction).
+      // L'ancienne branche coPilot Gemini-first plus bas est définitivement
+      // supprimée — elle était cassée par les hallucinations Gemini.
+      if (mode == PlanningMode.coPilot) {
+        final aiService = ref.read(aiSuggestionsServiceProvider);
+        final nearbyService = ref.read(placesNearbyServiceProvider);
+        final geocoder = ref.read(geocodingServiceProvider);
+
+        // Titres normalisés des activités déjà au planning, pour pré-filtrer
+        // la pool Places (pas la peine de reproposer ce que le voyageur a déjà).
+        String normTitle(String s) => s
+            .toLowerCase()
+            .replaceAll(RegExp(r'[^a-zà-ÿ0-9\s]'), ' ')
+            .replaceAll(RegExp(r'\s+'), ' ')
+            .trim();
+        final existingTitlesNorm = existing.map((a) => normTitle(a.title)).toSet();
+
+        try {
+          final groups = await runCoPilotPlacesFirst(
+            trip: trip,
+            hotels: hotels,
+            geocoder: geocoder,
+            nearbyService: nearbyService,
+            aiService: aiService,
+            existingTitlesNormalized: existingTitlesNorm,
+          );
+          closeDialog();
+          if (!context.mounted) return;
+          if (groups.isEmpty) {
+            messenger.showSnackBar(
+              const SnackBar(content: Text('Aucune nouvelle suggestion — Places n\'a rien retourné dans le périmètre.')),
+            );
+            return;
+          }
+          await showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: AppColors.background,
+            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+            builder: (_) => _SuggestionsSheet(
+              tripId: tripId,
+              groups: groups,
+              travelerType: effectiveTravelerType,
+              mode: PlanningMode.coPilot,
+            ),
+          );
+          ref.invalidate(tripActivitiesProvider(tripId));
+          ref.invalidate(tripTransportsProvider(tripId));
+        } catch (e) {
+          closeDialog();
+          debugPrint('[SUGGEST coPilot Places-first] EXCEPTION : $e');
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text('Erreur Places-first : $e', maxLines: 4),
+              backgroundColor: AppColors.error,
+              duration: const Duration(seconds: 6),
+            ),
+          );
+        }
+        return;
+      }
+      // ─── MODE AUTO — flow Gemini-first historique ──────────────────────
+
       debugPrint('[SUGGEST] Appel Gemini (trip=${trip.destination}, existing=${existing.length}, category=${category.name}, mode=${mode.name})');
       final service = ref.read(aiSuggestionsServiceProvider);
       final result = await service.suggestActivities(
@@ -693,161 +759,6 @@ class PlanningScreen extends ConsumerWidget {
             return !isMealActivity(s);
         }
       }
-
-      // ─── Branche mode coPilot ──────────────────────────────────────────
-      // Gemini renvoie ici des `groups` (3 options/créneau) au lieu d'une
-      // liste plate. On filtre option par option (mêmes garde-fous que le
-      // mode auto), on valide chaque option contre Places, on drop les
-      // groupes qui n'ont plus aucune option valide.
-      if (mode == PlanningMode.coPilot) {
-        final placesService = ref.read(placesCacheServiceProvider);
-        final processedGroups = <SuggestionGroup>[];
-        // Compteur d'apparitions par titre normalisé. Au-delà de 2 → on considère
-        // que le lieu a déjà eu sa chance et on évite de spammer le voyageur.
-        // Avant : on bloquait dès la 2e apparition, ce qui pénalise les villes
-        // où Gemini ne connaît qu'une poignée de vrais lieux (vu à Nancy : ~5-7
-        // lieux légitimes répétés sur 28 groupes — bloqués pour rien).
-        const maxOccurrences = 2;
-        final seenAcrossGroupsCount = <String, int>{};
-
-        // Compteurs cumulés pour diagnostic — explique pourquoi un groupe finit
-        // avec moins de 3 options (Gemini en sort moins, ou nos filtres en jettent).
-        var totalRawOptions = 0;
-        var rejectedByExisting = 0;
-        var rejectedBySeenAcross = 0;
-        var rejectedByHotelReturn = 0;
-        var rejectedByPast = 0;
-        var rejectedByOverlap = 0;
-        var rejectedByCategory = 0;
-        var rejectedByPlaces = 0;
-
-        for (final group in result.groups) {
-          totalRawOptions += group.options.length;
-          // Mode coPilot — filtres volontairement permissifs : on laisse passer les
-          // chevauchements horaires et le passé, parce que le voyageur veut pouvoir
-          // importer une option même si elle conflicte avec une activité existante,
-          // pour la déplacer ensuite dans le planning vers un autre jour/créneau libre.
-          // En revanche on garde le dedup contre les activités déjà au planning et le
-          // dedup inter-groupe (sinon le même titre apparaît 3× dans 3 groupes = bruit).
-          final candidates = group.options.where((s) {
-            if (existingTitles.contains(norm(s.title))) {
-              rejectedByExisting++;
-              debugPrint('[SUGGEST coPilot] ✗ existing: "${s.title}"');
-              return false;
-            }
-            final occurrences = seenAcrossGroupsCount[norm(s.title)] ?? 0;
-            if (occurrences >= maxOccurrences) {
-              rejectedBySeenAcross++;
-              debugPrint('[SUGGEST coPilot] ✗ seen-other-group ($occurrences déjà): "${s.title}"');
-              return false;
-            }
-            if (isHotelReturn(s.title)) {
-              rejectedByHotelReturn++;
-              return false;
-            }
-            if (!matchesCategory(s)) {
-              rejectedByCategory++;
-              return false;
-            }
-            return true;
-          }).toList();
-          if (candidates.isEmpty) {
-            debugPrint(
-              '[SUGGEST coPilot] groupe "${group.slotLabel}" '
-              '(${group.dayDate.toIso8601String().split('T').first}) DROP — toutes les options filtrées avant Places',
-            );
-            continue;
-          }
-
-          final validated = await Future.wait(candidates.map((s) async {
-            if (s.tag == 'Hébergement') return s;
-            try {
-              final dayCity = trip.cityForDay(s.dayDate);
-              final dayCityLower = dayCity.split(',').first.trim().toLowerCase();
-              final info = await placesService.findInfo(title: s.title, destination: dayCity);
-              final hasPlace = info.placeId != null && info.placeId!.isNotEmpty;
-              final hasAddress = info.address != null && info.address!.trim().isNotEmpty;
-              if (!hasPlace || !hasAddress) {
-                debugPrint('[SUGGEST coPilot] ✗ Places no-place-or-address: "${s.title}"');
-                return null;
-              }
-              if (!info.address!.toLowerCase().contains(dayCityLower)) {
-                debugPrint('[SUGGEST coPilot] ✗ Places wrong-city: "${s.title}" → ${info.address}');
-                return null;
-              }
-              // Anti-hallucination : si Places matche fuzzy à un lieu dont le nom
-              // canonique n'a aucun mot en commun avec le titre Gemini, on rejette
-              // (probablement un nom inventé par Gemini qui pointe sur un autre lieu).
-              if (!_fuzzyTitleMatches(s.title, info.name)) {
-                debugPrint('[SUGGEST coPilot] ✗ Places name-mismatch: "${s.title}" → name="${info.name}"');
-                return null;
-              }
-              // Hors-contexte : le lieu existe mais n'a rien à faire dans cette
-              // catégorie (ex: "Club 87 Nancy" club libertin suggéré pour repas).
-              if (_placesInappropriateForTag(info.name, s.tag)) {
-                debugPrint('[SUGGEST coPilot] ✗ Places inappropriate-for-tag (${s.tag}): "${s.title}" → name="${info.name}"');
-                return null;
-              }
-              return s;
-            } catch (_) {
-              // Tolère un flake réseau Places pour ne pas pénaliser l'utilisateur
-              return s;
-            }
-          }));
-          final validOptions = validated.whereType<ActivitySuggestion>().toList();
-          rejectedByPlaces += candidates.length - validOptions.length;
-          if (validOptions.isEmpty) {
-            debugPrint(
-              '[SUGGEST coPilot] groupe "${group.slotLabel}" '
-              '(${group.dayDate.toIso8601String().split('T').first}) DROP — toutes les options rejetées par Places',
-            );
-            continue;
-          }
-          if (validOptions.length < group.options.length) {
-            debugPrint(
-              '[SUGGEST coPilot] groupe "${group.slotLabel}" rabote ${group.options.length} → ${validOptions.length} options',
-            );
-          }
-          for (final s in validOptions) {
-            final k = norm(s.title);
-            seenAcrossGroupsCount[k] = (seenAcrossGroupsCount[k] ?? 0) + 1;
-          }
-          processedGroups.add(group.copyWith(options: validOptions));
-        }
-
-        final keptOptions = processedGroups.fold<int>(0, (sum, g) => sum + g.options.length);
-        debugPrint(
-          '[SUGGEST coPilot] BILAN — Gemini: ${result.groups.length} groupes, $totalRawOptions options brutes ; '
-          'rejetés: existing=$rejectedByExisting, seen-other=$rejectedBySeenAcross, hotel-return=$rejectedByHotelReturn, '
-          'past=$rejectedByPast, overlap=$rejectedByOverlap, category=$rejectedByCategory, places=$rejectedByPlaces ; '
-          'gardés: ${processedGroups.length} groupes, $keptOptions options',
-        );
-
-        closeDialog();
-        if (!context.mounted) return;
-        if (processedGroups.isEmpty) {
-          messenger.showSnackBar(
-            const SnackBar(content: Text('Aucune nouvelle suggestion — ton planning est déjà bien rempli.')),
-          );
-          return;
-        }
-        await showModalBottomSheet(
-          context: context,
-          isScrollControlled: true,
-          backgroundColor: AppColors.background,
-          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-          builder: (_) => _SuggestionsSheet(
-            tripId: tripId,
-            groups: processedGroups,
-            travelerType: effectiveTravelerType,
-            mode: PlanningMode.coPilot,
-          ),
-        );
-        ref.invalidate(tripActivitiesProvider(tripId));
-        ref.invalidate(tripTransportsProvider(tripId));
-        return;
-      }
-      // ─── Fin branche coPilot ───────────────────────────────────────────
 
       final afterCategory = uniqueInternal.where(matchesCategory).toList();
 

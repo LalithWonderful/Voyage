@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:voyage/features/planning/models/activity_suggestion_model.dart';
+import 'package:voyage/features/planning/services/ai_suggestions_service.dart';
 import 'package:voyage/features/planning/services/day_center_service.dart';
 import 'package:voyage/features/planning/services/geocoding_service.dart';
 import 'package:voyage/features/planning/services/interests_to_places_mapping.dart';
@@ -486,4 +487,90 @@ String _stripCodeFences(String text) {
   final fence = RegExp(r'^```(?:json)?\s*|\s*```$', multiLine: true);
   t = t.replaceAll(fence, '').trim();
   return t;
+}
+
+/// Orchestre le flow Places-first pour le mode CoPilot bout-en-bout :
+/// 1. Récolte les candidats Places pour chaque jour (`gatherCandidatesForTrip`).
+/// 2. Pré-filtre les candidats dont le nom matche déjà une activité au planning
+///    (= déjà choisie par le voyageur, pas la peine de la reproposer).
+/// 3. Groupe les jours par centre géographique (`groupDaysByCenter`).
+/// 4. Pour chaque groupe : prompt Gemini → parser → SuggestionGroup.
+/// 5. Concatène tous les SuggestionGroup et retourne pour la sheet.
+///
+/// Appelle Gemini en parallèle sur les groupes (typiquement 1-3 groupes
+/// pour la majorité des voyages). Cache via `gemini_cache` action
+/// `places_first_copilot` (clé = hash du prompt) → re-runs gratuits.
+Future<List<SuggestionGroup>> runCoPilotPlacesFirst({
+  required Trip trip,
+  required List<TripDocument> hotels,
+  required GeocodingService geocoder,
+  required PlacesNearbyService nearbyService,
+  required AiSuggestionsService aiService,
+  /// Titres normalisés des activités déjà au planning. Pré-filtre la pool
+  /// pour éviter de reproposer ce que le voyageur a déjà coché.
+  Set<String> existingTitlesNormalized = const {},
+}) async {
+  final pool = await gatherCandidatesForTrip(
+    trip: trip,
+    hotels: hotels,
+    geocoder: geocoder,
+    nearbyService: nearbyService,
+  );
+  if (pool.isEmpty) {
+    developer.log('CoPilot Places-first : pool vide, rien à proposer', name: 'places_first');
+    return [];
+  }
+
+  // Pré-filtre : retire de chaque DayCandidates les candidats dont le name
+  // matche un titre déjà au planning. Évite de reproposer.
+  if (existingTitlesNormalized.isNotEmpty) {
+    String norm(String s) => s.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
+    for (final day in pool) {
+      day.byInterest.forEach((interest, list) {
+        list.removeWhere((c) => existingTitlesNormalized.contains(norm(c.name)));
+      });
+    }
+  }
+
+  final groups = groupDaysByCenter(pool);
+  developer.log(
+    'CoPilot Places-first : ${groups.length} groupe(s) → autant de prompts Gemini',
+    name: 'places_first',
+  );
+
+  final travelerProfile = trip.travelerType != null
+      ? travelerPlacesProfiles[trip.travelerType]
+      : null;
+
+  // Appels Gemini en parallèle, un par groupe. Chaque échec individuel
+  // ne casse pas les autres (try/catch isolé par groupe).
+  final results = await Future.wait(groups.map((group) async {
+    final prompt = buildCoPilotPrompt(
+      input: group,
+      trip: trip,
+      travelerProfile: travelerProfile,
+    );
+    try {
+      final raw = await aiService.generateRaw(
+        prompt: prompt,
+        cacheAction: 'places_first_copilot',
+        cacheKey: prompt.hashCode.toString(),
+        temperature: 0.6,
+      );
+      return parseCoPilotResponse(rawJson: raw, input: group);
+    } catch (e) {
+      developer.log(
+        'CoPilot Places-first : Gemini exception sur groupe ${group.center.source} : $e',
+        name: 'places_first',
+      );
+      return <SuggestionGroup>[];
+    }
+  }));
+
+  final merged = results.expand((g) => g).toList();
+  developer.log(
+    'CoPilot Places-first : ${merged.length} SuggestionGroup au total',
+    name: 'places_first',
+  );
+  return merged;
 }
