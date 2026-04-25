@@ -20,7 +20,10 @@ import 'package:voyage/features/planning/widgets/activity_create_sheet.dart';
 import 'package:voyage/features/planning/widgets/activity_detail_sheet.dart';
 import 'package:voyage/features/planning/widgets/suggestion_detail_sheet.dart';
 import 'package:voyage/features/planning/services/ai_suggestions_service.dart';
+import 'package:voyage/features/planning/services/day_center_service.dart';
 import 'package:voyage/features/planning/services/document_to_activity.dart';
+import 'package:voyage/features/planning/services/interests_to_places_mapping.dart';
+import 'package:voyage/features/planning/services/places_nearby_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:voyage/features/wallet/providers/wallet_provider.dart';
 import 'package:voyage/features/wallet/widgets/document_form_sheet.dart';
@@ -219,10 +222,11 @@ class PlanningScreen extends ConsumerWidget {
   /// laisser l'utilisateur cibler précisément ce qu'il cherche plutôt qu'un mega-prompt
   /// qui hallucine sur 77 activités.
   Future<void> _openSuggestionMenu(BuildContext context, WidgetRef ref, Trip trip) async {
-    // Si premier Suggérer sur ce voyage → on demande le mode de planification d'abord
-    final mode = await _askPlanningModeIfNeeded(context, ref, trip);
-    if (mode == null || !context.mounted) return;
-    final choice = await showModalBottomSheet<SuggestionCategory>(
+    // Le menu retourne soit une SuggestionCategory (génération normale), soit la
+    // chaîne sentinel 'test' (test Places-first debug, à supprimer après MVP),
+    // soit null (annulé). On choisit AVANT de demander le mode pour que le test
+    // puisse tourner sur un voyage qui n'a pas encore de planning_mode défini.
+    final result = await showModalBottomSheet<Object>(
       context: context,
       backgroundColor: AppColors.background,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
@@ -256,13 +260,138 @@ class PlanningScreen extends ConsumerWidget {
               subtitle: const Text('Culture, nature, shopping, détente — hors repas'),
               onTap: () => Navigator.pop(ctx, SuggestionCategory.activities),
             ),
+            const Divider(height: 1),
+            // ⚠️ TEMPORAIRE — bouton de validation de la refonte Places-first.
+            // À supprimer une fois la refonte intégrée au pipeline normal.
+            ListTile(
+              leading: const Text('🧪', style: TextStyle(fontSize: 24)),
+              title: const Text('Test Places-first (debug)', style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: const Text('Lance les requêtes Places sans Gemini et logue les résultats'),
+              onTap: () => Navigator.pop(ctx, 'test'),
+            ),
             const SizedBox(height: 12),
           ],
         ),
       ),
     );
-    if (choice == null || !context.mounted) return;
-    await _generateSuggestions(context, ref, trip, category: choice, mode: mode);
+    if (result == null || !context.mounted) return;
+    if (result == 'test') {
+      await _runPlacesNearbyTest(context, ref, trip);
+      return;
+    }
+    // Génération normale — on demande le mode si pas encore choisi.
+    final mode = await _askPlanningModeIfNeeded(context, ref, trip);
+    if (mode == null || !context.mounted) return;
+    await _generateSuggestions(context, ref, trip, category: result as SuggestionCategory, mode: mode);
+  }
+
+  /// ⚠️ TEMPORAIRE — sera retirée une fois la refonte Places-first branchée.
+  /// Test isolé du flow Places (Nearby + Text Search) pour chaque intérêt du
+  /// voyageur, à partir du centre géocodé du jour 1. Logue tout dans la
+  /// console (`places_test`) et résume dans un snackbar.
+  Future<void> _runPlacesNearbyTest(BuildContext context, WidgetRef ref, Trip trip) async {
+    final messenger = ScaffoldMessenger.of(context);
+    if (trip.interests == null || trip.interests!.isEmpty) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('⚠️ Aucun intérêt sur ce voyage. Édite-le pour en ajouter.')),
+      );
+      return;
+    }
+
+    messenger.showSnackBar(
+      const SnackBar(content: Text('🧪 Test Places-first lancé — voir la console (places_test)')),
+    );
+
+    try {
+      final hotels = await ref.read(tripHotelsProvider(tripId).future);
+      final geocoder = ref.read(geocodingServiceProvider);
+      final center = await centerForDay(
+        trip: trip,
+        day: trip.startDate,
+        hotels: hotels,
+        geocoder: geocoder,
+      );
+      if (center == null) {
+        if (context.mounted) {
+          messenger.showSnackBar(
+            const SnackBar(content: Text('❌ Impossible de géocoder le centre du jour 1')),
+          );
+        }
+        return;
+      }
+      developer.log('=== PLACES-FIRST TEST ===', name: 'places_test');
+      developer.log(
+        'Trip: ${trip.title} → centre ${center.source} (${center.latitude.toStringAsFixed(4)}, ${center.longitude.toStringAsFixed(4)})',
+        name: 'places_test',
+      );
+      developer.log('Intérêts: ${trip.interests}', name: 'places_test');
+
+      final nearbyService = ref.read(placesNearbyServiceProvider);
+      var totalRaw = 0;
+      var totalAfterFilters = 0;
+      for (final interest in trip.interests!) {
+        final query = interestPlacesQueries[interest];
+        if (query == null) {
+          developer.log('"$interest" pas mappé dans interestPlacesQueries — skip', name: 'places_test');
+          continue;
+        }
+        final calls = <Future<List<NearbyCandidate>>>[];
+        if (query.includedTypes.isNotEmpty) {
+          calls.add(nearbyService.searchNearby(
+            latitude: center.latitude,
+            longitude: center.longitude,
+            includedTypes: query.includedTypes,
+          ));
+        }
+        for (final tq in query.textQueries) {
+          calls.add(nearbyService.searchText(
+            textQuery: tq,
+            latitude: center.latitude,
+            longitude: center.longitude,
+          ));
+        }
+        final results = await Future.wait(calls);
+        // Dédup par place_id
+        final merged = <String, NearbyCandidate>{};
+        for (final list in results) {
+          for (final c in list) {
+            merged[c.placeId] = c;
+          }
+        }
+        final raw = merged.values.toList();
+        final filtered = raw.where((c) {
+          final r = c.rating;
+          if (r == null || r < placesGlobalMinRating) return false;
+          return query.matchesFilters(c);
+        }).toList();
+        totalRaw += raw.length;
+        totalAfterFilters += filtered.length;
+        developer.log(
+          '"$interest": ${raw.length} bruts → ${filtered.length} après filtres',
+          name: 'places_test',
+        );
+        for (final c in filtered.take(5)) {
+          developer.log(
+            '  • ${c.name} (${c.address ?? "?"}) ★${c.rating} (${c.userRatingCount ?? 0} avis) [${c.types.take(3).join(", ")}]',
+            name: 'places_test',
+          );
+        }
+      }
+      developer.log('=== FIN TEST: $totalAfterFilters retenus / $totalRaw bruts ===', name: 'places_test');
+      if (context.mounted) {
+        messenger.showSnackBar(SnackBar(
+          content: Text('✓ $totalAfterFilters lieux retenus / $totalRaw bruts (voir console)'),
+          duration: const Duration(seconds: 5),
+        ));
+      }
+    } catch (e, st) {
+      developer.log('Test Places-first EXCEPTION: $e\n$st', name: 'places_test');
+      if (context.mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('❌ Erreur test : $e')),
+        );
+      }
+    }
   }
 
   Future<void> _generateSuggestions(
