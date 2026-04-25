@@ -24,6 +24,7 @@ import 'package:voyage/features/planning/services/day_center_service.dart';
 import 'package:voyage/features/planning/services/document_to_activity.dart';
 import 'package:voyage/features/planning/services/interests_to_places_mapping.dart';
 import 'package:voyage/features/planning/services/places_nearby_service.dart';
+import 'package:voyage/features/planning/services/traveler_to_places_mapping.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:voyage/features/wallet/providers/wallet_provider.dart';
 import 'package:voyage/features/wallet/widgets/document_form_sheet.dart';
@@ -325,6 +326,16 @@ class PlanningScreen extends ConsumerWidget {
       );
       debugPrint('[places_test] Intérêts: ${trip.interests}');
 
+      // Profil voyageur → ajoute des types/textQueries et peut exclure des
+      // intérêts incompatibles (ex: En famille → exclut Nightlife).
+      final travelerProfile = trip.travelerType != null
+          ? travelerPlacesProfiles[trip.travelerType]
+          : null;
+      debugPrint(
+        '[places_test] Type voyageur: ${trip.travelerType ?? "(non défini)"}'
+        '${travelerProfile != null ? " — profil chargé (${travelerProfile.additionalTypes.length} types add. + ${travelerProfile.additionalTextQueries.length} textQueries add.)" : " — pas de profil"}',
+      );
+
       final nearbyService = ref.read(placesNearbyServiceProvider);
       var totalRaw = 0;
       var totalAfterFilters = 0;
@@ -334,15 +345,31 @@ class PlanningScreen extends ConsumerWidget {
           debugPrint('[places_test] "$interest" pas mappé dans interestPlacesQueries — skip');
           continue;
         }
+        // Veto du profil voyageur (ex: Famille exclut Nightlife)
+        if (travelerProfile != null && travelerProfile.excludedInterests.contains(interest)) {
+          debugPrint(
+            '[places_test] "$interest" exclu par profil voyageur "${trip.travelerType}" — skip',
+          );
+          continue;
+        }
+        // Merge types et textQueries du profil voyageur (additif, dédupliqué)
+        final mergedTypes = <String>{
+          ...query.includedTypes,
+          if (travelerProfile != null) ...travelerProfile.additionalTypes,
+        }.toList();
+        final mergedTextQueries = <String>[
+          ...query.textQueries,
+          if (travelerProfile != null) ...travelerProfile.additionalTextQueries,
+        ];
         final calls = <Future<List<NearbyCandidate>>>[];
-        if (query.includedTypes.isNotEmpty) {
+        if (mergedTypes.isNotEmpty) {
           calls.add(nearbyService.searchNearby(
             latitude: center.latitude,
             longitude: center.longitude,
-            includedTypes: query.includedTypes,
+            includedTypes: mergedTypes,
           ));
         }
-        for (final tq in query.textQueries) {
+        for (final tq in mergedTextQueries) {
           calls.add(nearbyService.searchText(
             textQuery: tq,
             latitude: center.latitude,
