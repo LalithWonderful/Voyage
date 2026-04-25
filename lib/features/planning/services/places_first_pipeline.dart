@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:developer' as developer;
+import 'package:voyage/features/planning/models/activity_suggestion_model.dart';
 import 'package:voyage/features/planning/services/day_center_service.dart';
 import 'package:voyage/features/planning/services/geocoding_service.dart';
 import 'package:voyage/features/planning/services/interests_to_places_mapping.dart';
@@ -186,3 +188,302 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
 }
 
 String _iso(DateTime d) => d.toIso8601String().split('T').first;
+
+/// Groupe de jours partageant le même centre (= mono-ville complète, ou un
+/// segment d'une multi-villes). Un même `PlacesPromptInput` permet d'envoyer
+/// UN SEUL prompt Gemini pour tous les jours du groupe au lieu de N prompts —
+/// économie tokens × N et cohérence des choix entre jours.
+class PlacesPromptInput {
+  final DayCenter center;
+  final List<DateTime> days;
+  /// Pool de candidats agrégés sur tous les jours du groupe (en mono-ville la
+  /// pool est identique tous les jours, donc fusionner ne change rien). Indexé
+  /// par place_id, conserve la liste des intérêts qui matchent chaque candidat.
+  final Map<String, ({NearbyCandidate candidate, List<String> matchedInterests})> pool;
+
+  const PlacesPromptInput({
+    required this.center,
+    required this.days,
+    required this.pool,
+  });
+
+  int get poolSize => pool.length;
+}
+
+/// Regroupe les jours du voyage par centre géographique (lat/lng arrondi
+/// 3 décimales = ~110m). En mono-ville → 1 seul groupe. En multi-villes
+/// (Nancy/Épinal) → 2 groupes. Économise les calls Gemini : 1 prompt par
+/// groupe au lieu de 1 par jour.
+List<PlacesPromptInput> groupDaysByCenter(List<DayCandidates> dayPool) {
+  final groups = <String, ({DayCenter center, List<DateTime> days, Map<String, ({NearbyCandidate candidate, List<String> matchedInterests})> pool})>{};
+
+  for (final day in dayPool) {
+    final key = '${day.center.latitude.toStringAsFixed(3)},${day.center.longitude.toStringAsFixed(3)}';
+    final dayUnique = day.allUnique;
+    final existing = groups[key];
+    if (existing == null) {
+      groups[key] = (
+        center: day.center,
+        days: [day.day],
+        pool: Map.from(dayUnique),
+      );
+    } else {
+      existing.days.add(day.day);
+      // Fusion : si un nouveau candidat apparaît pour ce centre on l'ajoute,
+      // si un existant a de nouveaux intérêts matchés on les fusionne.
+      dayUnique.forEach((placeId, entry) {
+        final ex = existing.pool[placeId];
+        if (ex == null) {
+          existing.pool[placeId] = entry;
+        } else {
+          final mergedInterests = {...ex.matchedInterests, ...entry.matchedInterests}.toList();
+          existing.pool[placeId] = (candidate: ex.candidate, matchedInterests: mergedInterests);
+        }
+      });
+    }
+  }
+  return groups.values
+      .map((g) => PlacesPromptInput(center: g.center, days: g.days, pool: g.pool))
+      .toList();
+}
+
+/// Trie la pool par "qualité" (rating × log(userRatingCount)) et garde les
+/// `maxPoolSize` meilleurs. Sert à borner les tokens envoyés à Gemini quand
+/// la ville est très riche en lieux. 50 est un compromis raisonnable :
+/// largement assez pour 6 jours × 4 créneaux × 3 options diverses.
+List<MapEntry<String, ({NearbyCandidate candidate, List<String> matchedInterests})>> _trimPool(
+  Map<String, ({NearbyCandidate candidate, List<String> matchedInterests})> pool, {
+  int maxPoolSize = 50,
+}) {
+  final entries = pool.entries.toList();
+  entries.sort((a, b) {
+    final ra = a.value.candidate.rating ?? 0;
+    final rb = b.value.candidate.rating ?? 0;
+    final ca = a.value.candidate.userRatingCount ?? 0;
+    final cb = b.value.candidate.userRatingCount ?? 0;
+    // Score : on multiplie par log(count) pour favoriser les lieux avec un
+    // bon rating ET un volume d'avis significatif (vs un 5★ avec 3 avis).
+    double score(double r, int c) => r * (c <= 1 ? 1 : (1 + (c.bitLength.toDouble())));
+    return score(rb, cb).compareTo(score(ra, ca));
+  });
+  return entries.take(maxPoolSize).toList();
+}
+
+/// Construit le prompt Gemini pour un groupe de jours en mode CoPilot.
+/// Gemini reçoit la pool de candidats RÉELS (avec ID court P0/P1/.../P49),
+/// le contexte voyage, et doit retourner pour chaque jour les créneaux et
+/// les 3 options choisies — UNIQUEMENT parmi la pool fournie. Aucune
+/// invention possible.
+String buildCoPilotPrompt({
+  required PlacesPromptInput input,
+  required Trip trip,
+  required TravelerPlacesProfile? travelerProfile,
+}) {
+  final entries = _trimPool(input.pool);
+  // Lignes du catalogue : "P0: Nom — adresse [types] ★rating (N avis) — match: Culture, Bons plans"
+  final catalogLines = <String>[];
+  for (var i = 0; i < entries.length; i++) {
+    final c = entries[i].value.candidate;
+    final interests = entries[i].value.matchedInterests.join(', ');
+    final addr = c.address ?? '';
+    final typesShort = c.types.take(3).join(', ');
+    catalogLines.add(
+      'P$i: ${c.name} — $addr [$typesShort] ★${c.rating} (${c.userRatingCount ?? 0} avis) — match: $interests',
+    );
+  }
+  final dayLines = input.days.map(_iso).join(', ');
+  final hasKids = trip.travelers.any((t) => t.age < 13);
+  final travelers = trip.travelers.isEmpty
+      ? 'solo'
+      : trip.travelers.map((t) => '${t.name} (${t.age} ans)').join(', ');
+
+  final profileBlock = travelerProfile == null
+      ? ''
+      : '\nProfil voyageur "${trip.travelerType}" : ${travelerProfile.rule ?? "—"}'
+          '${travelerProfile.maxActivityMinutes != null ? "\nDurée max par activité : ${travelerProfile.maxActivityMinutes} min." : ""}'
+          '${travelerProfile.maxConsecutiveDistanceMeters != null ? "\nDistance max entre 2 activités du même jour : ${travelerProfile.maxConsecutiveDistanceMeters}m." : ""}';
+
+  return '''
+Tu es un expert en voyages. Tu dois SÉLECTIONNER (pas inventer) des activités pour un voyageur, en t'appuyant UNIQUEMENT sur la liste de lieux RÉELS ci-dessous (tous vérifiés sur Google Places).
+
+🚫 RÈGLE ABSOLUE : tu ne peux UTILISER QUE les lieux du catalogue, identifiés par leur référence (P0, P1, ...). Tu n'as PAS le droit d'en inventer d'autres ou de modifier les noms. Si la pool ne contient pas un type de lieu pour un créneau (ex: pas de bar pour "Soirée"), saute ce créneau.
+
+Voyage :
+- Destination : ${trip.destination}
+- Voyageurs : $travelers${hasKids ? ' (enfants présents)' : ''}
+- Centres d'intérêt : ${trip.interests?.join(', ') ?? "non précisés"}$profileBlock
+
+Jours à organiser : $dayLines (${input.days.length} jour${input.days.length > 1 ? 's' : ''}).
+
+Catalogue de lieux disponibles autour du centre du jour (${input.center.source}, ${entries.length} lieux retenus) :
+${catalogLines.join('\n')}
+
+Pour CHAQUE jour ci-dessus :
+- Identifie 2 à 4 créneaux pertinents (ex: "Matin", "Déjeuner", "Après-midi", "Soirée").
+- Pour CHAQUE créneau, propose **EXACTEMENT 3 options** parmi le catalogue (par ref P0, P1, ...).
+- Les 3 options d'un même créneau doivent être de la MÊME intention (ex: 3 musées pour un matin culture, 3 restos pour un déjeuner) mais variées en gamme/quartier/ambiance.
+- Varie les choix entre les jours : pas la même option à chaque jour. Si la pool est petite, accepte de répéter MAX 2 fois la même option à travers tous les créneaux du voyage.
+- Pour chaque option, donne un `match_reason` (1 phrase) qui explique pourquoi elle convient à CE voyageur sur CE créneau.
+- Choisis une heure de début réaliste pour le créneau (matin 9-10h, déjeuner 12-13h, après-midi 14-16h, soirée 19-21h, à adapter aux horaires d'ouverture probables du type de lieu).
+
+Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
+{
+  "days": [
+    {
+      "date": "YYYY-MM-DD",
+      "slots": [
+        {
+          "label": "Matin",
+          "start_time": "10:00",
+          "options": [
+            {"ref": "P0", "duration_minutes": 90, "price_estimate": "~12€", "match_reason": "Matche ton intérêt 'Culture' + créneau matin tranquille"},
+            {"ref": "P5", "duration_minutes": 60, "price_estimate": "Gratuit", "match_reason": "..."},
+            {"ref": "P12", "duration_minutes": 120, "price_estimate": "~25€", "match_reason": "..."}
+          ]
+        }
+      ]
+    }
+  ]
+}
+''';
+}
+
+/// Parse la réponse Gemini d'un prompt CoPilot et reconstitue les
+/// `SuggestionGroup` consommables par le pipeline existant. Les options
+/// sont reconstruites depuis la pool (titre canonique Places, adresse,
+/// rating) — Gemini ne fait que choisir des refs, pas de strings à valider.
+List<SuggestionGroup> parseCoPilotResponse({
+  required String rawJson,
+  required PlacesPromptInput input,
+}) {
+  // Index P0/P1/.../Pn → candidat. Doit reproduire l'ordre de _trimPool
+  // utilisé dans le prompt.
+  final entries = _trimPool(input.pool);
+  final byRef = <String, NearbyCandidate>{};
+  for (var i = 0; i < entries.length; i++) {
+    byRef['P$i'] = entries[i].value.candidate;
+  }
+
+  final cleaned = _stripCodeFences(rawJson).trim();
+  dynamic parsed;
+  try {
+    parsed = jsonDecode(cleaned);
+  } catch (e) {
+    developer.log('parseCoPilotResponse : JSON invalide — $e', name: 'places_first');
+    return [];
+  }
+  if (parsed is! Map) return [];
+  final daysJson = parsed['days'] as List? ?? const [];
+
+  final groups = <SuggestionGroup>[];
+  for (final dayJson in daysJson) {
+    if (dayJson is! Map) continue;
+    final dateStr = dayJson['date'] as String?;
+    if (dateStr == null) continue;
+    final date = DateTime.tryParse(dateStr);
+    if (date == null) continue;
+    final slots = dayJson['slots'] as List? ?? const [];
+    for (final slotJson in slots) {
+      if (slotJson is! Map) continue;
+      final slotLabel = (slotJson['label'] as String?)?.trim() ?? 'Créneau';
+      final slotStart = (slotJson['start_time'] as String?)?.trim() ?? '';
+      final optionsJson = slotJson['options'] as List? ?? const [];
+
+      final options = <ActivitySuggestion>[];
+      for (final optJson in optionsJson) {
+        if (optJson is! Map) continue;
+        final ref = (optJson['ref'] as String?)?.trim();
+        if (ref == null) continue;
+        final candidate = byRef[ref];
+        if (candidate == null) {
+          developer.log('Réf inconnue "$ref" dans la réponse Gemini — skip', name: 'places_first');
+          continue;
+        }
+        // Tag déduit du primary type Places (heuristique simple, à raffiner)
+        final tag = _tagFromPrimaryType(candidate.types.isNotEmpty ? candidate.types.first : '');
+        options.add(ActivitySuggestion(
+          dayDate: date,
+          startTime: slotStart,
+          title: candidate.name,
+          detail: candidate.address,
+          tag: tag,
+          durationMinutes: (optJson['duration_minutes'] as num?)?.toInt(),
+          priceEstimate: (optJson['price_estimate'] as String?)?.trim(),
+          matchReason: (optJson['match_reason'] as String?)?.trim(),
+        ));
+      }
+      if (options.isEmpty) continue;
+      groups.add(SuggestionGroup(
+        dayDate: date,
+        slotLabel: slotLabel,
+        startTime: slotStart,
+        options: options,
+      ));
+    }
+  }
+  return groups;
+}
+
+/// Mappe le primary type Places vers un tag Voyage compréhensible par l'UI
+/// (cf. tags utilisés dans le pipeline existant : Repas, Visite, Culture, etc.).
+String _tagFromPrimaryType(String primaryType) {
+  if (primaryType.isEmpty) return 'Activité';
+  if (primaryType.contains('restaurant') ||
+      primaryType == 'cafe' ||
+      primaryType == 'bakery' ||
+      primaryType == 'meal_delivery' ||
+      primaryType == 'meal_takeaway' ||
+      primaryType == 'food_court') {
+    return 'Repas';
+  }
+  if (primaryType.contains('museum') ||
+      primaryType == 'art_gallery' ||
+      primaryType == 'library' ||
+      primaryType == 'historical_landmark' ||
+      primaryType == 'historical_place') {
+    return 'Culture';
+  }
+  if (primaryType == 'park' ||
+      primaryType == 'national_park' ||
+      primaryType == 'botanical_garden' ||
+      primaryType == 'zoo' ||
+      primaryType == 'aquarium' ||
+      primaryType == 'beach') {
+    return 'Nature';
+  }
+  if (primaryType == 'bar' ||
+      primaryType == 'night_club' ||
+      primaryType == 'pub' ||
+      primaryType.contains('bar')) {
+    return 'Nightlife';
+  }
+  if (primaryType.contains('shop') ||
+      primaryType.contains('store') ||
+      primaryType == 'shopping_mall' ||
+      primaryType == 'market') {
+    return 'Shopping';
+  }
+  if (primaryType == 'spa' || primaryType == 'beauty_salon' || primaryType == 'gym') {
+    return 'Wellness';
+  }
+  if (primaryType == 'church' || primaryType == 'place_of_worship') {
+    return 'Culture';
+  }
+  if (primaryType == 'tourist_attraction' || primaryType == 'landmark') {
+    return 'Visite';
+  }
+  if (primaryType == 'amusement_park' || primaryType == 'amusement_center') {
+    return 'Loisir';
+  }
+  if (primaryType == 'stadium' || primaryType == 'sports_complex') {
+    return 'Sport';
+  }
+  return 'Activité';
+}
+
+String _stripCodeFences(String text) {
+  var t = text.trim();
+  final fence = RegExp(r'^```(?:json)?\s*|\s*```$', multiLine: true);
+  t = t.replaceAll(fence, '').trim();
+  return t;
+}
