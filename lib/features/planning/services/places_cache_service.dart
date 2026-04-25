@@ -55,12 +55,18 @@ class PlacesCacheService {
     );
 
     // 3. Upsert cache (best-effort)
-    if (info.rating != null || info.photos.isNotEmpty || info.priceLevel != null || info.placeId != null || info.address != null) {
+    if (info.rating != null ||
+        info.photos.isNotEmpty ||
+        info.priceLevel != null ||
+        info.placeId != null ||
+        info.address != null ||
+        info.name != null) {
       try {
         await _client.from('places_cache').upsert({
           'title_key': titleKey,
           'destination_key': destKey,
           'place_id': info.placeId,
+          'place_name': info.name,
           'photo_urls': info.photos.map((p) => p.url).toList(),
           'rating': info.rating,
           'ratings_count': info.ratingsCount,
@@ -87,6 +93,7 @@ class PlacesCacheService {
       priceLevel: (row['price_level'] as num?)?.toInt(),
       placeId: row['place_id'] as String?,
       address: row['address'] as String?,
+      name: row['place_name'] as String?,
       reviews: reviewsData
           ?.whereType<Map<String, dynamic>>()
           .map((r) => PlaceReview.fromJson(r))

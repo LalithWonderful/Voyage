@@ -27,6 +27,56 @@ import 'package:voyage/features/wallet/widgets/document_form_sheet.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
 
+/// Stop-words FR/EN courants à exclure des comparaisons de titres pour le filtre
+/// anti-hallucination. Ces mots n'apportent aucun signal d'identité du lieu.
+const _titleStopWords = <String>{
+  'le', 'la', 'les', 'un', 'une', 'des', 'du', 'de', 'au', 'aux',
+  'a', 'à', 'et', 'en', 'l', 'd', 's', 'the', 'of', 'and', 'in', 'at',
+};
+
+/// Tokenize un titre pour la comparaison fuzzy : lowercase, strip punctuation,
+/// retire les stop-words et les tokens trop courts (<3 lettres). Conserve les
+/// accents (la comparaison se fait token-à-token, exact match).
+Set<String> _tokenizeForMatch(String s) {
+  return s
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-zà-ÿ0-9\s]'), ' ')
+      .split(RegExp(r'\s+'))
+      .where((t) => t.length >= 3 && !_titleStopWords.contains(t))
+      .toSet();
+}
+
+/// Vrai si le titre Gemini a au moins un token significatif (≥4 lettres) en
+/// commun avec le nom canonique Places. Sinon c'est probablement une
+/// hallucination Gemini matchée fuzzy à un lieu sans rapport.
+///
+/// Tolérant : si le name canonique n'est pas dispo (cache pré-migration ou
+/// Places n'a pas trouvé le lieu), on retourne `true` pour ne pas bloquer
+/// (back-compat avec les caches existants).
+///
+/// Exemples :
+/// - "Galerie Myrtille Beck" vs "Bijouterie Lefranc" → 0 token en commun → false (rejet ✓)
+/// - "Place Stanislas" vs "Place Stanislas" → 'stanislas' commun → true ✓
+/// - "Brasserie Excelsior Nancy" vs "Brasserie Excelsior" → 'brasserie', 'excelsior' communs → true ✓
+/// - "Le Capu" vs "Le Capucin" → 'capu' inclus dans 'capucin' → true ✓
+bool _fuzzyTitleMatches(String geminiTitle, String? canonicalName) {
+  if (canonicalName == null || canonicalName.trim().isEmpty) return true;
+  final geminiTokens = _tokenizeForMatch(geminiTitle);
+  final canonTokens = _tokenizeForMatch(canonicalName);
+  if (geminiTokens.isEmpty || canonTokens.isEmpty) return true;
+
+  for (final t in geminiTokens) {
+    if (t.length < 4) continue;
+    if (canonTokens.contains(t)) return true;
+    // Inclusion partielle : "capu" match "capucin", "stan" match "stanislas".
+    for (final c in canonTokens) {
+      if (c.length < 4) continue;
+      if (c.contains(t) || t.contains(c)) return true;
+    }
+  }
+  return false;
+}
+
 class PlanningScreen extends ConsumerWidget {
   final String tripId;
   const PlanningScreen({super.key, required this.tripId});
@@ -459,6 +509,13 @@ class PlanningScreen extends ConsumerWidget {
                 debugPrint('[SUGGEST coPilot] ✗ Places wrong-city: "${s.title}" → ${info.address}');
                 return null;
               }
+              // Anti-hallucination : si Places matche fuzzy à un lieu dont le nom
+              // canonique n'a aucun mot en commun avec le titre Gemini, on rejette
+              // (probablement un nom inventé par Gemini qui pointe sur un autre lieu).
+              if (!_fuzzyTitleMatches(s.title, info.name)) {
+                debugPrint('[SUGGEST coPilot] ✗ Places name-mismatch: "${s.title}" → name="${info.name}"');
+                return null;
+              }
               return s;
             } catch (_) {
               // Tolère un flake réseau Places pour ne pas pénaliser l'utilisateur
@@ -559,6 +616,13 @@ class PlanningScreen extends ConsumerWidget {
             final inCity = info.address!.toLowerCase().contains(dayCityLower);
             if (!inCity) {
               return (suggestion: s, valid: false, reason: 'wrong-city ($dayCity attendu): ${info.address}');
+            }
+            // Anti-hallucination : token significatif du titre Gemini doit matcher
+            // le nom canonique Places. Sinon Gemini a halluciné un nom et Places
+            // l'a fuzzy-matché à un lieu sans rapport (ex: "Galerie Myrtille Beck"
+            // → matché à une bijouterie).
+            if (!_fuzzyTitleMatches(s.title, info.name)) {
+              return (suggestion: s, valid: false, reason: 'name-mismatch (canonique: "${info.name}")');
             }
             return (suggestion: s, valid: true, reason: 'ok');
           } catch (_) {

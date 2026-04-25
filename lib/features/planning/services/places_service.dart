@@ -137,6 +137,11 @@ class PlaceInfo {
   final int? priceLevel;
   final String? placeId;
   final String? address;
+  /// Nom canonique du lieu retourné par Google Places (ex: "Place Stanislas",
+  /// "Brasserie Excelsior"). Sert au filtre anti-hallucination : on rejette
+  /// une suggestion Gemini si aucun token significatif de son titre ne matche
+  /// ce name. Null si Places n'a pas trouvé le lieu ou cache pré-migration.
+  final String? name;
   final List<PlaceReview>? reviews;
   final OpeningHours? openingHours;
 
@@ -147,6 +152,7 @@ class PlaceInfo {
     this.priceLevel,
     this.placeId,
     this.address,
+    this.name,
     this.reviews,
     this.openingHours,
   });
@@ -224,6 +230,7 @@ class PlacesService {
         priceLevel: (first['price_level'] as num?)?.toInt(),
         placeId: first['place_id'] as String?,
         address: first['formatted_address'] as String?,
+        name: (first['name'] as String?)?.trim(),
       );
     } catch (e) {
       developer.log('Erreur Places : $e', name: 'places');
