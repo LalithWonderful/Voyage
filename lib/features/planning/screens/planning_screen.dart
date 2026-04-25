@@ -319,12 +319,11 @@ class PlanningScreen extends ConsumerWidget {
         }
         return;
       }
-      developer.log('=== PLACES-FIRST TEST ===', name: 'places_test');
-      developer.log(
-        'Trip: ${trip.title} → centre ${center.source} (${center.latitude.toStringAsFixed(4)}, ${center.longitude.toStringAsFixed(4)})',
-        name: 'places_test',
+      debugPrint('[places_test] === PLACES-FIRST TEST ===');
+      debugPrint(
+        '[places_test] Trip: ${trip.title} → centre ${center.source} (${center.latitude.toStringAsFixed(4)}, ${center.longitude.toStringAsFixed(4)})',
       );
-      developer.log('Intérêts: ${trip.interests}', name: 'places_test');
+      debugPrint('[places_test] Intérêts: ${trip.interests}');
 
       final nearbyService = ref.read(placesNearbyServiceProvider);
       var totalRaw = 0;
@@ -332,7 +331,7 @@ class PlanningScreen extends ConsumerWidget {
       for (final interest in trip.interests!) {
         final query = interestPlacesQueries[interest];
         if (query == null) {
-          developer.log('"$interest" pas mappé dans interestPlacesQueries — skip', name: 'places_test');
+          debugPrint('[places_test] "$interest" pas mappé dans interestPlacesQueries — skip');
           continue;
         }
         final calls = <Future<List<NearbyCandidate>>>[];
@@ -366,18 +365,14 @@ class PlanningScreen extends ConsumerWidget {
         }).toList();
         totalRaw += raw.length;
         totalAfterFilters += filtered.length;
-        developer.log(
-          '"$interest": ${raw.length} bruts → ${filtered.length} après filtres',
-          name: 'places_test',
-        );
+        debugPrint('[places_test] "$interest": ${raw.length} bruts → ${filtered.length} après filtres');
         for (final c in filtered.take(5)) {
-          developer.log(
-            '  • ${c.name} (${c.address ?? "?"}) ★${c.rating} (${c.userRatingCount ?? 0} avis) [${c.types.take(3).join(", ")}]',
-            name: 'places_test',
+          debugPrint(
+            '[places_test]   • ${c.name} (${c.address ?? "?"}) ★${c.rating} (${c.userRatingCount ?? 0} avis) [${c.types.take(3).join(", ")}]',
           );
         }
       }
-      developer.log('=== FIN TEST: $totalAfterFilters retenus / $totalRaw bruts ===', name: 'places_test');
+      debugPrint('[places_test] === FIN TEST: $totalAfterFilters retenus / $totalRaw bruts ===');
       if (context.mounted) {
         messenger.showSnackBar(SnackBar(
           content: Text('✓ $totalAfterFilters lieux retenus / $totalRaw bruts (voir console)'),
@@ -385,7 +380,7 @@ class PlanningScreen extends ConsumerWidget {
         ));
       }
     } catch (e, st) {
-      developer.log('Test Places-first EXCEPTION: $e\n$st', name: 'places_test');
+      debugPrint('[places_test] EXCEPTION: $e\n$st');
       if (context.mounted) {
         messenger.showSnackBar(
           SnackBar(content: Text('❌ Erreur test : $e')),
