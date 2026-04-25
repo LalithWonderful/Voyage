@@ -1296,6 +1296,10 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
   Future<void> _save() async {
     final rawSelections = _collectSelectedSuggestions();
     if (rawSelections.isEmpty) return;
+    developer.log(
+      '_save START — mode=${widget.mode.name}, selected=${rawSelections.length}',
+      name: 'planning',
+    );
     setState(() => _saving = true);
     try {
       // Avant l'insert, substituer titre + adresse Gemini par les valeurs
@@ -1366,6 +1370,10 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
       final trip = ref.read(tripByIdProvider(widget.tripId)).valueOrNull;
       final destination = trip?.destination ?? '';
 
+      developer.log(
+        'Construction transports : ${pairs.length} paire(s) consécutive(s) à traiter',
+        name: 'planning',
+      );
       // Lance les calculs Routes en parallèle pour limiter la latence sur les
       // gros plannings. Chaque slot fait Places lookup (cache) + Routes API call (cache).
       final transportResults = await Future.wait(pairs.map((pair) async {
@@ -1381,6 +1389,16 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
           routesOptions = await routesService.computeOptions(
             fromPlaceId: infoA.placeId!,
             toPlaceId: infoB.placeId!,
+          );
+          developer.log(
+            'Routes "${a.title}" → "${b.title}" : '
+            '${routesOptions == null ? "ÉCHEC (null)" : "${routesOptions.length} options [${routesOptions.map((o) => o.mode).join(", ")}]"}',
+            name: 'planning',
+          );
+        } else {
+          developer.log(
+            'Routes "${a.title}" → "${b.title}" : SKIP (placeId manquant — A=${infoA.placeId == null ? "null" : "ok"}, B=${infoB.placeId == null ? "null" : "ok"})',
+            name: 'planning',
           );
         }
 
