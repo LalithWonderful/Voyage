@@ -53,12 +53,33 @@ class TravelerPlacesProfile {
   /// Ex: Senior 300m max (peu de marche), En famille 1000m max.
   final int? maxConsecutiveDistanceMeters;
 
-  /// Rayon de recherche autour du centre du jour pour le `searchNearby` Places.
-  /// Calibré "30-45 min de trajet via le mode dominant du profil" :
-  /// Senior/Chill walk → 2 km, En famille walk+transit → 4 km, Couple
-  /// walk+taxi → 5 km, Voyage pro taxi → 8 km, Grand luxe taxi → 12 km,
-  /// Road-trip voiture → 30 km. Default (sans profil) : voir `defaultSearchRadiusMeters`.
+  /// Rayon de recherche **principal** autour du centre du jour pour le
+  /// `searchNearby` Places. Correspond au mode "marche" du profil — c'est la
+  /// zone à privilégier (lieux atteignables sans transport).
+  /// Calibré : Senior/Chill 600m, Voyage pro/Couple 800m, En famille 1000m,
+  /// Fun 1200m, Backpack/Meilleur prix 1500m, Road-trip 2000m, Grand luxe 800m
+  /// (taxi facile). Default (sans profil) : voir `defaultSearchRadiusMeters`.
   final int? searchRadiusMeters;
+
+  /// Rayon de recherche **étendu** activé en cascade quand la pool walking est
+  /// trop maigre (< `minPoolForCascade`). Représente la zone accessible en
+  /// transport public ou taxi/voiture selon le profil. Si null, pas de cascade.
+  ///
+  /// Cf. `project_open_improvements.md` "Cascade de modes de transport".
+  final int? transitRadiusMeters;
+
+  /// Seuil minimum de candidats récoltés en walking en-dessous duquel on étend
+  /// la recherche à `transitRadiusMeters`. Garantit qu'un Senior dans une zone
+  /// peu dense ait quand même des suggestions (via transport public). Default
+  /// 20 quand `transitRadiusMeters` est défini.
+  final int? minPoolForCascade;
+
+  /// Volume maximum d'activités à proposer par jour pour ce profil. Sert à
+  /// adapter le rythme de la journée — un Senior doit avoir 2-3 activités
+  /// (rythme tranquille), Chill 1-2, Famille/Voyage pro 3, profils standards
+  /// 4-5. Pour `category=all` les repas (déjeuner+dîner) viennent en SUS de
+  /// ce compte (insertion déterministe).
+  final int? maxActivitiesPerDay;
 
   /// Note libre pour règles métier sans représentation directe (ex: "éviter
   /// fortes chaleurs", "privilégier indoor", "horaires diurnes uniquement").
@@ -76,6 +97,9 @@ class TravelerPlacesProfile {
     this.maxActivityMinutes,
     this.maxConsecutiveDistanceMeters,
     this.searchRadiusMeters,
+    this.transitRadiusMeters,
+    this.minPoolForCascade,
+    this.maxActivitiesPerDay,
     this.rule,
   });
 }
@@ -93,7 +117,9 @@ const travelerPlacesProfiles = <String, TravelerPlacesProfile>{
     additionalTextQueries: ['viewpoint', 'scenic stop', 'roadside diner'],
     minRating: 4.1,
     maxActivityMinutes: 120,
-    searchRadiusMeters: 30000, // 45 min voiture
+    searchRadiusMeters: 2000, // walk autour de l'étape (centre-ville)
+    transitRadiusMeters: 10000, // voiture, étapes ≤15 min de route
+    minPoolForCascade: 20,
     rule: 'détours ≤15-25 min, étapes courtes 30 min-2h le long du trajet',
   ),
   'Grand luxe': TravelerPlacesProfile(
@@ -102,7 +128,9 @@ const travelerPlacesProfiles = <String, TravelerPlacesProfile>{
     minRating: 4.5,
     minPriceLevel: 3,
     minUserRatingCount: 100,
-    searchRadiusMeters: 12000, // 45 min taxi
+    searchRadiusMeters: 800, // walk
+    transitRadiusMeters: 3000, // taxi facile
+    minPoolForCascade: 20,
     rule: 'éviter low-cost et lieux trop touristiques',
   ),
   'Meilleur prix': TravelerPlacesProfile(
@@ -110,7 +138,9 @@ const travelerPlacesProfiles = <String, TravelerPlacesProfile>{
     additionalTextQueries: ['cheap eats', 'free activities', 'budget restaurant', 'pique-nique'],
     minRating: 4.0,
     maxPriceLevel: 1,
-    searchRadiusMeters: 4000, // 30 min walk + transit
+    searchRadiusMeters: 1500, // walk volontiers
+    transitRadiusMeters: 4000, // transport public
+    minPoolForCascade: 20,
     rule: 'distance courte pour réduire transports',
   ),
   'Backpack': TravelerPlacesProfile(
@@ -118,7 +148,9 @@ const travelerPlacesProfiles = <String, TravelerPlacesProfile>{
     additionalTextQueries: ['hostel', 'street food', 'free walking tour', 'local bar'],
     minRating: 4.0,
     maxPriceLevel: 2,
-    searchRadiusMeters: 5000, // 30-45 min walk + transit
+    searchRadiusMeters: 1500, // marche volontiers
+    transitRadiusMeters: 4000, // transport public
+    minPoolForCascade: 20,
     rule: 'planning souple, social, proche transports publics',
   ),
   'En famille': TravelerPlacesProfile(
@@ -127,7 +159,10 @@ const travelerPlacesProfiles = <String, TravelerPlacesProfile>{
     excludedInterests: ['Nightlife'],
     maxActivityMinutes: 120,
     maxConsecutiveDistanceMeters: 1000,
-    searchRadiusMeters: 4000, // 30 min walk + taxi/transit
+    searchRadiusMeters: 1000, // walk avec enfants
+    transitRadiusMeters: 2500, // transport public + taxi
+    minPoolForCascade: 20,
+    maxActivitiesPerDay: 3,
     rule: 'éviter trop de marche et horaires tardifs, prévoir pauses, kids-friendly',
   ),
   'Voyage pro': TravelerPlacesProfile(
@@ -135,7 +170,9 @@ const travelerPlacesProfiles = <String, TravelerPlacesProfile>{
     additionalTextQueries: ['coworking', 'business lunch', 'hotel bar'],
     minRating: 4.2,
     maxConsecutiveDistanceMeters: 800,
-    searchRadiusMeters: 8000, // 30 min taxi
+    searchRadiusMeters: 800, // walk autour de l'hôtel/centre business
+    transitRadiusMeters: 2500, // taxi/VTC
+    minPoolForCascade: 15,
     rule: 'autour hôtel/gare, ouvert tôt/tard, créneaux courts entre travail',
   ),
   // ─── Nouveaux types (validés 2026-04-25) ────────────────────────────────
@@ -143,7 +180,9 @@ const travelerPlacesProfiles = <String, TravelerPlacesProfile>{
     additionalTypes: ['spa'],
     additionalTextQueries: ['romantic restaurant', 'sunset spot', 'rooftop bar', 'boutique hotel'],
     minRating: 4.3,
-    searchRadiusMeters: 5000, // 30 min walk + taxi
+    searchRadiusMeters: 800, // walk romantique
+    transitRadiusMeters: 2500, // taxi
+    minPoolForCascade: 20,
     rule: 'coucher de soleil, dîner sympa, balade, expériences intimes',
   ),
   'Chill': TravelerPlacesProfile(
@@ -153,14 +192,19 @@ const travelerPlacesProfiles = <String, TravelerPlacesProfile>{
     excludedInterests: ['Nightlife', 'Sports'],
     maxActivityMinutes: 90,
     maxConsecutiveDistanceMeters: 800,
-    searchRadiusMeters: 2000, // 30 min walk
+    searchRadiusMeters: 600, // walk court
+    transitRadiusMeters: 2000, // transport public si nécessaire
+    minPoolForCascade: 15,
+    maxActivitiesPerDay: 2,
     rule: '1-2 activités max par jour, beaucoup de temps libre, faible distance',
   ),
   'Fun': TravelerPlacesProfile(
     additionalTypes: ['night_club', 'amusement_park', 'beach'],
     additionalTextQueries: ['photo spot', 'food hall', 'night market', 'lively bar'],
     minRating: 4.0,
-    searchRadiusMeters: 6000, // 30-45 min walk + transit
+    searchRadiusMeters: 1200, // walk dynamique
+    transitRadiusMeters: 3000, // transport public
+    minPoolForCascade: 20,
     rule: 'activités fin d\'après-midi/soirée, lieux animés, spots photo',
   ),
   'Senior': TravelerPlacesProfile(
@@ -170,7 +214,10 @@ const travelerPlacesProfiles = <String, TravelerPlacesProfile>{
     excludedInterests: ['Nightlife', 'Sports'],
     maxActivityMinutes: 90,
     maxConsecutiveDistanceMeters: 300,
-    searchRadiusMeters: 2000, // 30 min walk
+    searchRadiusMeters: 600, // walk court (validé Lalith 26/04)
+    transitRadiusMeters: 2000, // transport public/taxi quand pool walk insuffisante
+    minPoolForCascade: 20,
+    maxActivitiesPerDay: 3,
     rule: 'peu de marche, pauses fréquentes, activités assises/indoor, éviter fortes chaleurs',
   ),
 };

@@ -120,12 +120,18 @@ class PlacesNearbyService {
 
   /// Recherche par types Places (`includedTypes`). Restreinte à un cercle
   /// (lat/lng + radius en mètres).
+  ///
+  /// `languageCode` : code BCP-47 (ex: "fr", "en", "fr-FR"). Critique pour les
+  /// destinations non-anglophones — sans ça, Places retourne les noms en
+  /// langue locale (arabe au Maroc, thaï à Bangkok). Default null = langue
+  /// par défaut Places (généralement anglais).
   Future<List<NearbyCandidate>> searchNearby({
     required double latitude,
     required double longitude,
     required List<String> includedTypes,
     int radius = 1500,
     int maxResults = 20,
+    String? languageCode,
   }) async {
     final key = AiConstants.googleMapsApiKey;
     if (key.isEmpty || key == 'COLLE_TA_CLE_MAPS_ICI') return [];
@@ -137,6 +143,7 @@ class PlacesNearbyService {
       lng: longitude,
       radius: radius,
       maxResults: maxResults,
+      languageCode: languageCode,
     );
     final cached = await _cache?.get('places_search', cacheKey);
     if (cached != null) {
@@ -160,6 +167,7 @@ class PlacesNearbyService {
             'radius': radius,
           },
         },
+        if (languageCode != null && languageCode.isNotEmpty) 'languageCode': languageCode,
       });
       final resp = await http.post(
         uri,
@@ -211,6 +219,7 @@ class PlacesNearbyService {
     required double longitude,
     int radius = 5000,
     int maxResults = 20,
+    String? languageCode,
   }) async {
     final key = AiConstants.googleMapsApiKey;
     if (key.isEmpty || key == 'COLLE_TA_CLE_MAPS_ICI') return [];
@@ -223,6 +232,7 @@ class PlacesNearbyService {
       lng: longitude,
       radius: radius,
       maxResults: maxResults,
+      languageCode: languageCode,
     );
     final cached = await _cache?.get('places_search', cacheKey);
     if (cached != null) {
@@ -249,6 +259,7 @@ class PlacesNearbyService {
             'radius': radius,
           },
         },
+        if (languageCode != null && languageCode.isNotEmpty) 'languageCode': languageCode,
       });
       final resp = await http.post(
         uri,
@@ -291,12 +302,16 @@ class PlacesNearbyService {
   // Lat/lng arrondis à 3 décimales (~110m) pour favoriser les hits cache sur
   // des centres très proches. Au-delà, des centres distants donneront des
   // résultats sensiblement différents donc autant les considérer distincts.
+  // `languageCode` inclus dans la clé : un même centre/types en arabe vs
+  // français doit donner 2 entrées distinctes en cache, sinon on servirait
+  // de l'arabe à un voyageur francophone (régression bug Maroc 26/04).
   String _cacheKeyForNearby({
     required List<String> types,
     required double lat,
     required double lng,
     required int radius,
     required int maxResults,
+    String? languageCode,
   }) {
     final sortedTypes = [...types]..sort();
     return GeminiCacheService.hashKey([
@@ -306,6 +321,7 @@ class PlacesNearbyService {
       (k: 'lng', v: lng.toStringAsFixed(3)),
       (k: 'radius', v: radius),
       (k: 'max', v: maxResults),
+      (k: 'lang', v: languageCode ?? ''),
     ]);
   }
 
@@ -315,6 +331,7 @@ class PlacesNearbyService {
     required double lng,
     required int radius,
     required int maxResults,
+    String? languageCode,
   }) {
     return GeminiCacheService.hashKey([
       (k: 'mode', v: 'text'),
@@ -323,6 +340,7 @@ class PlacesNearbyService {
       (k: 'lng', v: lng.toStringAsFixed(3)),
       (k: 'radius', v: radius),
       (k: 'max', v: maxResults),
+      (k: 'lang', v: languageCode ?? ''),
     ]);
   }
 }

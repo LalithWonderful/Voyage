@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'dart:developer' as developer;
+import 'dart:math' as math;
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:voyage/core/services/location_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:voyage/core/services/location_service.dart';
 import 'package:voyage/core/services/notification_service.dart';
 import 'package:voyage/core/providers/currency_provider.dart';
 import 'package:voyage/core/services/currency_service.dart';
@@ -28,111 +29,6 @@ import 'package:voyage/features/wallet/providers/wallet_provider.dart';
 import 'package:voyage/features/wallet/widgets/document_form_sheet.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
-
-/// Stop-words FR/EN courants à exclure des comparaisons de titres pour le filtre
-/// anti-hallucination. Ces mots n'apportent aucun signal d'identité du lieu.
-const _titleStopWords = <String>{
-  'le', 'la', 'les', 'un', 'une', 'des', 'du', 'de', 'au', 'aux',
-  'a', 'à', 'et', 'en', 'l', 'd', 's', 'the', 'of', 'and', 'in', 'at',
-};
-
-/// Tokenize un titre pour la comparaison fuzzy : lowercase, strip punctuation,
-/// retire les stop-words et les tokens trop courts (<3 lettres). Conserve les
-/// accents (la comparaison se fait token-à-token, exact match).
-Set<String> _tokenizeForMatch(String s) {
-  return s
-      .toLowerCase()
-      .replaceAll(RegExp(r'[^a-zà-ÿ0-9\s]'), ' ')
-      .split(RegExp(r'\s+'))
-      .where((t) => t.length >= 3 && !_titleStopWords.contains(t))
-      .toSet();
-}
-
-/// Vrai si le lieu (via son nom canonique Places) est manifestement
-/// inapproprié pour le tag Gemini de la suggestion. Filtre les cas où
-/// Gemini propose un lieu réel mais hors-contexte — ex: "Club 87 Nancy"
-/// (club libertin) suggéré pour un déjeuner du dimanche midi.
-///
-/// Heuristique par mots-clés sur le name canonique. Pour une détection
-/// vraiment fiable il faudrait parser les `types` Places (`night_club`,
-/// `adult_entertainment`, etc.), ce qui demande une migration de la table
-/// places_cache. Cette version regex couvre déjà les cas les plus crus.
-bool _placesInappropriateForTag(String? canonicalName, String tag) {
-  if (canonicalName == null || canonicalName.isEmpty) return false;
-  final n = canonicalName.toLowerCase();
-
-  // Lieux pour adultes : rejet inconditionnel — le voyageur ne les demande
-  // jamais implicitement, et Gemini les confond souvent avec des restos/bars
-  // par hasard de nom.
-  if (RegExp(
-    r'\b(sex[\s-]?shop|libertin(?:e|s)?|swing(?:ers?|ing)|erotic|nudist|adult\s+only)\b',
-  ).hasMatch(n)) {
-    return true;
-  }
-
-  // Tags repas : pas de night-club/cabaret/disco (Gemini propose souvent un
-  // club du soir pour un déjeuner s'il connaît mal la ville).
-  if (tag == 'Repas' || tag == 'Gastronomie') {
-    if (RegExp(r'\b(night[\s-]?club|nightclub|cabaret|discoth[èe]que|disco)\b').hasMatch(n)) {
-      return true;
-    }
-    // "Club X" en tête de nom (vs "Restaurant Le Club ..."). Évite d'attraper
-    // les restos qui ont juste le mot "club" dans leur libellé.
-    if (RegExp(r'^club\s').hasMatch(n)) return true;
-  }
-
-  return false;
-}
-
-/// Vrai si le titre Gemini matche correctement le nom canonique Places.
-/// Sinon c'est probablement une hallucination Gemini matchée fuzzy à un
-/// lieu sans rapport.
-///
-/// Règle : ratio (tokens du titre Gemini présents dans le name canonique) /
-/// (tokens significatifs du titre Gemini) ≥ 60%. Évite les faux positifs où
-/// un seul mot générique ("café", "musée", "place", "comptoir") suffit à
-/// matcher un lieu sans rapport.
-///
-/// Tolérant : si le name canonique n'est pas dispo (cache pré-migration ou
-/// Places n'a pas trouvé le lieu), on retourne `true` pour ne pas bloquer
-/// (back-compat avec les caches existants).
-///
-/// Exemples :
-/// - "Le Petit Comptoir" (2 tokens) vs "Comptoir des Saveurs" (3 tokens, communs=1)
-///   → 1/2 = 50% < 60% → rejet ✓
-/// - "Le Petit Comptoir" vs "Petit Comptoir" → 2/2 = 100% → accept ✓
-/// - "Galerie Myrtille Beck" (3) vs "Bijouterie Lefranc" (2) → 0/3 = 0% → rejet ✓
-/// - "Place Stanislas" (2) vs "Place Stanislas" → 2/2 = 100% → accept ✓
-/// - "Musée des Beaux-Arts" (3) vs "Musée d'Histoire Naturelle" (3, communs=1)
-///   → 1/3 = 33% → rejet ✓
-/// - "Brasserie Excelsior" (2) vs "Brasserie Excelsior Nancy" → 2/2 = 100% → accept ✓
-/// - "Restaurant La Toque Blanche" (3) vs "Toque Blanche Bistrot" (3, communs=2)
-///   → 2/3 = 66% > 60% → accept (cas légitime : variation de nom) ✓
-bool _fuzzyTitleMatches(String geminiTitle, String? canonicalName) {
-  if (canonicalName == null || canonicalName.trim().isEmpty) return true;
-  final geminiTokens = _tokenizeForMatch(geminiTitle);
-  final canonTokens = _tokenizeForMatch(canonicalName);
-  if (geminiTokens.isEmpty || canonTokens.isEmpty) return true;
-
-  var commonCount = 0;
-  for (final t in geminiTokens) {
-    if (canonTokens.contains(t)) {
-      commonCount++;
-      continue;
-    }
-    if (t.length >= 4) {
-      // Inclusion partielle pour gérer pluriels / variantes : "galeries" ↔ "galerie",
-      // "capu" ↔ "capucin". Réservée aux tokens longs.
-      for (final c in canonTokens) {
-        if (c.length >= 4 && (c.contains(t) || t.contains(c))) {
-          commonCount++;
-          break;
-        }
-      }
-    }
-  }
-  return commonCount / geminiTokens.length >= 0.6;
-}
 
 class PlanningScreen extends ConsumerWidget {
   final String tripId;
@@ -221,11 +117,11 @@ class PlanningScreen extends ConsumerWidget {
   /// laisser l'utilisateur cibler précisément ce qu'il cherche plutôt qu'un mega-prompt
   /// qui hallucine sur 77 activités.
   Future<void> _openSuggestionMenu(BuildContext context, WidgetRef ref, Trip trip) async {
-    // Le menu retourne une SuggestionCategory ou null (annulé). On le présente
-    // AVANT de demander le mode pour cohérence avec l'UX (le voyageur cible
-    // d'abord ce qu'il veut, ensuite on lui demande comment planifier si pas
-    // déjà choisi).
-    final result = await showModalBottomSheet<SuggestionCategory>(
+    // Le menu retourne soit une SuggestionCategory (génération normale), soit
+    // la chaîne sentinel 'test' (test debug Places-first), soit null (annulé).
+    // Le test est présenté AVANT le choix de mode car il tourne sur n'importe
+    // quel voyage, indépendamment de planningMode.
+    final result = await showModalBottomSheet<Object>(
       context: context,
       backgroundColor: AppColors.background,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
@@ -259,15 +155,295 @@ class PlanningScreen extends ConsumerWidget {
               subtitle: const Text('Culture, nature, shopping, détente — hors repas'),
               onTap: () => Navigator.pop(ctx, SuggestionCategory.activities),
             ),
+            const Divider(height: 1),
+            // ⚠️ DEBUG — diagnostic Places-first sans toucher à l'état du voyage.
+            // Logue tout dans la console (`places_test`) et appelle Gemini en
+            // mode Auto sur le plus petit groupe (cache → re-runs gratuits).
+            ListTile(
+              leading: const Text('🧪', style: TextStyle(fontSize: 24)),
+              title: const Text('Test Places-first (debug)', style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: const Text('Gather + groupes + Gemini Auto sur 1 groupe — voir console'),
+              onTap: () => Navigator.pop(ctx, 'test'),
+            ),
             const SizedBox(height: 12),
           ],
         ),
       ),
     );
     if (result == null || !context.mounted) return;
+    if (result == 'test') {
+      await _runPlacesNearbyTest(context, ref, trip);
+      return;
+    }
     final mode = await _askPlanningModeIfNeeded(context, ref, trip);
     if (mode == null || !context.mounted) return;
-    await _generateSuggestions(context, ref, trip, category: result, mode: mode);
+    await _generateSuggestions(context, ref, trip, category: result as SuggestionCategory, mode: mode);
+  }
+
+  /// ⚠️ DEBUG — diagnostic Places-first sans modifier l'état du voyage.
+  /// Logue dans la console (`places_test`) :
+  /// - le détail de la pool par jour (intérêts × candidats)
+  /// - les groupes par centre géographique avec tailles de prompts
+  /// - pour le plus petit groupe : appel Gemini en mode Auto + parsing
+  /// - les distances haversine entre activités successives suggérées
+  ///
+  /// Cache via `gemini_cache` action `places_first_auto` → re-runs gratuits.
+  /// N'utilise pas `runAutoPlacesFirst` directement parce qu'on veut le détail
+  /// par groupe + le prompt brut + les distances post-parsing.
+  Future<void> _runPlacesNearbyTest(BuildContext context, WidgetRef ref, Trip trip) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final languageCode = Localizations.maybeLocaleOf(context)?.languageCode ?? 'fr';
+    if (trip.interests == null || trip.interests!.isEmpty) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('⚠️ Aucun intérêt sur ce voyage. Édite-le pour en ajouter.')),
+      );
+      return;
+    }
+
+    messenger.showSnackBar(
+      const SnackBar(content: Text('🧪 Test Places-first lancé — voir la console (places_test)')),
+    );
+
+    try {
+      final hotels = await ref.read(tripHotelsProvider(tripId).future);
+      final geocoder = ref.read(geocodingServiceProvider);
+      final nearbyService = ref.read(placesNearbyServiceProvider);
+
+      debugPrint('[places_test] === PLACES-FIRST TEST (gather all days) ===');
+      final travelerProfile = trip.travelerType != null
+          ? travelerPlacesProfiles[trip.travelerType]
+          : null;
+      final searchRadius = travelerProfile?.searchRadiusMeters ?? defaultSearchRadiusMeters;
+      debugPrint(
+        '[places_test] Trip: ${trip.title} | type=${trip.travelerType ?? "default"} '
+        '(radius=${searchRadius}m) | intérêts=${trip.interests}',
+      );
+
+      final stopwatch = Stopwatch()..start();
+      final pool = await gatherCandidatesForTrip(
+        trip: trip,
+        hotels: hotels,
+        geocoder: geocoder,
+        nearbyService: nearbyService,
+        languageCode: languageCode,
+      );
+      stopwatch.stop();
+      debugPrint(
+        '[places_test] Récolte ${pool.length} jours en ${stopwatch.elapsedMilliseconds}ms',
+      );
+
+      var totalAfterFilters = 0;
+      for (var i = 0; i < pool.length; i++) {
+        final day = pool[i];
+        final dayIso = day.day.toIso8601String().split('T').first;
+        final byInterestSummary = day.byInterest.entries
+            .map((e) => '${e.key}=${e.value.length}')
+            .join(', ');
+        debugPrint(
+          '[places_test] Jour $dayIso (${day.center.source}, '
+          '${day.center.latitude.toStringAsFixed(3)},${day.center.longitude.toStringAsFixed(3)}) : '
+          '${day.uniqueCandidates} uniques [$byInterestSummary]',
+        );
+        totalAfterFilters += day.totalCandidates;
+        // Top 3 par intérêt seulement pour le 1er jour de chaque groupe pour
+        // ne pas noyer la console (la pool est la même pour tous les jours
+        // d'un même centre).
+        if (i == 0) {
+          for (final entry in day.byInterest.entries) {
+            for (final c in entry.value.take(3)) {
+              debugPrint(
+                '[places_test]   [${entry.key}] ${c.name} (${c.address ?? "?"}) '
+                '★${c.rating} (${c.userRatingCount ?? 0} avis)',
+              );
+            }
+          }
+        }
+      }
+
+      // ─── Groupes par centre géographique ──────────────────────────────
+      final groups = groupDaysByCenter(pool);
+      debugPrint(
+        '[places_test] === ${groups.length} GROUPE(S) PAR CENTRE ===',
+      );
+      for (var g = 0; g < groups.length; g++) {
+        final group = groups[g];
+        final dayList = group.days.map((d) => d.toIso8601String().split('T').first).join(', ');
+        debugPrint(
+          '[places_test] Groupe ${g + 1}/${groups.length} : ${group.center.source} '
+          '(${group.center.latitude.toStringAsFixed(3)},${group.center.longitude.toStringAsFixed(3)}) | '
+          'jours=$dayList | pool=${group.poolSize} lieux',
+        );
+      }
+
+      // ─── K-means clustering par quartier ──────────────────────────────
+      // Le test simule le mode Auto category=all : on retire les types repas
+      // de la pool envoyée à Gemini (le code insère les repas après par
+      // scoring déterministe, cf. _insertDeterministicMeals — pas testé ici,
+      // c'est ce que voit l'utilisateur via le flow normal "Suggérer").
+      final clustersRaw = partitionByQuartier(groups);
+      final clusters = clustersRaw.map((c) {
+        final filteredPool = Map.fromEntries(
+          c.pool.entries.where((e) {
+            final types = e.value.candidate.types;
+            if (types.isEmpty) return true;
+            const mealTypes = {
+              'restaurant', 'cafe', 'bakery', 'bar', 'pub', 'food_court',
+              'meal_delivery', 'meal_takeaway', 'wine_bar', 'sports_bar',
+              'night_club', 'fine_dining_restaurant', 'fast_food_restaurant',
+              'french_restaurant', 'italian_restaurant', 'japanese_restaurant',
+              'chinese_restaurant', 'thai_restaurant', 'mexican_restaurant',
+              'mediterranean_restaurant', 'pizza_restaurant', 'sushi_restaurant',
+              'vegan_restaurant', 'vegetarian_restaurant', 'seafood_restaurant',
+              'steak_house', 'sandwich_shop', 'breakfast_restaurant',
+              'brunch_restaurant', 'coffee_shop', 'tea_house', 'ice_cream_shop',
+            };
+            return !mealTypes.contains(types.first);
+          }),
+        );
+        return PlacesPromptInput(center: c.center, days: c.days, pool: filteredPool);
+      }).toList();
+
+      debugPrint(
+        '[places_test] === ${clusters.length} CLUSTER(S) APRÈS K-MEANS (repas exclus pour Gemini, insertion déterministe via flow normal) ===',
+      );
+      for (var c = 0; c < clusters.length; c++) {
+        final cluster = clusters[c];
+        final dayList = cluster.days.map((d) => d.toIso8601String().split('T').first).join(', ');
+        if (cluster.pool.isEmpty) {
+          debugPrint(
+            '[places_test] Cluster ${c + 1}/${clusters.length} : pool vide après filtrage repas, skip',
+          );
+          continue;
+        }
+        final lats = cluster.pool.values.map((e) => e.candidate.latitude).toList();
+        final lngs = cluster.pool.values.map((e) => e.candidate.longitude).toList();
+        final centroidLat = lats.reduce((a, b) => a + b) / lats.length;
+        final centroidLng = lngs.reduce((a, b) => a + b) / lngs.length;
+        var maxDistM = 0.0;
+        for (var i = 0; i < lats.length; i++) {
+          final dLat = (lats[i] - centroidLat) * 111000;
+          final dLng = (lngs[i] - centroidLng) * 73000;
+          final d = math.sqrt(dLat * dLat + dLng * dLng);
+          if (d > maxDistM) maxDistM = d;
+        }
+        final autoPrompt = buildAutoPrompt(
+          input: cluster, trip: trip, travelerProfile: travelerProfile,
+          category: SuggestionCategory.all,
+        );
+        debugPrint(
+          '[places_test] Cluster ${c + 1}/${clusters.length} : centre ${cluster.center.source} | '
+          'centroïde=(${centroidLat.toStringAsFixed(4)},${centroidLng.toStringAsFixed(4)}) | '
+          'rayon=${maxDistM.round()}m | pool=${cluster.poolSize} lieux non-repas | '
+          'jours=$dayList | prompt Auto=${autoPrompt.length} chars',
+        );
+      }
+
+      // ─── Simulation du flow Auto complet (Round 2A déterministe) ─────
+      // Reproduit ce que fait `runAutoPlacesFirst` en mode `category=all` :
+      // 1. Sélecteur déterministe (visites)
+      // 2. Insertion déterministe des repas (déjeuner 12:30 + dîner 19:30)
+      // Affiche le résultat final par jour avec distances inter-activités.
+      // 0 Gemini.
+      if (clusters.isEmpty) {
+        debugPrint('[places_test] Aucun cluster → fin du test.');
+      } else {
+        final stopwatchSelect = Stopwatch()..start();
+        final visits = selectVisitsDeterministic(
+          clusters: clusters,
+          trip: trip,
+          travelerProfile: travelerProfile,
+        );
+        stopwatchSelect.stop();
+        debugPrint(
+          '[places_test] === SÉLECTEUR DÉTERMINISTE : ${visits.length} visites en ${stopwatchSelect.elapsedMilliseconds}ms ===',
+        );
+
+        // Insertion déterministe des repas
+        final stopwatchMeals = Stopwatch()..start();
+        final nearbyService = ref.read(placesNearbyServiceProvider);
+        final meals = await insertDeterministicMeals(
+          activities: visits,
+          pool: pool,
+          nearbyService: nearbyService,
+          travelerProfile: travelerProfile,
+          tripInterests: trip.interests ?? const <String>[],
+          languageCode: languageCode,
+        );
+        stopwatchMeals.stop();
+        debugPrint(
+          '[places_test] === INSERTION REPAS : ${meals.length} repas en ${stopwatchMeals.elapsedMilliseconds}ms ===',
+        );
+
+        final all = [...visits, ...meals];
+
+        // Affichage par jour, trié chronologiquement avec distances
+        debugPrint('[places_test] === PLANNING COMPLET PAR JOUR ===');
+        final byDay = <String, List<ActivitySuggestion>>{};
+        for (final s in all) {
+          final key = s.dayDate.toIso8601String().split('T').first;
+          byDay.putIfAbsent(key, () => []).add(s);
+        }
+        // On itère sur TOUS les jours du voyage (pas seulement ceux avec activités)
+        for (final dayCandidate in pool) {
+          final key = dayCandidate.day.toIso8601String().split('T').first;
+          final list = (byDay[key] ?? const <ActivitySuggestion>[])
+              .toList()
+            ..sort((a, b) => a.startTime.compareTo(b.startTime));
+          if (list.isEmpty) {
+            debugPrint(
+              '[places_test] $key (${dayCandidate.center.source}) : 🚨 AUCUNE ACTIVITÉ',
+            );
+            continue;
+          }
+          final visitCount = list.where((s) => s.tag != 'Repas').length;
+          final mealCount = list.where((s) => s.tag == 'Repas').length;
+          debugPrint(
+            '[places_test] $key (${dayCandidate.center.source}) : ${list.length} entrées '
+            '($visitCount visites + $mealCount repas)',
+          );
+          for (var i = 0; i < list.length; i++) {
+            final s = list[i];
+            final prefix = s.tag == 'Repas' ? '🍽️' : '📍';
+            debugPrint(
+              '[places_test]   $prefix ${s.startTime} · ${s.title} [${s.tag}] '
+              '${s.priceEstimate ?? "?"} (${s.durationMinutes ?? "?"} min) — ${s.matchReason ?? ""}',
+            );
+            if (i + 1 < list.length) {
+              final next = list[i + 1];
+              if (s.latitude != null && s.longitude != null &&
+                  next.latitude != null && next.longitude != null) {
+                final km = haversineKm(s.latitude!, s.longitude!, next.latitude!, next.longitude!);
+                final m = (km * 1000).round();
+                final flag = travelerProfile?.maxConsecutiveDistanceMeters != null &&
+                        m > travelerProfile!.maxConsecutiveDistanceMeters!
+                    ? ' ⚠️ DÉPASSE seuil ${travelerProfile.maxConsecutiveDistanceMeters}m'
+                    : '';
+                debugPrint('[places_test]      ↓ ${m}m vers le suivant$flag');
+              }
+            }
+          }
+        }
+        debugPrint(
+          '[places_test] === RÉSUMÉ : ${visits.length} visites + ${meals.length} repas = ${all.length} entrées sur ${pool.length} jours ===',
+        );
+      }
+      final totalUnique = pool.fold<int>(0, (sum, d) => sum + d.uniqueCandidates);
+      if (context.mounted) {
+        messenger.showSnackBar(SnackBar(
+          content: Text(
+            '✓ ${pool.length} jours · ${groups.length} groupes · $totalUnique uniques · $totalAfterFilters cumulés (voir console)',
+          ),
+          duration: const Duration(seconds: 5),
+        ));
+      }
+    } catch (e, st) {
+      debugPrint('[places_test] EXCEPTION: $e\n$st');
+      if (context.mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('❌ Erreur test : $e')),
+        );
+      }
+    }
   }
 
   Future<void> _generateSuggestions(
@@ -279,6 +455,10 @@ class PlanningScreen extends ConsumerWidget {
   }) async {
     final navigator = Navigator.of(context, rootNavigator: true);
     final messenger = ScaffoldMessenger.of(context);
+    // Langue dans laquelle Places doit retourner les noms — sinon "L'Excelsior"
+    // devient الإكسلسيور au Maroc, ร้านอาหาร à Bangkok, etc. Capturée AVANT les
+    // await pour ne pas dépendre d'un context potentiellement stale plus tard.
+    final languageCode = Localizations.maybeLocaleOf(context)?.languageCode ?? 'fr';
 
     showDialog(
       context: context,
@@ -297,7 +477,6 @@ class PlanningScreen extends ConsumerWidget {
 
     try {
       final profile = await ref.read(userProfileProvider.future);
-      final interests = await ref.read(userInterestsProvider.future);
       var existing = await ref.read(planningTimelineProvider(tripId).future);
       final hotels = await ref.read(tripHotelsProvider(tripId).future);
 
@@ -332,46 +511,8 @@ class PlanningScreen extends ConsumerWidget {
         }
       }
 
-      // Préférences : trip-level si définies, sinon fallback profil utilisateur
+      // Préférences : trip-level si défini, sinon fallback profil utilisateur
       final effectiveTravelerType = trip.travelerType ?? profile?['traveler_type'] as String?;
-      final effectiveInterests = (trip.interests != null && trip.interests!.isNotEmpty) ? trip.interests! : interests;
-
-      // Hôtel d'ancrage GPS : celui qui couvre aujourd'hui (ou le premier si aucun ne colle)
-      final anchorHotel = hotelForDay(hotels, DateTime.now());
-
-      // Position GPS + distance vers la destination — pertinent UNIQUEMENT si le voyage
-      // est en cours (today ∈ [start_date, end_date]). Sur un voyage dans 10 jours, la
-      // position du voyageur (chez lui) n'a pas de sens, on skip la demande de permission.
-      final nowTs = DateTime.now();
-      final todayDate = DateTime(nowTs.year, nowTs.month, nowTs.day);
-      final tripStart = DateTime(trip.startDate.year, trip.startDate.month, trip.startDate.day);
-      final tripEnd = DateTime(trip.endDate.year, trip.endDate.month, trip.endDate.day);
-      final isTripInProgress = !tripStart.isAfter(todayDate) && !tripEnd.isBefore(todayDate);
-
-      UserLocation? userLocation;
-      int? userToDestinationMin;
-      if (isTripInProgress) {
-        userLocation = await LocationService.instance.getCurrentLocation();
-        if (userLocation != null) {
-          final anchorQuery = anchorHotel?.metadata['address'] as String? ?? trip.destination;
-          final geo = await ref.read(geocodingServiceProvider).geocode(anchorQuery);
-          if (geo != null) {
-            final km = haversineKm(userLocation.latitude, userLocation.longitude, geo.latitude, geo.longitude);
-            userToDestinationMin = estimatedTravelMinutes(km);
-          }
-        }
-      }
-
-      // Convertit les hôtels du trip en HotelStay pour le prompt Gemini
-      DateTime? parseMeta(dynamic v) => v is String ? DateTime.tryParse(v) : null;
-      final hotelStays = hotels
-          .map((h) => HotelStay(
-                name: h.name,
-                address: h.metadata['address'] as String?,
-                checkIn: parseMeta(h.metadata['check_in']),
-                checkOut: parseMeta(h.metadata['check_out']),
-              ))
-          .toList();
 
       // ─── MODE COPILOT — flow Places-first (refonte 2026-04-25) ──────────
       // Bypass complet de l'ancien pipeline Gemini-first. On va directement
@@ -402,6 +543,7 @@ class PlanningScreen extends ConsumerWidget {
             nearbyService: nearbyService,
             aiService: aiService,
             existingTitlesNormalized: existingTitlesNorm,
+            languageCode: languageCode,
           );
           closeDialog();
           if (!context.mounted) return;
@@ -438,41 +580,43 @@ class PlanningScreen extends ConsumerWidget {
         }
         return;
       }
-      // ─── MODE AUTO — flow Gemini-first historique ──────────────────────
+      // ─── MODE AUTO — flow Places-first (refonte 4d, 2026-04-26) ────────
+      // Comme CoPilot : on récolte des lieux RÉELS via Places API puis on
+      // demande à Gemini de SÉLECTIONNER dans cette liste (zéro hallucination
+      // par construction). Différence avec CoPilot : sortie plate (5-8 sugg/jour
+      // étalées), pas de groupes 3-options.
+      debugPrint('[SUGGEST] Démarrage flow Auto Places-first (trip=${trip.destination}, existing=${existing.length}, category=${category.name})');
+      final aiService = ref.read(aiSuggestionsServiceProvider);
+      final nearbyService = ref.read(placesNearbyServiceProvider);
+      final geocoder = ref.read(geocodingServiceProvider);
 
-      debugPrint('[SUGGEST] Appel Gemini (trip=${trip.destination}, existing=${existing.length}, category=${category.name}, mode=${mode.name})');
-      final service = ref.read(aiSuggestionsServiceProvider);
-      final result = await service.suggestActivities(
-        trip: trip,
-        travelerType: effectiveTravelerType,
-        interests: effectiveInterests,
-        existingActivities: existing,
-        hotels: hotelStays,
-        userLat: userLocation?.latitude,
-        userLng: userLocation?.longitude,
-        userToDestinationTravelMin: userToDestinationMin,
-        category: category,
-        mode: mode,
-      );
-      debugPrint(
-        '[SUGGEST] Réponse Gemini reçue (mode=${mode.name}, '
-        'activités=${result.activities.length}, groupes=${result.groups.length}, '
-        'trajets=${result.transports.length})',
-      );
-
-      // Normalisation pour le dedup : lowercase + strip emojis/ponctuation.
-      // Permet de matcher "🏨 Départ · Maison rue du pigeonnier" vs
-      // "Départ Maison rue pigeonnier" (même activité, 2 formulations).
       String norm(String s) => s
           .toLowerCase()
           .replaceAll(RegExp(r'[^a-zà-ÿ0-9\s]'), ' ')
           .replaceAll(RegExp(r'\s+'), ' ')
           .trim();
-      final existingTitles = existing.map((a) => norm(a.title)).toSet();
-      // Filtre large pour toutes les activités "gestion hébergement" (retour à l'hôtel,
-      // arrivée/départ = check-in/check-out). L'app les génère automatiquement depuis
-      // les documents — Gemini ne doit pas les re-proposer, peu importe la formulation
-      // (avec ou sans emoji 🏨, avec ou sans préfixe "·"). Regex sur mots entiers.
+      final existingTitlesNorm = existing.map((a) => norm(a.title)).toSet();
+
+      final rawSuggestions = await runAutoPlacesFirst(
+        trip: trip,
+        hotels: hotels,
+        geocoder: geocoder,
+        nearbyService: nearbyService,
+        aiService: aiService,
+        category: category,
+        existingTitlesNormalized: existingTitlesNorm,
+        languageCode: languageCode,
+      );
+
+      // ── Filtres métier (toujours pertinents en Places-first) ──
+      // - dedup interne (Gemini peut sélectionner 2 fois la même ref)
+      // - filtre catégorie (cohérence tag retourné par Gemini)
+      // - retour hôtel (l'app les insère depuis les docs)
+      // - passé (jours déjà passés)
+      // - overlap horaire (chevauchement avec activités existantes)
+      // La validation Places (placeId/address/city-match/fuzzy/inappropriate) a
+      // été retirée : les lieux viennent DÉJÀ de Places, c'est redondant.
+
       final hotelActionsRe = RegExp(
         r'\b(retour|départ|depart|arrivée|arrivee|check[\s-]?in|check[\s-]?out)\b',
         caseSensitive: false,
@@ -480,7 +624,7 @@ class PlanningScreen extends ConsumerWidget {
       bool isHotelReturn(String title) => hotelActionsRe.hasMatch(title);
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
-      final earliestMinToday = now.hour * 60 + now.minute + 30; // current + buffer
+      final earliestMinToday = now.hour * 60 + now.minute + 30;
 
       int? timeToMin(String hhmm) {
         final parts = hhmm.split(':');
@@ -502,15 +646,12 @@ class PlanningScreen extends ConsumerWidget {
         return false;
       }
 
-      // Groupe les activités existantes par jour pour le check de chevauchement
       final existingByDay = <String, List<TripActivity>>{};
       for (final a in existing) {
         final key = a.dayDate.toIso8601String().split('T').first;
         existingByDay.putIfAbsent(key, () => []).add(a);
       }
 
-      /// Vrai si la suggestion chevauche une activité existante le même jour.
-      /// Deux activités chevauchent si [s.start, s.end[ ∩ [e.start, e.end[ ≠ ∅.
       bool hasTimeOverlap(ActivitySuggestion s) {
         final key = s.dayDate.toIso8601String().split('T').first;
         final sStart = timeToMin(s.startTime);
@@ -525,29 +666,17 @@ class PlanningScreen extends ConsumerWidget {
         return false;
       }
 
-      // Filtre "heure tardive déraisonnable" supprimé : le seuil dépend trop de la
-      // destination (Metz ferme à 22h, Bangkok/Madrid/NYC tournent jusqu'au petit matin).
-      // On laisse le prompt Gemini gérer via ses guidelines "adapte à la destination".
-      // Si Gemini hallucine quand même, l'utilisateur peut simplement ne pas cocher
-      // la suggestion dans la sheet de sélection.
-
-      // Dedup INTRA-réponse Gemini : si Gemini renvoie 2 fois "Petit déjeuner Maison Lou",
-      // on ne garde que la 1ère. Cette dedup vient avant celle contre l'existant.
       final seenInternal = <String>{};
       final uniqueInternal = <ActivitySuggestion>[];
-      for (final s in result.activities) {
+      for (final s in rawSuggestions) {
         final key = norm(s.title);
         if (seenInternal.add(key)) uniqueInternal.add(s);
       }
 
-      // Validation catégorie stricte : Gemini glisse parfois un bar dans "Visites" ou
-      // une visite dans "Restos" malgré l'override. On vérifie le tag retourné et on
-      // rejette si incohérent avec la demande.
       const mealTags = {'repas', 'gastronomie', 'restaurant', 'resto'};
       bool isMealActivity(ActivitySuggestion s) {
         final t = s.tag.toLowerCase().trim();
         if (mealTags.contains(t)) return true;
-        // Fallback par titre si Gemini a mis un tag bidon
         final title = s.title.toLowerCase();
         return RegExp(r'\b(petit[\s-]?déjeuner|déjeuner|dîner|diner|brunch|restaurant|resto|café|food tour|street food)\b').hasMatch(title);
       }
@@ -563,88 +692,23 @@ class PlanningScreen extends ConsumerWidget {
       }
 
       final afterCategory = uniqueInternal.where(matchesCategory).toList();
-
-      final rawCount = result.activities.length;
-      final afterDup = afterCategory.where((s) => !existingTitles.contains(norm(s.title))).toList();
+      final afterDup = afterCategory.where((s) => !existingTitlesNorm.contains(norm(s.title))).toList();
       final afterReturn = afterDup.where((s) => !isHotelReturn(s.title)).toList();
       final afterPast = afterReturn.where((s) => !isInPast(s)).toList();
       final afterOverlap = afterPast.where((s) => !hasTimeOverlap(s)).toList();
 
-      // ── Validation Places API post-Gemini ──
-      // Triple check :
-      // 1. Le lieu existe vraiment sur Google Places (placeId non null)
-      // 2. Il a une adresse formatée non vide (sinon "Voir sur Maps" plante)
-      // 3. L'adresse contient le nom de la destination (sinon Gemini propose des trucs
-      //    dans des villes voisines — vu en avril 2026 : Metz/Epinal proposés pour Nancy)
-      // Les Hébergements ne sont pas validés (gérés par les docs perso du voyageur).
-      // Appels faits en parallèle (Future.wait) pour limiter la latence.
-      // Résultats cachés en DB par (titre, destination) → 0 coût sur les répétitions.
-      final placesService = ref.read(placesCacheServiceProvider);
-      final validationResults = await Future.wait(
-        afterOverlap.map((s) async {
-          if (s.tag == 'Hébergement') return (suggestion: s, valid: true, reason: 'hébergement-skip');
-          try {
-            // Pour un voyage multi-étapes, la ville à valider varie par jour.
-            // Pour un voyage mono-ville, cityForDay retourne toujours `trip.destination`.
-            final dayCity = trip.cityForDay(s.dayDate);
-            final dayCityLower = dayCity.split(',').first.trim().toLowerCase();
-            final info = await placesService.findInfo(
-              title: s.title,
-              destination: dayCity,
-            );
-            final hasPlace = info.placeId != null && info.placeId!.isNotEmpty;
-            final hasAddress = info.address != null && info.address!.trim().isNotEmpty;
-            if (!hasPlace || !hasAddress) {
-              return (suggestion: s, valid: false, reason: 'no-place-or-address');
-            }
-            // City-match : l'adresse doit contenir la ville cible du jour.
-            // Tolère "Nancy" vs "Nancy, France" ou "centre-ville Nancy".
-            final inCity = info.address!.toLowerCase().contains(dayCityLower);
-            if (!inCity) {
-              return (suggestion: s, valid: false, reason: 'wrong-city ($dayCity attendu): ${info.address}');
-            }
-            // Anti-hallucination : token significatif du titre Gemini doit matcher
-            // le nom canonique Places. Sinon Gemini a halluciné un nom et Places
-            // l'a fuzzy-matché à un lieu sans rapport (ex: "Galerie Myrtille Beck"
-            // → matché à une bijouterie).
-            if (!_fuzzyTitleMatches(s.title, info.name)) {
-              return (suggestion: s, valid: false, reason: 'name-mismatch (canonique: "${info.name}")');
-            }
-            // Hors-contexte : le lieu existe mais n'a rien à faire dans cette
-            // catégorie (ex: club libertin suggéré pour un repas).
-            if (_placesInappropriateForTag(info.name, s.tag)) {
-              return (suggestion: s, valid: false, reason: 'inappropriate-for-tag ${s.tag} (canonique: "${info.name}")');
-            }
-            return (suggestion: s, valid: true, reason: 'ok');
-          } catch (_) {
-            // Erreur réseau = on garde (ne pas pénaliser l'utilisateur pour une API qui flake)
-            return (suggestion: s, valid: true, reason: 'error-keep');
-          }
-        }),
-      );
-      final suggestions = validationResults.where((r) => r.valid).map((r) => r.suggestion).toList();
-      // Log les rejets ville pour debug
-      final wrongCity = validationResults.where((r) => r.reason.startsWith('wrong-city')).toList();
-      if (wrongCity.isNotEmpty) {
-        debugPrint('[SUGGEST] ${wrongCity.length} suggestions rejetées (mauvaise ville) :');
-        for (final r in wrongCity) {
-          debugPrint('  - "${r.suggestion.title}" → ${r.reason}');
-        }
-      }
-
       debugPrint(
-        '[SUGGEST] brut=$rawCount, dedup-interne=${uniqueInternal.length}, '
-        'après catégorie=${afterCategory.length}, après dedup-existant=${afterDup.length}, '
-        'après retour=${afterReturn.length}, après passé=${afterPast.length}, '
-        'après overlap=${afterOverlap.length}, après Places=${suggestions.length} '
-        '(${afterOverlap.length - suggestions.length} hallucinations rejetées)',
+        '[SUGGEST] Auto Places-first : brut=${rawSuggestions.length}, '
+        'dedup=${uniqueInternal.length}, après catégorie=${afterCategory.length}, '
+        'après dedup-existant=${afterDup.length}, après retour=${afterReturn.length}, '
+        'après passé=${afterPast.length}, après overlap=${afterOverlap.length}',
       );
 
       closeDialog();
       if (!context.mounted) return;
-      if (suggestions.isEmpty) {
+      if (afterOverlap.isEmpty) {
         messenger.showSnackBar(
-          const SnackBar(content: Text('Aucune nouvelle suggestion — ton planning est déjà bien rempli.')),
+          const SnackBar(content: Text('Aucune nouvelle suggestion — Places n\'a rien retourné dans le périmètre ou ton planning est déjà bien rempli.')),
         );
         return;
       }
@@ -655,8 +719,7 @@ class PlanningScreen extends ConsumerWidget {
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
         builder: (_) => _SuggestionsSheet(
           tripId: tripId,
-          suggestions: suggestions,
-          transportSuggestions: result.transports,
+          suggestions: afterOverlap,
           travelerType: effectiveTravelerType,
         ),
       );
@@ -936,7 +999,6 @@ class _SuggestionsSheet extends ConsumerStatefulWidget {
   final List<ActivitySuggestion> suggestions;
   /// Groupes par créneau, utilisés en mode coPilot (3 options/créneau). Vide en mode auto.
   final List<SuggestionGroup> groups;
-  final List<TransportSuggestion> transportSuggestions;
   final String? travelerType;
   /// Mode de planification utilisé pour la génération. Détermine le rendu UI :
   /// - auto : liste plate, tout coché par défaut, le voyageur décoche.
@@ -946,7 +1008,6 @@ class _SuggestionsSheet extends ConsumerStatefulWidget {
     required this.tripId,
     this.suggestions = const [],
     this.groups = const [],
-    this.transportSuggestions = const [],
     this.travelerType,
     this.mode = PlanningMode.auto,
   });
@@ -1148,59 +1209,6 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
     }
   }
 
-  /// Remplace le titre + l'adresse Gemini de chaque suggestion par les valeurs
-  /// canoniques Google Places quand on les a en cache (déjà validées par le
-  /// pipeline via le filtre fuzzy match nom canonique).
-  ///
-  /// Pourquoi : Gemini hallucine régulièrement le nom exact ou l'adresse d'un
-  /// lieu. Si le pipeline a accepté la suggestion (= ratio fuzzy ≥60% avec le
-  /// name Places), le LIEU est correct, mais le titre/adresse stockés en DB
-  /// sont ceux que Gemini a inventés. Conséquences : "Voir sur Maps" pointe
-  /// vers un mauvais lieu, Routes API utilise un placeId qui ne correspond
-  /// pas au titre. En substituant titre + adresse par le canonique Places,
-  /// l'activité devient cohérente bout-en-bout (affichage = navigation = trajet).
-  ///
-  /// Hébergement exclu : la fiche du voyageur (= sa résa) est la source de
-  /// vérité, pas Places. Skip aussi quand Places n'a pas de match (info.name null).
-  Future<List<ActivitySuggestion>> _enrichWithCanonicalPlaces(
-    List<ActivitySuggestion> suggestions,
-  ) async {
-    final trip = ref.read(tripByIdProvider(widget.tripId)).valueOrNull;
-    if (trip == null) return suggestions;
-    final placesService = ref.read(placesCacheServiceProvider);
-
-    final enriched = await Future.wait(suggestions.map((s) async {
-      if (s.tag == 'Hébergement') return s;
-      try {
-        final dayCity = trip.cityForDay(s.dayDate);
-        final info = await placesService.findInfo(title: s.title, destination: dayCity);
-        final canonicalName = info.name?.trim();
-        final canonicalAddress = info.address?.trim();
-        if (canonicalName != null && canonicalName.isNotEmpty &&
-            canonicalAddress != null && canonicalAddress.isNotEmpty) {
-          if (canonicalName != s.title || canonicalAddress != s.detail) {
-            developer.log(
-              'Canonisation : "${s.title}" → "$canonicalName" / detail="$canonicalAddress"',
-              name: 'planning',
-            );
-          }
-          return ActivitySuggestion(
-            dayDate: s.dayDate,
-            startTime: s.startTime,
-            title: canonicalName,
-            detail: canonicalAddress,
-            tag: s.tag,
-            durationMinutes: s.durationMinutes,
-            priceEstimate: s.priceEstimate,
-            matchReason: s.matchReason,
-          );
-        }
-      } catch (_) {}
-      return s;
-    }));
-    return enriched;
-  }
-
   /// Liste plate des suggestions cochées, indépendamment du mode (auto/coPilot).
   /// Mode auto = `widget.suggestions[i]` pour `i ∈ _selected`.
   /// Mode coPilot = options cochées dans chaque groupe.
@@ -1275,15 +1283,10 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
     }
     setState(() => _saving = true);
     try {
-      // Avant l'insert, substituer titre + adresse Gemini par les valeurs
-      // canoniques Places (mode auto uniquement). En mode coPilot Places-first,
-      // les titres et adresses viennent DÉJÀ de Places — l'enrichissement est
-      // un re-fetch gratuit mais inutile, on skip.
-      final selectedSuggestions = widget.mode == PlanningMode.coPilot
-          ? rawSelections
-          : await _enrichWithCanonicalPlaces(rawSelections);
+      // Tous les titres/adresses viennent DÉJÀ de Places (Auto + CoPilot sont
+      // sur Places-first depuis 4d 2026-04-26) — pas besoin de canonisation.
       final client = ref.read(supabaseProvider);
-      final rows = selectedSuggestions.map((s) => s.toInsertJson(widget.tripId)).toList();
+      final rows = rawSelections.map((s) => s.toInsertJson(widget.tripId)).toList();
       developer.log('Insertion de ${rows.length} activité(s) dans trip_activities', name: 'planning');
       final inserted = await client.from('trip_activities').insert(rows).select();
       developer.log('Résultat insert : ${(inserted as List).length} ligne(s) retournée(s)', name: 'planning');
@@ -1317,16 +1320,10 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
           .toSet();
 
       // ─── Construction des transports pour chaque paire consécutive même jour ──
-      // Stratégie hybride :
-      // 1. Routes API (Google Maps) si on a les place_id des 2 activités → durées RÉELLES.
-      // 2. Fallback Gemini (mode auto seulement) si Routes a échoué et que Gemini a fourni
-      //    un bloc transport pour cette paire (durées hallucinées mais mieux que rien).
-      // 3. Skip si ni Routes ni Gemini → pas de transport pour cette pair.
-      String norm(String s) => s.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
-      final transportByKey = <String, TransportSuggestion>{};
-      for (final t in widget.transportSuggestions) {
-        transportByKey['${norm(t.fromTitle)}|${norm(t.toTitle)}'] = t;
-      }
+      // Routes API (Google Maps) si on a les place_id des 2 activités → durées
+      // RÉELLES. Sinon skip : pas de transport pour cette paire.
+      // (Le fallback Gemini historique a disparu avec la bascule Places-first :
+      // les suggestions ne contiennent plus de bloc transport hallucinable.)
 
       // Identifie les paires à traiter (consécutives même jour, pas déjà en DB).
       final pairs = <(TripActivity, TripActivity)>[];
@@ -1378,19 +1375,9 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
           );
         }
 
-        final geminiSuggest = transportByKey['${norm(a.title)}|${norm(b.title)}'];
-
-        List<TransportOption> finalOptions;
-        String? defaultMode;
-        if (routesOptions != null && routesOptions.isNotEmpty) {
-          finalOptions = routesOptions;
-          defaultMode = _pickDefaultMode(finalOptions, widget.travelerType);
-        } else if (geminiSuggest != null && geminiSuggest.options.isNotEmpty) {
-          finalOptions = geminiSuggest.options;
-          defaultMode = geminiSuggest.defaultMode;
-        } else {
-          return null;
-        }
+        if (routesOptions == null || routesOptions.isEmpty) return null;
+        final finalOptions = routesOptions;
+        final defaultMode = _pickDefaultMode(finalOptions, widget.travelerType);
 
         final defaultOpt = finalOptions.firstWhere(
           (o) => o.mode == defaultMode,

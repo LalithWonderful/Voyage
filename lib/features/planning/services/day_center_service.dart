@@ -29,9 +29,17 @@ Future<DayCenter?> centerForDay({
   required List<TripDocument> hotels,
   required GeocodingService geocoder,
 }) async {
-  // 1. Hôtel actif
+  // 1. Hôtel actif — uniquement s'il couvre VRAIMENT ce jour.
+  // `hotelForDay` retourne `hotels.first` en fallback rétrocompat même quand
+  // aucun hôtel ne couvre, ce qui pour un voyage multi-villes (ex: Nancy/Épinal,
+  // hôtel Nancy seul) ancrerait J7-J8 Épinal sur l'hôtel Nancy. On force donc
+  // une vérification explicite via `sleepNightsRange` pour basculer au
+  // fallback "ville du segment" quand pas de couverture réelle.
   final hotel = hotelForDay(hotels, day);
-  if (hotel != null) {
+  final dayKey = DateTime(day.year, day.month, day.day);
+  final hotelCovers = hotel != null &&
+      sleepNightsRange(hotel).any((n) => n.isAtSameMomentAs(dayKey));
+  if (hotel != null && hotelCovers) {
     final addr = (hotel.metadata['address'] as String?)?.trim();
     final query = (addr != null && addr.isNotEmpty) ? addr : hotel.name;
     if (query.isNotEmpty) {
