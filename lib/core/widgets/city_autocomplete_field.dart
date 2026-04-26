@@ -39,6 +39,11 @@ class CityAutocompleteField extends ConsumerStatefulWidget {
   /// Par défaut (false) : autocomplete villes uniquement, comportement historique.
   final bool acceptAnyDestination;
 
+  /// Code ISO 2 lettres du pays auquel restreindre les suggestions (ex: 'th'
+  /// pour Thaïlande). Ignoré si `acceptAnyDestination=true`. Permet de proposer
+  /// uniquement les villes du pays choisi en destination du voyage.
+  final String? restrictToCountryCode;
+
   /// Texte d'aide affiché sous le champ quand vide.
   final String? hintText;
 
@@ -54,6 +59,7 @@ class CityAutocompleteField extends ConsumerStatefulWidget {
     this.onSelected,
     this.onSelectedDetailed,
     this.acceptAnyDestination = false,
+    this.restrictToCountryCode,
     this.hintText,
     this.labelText,
     this.autofocus = false,
@@ -111,7 +117,12 @@ class _CityAutocompleteFieldState extends ConsumerState<CityAutocompleteField> {
       results = await placesService.autocompleteDestinations(query);
     } else {
       // Mode villes seules : on uniformise vers la même struct, kind='city'.
-      final cities = await placesService.autocompleteCities(query);
+      // `restrictToCountryCode` filtre les suggestions au pays choisi (ex:
+      // étapes d'un voyage Thaïlande → uniquement villes thaï).
+      final cities = await placesService.autocompleteCities(
+        query,
+        countryCode: widget.restrictToCountryCode,
+      );
       results = cities
           .map((c) => (
                 description: c.description,

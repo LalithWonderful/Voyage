@@ -253,7 +253,12 @@ class PlacesService {
   /// Le `description` retourné est ce qu'on affiche dans le dropdown ("Gérardmer, France").
   /// Utilise `language=fr` pour des noms en français quand disponible.
   /// Retourne une liste vide en cas d'erreur (silencieux, pas d'exception).
-  Future<List<({String description, String mainText, String placeId})>> autocompleteCities(String query) async {
+  /// Autocomplete villes avec restriction optionnelle à un pays. `countryCode`
+  /// est le code ISO 2 lettres en minuscules (ex: 'th' pour Thaïlande, 'ma'
+  /// pour Maroc). Quand fourni, Google ne renvoie QUE les villes du pays — ce
+  /// qui sécurise la saisie d'étapes sur les voyages "Pays" (ex: voyage
+  /// Thaïlande → étapes proposées : Bangkok, Chiang Mai, Phuket, pas Paris).
+  Future<List<({String description, String mainText, String placeId})>> autocompleteCities(String query, {String? countryCode}) async {
     final key = AiConstants.googleMapsApiKey;
     final trimmed = query.trim();
     if (trimmed.length < 2 || key.isEmpty || key == 'COLLE_TA_CLE_MAPS_ICI') return const [];
@@ -262,6 +267,7 @@ class PlacesService {
         'input': trimmed,
         'types': '(cities)',
         'language': 'fr',
+        if (countryCode != null && countryCode.isNotEmpty) 'components': 'country:$countryCode',
         'key': key,
       });
       final resp = await http.get(uri);
@@ -350,6 +356,45 @@ class PlacesService {
     } catch (e) {
       developer.log('Erreur Autocomplete dest : $e', name: 'places');
       return const [];
+    }
+  }
+
+  /// Récupère le code ISO 2 lettres du pays correspondant à un placeId Google.
+  /// Utilisé pour restreindre l'autocomplete des étapes au pays choisi en
+  /// destination (Thaïlande → 'th', les étapes proposées seront thaï
+  /// uniquement). Marche aussi pour les régions (administrative_area_level_*) :
+  /// remonte au pays parent.
+  ///
+  /// Coût : 1 appel Place Details (~$0.017). Stocker le résultat côté caller
+  /// pour ne pas re-payer à chaque ouverture du dialog d'étape.
+  Future<String?> getCountryCodeFromPlaceId(String placeId) async {
+    final key = AiConstants.googleMapsApiKey;
+    if (placeId.isEmpty || key.isEmpty || key == 'COLLE_TA_CLE_MAPS_ICI') return null;
+    try {
+      final uri = Uri.https('maps.googleapis.com', '/maps/api/place/details/json', {
+        'place_id': placeId,
+        'fields': 'address_component',
+        'language': 'fr',
+        'key': key,
+      });
+      final resp = await http.get(uri);
+      if (resp.statusCode != 200) return null;
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      if (data['status'] != 'OK') return null;
+      final components = ((data['result'] as Map<String, dynamic>?)?['address_components'] as List?) ?? const [];
+      for (final comp in components.whereType<Map<String, dynamic>>()) {
+        final types = ((comp['types'] as List?) ?? const []).whereType<String>();
+        if (types.contains('country')) {
+          final shortName = comp['short_name'] as String?;
+          if (shortName != null && shortName.isNotEmpty) {
+            return shortName.toLowerCase();
+          }
+        }
+      }
+      return null;
+    } catch (e) {
+      developer.log('Erreur getCountryCode : $e', name: 'places');
+      return null;
     }
   }
 

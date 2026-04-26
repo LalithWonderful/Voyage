@@ -83,6 +83,10 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
   /// pour les voyages existants : on ne re-déclenche pas la contrainte tant
   /// que l'utilisateur ne re-sélectionne pas la destination.
   String _destinationKind = 'unknown';
+  /// Code ISO 2 lettres du pays de la destination (ex: 'th' pour Thaïlande).
+  /// Récupéré via Place Details au boot et au changement. Passé au dialog
+  /// d'ajout d'étape pour filtrer les villes proposées au pays du voyage.
+  String? _destinationCountryCode;
   /// Clé du card "ÉTAPES DU VOYAGE" pour auto-scroll quand le bandeau apparaît.
   final GlobalKey _segmentsCardKey = GlobalKey();
 
@@ -98,6 +102,7 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
     _travelerType = widget.trip.travelerType;
     _interests = Set<String>.from(widget.trip.interests ?? const []);
     _segments = [...widget.trip.itinerarySegments];
+    _enforceSingleSegmentRule();
     _planningMode = widget.trip.planningMode;
     // Re-détecte le kind de la destination au boot pour les voyages existants
     // créés avant Niveau 2 (où kind='unknown' n'a jamais été stocké). 1 appel
@@ -117,6 +122,16 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
     final exact = results.where((r) => r.mainText.toLowerCase() == dest.toLowerCase());
     final pick = exact.isNotEmpty ? exact.first : results.first;
     setState(() => _destinationKind = pick.kind);
+    // Récupère le code ISO du pays pour filtrer les étapes par la suite.
+    // Marche pour kind=country/region (remonte au pays parent) ET kind=city
+    // (le pays de la ville est utile aussi pour proposer d'autres villes du
+    // même pays comme étapes additionnelles).
+    if (pick.placeId.isNotEmpty) {
+      final code = await places.getCountryCodeFromPlaceId(pick.placeId);
+      if (mounted && code != null) {
+        setState(() => _destinationCountryCode = code);
+      }
+    }
   }
 
   @override
@@ -144,6 +159,7 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
       } else {
         _end = picked;
       }
+      _enforceSingleSegmentRule();
     });
   }
 
@@ -232,6 +248,16 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
   /// Total des jours déjà placés dans les étapes — pour comparer avec la durée du voyage.
   int get _totalSegmentDays => _segments.fold(0, (s, seg) => s + seg.days);
 
+  /// Quand le voyage a exactement une étape, sa durée est forcée à couvrir tout
+  /// le voyage. Sémantique : "1 ville unique = elle dure tout le voyage", sinon
+  /// on tomberait sur l'incohérence "13/21 jours placés (utilisera destination)".
+  /// À appeler après chaque mutation de `_segments` ou changement de dates.
+  void _enforceSingleSegmentRule() {
+    if (_segments.length == 1 && _segments[0].days != _tripDays) {
+      _segments[0] = _segments[0].copyWith(days: _tripDays);
+    }
+  }
+
   /// True quand la destination détectée est un pays ou une région : impose
   /// un découpage en étapes pour préciser où chercher les activités.
   bool get _needsSegments =>
@@ -272,7 +298,10 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
       existingDaysPlaced: _totalSegmentDays,
     );
     if (result == null || result.isEmpty || !mounted) return;
-    setState(() => _segments.addAll(result));
+    setState(() {
+      _segments.addAll(result);
+      _enforceSingleSegmentRule();
+    });
   }
 
   /// Distance Haversine en km entre 2 points GPS. Approximation Terre sphérique
@@ -472,9 +501,25 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
   /// L'ordre des étapes est défini par leur position dans la liste — pas de tri auto
   /// (l'utilisateur peut réordonner via drag-and-drop).
   Future<void> _openSegmentEditor({TripSegment? existing, int? index}) async {
+    // Si on édite l'unique étape OU si on ajoute la 1ère étape (liste vide),
+    // alors après save la liste comptera 1 étape → la règle "1 étape =
+    // tripDays" s'appliquera. On le signale au dialog pour cacher le sélecteur
+    // de jours et afficher un message clair, plutôt que de laisser l'utilisateur
+    // saisir un nombre qui sera silencieusement écrasé.
+    final willBeOnlySegment =
+        (existing != null && _segments.length == 1) ||
+        (existing == null && _segments.isEmpty);
     final result = await showDialog<TripSegment?>(
       context: context,
-      builder: (ctx) => _SegmentEditorDialog(existing: existing),
+      builder: (ctx) => _SegmentEditorDialog(
+        existing: existing,
+        // Filtre l'autocomplete des villes au pays de la destination quand
+        // disponible. Si null (city/place ou code pays pas encore récupéré),
+        // on accepte toutes les villes du monde (comportement historique).
+        restrictToCountryCode: _destinationCountryCode,
+        lockedToTripDays: willBeOnlySegment,
+        tripDays: _tripDays,
+      ),
     );
     if (result == null) return;
     setState(() {
@@ -483,6 +528,7 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
       } else {
         _segments.add(result);
       }
+      _enforceSingleSegmentRule();
     });
   }
 
@@ -556,28 +602,39 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
                       initialValue: _destCtrl.text,
                       acceptAnyDestination: true,
                       hintText: 'Ville, pays ou région (ex: Nancy, Maroc, Bali)',
-                      onSelectedDetailed: (dest, _, _, kind) => setState(() {
-                        _destCtrl.text = dest;
-                        _destinationKind = kind;
-                        // Si pays/région sans étapes, déplie automatiquement la
-                        // card étapes pour que les CTA "Ajouter/Suggérer" soient
-                        // visibles immédiatement (la card est juste en dessous,
-                        // donc l'auto-scroll n'est même plus indispensable, mais
-                        // on garde au cas où le clavier soit déplié).
-                        if (_needsSegments && _segments.isEmpty) {
-                          _segmentsCardExpanded = true;
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            final ctx = _segmentsCardKey.currentContext;
-                            if (ctx != null) {
-                              Scrollable.ensureVisible(
-                                ctx,
-                                duration: const Duration(milliseconds: 350),
-                                alignment: 0.1,
-                              );
-                            }
+                      onSelectedDetailed: (dest, _, placeId, kind) {
+                        setState(() {
+                          _destCtrl.text = dest;
+                          _destinationKind = kind;
+                          // On reset le code pays — il sera rafraîchi par le
+                          // fetch async ci-dessous. Évite de garder un code
+                          // périmé entre 2 sélections.
+                          _destinationCountryCode = null;
+                          // Si pays/région sans étapes, déplie automatiquement
+                          // la card étapes pour que les CTAs soient visibles
+                          // immédiatement.
+                          if (_needsSegments && _segments.isEmpty) {
+                            _segmentsCardExpanded = true;
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              final ctx = _segmentsCardKey.currentContext;
+                              if (ctx != null) {
+                                Scrollable.ensureVisible(
+                                  ctx,
+                                  duration: const Duration(milliseconds: 350),
+                                  alignment: 0.1,
+                                );
+                              }
+                            });
+                          }
+                        });
+                        // Fetch async du code pays ISO pour filtrer les étapes.
+                        if (placeId != null && placeId.isNotEmpty) {
+                          ref.read(placesServiceProvider).getCountryCodeFromPlaceId(placeId).then((code) {
+                            if (!mounted || code == null) return;
+                            setState(() => _destinationCountryCode = code);
                           });
                         }
-                      }),
+                      },
                     ),
                     const SizedBox(height: 14),
 
@@ -947,16 +1004,41 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
           ),
         ),
         const SizedBox(height: 12),
-        // CTA primaire : laisser l'IA proposer une boucle (le plus probable
-        // pour quelqu'un qui tape juste un pays).
-        ElevatedButton.icon(
-          onPressed: _openRegionalLoop,
-          icon: const Text('💡', style: TextStyle(fontSize: 16)),
-          label: const Text('Suggérer une boucle régionale'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.accent,
-            foregroundColor: Colors.white,
-            minimumSize: const Size(double.infinity, 44),
+        // CTA primaire : laisser l'IA proposer un itinéraire (le plus probable
+        // pour quelqu'un qui tape juste un pays). 2 lignes pour expliquer la
+        // valeur sans jargon SEO/IT.
+        Material(
+          color: AppColors.accent,
+          borderRadius: BorderRadius.circular(10),
+          child: InkWell(
+            onTap: _openRegionalLoop,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  const Text('✨', style: TextStyle(fontSize: 22)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text(
+                          'Propose-moi un itinéraire',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Découvre un parcours avec plusieurs villes.',
+                          style: TextStyle(fontSize: 11, color: Colors.white, height: 1.3),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right, color: Colors.white, size: 20),
+                ],
+              ),
+            ),
           ),
         ),
         const SizedBox(height: 8),
@@ -1085,7 +1167,10 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
                           ),
                         ),
                         IconButton(
-                          onPressed: () => setState(() => _segments.removeAt(i)),
+                          onPressed: () => setState(() {
+                            _segments.removeAt(i);
+                            _enforceSingleSegmentRule();
+                          }),
                           icon: const Icon(Icons.delete_outline, size: 18),
                           color: AppColors.textSecondary,
                           tooltip: 'Supprimer cette étape',
@@ -1176,7 +1261,22 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
 /// la saisie de régions (ex: "Alsace") au lieu de villes.
 class _SegmentEditorDialog extends ConsumerStatefulWidget {
   final TripSegment? existing;
-  const _SegmentEditorDialog({this.existing});
+  /// Code ISO 2 lettres du pays de la destination du voyage. Quand fourni,
+  /// l'autocomplete des villes est restreint à ce pays (ex: voyage Thaïlande
+  /// → suggestions Bangkok/Chiang Mai/Phuket, pas Paris).
+  final String? restrictToCountryCode;
+  /// Quand true, cette étape sera la seule du voyage : on cache le sélecteur
+  /// de jours et on affiche que l'étape couvre tout le voyage. Le parent force
+  /// de toute façon `days = tripDays` au retour via `_enforceSingleSegmentRule`.
+  final bool lockedToTripDays;
+  /// Durée totale du voyage — utilisée comme valeur quand `lockedToTripDays`.
+  final int tripDays;
+  const _SegmentEditorDialog({
+    this.existing,
+    this.restrictToCountryCode,
+    this.lockedToTripDays = false,
+    required this.tripDays,
+  });
 
   @override
   ConsumerState<_SegmentEditorDialog> createState() => _SegmentEditorDialogState();
@@ -1193,7 +1293,9 @@ class _SegmentEditorDialogState extends ConsumerState<_SegmentEditorDialog> {
     super.initState();
     _city = widget.existing?.city ?? '';
     _country = widget.existing?.country;
-    _days = widget.existing?.days ?? 2;
+    _days = widget.lockedToTripDays
+        ? widget.tripDays
+        : widget.existing?.days ?? 2;
   }
 
   void _submit() {
@@ -1225,7 +1327,10 @@ class _SegmentEditorDialogState extends ConsumerState<_SegmentEditorDialog> {
               initialValue: widget.existing?.city,
               autofocus: widget.existing == null,
               labelText: 'Ville',
-              hintText: 'ex: Strasbourg',
+              hintText: widget.restrictToCountryCode != null
+                  ? 'Tape une ville du pays choisi'
+                  : 'ex: Strasbourg',
+              restrictToCountryCode: widget.restrictToCountryCode,
               onSelectedDetailed: (city, country, _, _) => setState(() {
                 _city = city;
                 _country = country;
@@ -1233,35 +1338,62 @@ class _SegmentEditorDialogState extends ConsumerState<_SegmentEditorDialog> {
               }),
             ),
             const SizedBox(height: 16),
-            Text('JOURS SUR PLACE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                IconButton(
-                  onPressed: _days > 1 ? () => setState(() => _days--) : null,
-                  icon: const Icon(Icons.remove_circle_outline),
-                  color: AppColors.primary,
+            if (widget.lockedToTripDays) ...[
+              // Étape unique : pas de choix de durée, elle couvre tout le voyage.
+              // Évite le cas "13/21 jours placés (utilisera destination)".
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
                 ),
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      '$_days jour${_days > 1 ? 's' : ''}',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_outline, size: 16, color: AppColors.primary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Cette étape couvrira les ${widget.tripDays} jours du voyage. '
+                        'Ajoute d\'autres étapes pour répartir la durée.',
+                        style: TextStyle(fontSize: 12, color: AppColors.textPrimary, height: 1.4),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else ...[
+              Text('JOURS SUR PLACE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: _days > 1 ? () => setState(() => _days--) : null,
+                    icon: const Icon(Icons.remove_circle_outline),
+                    color: AppColors.primary,
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        '$_days jour${_days > 1 ? 's' : ''}',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                      ),
                     ),
                   ),
-                ),
-                IconButton(
-                  onPressed: _days < 60 ? () => setState(() => _days++) : null,
-                  icon: const Icon(Icons.add_circle_outline),
-                  color: AppColors.primary,
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Les dates précises sont calculées automatiquement à partir de l\'ordre des étapes.',
-              style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.4),
-            ),
+                  IconButton(
+                    onPressed: _days < 60 ? () => setState(() => _days++) : null,
+                    icon: const Icon(Icons.add_circle_outline),
+                    color: AppColors.primary,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Les dates précises sont calculées automatiquement à partir de l\'ordre des étapes.',
+                style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.4),
+              ),
+            ],
             if (_error != null) ...[
               const SizedBox(height: 10),
               Text(_error!, style: TextStyle(color: AppColors.error, fontSize: 12)),
