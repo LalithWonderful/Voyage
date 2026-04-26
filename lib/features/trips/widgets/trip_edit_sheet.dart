@@ -77,6 +77,14 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
   /// visible automatiquement dès qu'une étape est ajoutée OU quand l'utilisateur
   /// clique sur le CTA pour révéler les boutons Ajouter/Suggérer.
   bool _segmentsCardExpanded = false;
+  /// Type de destination détecté via l'autocomplete Places ('city' / 'country'
+  /// / 'region' / 'place' / 'unknown'). Sert à imposer le découpage en étapes
+  /// quand la destination n'est pas une ville (Niveau 2). 'unknown' au boot
+  /// pour les voyages existants : on ne re-déclenche pas la contrainte tant
+  /// que l'utilisateur ne re-sélectionne pas la destination.
+  String _destinationKind = 'unknown';
+  /// Clé du card "ÉTAPES DU VOYAGE" pour auto-scroll quand le bandeau apparaît.
+  final GlobalKey _segmentsCardKey = GlobalKey();
 
   @override
   void initState() {
@@ -91,6 +99,24 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
     _interests = Set<String>.from(widget.trip.interests ?? const []);
     _segments = [...widget.trip.itinerarySegments];
     _planningMode = widget.trip.planningMode;
+    // Re-détecte le kind de la destination au boot pour les voyages existants
+    // créés avant Niveau 2 (où kind='unknown' n'a jamais été stocké). 1 appel
+    // autocomplete par ouverture du sheet, acceptable. Si le réseau échoue,
+    // kind reste 'unknown' et le bandeau ne s'affiche pas.
+    _detectInitialKind();
+  }
+
+  Future<void> _detectInitialKind() async {
+    final dest = widget.trip.destination.trim();
+    if (dest.isEmpty) return;
+    final places = ref.read(placesServiceProvider);
+    final results = await places.autocompleteDestinations(dest);
+    if (!mounted || results.isEmpty) return;
+    // Prend la 1ère suggestion dont le mainText correspond à la destination
+    // (évite de prendre une homonymie au cas où la destination est ambiguë).
+    final exact = results.where((r) => r.mainText.toLowerCase() == dest.toLowerCase());
+    final pick = exact.isNotEmpty ? exact.first : results.first;
+    setState(() => _destinationKind = pick.kind);
   }
 
   @override
@@ -121,14 +147,6 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
     });
   }
 
-  Future<void> _addTraveler() async {
-    final result = await showDialog<Traveler>(
-      context: context,
-      builder: (_) => const _AddTravelerDialog(),
-    );
-    if (result != null) setState(() => _travelers.add(result));
-  }
-
   Future<void> _save() async {
     final title = _titleCtrl.text.trim();
     final dest = _destCtrl.text.trim();
@@ -144,6 +162,19 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
           content: Text(
             'Tes étapes totalisent $_totalSegmentDays jours mais le voyage ne dure que $_tripDays jours. '
             'Réduis ou supprime des étapes pour pouvoir enregistrer.',
+          ),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+    if (_needsSegments && _segments.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _destinationKind == 'country'
+                ? 'Tu as choisi un pays comme destination. Ajoute au moins une étape pour préciser les villes.'
+                : 'Tu as choisi une région. Ajoute au moins une étape pour préciser les villes.',
           ),
           backgroundColor: AppColors.error,
         ),
@@ -200,6 +231,11 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
 
   /// Total des jours déjà placés dans les étapes — pour comparer avec la durée du voyage.
   int get _totalSegmentDays => _segments.fold(0, (s, seg) => s + seg.days);
+
+  /// True quand la destination détectée est un pays ou une région : impose
+  /// un découpage en étapes pour préciser où chercher les activités.
+  bool get _needsSegments =>
+      _destinationKind == 'country' || _destinationKind == 'region';
 
   /// Durée totale du voyage en jours calendaires (J1 inclus → Jfin inclus).
   /// On vise une couverture pleine : somme des jours des étapes = `_tripDays`.
@@ -513,8 +549,44 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
                     const SizedBox(height: 14),
                     Text('DESTINATION *', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
                     const SizedBox(height: 6),
-                    TextField(controller: _destCtrl),
+                    // Autocomplete élargi : accepte aussi pays/région pour
+                    // imposer ensuite le découpage en étapes (cf. _destinationKind).
+                    CityAutocompleteField(
+                      key: ValueKey('dest-${widget.trip.id}'),
+                      initialValue: _destCtrl.text,
+                      acceptAnyDestination: true,
+                      hintText: 'Ville, pays ou région (ex: Nancy, Maroc, Bali)',
+                      onSelectedDetailed: (dest, _, _, kind) => setState(() {
+                        _destCtrl.text = dest;
+                        _destinationKind = kind;
+                        // Si pays/région sans étapes, déplie automatiquement la
+                        // card étapes pour que les CTA "Ajouter/Suggérer" soient
+                        // visibles immédiatement (la card est juste en dessous,
+                        // donc l'auto-scroll n'est même plus indispensable, mais
+                        // on garde au cas où le clavier soit déplié).
+                        if (_needsSegments && _segments.isEmpty) {
+                          _segmentsCardExpanded = true;
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            final ctx = _segmentsCardKey.currentContext;
+                            if (ctx != null) {
+                              Scrollable.ensureVisible(
+                                ctx,
+                                duration: const Duration(milliseconds: 350),
+                                alignment: 0.1,
+                              );
+                            }
+                          });
+                        }
+                      }),
+                    ),
                     const SizedBox(height: 14),
+
+                    // ─── Cards de configuration (ordre = chronologie mentale du voyageur :
+                    // où précisément → quand → comment je voyage → comment l'IA m'aide).
+                    // Le bandeau ⚠️ pays/région vit À L'INTÉRIEUR de la card étapes,
+                    // pour ne pas dupliquer l'alerte (cf. _buildSegmentsCard).
+                    _buildSegmentsCard(),
+
                     Row(
                       children: [
                         Expanded(child: _dateField(label: 'Départ', value: _fmtDate(_start), onTap: () => _pickDate(isStart: true))),
@@ -524,12 +596,9 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
                     ),
                     const SizedBox(height: 22),
 
-                    // ─── Cards de configuration (ordre : mode IA → préférences → voyageurs → étapes) ──
-                    _buildPlanningModeCard(),
                     _buildStyleCard(),
                     _buildInterestsCard(),
-                    _buildTravelersCard(),
-                    _buildSegmentsCard(),
+                    _buildPlanningModeCard(),
 
                     const SizedBox(height: 6),
                   ],
@@ -542,10 +611,15 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
               child: SafeArea(
                 top: false,
                 child: ElevatedButton(
-                  onPressed: _saving ? null : _save,
+                  // Désactive si pays/région sans étapes — feedback visuel pour
+                  // que l'utilisateur sache qu'il manque quelque chose. Le
+                  // snackbar dans _save() gère le cas où il forcerait quand même.
+                  onPressed: _saving || (_needsSegments && _segments.isEmpty) ? null : _save,
                   child: _saving
                       ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Text('Enregistrer'),
+                      : Text(_needsSegments && _segments.isEmpty
+                          ? 'Ajoute une étape pour enregistrer'
+                          : 'Enregistrer'),
                 ),
               ),
             ),
@@ -791,64 +865,113 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
     );
   }
 
-  /// Card "Voyageurs" — liste éditable + bouton d'ajout.
-  Widget _buildTravelersCard() {
-    return _formCard(
-      title: 'VOYAGEURS',
-      trailing: Text('${_travelers.length} ${_travelers.length > 1 ? 'personnes' : 'personne'}', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ..._travelers.asMap().entries.map((e) => Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              border: Border.all(color: AppColors.border),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(
-              children: [
-                Expanded(child: Text('${e.value.name} · ${e.value.age} ans', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
-                IconButton(
-                  onPressed: () => setState(() => _travelers.removeAt(e.key)),
-                  icon: const Icon(Icons.close, size: 18),
-                  color: AppColors.textSecondary,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                ),
-              ],
-            ),
-          )),
-          OutlinedButton.icon(
-            onPressed: _addTraveler,
-            icon: const Icon(Icons.person_add_alt_1, size: 18),
-            label: const Text('Ajouter un voyageur'),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size(double.infinity, 44),
-              foregroundColor: AppColors.primary,
-              side: BorderSide(color: AppColors.primary),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-          ),
-        ],
+  // Card "Voyageurs" retirée 2026-04-26 (Lalith) : pas exploitée par l'IA hors
+  // travelerType (qui couvre 90% de l'usage). À réintroduire si on intègre
+  // réservations hôtel/location/activités. Le champ reste persisté en DB
+  // (_travelers est encore initialisé depuis widget.trip.travelers et écrit
+  // par _save), ne pas faire de migration.
+
+  /// Card "Étapes du voyage" — 3 modes :
+  /// 1. **Warning** : pays/région détecté + 0 étape → bandeau orange dans la
+  ///    card avec 2 CTAs proactifs (Suggérer une boucle, Ajouter ma 1ère ville).
+  /// 2. **CTA collapsed** : ville simple + 0 étape + non révélé → invite douce.
+  /// 3. **Full** : segments existants ou révélé → liste réordonnable + actions.
+  Widget _buildSegmentsCard() {
+    final warning = _needsSegments && _segments.isEmpty;
+    final showFull = _segments.isNotEmpty || _segmentsCardExpanded;
+    return KeyedSubtree(
+      key: _segmentsCardKey,
+      child: _formCard(
+        title: 'ÉTAPES DU VOYAGE',
+        trailing: _segments.isNotEmpty
+            ? Text('${_segments.length} étape${_segments.length > 1 ? 's' : ''}', style: TextStyle(fontSize: 11, color: AppColors.textSecondary))
+            : null,
+        // En mode warning on ne montre PAS le hint historique (la zone warning
+        // l'inclut déjà). En mode full on garde l'aide pédagogique.
+        hint: warning
+            ? null
+            : showFull
+                ? 'Découpe ton voyage par ville où tu es basé. Une étape = "où je dors". Tu peux quand même planifier des activités dans une ville voisine sur une journée.'
+                : null,
+        child: warning
+            ? _buildSegmentsWarning()
+            : showFull
+                ? _buildSegmentsContent()
+                : _buildSegmentsCta(),
       ),
     );
   }
 
-  /// Card "Étapes du voyage" — collapsed quand `_segments` vide ET non révélé,
-  /// sinon affiche la liste réordonnable + boutons + optimiser.
-  Widget _buildSegmentsCard() {
-    final showFull = _segments.isNotEmpty || _segmentsCardExpanded;
-    return _formCard(
-      title: 'ÉTAPES DU VOYAGE',
-      trailing: _segments.isNotEmpty
-          ? Text('${_segments.length} étape${_segments.length > 1 ? 's' : ''}', style: TextStyle(fontSize: 11, color: AppColors.textSecondary))
-          : null,
-      hint: showFull
-          ? 'Découpe ton voyage par ville où tu es basé. Une étape = "où je dors". Tu peux quand même planifier des activités dans une ville voisine sur une journée.'
-          : null,
-      child: showFull ? _buildSegmentsContent() : _buildSegmentsCta(),
+  /// Mode "warning" de la card étapes : pays/région détecté + 0 étape.
+  /// Bandeau orange explicite + 2 CTAs proactifs pour ne pas laisser le
+  /// voyageur dans le noir. La boucle régionale est mise en avant car c'est
+  /// la voie la plus simple ("je sais que je vais au Maroc, je ne sais pas
+  /// où exactement → suggère-moi").
+  Widget _buildSegmentsWarning() {
+    final dest = _destCtrl.text.trim();
+    final isCountry = _destinationKind == 'country';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+          decoration: BoxDecoration(
+            color: AppColors.accent.withValues(alpha: 0.12),
+            border: Border.all(color: AppColors.accent),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('⚠️', style: TextStyle(fontSize: 16)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isCountry
+                          ? 'Tu pars ${dest.isEmpty ? "dans un pays" : "en $dest"} — précise au moins une ville'
+                          : 'Tu pars ${dest.isEmpty ? "dans une région" : "en $dest"} — précise au moins une ville',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Sans ville, l\'IA ne sait pas où chercher des activités. Choisis une option ci-dessous.',
+                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.35),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        // CTA primaire : laisser l'IA proposer une boucle (le plus probable
+        // pour quelqu'un qui tape juste un pays).
+        ElevatedButton.icon(
+          onPressed: _openRegionalLoop,
+          icon: const Text('💡', style: TextStyle(fontSize: 16)),
+          label: const Text('Suggérer une boucle régionale'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.accent,
+            foregroundColor: Colors.white,
+            minimumSize: const Size(double.infinity, 44),
+          ),
+        ),
+        const SizedBox(height: 8),
+        // CTA secondaire : ajout manuel d'une 1ère ville.
+        OutlinedButton.icon(
+          onPressed: () => _openSegmentEditor(),
+          icon: const Icon(Icons.add, size: 18),
+          label: const Text('Ajouter ma première ville'),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(double.infinity, 44),
+            foregroundColor: AppColors.primary,
+            side: BorderSide(color: AppColors.primary),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1047,64 +1170,6 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
   }
 }
 
-class _AddTravelerDialog extends StatefulWidget {
-  const _AddTravelerDialog();
-
-  @override
-  State<_AddTravelerDialog> createState() => _AddTravelerDialogState();
-}
-
-class _AddTravelerDialogState extends State<_AddTravelerDialog> {
-  final _nameCtrl = TextEditingController();
-  final _ageCtrl = TextEditingController();
-  String? _error;
-
-  @override
-  void dispose() {
-    _nameCtrl.dispose();
-    _ageCtrl.dispose();
-    super.dispose();
-  }
-
-  void _submit() {
-    final name = _nameCtrl.text.trim();
-    final age = int.tryParse(_ageCtrl.text.trim());
-    if (name.isEmpty) {
-      setState(() => _error = 'Le prénom est requis.');
-      return;
-    }
-    if (age == null || age < 0 || age > 120) {
-      setState(() => _error = 'Âge invalide.');
-      return;
-    }
-    Navigator.of(context).pop(Traveler(name: name, age: age));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Ajouter un voyageur'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(controller: _nameCtrl, decoration: const InputDecoration(labelText: 'Prénom'), textCapitalization: TextCapitalization.words, autofocus: true),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _ageCtrl,
-            decoration: InputDecoration(labelText: 'Âge', suffixText: 'ans', errorText: _error),
-            keyboardType: TextInputType.number,
-            onSubmitted: (_) => _submit(),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Annuler')),
-        ElevatedButton(onPressed: _submit, child: const Text('Ajouter')),
-      ],
-    );
-  }
-}
-
 /// Dialog d'édition d'une étape (ville + nombre de jours).
 /// Les dates exactes sont calculées au runtime depuis l'ordre dans la liste.
 /// Utilise CityAutocompleteField pour empêcher les fautes d'orthographe et
@@ -1161,7 +1226,7 @@ class _SegmentEditorDialogState extends ConsumerState<_SegmentEditorDialog> {
               autofocus: widget.existing == null,
               labelText: 'Ville',
               hintText: 'ex: Strasbourg',
-              onSelectedDetailed: (city, country, _) => setState(() {
+              onSelectedDetailed: (city, country, _, _) => setState(() {
                 _city = city;
                 _country = country;
                 _error = null;

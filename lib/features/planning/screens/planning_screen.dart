@@ -29,6 +29,7 @@ import 'package:voyage/features/wallet/providers/wallet_provider.dart';
 import 'package:voyage/features/wallet/widgets/document_form_sheet.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
+import 'package:voyage/features/trips/widgets/trip_edit_sheet.dart';
 
 class PlanningScreen extends ConsumerWidget {
   final String tripId;
@@ -117,6 +118,47 @@ class PlanningScreen extends ConsumerWidget {
   /// laisser l'utilisateur cibler précisément ce qu'il cherche plutôt qu'un mega-prompt
   /// qui hallucine sur 77 activités.
   Future<void> _openSuggestionMenu(BuildContext context, WidgetRef ref, Trip trip) async {
+    // Garde-fou Niveau 2 : si la destination est un pays/région ET qu'aucune
+    // étape n'a été ajoutée, on bloque la suggestion et on dirige l'utilisateur
+    // vers l'édition pour qu'il précise au moins une ville. Sans ça, le moteur
+    // Places ne sait pas où chercher (centroïde du pays = milieu de désert).
+    if (trip.itinerarySegments.isEmpty) {
+      final places = ref.read(placesServiceProvider);
+      final results = await places.autocompleteDestinations(trip.destination);
+      if (!context.mounted) return;
+      String? kind;
+      if (results.isNotEmpty) {
+        final exact = results.where((r) => r.mainText.toLowerCase() == trip.destination.trim().toLowerCase());
+        kind = (exact.isNotEmpty ? exact.first : results.first).kind;
+      }
+      if (kind == 'country' || kind == 'region') {
+        final goEdit = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(kind == 'country' ? 'Précise ta destination' : 'Précise ta région'),
+            content: Text(
+              kind == 'country'
+                  ? 'Tu pars en ${trip.destination}, mais tu n\'as pas dit dans quelle(s) ville(s) tu seras. '
+                      'Ajoute au moins une étape pour que l\'IA puisse chercher des activités au bon endroit.'
+                  : 'Tu pars en ${trip.destination}, mais c\'est une région. '
+                      'Ajoute au moins une ville-étape pour que l\'IA puisse chercher des activités au bon endroit.',
+              style: const TextStyle(height: 1.4),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Annuler')),
+              ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Modifier le voyage'),
+              ),
+            ],
+          ),
+        );
+        if (goEdit == true && context.mounted) {
+          await openTripEditSheet(context, ref, trip: trip);
+        }
+        return;
+      }
+    }
     // Le menu retourne soit une SuggestionCategory (génération normale), soit
     // la chaîne sentinel 'test' (test debug Places-first), soit null (annulé).
     // Le test est présenté AVANT le choix de mode car il tourne sur n'importe

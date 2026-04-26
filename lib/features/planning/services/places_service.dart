@@ -288,6 +288,71 @@ class PlacesService {
     }
   }
 
+  /// Variante d'`autocompleteCities` qui n'applique PAS le filtre `(cities)` :
+  /// renvoie aussi les pays et régions (administrative_area_level_*). Utilisé
+  /// pour la destination principale du voyage où l'utilisateur peut taper
+  /// "Maroc" ou "Bali" → on récupère le `kind` (`city`/`country`/`region`)
+  /// pour ensuite imposer le découpage en étapes si la destination n'est pas
+  /// une ville. Cf. project_next_priority Niveau 2.
+  Future<List<({String description, String mainText, String placeId, String kind})>> autocompleteDestinations(String query) async {
+    final key = AiConstants.googleMapsApiKey;
+    final trimmed = query.trim();
+    if (trimmed.length < 2 || key.isEmpty || key == 'COLLE_TA_CLE_MAPS_ICI') return const [];
+    try {
+      final uri = Uri.https('maps.googleapis.com', '/maps/api/place/autocomplete/json', {
+        'input': trimmed,
+        // Pas de filtre 'types' → ramène villes + pays + régions + locality.
+        'language': 'fr',
+        'key': key,
+      });
+      final resp = await http.get(uri);
+      if (resp.statusCode != 200) return const [];
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      if (data['status'] != 'OK' && data['status'] != 'ZERO_RESULTS') {
+        developer.log('Autocomplete dest status=${data['status']}', name: 'places');
+        return const [];
+      }
+      final preds = (data['predictions'] as List?) ?? const [];
+      return preds.whereType<Map<String, dynamic>>().map((p) {
+        final desc = (p['description'] as String?) ?? '';
+        final structured = p['structured_formatting'] as Map<String, dynamic>?;
+        final main = (structured?['main_text'] as String?) ?? desc.split(',').first.trim();
+        final types = ((p['types'] as List?) ?? const [])
+            .whereType<String>()
+            .toList(growable: false);
+        // Mapping types Google → kind métier :
+        // - 'country' → country
+        // - 'administrative_area_level_1' (région/État, sans 'locality') → region
+        // - 'locality' ou 'sublocality' ou 'postal_town' → city
+        // - sinon → 'place' (POI, adresse...). Côté UI on bloque save sur
+        //   country/region uniquement, pas sur 'place' (laisse passer même
+        //   si l'utilisateur tape une adresse précise).
+        final String kind;
+        if (types.contains('country')) {
+          kind = 'country';
+        } else if (types.contains('locality') ||
+            types.contains('postal_town') ||
+            types.contains('sublocality')) {
+          kind = 'city';
+        } else if (types.contains('administrative_area_level_1') ||
+            types.contains('administrative_area_level_2')) {
+          kind = 'region';
+        } else {
+          kind = 'place';
+        }
+        return (
+          description: desc,
+          mainText: main,
+          placeId: (p['place_id'] as String?) ?? '',
+          kind: kind,
+        );
+      }).where((r) => r.description.isNotEmpty).toList();
+    } catch (e) {
+      developer.log('Erreur Autocomplete dest : $e', name: 'places');
+      return const [];
+    }
+  }
+
   /// Résout une ville en coordonnées (lat/lng du centre) + adresse formatée pour
   /// vérification manuelle. Utilise Places "Find Place from Text" plutôt que la
   /// Geocoding API : meilleur sur les requêtes "Ville, Pays" libres (notamment

@@ -6,7 +6,13 @@ import 'package:voyage/core/theme/app_theme.dart';
 import 'package:voyage/features/planning/providers/planning_provider.dart';
 
 /// Champ texte de saisie de ville avec autocomplete Google Places (filtré sur les
-/// villes uniquement). Évite les fautes d'orthographe et la saisie de régions.
+/// villes uniquement par défaut). Évite les fautes d'orthographe et la saisie
+/// involontaire de régions/pays.
+///
+/// Pour le champ "destination principale" du voyage, passer `acceptAnyDestination: true`
+/// pour aussi accepter pays/régions (ex: "Maroc", "Bali") — dans ce cas le callback
+/// `onSelectedDetailed` reçoit aussi le `kind` (`city` / `country` / `region` / `place`)
+/// pour que l'UI puisse exiger un découpage en étapes.
 ///
 /// Utilisable n'importe où dans l'app (saisie destination voyage, étapes multi-villes,
 /// adresse hébergement future...). L'utilisateur tape, voit un dropdown de propositions
@@ -23,9 +29,15 @@ class CityAutocompleteField extends ConsumerStatefulWidget {
   final void Function(String city)? onSelected;
 
   /// Variante riche du callback : reçoit aussi le pays (déduit de la description Google,
-  /// ex: "Strasbourg, France" → country = "France") et le placeId Google. Le pays est
-  /// `null` si la sélection vient d'une saisie manuelle (sans suggestion cliquée).
-  final void Function(String city, String? country, String? placeId)? onSelectedDetailed;
+  /// ex: "Strasbourg, France" → country = "France"), le placeId Google, et le `kind`
+  /// (`city` / `country` / `region` / `place`). `kind = 'unknown'` quand la sélection
+  /// vient d'une saisie manuelle (sans suggestion cliquée). Le pays est null dans
+  /// ce cas aussi.
+  final void Function(String city, String? country, String? placeId, String kind)? onSelectedDetailed;
+
+  /// Si true, n'applique PAS le filtre `(cities)` — ramène aussi pays/régions.
+  /// Par défaut (false) : autocomplete villes uniquement, comportement historique.
+  final bool acceptAnyDestination;
 
   /// Texte d'aide affiché sous le champ quand vide.
   final String? hintText;
@@ -41,6 +53,7 @@ class CityAutocompleteField extends ConsumerStatefulWidget {
     this.initialValue,
     this.onSelected,
     this.onSelectedDetailed,
+    this.acceptAnyDestination = false,
     this.hintText,
     this.labelText,
     this.autofocus = false,
@@ -53,7 +66,9 @@ class CityAutocompleteField extends ConsumerStatefulWidget {
 class _CityAutocompleteFieldState extends ConsumerState<CityAutocompleteField> {
   late final TextEditingController _ctrl;
   Timer? _debounce;
-  List<({String description, String mainText, String placeId})> _suggestions = const [];
+  // Suggestions en mémoire — `kind` est 'city' pour le mode classique, et
+  // 'city'/'country'/'region'/'place' en mode acceptAnyDestination.
+  List<({String description, String mainText, String placeId, String kind})> _suggestions = const [];
   bool _loading = false;
   // Évite de relancer une recherche après une sélection (sinon le dropdown rouvre).
   bool _justSelected = false;
@@ -91,7 +106,21 @@ class _CityAutocompleteFieldState extends ConsumerState<CityAutocompleteField> {
     }
     setState(() => _loading = true);
     final placesService = ref.read(placesServiceProvider);
-    final results = await placesService.autocompleteCities(query);
+    final List<({String description, String mainText, String placeId, String kind})> results;
+    if (widget.acceptAnyDestination) {
+      results = await placesService.autocompleteDestinations(query);
+    } else {
+      // Mode villes seules : on uniformise vers la même struct, kind='city'.
+      final cities = await placesService.autocompleteCities(query);
+      results = cities
+          .map((c) => (
+                description: c.description,
+                mainText: c.mainText,
+                placeId: c.placeId,
+                kind: 'city',
+              ))
+          .toList();
+    }
     if (!mounted) return;
     setState(() {
       _suggestions = results;
@@ -109,14 +138,14 @@ class _CityAutocompleteFieldState extends ConsumerState<CityAutocompleteField> {
     return parts.isEmpty ? null : parts.last;
   }
 
-  void _select(({String description, String mainText, String placeId}) item) {
+  void _select(({String description, String mainText, String placeId, String kind}) item) {
     _justSelected = true;
     _ctrl.text = item.mainText;
     _ctrl.selection = TextSelection.collapsed(offset: item.mainText.length);
     setState(() => _suggestions = const []);
     final country = _extractCountry(item.description, item.mainText);
     widget.onSelected?.call(item.mainText);
-    widget.onSelectedDetailed?.call(item.mainText, country, item.placeId.isEmpty ? null : item.placeId);
+    widget.onSelectedDetailed?.call(item.mainText, country, item.placeId.isEmpty ? null : item.placeId, item.kind);
     FocusScope.of(context).unfocus();
   }
 
@@ -137,7 +166,7 @@ class _CityAutocompleteFieldState extends ConsumerState<CityAutocompleteField> {
               _select(_suggestions.first);
             } else {
               widget.onSelected?.call(v.trim());
-              widget.onSelectedDetailed?.call(v.trim(), null, null);
+              widget.onSelectedDetailed?.call(v.trim(), null, null, 'unknown');
             }
           },
           decoration: InputDecoration(
@@ -181,7 +210,18 @@ class _CityAutocompleteFieldState extends ConsumerState<CityAutocompleteField> {
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       child: Row(
                         children: [
-                          Icon(Icons.place_outlined, size: 18, color: AppColors.primary),
+                          // Icône selon kind : ville/pays/région distincts pour
+                          // que l'utilisateur sache ce qu'il sélectionne avant
+                          // que le bandeau d'alerte s'affiche.
+                          Text(
+                            switch (_suggestions[i].kind) {
+                              'country' => '🌍',
+                              'region' => '🗺️',
+                              'place' => '📍',
+                              _ => '🏙️',
+                            },
+                            style: const TextStyle(fontSize: 16),
+                          ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Column(
