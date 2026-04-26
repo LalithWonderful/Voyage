@@ -336,6 +336,25 @@ class PlanningScreen extends ConsumerWidget {
           'rayon=${maxDistM.round()}m | pool=${cluster.poolSize} lieux non-repas | '
           'jours=$dayList | prompt Auto=${autoPrompt.length} chars',
         );
+        // Liste exhaustive de la pool du cluster — pour vérifier qu'un lieu
+        // attendu (Musée de l'Image, Imagerie d'Épinal, etc.) est bien
+        // présent. Triée par score qualité (rating × log avis).
+        final poolEntries = cluster.pool.entries.toList()
+          ..sort((a, b) {
+            final ra = a.value.candidate.rating ?? 0;
+            final rb = b.value.candidate.rating ?? 0;
+            final ca = a.value.candidate.userRatingCount ?? 0;
+            final cb = b.value.candidate.userRatingCount ?? 0;
+            double sc(double r, int n) => r * (n <= 1 ? 1 : (1 + math.log(n)));
+            return sc(rb, cb).compareTo(sc(ra, ca));
+          });
+        for (var i = 0; i < poolEntries.length; i++) {
+          final c2 = poolEntries[i].value.candidate;
+          final typesShort = c2.types.take(2).join(',');
+          debugPrint(
+            '[places_test]   [${i + 1}/${poolEntries.length}] ${c2.name} ★${c2.rating} (${c2.userRatingCount ?? 0} avis) [$typesShort] · ${c2.address ?? "?"}',
+          );
+        }
       }
 
       // ─── Simulation du flow Auto complet (Round 2A déterministe) ─────

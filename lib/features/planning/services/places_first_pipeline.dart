@@ -260,35 +260,35 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
     // 1. Récolte walking (zone de marche prioritaire)
     final byInterest = await collectByInterest(center, walkRadius);
 
-    // 2. Cascade transit : si la pool walking est insuffisante, on étend.
-    // Les lieux walking restent dans la pool (priorité), on AJOUTE les
-    // nouveaux place_id du transit en complément. Garantit que Senior dans
-    // une zone peu dense ait quand même des suggestions sans tout étaler.
-    if (transitRadius != null && minPoolCascade > 0) {
+    // 2. Cascade transit TOUJOURS appliquée (Lalith 26/04) : sans ça, des
+    // attractions majeures comme Musée de l'Image Épinal (~1km du centre) ou
+    // Imagerie d'Épinal (~2km) sont absentes de la pool. Les lieux walking
+    // restent prioritaires via le scoring distance ; transit ne fait
+    // qu'enrichir avec des candidats plus distants (utiles si profil sans
+    // contrainte stricte ou si pool walking pauvre culturellement).
+    if (transitRadius != null) {
       final walkUniqueCount = byInterest.values
           .expand((l) => l)
           .map((c) => c.placeId)
           .toSet()
           .length;
-      if (walkUniqueCount < minPoolCascade) {
-        final byInterestTransit = await collectByInterest(center, transitRadius);
-        for (final entry in byInterestTransit.entries) {
-          final walkList = byInterest[entry.key] ?? const <NearbyCandidate>[];
-          final walkIds = walkList.map((c) => c.placeId).toSet();
-          final added = entry.value.where((c) => !walkIds.contains(c.placeId)).toList();
-          if (added.isNotEmpty) {
-            byInterest[entry.key] = [...walkList, ...added];
-          }
+      final byInterestTransit = await collectByInterest(center, transitRadius);
+      for (final entry in byInterestTransit.entries) {
+        final walkList = byInterest[entry.key] ?? const <NearbyCandidate>[];
+        final walkIds = walkList.map((c) => c.placeId).toSet();
+        final added = entry.value.where((c) => !walkIds.contains(c.placeId)).toList();
+        if (added.isNotEmpty) {
+          byInterest[entry.key] = [...walkList, ...added];
         }
-        final totalAfter = byInterest.values
-            .expand((l) => l)
-            .map((c) => c.placeId)
-            .toSet()
-            .length;
-        debugPrint(
-          '[places_first] Cascade transit ${_iso(day)} : walk=$walkUniqueCount → +${totalAfter - walkUniqueCount} via transit (${transitRadius}m)',
-        );
       }
+      final totalAfter = byInterest.values
+          .expand((l) => l)
+          .map((c) => c.placeId)
+          .toSet()
+          .length;
+      debugPrint(
+        '[places_first] ${_iso(day)} : walk=$walkUniqueCount → +${totalAfter - walkUniqueCount} via transit (${transitRadius}m)',
+      );
     }
 
     return DayCandidates(day: day, center: center, byInterest: byInterest);
@@ -708,14 +708,23 @@ Future<NearbyCandidate?> _findBestRestoNear({
   Set<String> excludeTitlesNorm = const {},
   Set<String> excludePrimaryTypes = const {},
 }) async {
-  final candidates = await nearbyService.searchNearby(
-    latitude: latitude,
-    longitude: longitude,
-    includedTypes: const ['restaurant', 'cafe', 'bakery'],
-    radius: radius,
-    maxResults: 20,
-    languageCode: languageCode,
-  );
+  // Cascade distance pour restos : si rien à `radius`, on étend à 2× puis 4×.
+  // Évite J1 sans repas quand le top resto est à 250m mais radius = 240m (cas
+  // Senior avec maxConsec=300m × 0.8). On garde le radius initial comme cible
+  // mais on autorise plus loin si pool vide.
+  List<NearbyCandidate> candidates = const [];
+  for (final mult in const [1.0, 2.0, 4.0]) {
+    final r = (radius * mult).round();
+    candidates = await nearbyService.searchNearby(
+      latitude: latitude,
+      longitude: longitude,
+      includedTypes: const ['restaurant', 'cafe', 'bakery'],
+      radius: r,
+      maxResults: 20,
+      languageCode: languageCode,
+    );
+    if (candidates.isNotEmpty) break;
+  }
 
   // Seuils effectifs : profil voyageur + boost Gastronomie + plancher 4.0
   // Boost +0.2 + minReviews ×2 si Gastronomie. Et surtout `minPriceLevel ≥ 2`
@@ -858,16 +867,18 @@ List<ActivitySuggestion> selectVisitsDeterministic({
 
   final out = <ActivitySuggestion>[];
 
-  // Tracking par cluster (diversité intra-cluster) : on autorise jusqu'à
-  // `maxReusePerPlace` utilisations par lieu. Sinon, sur un cluster avec
-  // pool=10 et 5 jours × 3 slots = 15 sélections, on aurait 0 visite à
-  // partir du 4e jour faute de variété — vu sur Nancy hôtel J3-J5 le 26/04.
-  const maxReusePerPlace = 2;
+  // 3 niveaux de cap : par jour (max 1×, strict), par cluster (max 2×),
+  // ET par voyage (compteur global pour pénaliser dans le scoring).
+  // Le compteur global évite J6 = J1/J3 quand 2 clusters proches ont des
+  // lieux communs (Place Stanislas dans cluster hôtel ET cluster segment).
+  const maxReusePerCluster = 2;
+  final useCountAcrossTrip = <String, int>{};
   for (final cluster in clusters) {
     final useCountThisCluster = <String, int>{};
     final entries = cluster.pool.entries.toList();
 
     for (final day in cluster.days) {
+      final usedThisDay = <String>{};
       ActivitySuggestion? lastActivity;
 
       for (final slot in slots) {
@@ -886,46 +897,50 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           // génériques qui ont le nom de la ville (ex: "Épinal" tagué
           // tourist_attraction).
           if (cityNamesNorm.contains(n)) return false;
-          // Cap réutilisation : autorise jusqu'à `maxReusePerPlace` fois le
-          // même lieu sur l'ensemble du cluster.
-          if ((useCountThisCluster[n] ?? 0) >= maxReusePerPlace) return false;
+          // Cap par jour : interdiction stricte de prendre le même lieu 2 fois
+          // sur la même journée. Évite Bergeret Building 10:00 ET 14:30.
+          if (usedThisDay.contains(n)) return false;
+          // Cap par cluster : autorise jusqu'à `maxReusePerCluster` fois le
+          // même lieu sur l'ensemble du cluster (jours différents).
+          if ((useCountThisCluster[n] ?? 0) >= maxReusePerCluster) return false;
           return true;
         }).toList();
 
-        if (baseCandidates.isEmpty) continue;
-
-        // Cascade distance (Lalith 26/04) : on filtre d'abord en strict, puis
-        // on relâche progressivement si pool vide. Évite d'avoir 9 visites
-        // sur 24 attendues parce que Senior 300m vide la pool dès le 2e slot.
-        // Le candidat retenu sera annoté dans match_reason si on a dû relâcher.
-        List<MapEntry<String, ({NearbyCandidate candidate, List<String> matchedInterests})>> candidates = const [];
-        var distanceTier = 'strict'; // strict | relaxed | wide | unconstrained
-        for (final tierMult in const [1.0, 1.5, 2.5, double.infinity]) {
-          final cap = tierMult.isFinite ? maxConsec * tierMult : double.infinity;
-          candidates = baseCandidates.where((e) {
-            if (!cap.isFinite) return true;
+        if (baseCandidates.isEmpty) {
+          // Diagnostic : pourquoi aucun candidat ne passe les filtres durs ?
+          var rejectTime = 0, rejectMeal = 0, rejectExisting = 0;
+          var rejectCity = 0, rejectDay = 0, rejectReuse = 0;
+          for (final e in entries) {
             final c = e.value.candidate;
-            final d = math.sqrt(_distSqMeters(
-              (lat: c.latitude, lng: c.longitude),
-              (lat: anchorLat, lng: anchorLng),
-            ));
-            return d <= cap;
-          }).toList();
-          if (candidates.isNotEmpty) {
-            distanceTier = tierMult == 1.0
-                ? 'strict'
-                : tierMult == 1.5
-                    ? 'relaxed'
-                    : tierMult == 2.5
-                        ? 'wide'
-                        : 'unconstrained';
-            break;
+            if (!_isAppropriateForTime(c, slot)) { rejectTime++; continue; }
+            if (_isMealPrimaryType(c)) { rejectMeal++; continue; }
+            final n = norm(c.name);
+            if (existingTitlesNormalized.contains(n)) { rejectExisting++; continue; }
+            if (cityNamesNorm.contains(n)) { rejectCity++; continue; }
+            if (usedThisDay.contains(n)) { rejectDay++; continue; }
+            if ((useCountThisCluster[n] ?? 0) >= maxReusePerCluster) { rejectReuse++; continue; }
           }
+          debugPrint(
+            '[places_first] ⚠️ ${day.toIso8601String().split("T").first} slot $slot : 0 candidat sur ${entries.length} '
+            '(rejet horaire=$rejectTime, repas=$rejectMeal, existant=$rejectExisting, ville=$rejectCity, déjà-jour=$rejectDay, sur-utilisé=$rejectReuse)',
+          );
+          continue;
         }
 
-        if (candidates.isEmpty) continue;
+        // Cascade unconstrained (Lalith 26/04) : pas de filtre dur sur la
+        // distance, le scoring fait le tri. Sinon on rate Saint Mary Park
+        // (★4.6, 3857 avis) à 800m parce que strict 300m s'arrête au 1er
+        // candidat trouvé (Bergeret à 200m). Avec scoring, Saint Mary Park
+        // (qualité 38 - distancePenalty 13) bat Bergeret (qualité 21).
+        // Le tier réel est calculé après le pick pour annoter match_reason.
+        final candidates = baseCandidates;
 
-        // Scoring : qualité + intérêt matché - pénalité distance
+        // Scoring : qualité + intérêt matché - distance - diversité.
+        // La pénalité diversité (Lalith 26/04) est CRITIQUE : sans elle, le
+        // 2e jour d'un cluster reprend les top du 1er jour (cap=2 le permet)
+        // → J1=J3, J7=J8 vu en test. Avec un malus -30 pour chaque utilisation
+        // déjà faite, le 2e usage d'un lieu chute en dessous des autres top
+        // qui sont eux à useCount=0. Force la variation jour-à-jour naturelle.
         double score(MapEntry<String, ({NearbyCandidate candidate, List<String> matchedInterests})> e) {
           final c = e.value.candidate;
           final r = c.rating ?? 0;
@@ -938,10 +953,16 @@ List<ActivitySuggestion> selectVisitsDeterministic({
             (lat: c.latitude, lng: c.longitude),
             (lat: anchorLat, lng: anchorLng),
           ));
-          // Pénalité distance proportionnelle au seuil profil. Si distance =
-          // maxConsec → pénalité ~5 (donc équivaut perdre ~1 intérêt matché).
           final distancePenalty = (d / maxConsec) * 5.0;
-          return qualityScore + interestBonus - distancePenalty;
+          // Diversité 2 niveaux :
+          // - cluster (-30/usage) : évite J1=J3 sur le même cluster
+          // - voyage (-25/usage) : évite J6=J1 quand 2 clusters proches ont
+          //   des lieux communs (Place Stanislas dans hôtel ET segment).
+          final keyN = norm(c.name);
+          final clusterUseCount = useCountThisCluster[keyN] ?? 0;
+          final tripUseCount = useCountAcrossTrip[keyN] ?? 0;
+          final diversityPenalty = clusterUseCount * 30.0 + tripUseCount * 25.0;
+          return qualityScore + interestBonus - distancePenalty - diversityPenalty;
         }
         candidates.sort((a, b) => score(b).compareTo(score(a)));
         final pick = candidates.first.value.candidate;
@@ -966,15 +987,19 @@ List<ActivitySuggestion> selectVisitsDeterministic({
         }
         reasonParts.add('★${pick.rating} (${pick.userRatingCount ?? 0} avis)');
         if (lastActivity != null) {
-          // Annotation cascade distance : si on a dû relâcher pour trouver,
-          // on signale au voyageur qu'un transport peut être nécessaire.
-          final distLabel = distanceTier == 'strict'
+          // Annotation mode transport selon distance vs maxConsec profil :
+          // ≤ 1× : marche normale, juste la distance.
+          // 1× - 1.5× : marche un peu plus longue, signalée.
+          // 1.5× - 2.5× : transport public conseillé (bus, tram).
+          // > 2.5× : taxi/voiture conseillé (Senior fatigué, distance trop).
+          final ratio = dM / maxConsec;
+          final distLabel = ratio <= 1.0
               ? '${dM}m'
-              : distanceTier == 'relaxed'
+              : ratio <= 1.5
                   ? '${dM}m (un peu loin)'
-                  : distanceTier == 'wide'
-                      ? '${dM}m · transport conseillé'
-                      : '${dM}m · taxi/voiture conseillé';
+                  : ratio <= 2.5
+                      ? '🚌 ${dM}m · transport public conseillé'
+                      : '🚕 ${dM}m · taxi/voiture conseillé';
           reasonParts.add('$distLabel depuis "${lastActivity.title}"');
         }
         out.add(ActivitySuggestion(
@@ -990,6 +1015,8 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           longitude: pick.longitude,
         ));
         useCountThisCluster[pickName] = (useCountThisCluster[pickName] ?? 0) + 1;
+        useCountAcrossTrip[pickName] = (useCountAcrossTrip[pickName] ?? 0) + 1;
+        usedThisDay.add(pickName);
         lastActivity = out.last;
       }
     }
@@ -1510,6 +1537,16 @@ bool _isAppropriateForTime(NearbyCandidate c, String startTime) {
     if (isMealHour) return false;
   }
 
+  // ─── Règle de rejet ABSOLU pour bars ────────────────────────────────
+  // Si le primary type est un bar/pub/club, ON IGNORE les types secondaires
+  // (un Pub a souvent `restaurant` en secondaire ce qui le ferait passer
+  // au créneau déjeuner via le vote). Un bar reste un bar : pas avant 17h.
+  // Cf. fix 26/04 Pub Mac Carthy (irish_pub) sélectionné à 14:30.
+  if (c.types.isNotEmpty &&
+      _strictBarPrimaryTypes.contains(c.types.first)) {
+    return hour >= 17.0;
+  }
+
   // ─── Vote sur les types Places connus ───────────────────────────────
   bool? overallVerdict;
   for (final type in c.types) {
@@ -1543,12 +1580,29 @@ bool _isMealPrimaryType(NearbyCandidate c) {
   final primary = c.types.first;
   // Tous les types Places de cuisine ethnique se terminent en `_restaurant`
   // (moroccan_restaurant, lebanese_restaurant, indian_restaurant, etc.).
-  // `contains('restaurant')` les attrape tous d'un coup, sans avoir à
-  // maintenir la liste finie. Validé Lalith 26/04 sur test Marrakech où
-  // Dar Essalam (moroccan_restaurant) passait à travers comme "visite".
   if (primary.contains('restaurant')) return true;
+  // Patterns supplémentaires (kebab_shop, sandwich_shop, pizza_shop, etc.)
+  // qui désignent des points de restauration sans le mot "restaurant".
+  if (primary.endsWith('_shop') &&
+      (primary.contains('kebab') ||
+          primary.contains('sandwich') ||
+          primary.contains('pizza') ||
+          primary.contains('coffee') ||
+          primary.contains('tea') ||
+          primary.contains('ice_cream'))) {
+    return true;
+  }
   return _mealPlaceTypes.contains(primary);
 }
+
+/// Types "bar" qui imposent la règle ≥17h même si types secondaires acceptent
+/// un autre créneau. Couvre les pubs/clubs typés `irish_pub` ou `cocktail_bar`
+/// en primary, qui ont souvent `restaurant` ou `food` en secondaire et
+/// passaient via le système de vote (cf. bug 26/04 Pub Mac Carthy à 14:30).
+const Set<String> _strictBarPrimaryTypes = <String>{
+  'bar', 'pub', 'irish_pub', 'sports_bar', 'wine_bar',
+  'cocktail_bar', 'lounge_bar', 'night_club', 'hookah_bar',
+};
 
 /// Types administratifs/éducatifs : ne peuvent JAMAIS être un repas.
 const Set<String> _neverMealPrimaryTypes = <String>{
