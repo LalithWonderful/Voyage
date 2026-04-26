@@ -213,7 +213,11 @@ const travelerPlacesProfiles = <String, TravelerPlacesProfile>{
     minRating: 4.2,
     excludedInterests: ['Nightlife', 'Sports'],
     maxActivityMinutes: 90,
-    maxConsecutiveDistanceMeters: 300,
+    // 500m au lieu de 300m strict : décidé Lalith 26/04 après tests Nancy.
+    // 300m strict en zone urbaine causait répétitions restos + jours vides
+    // (pool d'origine trop restreinte). 500m est réaliste pour Senior actif
+    // (~6-7 min de marche), avec annotations 🚌/🚕 si dépassement.
+    maxConsecutiveDistanceMeters: 500,
     searchRadiusMeters: 600, // walk court (validé Lalith 26/04)
     transitRadiusMeters: 2000, // transport public/taxi quand pool walk insuffisante
     minPoolForCascade: 20,

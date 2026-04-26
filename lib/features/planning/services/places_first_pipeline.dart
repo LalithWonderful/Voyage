@@ -25,6 +25,22 @@ const Set<String> _excludedPlaceTypes = <String>{
   'locality', 'political', 'country', 'administrative_area_level_1',
   'administrative_area_level_2', 'administrative_area_level_3',
   'sublocality', 'neighborhood',
+  // Services personnels : salon de tatouage tagué `body_art_service`,
+  // coiffeurs, esthétique, manucures... sont des services pratiques, pas
+  // des attractions touristiques. Vu Nancy 26/04 STEVE ART TATTOO sélectionné
+  // comme activité culturelle pour Senior.
+  'body_art_service', 'hair_salon', 'beauty_salon', 'nail_salon',
+  'barber_shop', 'tattoo_parlor', 'tattoo', 'massage', 'spa_and_beauty',
+  'tanning_studio', 'piercing_shop',
+  // Bars / clubs / nightlife : aucun intérêt courant ne les demande sauf
+  // "Nightlife" (qui n'est pas dans la liste des profils Senior/Famille).
+  // Si un profil Fun veut nightlife, on créera une exception conditionnelle.
+  'pub', 'irish_pub', 'sports_bar', 'wine_bar', 'cocktail_bar',
+  'lounge_bar', 'night_club', 'hookah_bar', 'karaoke',
+  // Sports / stades : pas un intérêt général touristique. Stade Marcel Picot,
+  // Stade de la Colombière etc. sortaient comme "Événements" alors que ce
+  // sont juste des terrains.
+  'stadium', 'sports_complex',
   // Administratif
   'local_government_office', 'city_hall', 'courthouse', 'embassy',
   'post_office', 'town_square_government',
@@ -61,13 +77,48 @@ const Set<String> _touristicSignals = <String>{
   'museum', 'art_gallery', 'monument',
 };
 
-/// Vrai si le lieu doit être exclu de la pool. Logique : primary type
-/// blacklisté ET aucun signal touristique → exclure.
+/// Types pour lesquels le rejet est **HARD** sur le primary : aucun signal
+/// touristique secondaire ne peut les sauver.
+const Set<String> _hardExcludedPrimaryTypes = <String>{
+  // Bars / clubs / nightlife
+  'bar', 'pub', 'irish_pub', 'sports_bar', 'wine_bar',
+  'cocktail_bar', 'lounge_bar', 'night_club', 'hookah_bar', 'karaoke',
+  // Services personnels
+  'body_art_service', 'tattoo', 'tattoo_parlor', 'hair_salon',
+  'beauty_salon', 'nail_salon', 'barber_shop', 'massage',
+  'spa_and_beauty', 'tanning_studio', 'piercing_shop',
+  // Sports / stades
+  'stadium', 'sports_complex', 'sports_club',
+};
+
+/// Types pour lesquels le rejet est **HARD sur N'IMPORTE QUEL type** (primary
+/// ou secondaire). Pour les types qui polluent en secondaire (Lalith 26/04 :
+/// STEVE ART TATTOO `art_gallery` primary + `body_art_service` secondaire,
+/// Cosmic Park `amusement_center` primary + `karaoke` secondaire, Sport
+/// Bowling Epinal `bowling_alley` primary + `karaoke` secondaire).
+const Set<String> _hardExcludedAnyTypes = <String>{
+  'body_art_service', 'tattoo', 'tattoo_parlor',
+  'karaoke',
+  'adult_entertainment', 'sex_shop', 'strip_club',
+};
+
+/// Vrai si le lieu doit être exclu de la pool. 3 niveaux :
+/// - Hard ANY : N'IMPORTE QUEL type matche `_hardExcludedAnyTypes` → rejet
+///   (body_art_service, karaoke en secondaire ne sont pas sauvés).
+/// - Hard PRIMARY : primary dans `_hardExcludedPrimaryTypes` → rejet absolu
+///   (bars, salons, stades).
+/// - Soft : primary dans `_excludedPlaceTypes` MAIS aucun signal touristique
+///   secondaire → exclure (mairie sans signal historique = bureau, mairie
+///   avec `historical_landmark` secondaire = monument, on garde).
 bool _isExcludedPlace(NearbyCandidate c) {
   if (c.types.isEmpty) return false;
-  final primaryBlacklisted = _excludedPlaceTypes.contains(c.types.first);
-  if (!primaryBlacklisted) return false;
-  return !c.types.any(_touristicSignals.contains);
+  if (c.types.any(_hardExcludedAnyTypes.contains)) return true;
+  final primary = c.types.first;
+  if (_hardExcludedPrimaryTypes.contains(primary)) return true;
+  if (_excludedPlaceTypes.contains(primary)) {
+    return !c.types.any(_touristicSignals.contains);
+  }
+  return false;
 }
 
 /// Pool de candidats Places pour UN jour du voyage.
@@ -707,6 +758,10 @@ Future<NearbyCandidate?> _findBestRestoNear({
   required List<String> tripInterests,
   Set<String> excludeTitlesNorm = const {},
   Set<String> excludePrimaryTypes = const {},
+  /// Titres déjà utilisés sur le voyage : pénalisés fortement dans le score
+  /// (-50 par usage) pour favoriser la variété SANS être bloqués dur. Si
+  /// la pool est petite, ils peuvent quand même remonter.
+  Map<String, int> softExcludeTitlesUseCount = const {},
 }) async {
   // Cascade distance pour restos : si rien à `radius`, on étend à 2× puis 4×.
   // Évite J1 sans repas quand le top resto est à 250m mais radius = 240m (cas
@@ -769,6 +824,10 @@ Future<NearbyCandidate?> _findBestRestoNear({
     if (c.rating == null || c.rating! < effectiveMinRating) return false;
     if ((c.userRatingCount ?? 0) < effectiveMinReviews) return false;
     if (_isExcludedPlace(c)) return false;
+    // Strict primary meal : élimine les faux positifs Places (Marché Central
+    // tagué `florist` primary mais retourné par searchNearby car `bakery` en
+    // secondaire). Un vrai resto a un primary `restaurant`/`cafe`/`bakery`.
+    if (!_isMealPrimaryType(c)) return false;
     if (c.types.isNotEmpty && _fastFoodPrimaryTypes.contains(c.types.first)) {
       return false;
     }
@@ -789,10 +848,18 @@ Future<NearbyCandidate?> _findBestRestoNear({
   }).toList();
   if (filtered.isEmpty) return null;
 
+  String norm2(String s) => s.toLowerCase().trim();
   double score(NearbyCandidate c) {
     final r = c.rating ?? 0;
     final n = c.userRatingCount ?? 0;
-    return r * (n <= 1 ? 1 : math.log(n));
+    final base = r * (n <= 1 ? 1 : math.log(n));
+    // Pénalité soft pour les restos déjà utilisés sur le voyage : -50 par
+    // usage. Force la diversification : un resto à score 35 jamais utilisé
+    // bat un resto à score 40 utilisé 1× (40 - 50 = -10). Mais si la pool
+    // est petite, le moins pire reste éligible (cap dur à 2 via excludeTitles).
+    final softUseCount = softExcludeTitlesUseCount[norm2(c.name)] ?? 0;
+    final softPenalty = softUseCount * 50.0;
+    return base - softPenalty;
   }
   filtered.sort((a, b) => score(b).compareTo(score(a)));
   return filtered.first;
@@ -953,16 +1020,40 @@ List<ActivitySuggestion> selectVisitsDeterministic({
             (lat: c.latitude, lng: c.longitude),
             (lat: anchorLat, lng: anchorLng),
           ));
-          final distancePenalty = (d / maxConsec) * 5.0;
-          // Diversité 2 niveaux :
-          // - cluster (-30/usage) : évite J1=J3 sur le même cluster
-          // - voyage (-25/usage) : évite J6=J1 quand 2 clusters proches ont
-          //   des lieux communs (Place Stanislas dans hôtel ET segment).
+          // Distance penalty renforcée (×8 au lieu de ×5) — décourage les
+          // transitions longues qui forcent taxi/voiture pour Senior.
+          final distancePenalty = (d / maxConsec) * 8.0;
           final keyN = norm(c.name);
           final clusterUseCount = useCountThisCluster[keyN] ?? 0;
           final tripUseCount = useCountAcrossTrip[keyN] ?? 0;
-          final diversityPenalty = clusterUseCount * 30.0 + tripUseCount * 25.0;
-          return qualityScore + interestBonus - distancePenalty - diversityPenalty;
+          // -50 par usage voyage (boost Lalith 26/04) : évite J6 reprenant
+          // Muséum-Aquarium (qualité 37, déjà 1× en J1) parce que les lieux
+          // jamais utilisés du cluster avaient un score < 25 = -25 + 0
+          // (penalty trip insuffisante). Avec -50, Muséum chute à -13 et
+          // laisse la place aux nouveaux lieux.
+          final diversityPenalty = clusterUseCount * 30.0 + tripUseCount * 50.0;
+          // Bonus musée iconique : museum/art_museum/art_gallery + ≥200 avis.
+          final hasMuseumType = c.types.contains('museum') ||
+              c.types.contains('art_museum') ||
+              c.types.contains('art_gallery');
+          final reviewCount = c.userRatingCount ?? 0;
+          final iconicMuseumBonus =
+              (hasMuseumType && reviewCount >= 200) ? 10.0 : 0.0;
+          // Bonus monument touristique populaire : tourist_attraction,
+          // historical_landmark ou monument avec ≥500 avis. Couvre Place
+          // Stanislas (36899 avis), Bahia Palace, Brasserie Excelsior, etc.
+          final hasIconicTouristType = c.types.contains('tourist_attraction') ||
+              c.types.contains('historical_landmark') ||
+              c.types.contains('monument') ||
+              c.types.contains('landmark');
+          final iconicTouristBonus =
+              (hasIconicTouristType && reviewCount >= 500) ? 6.0 : 0.0;
+          return qualityScore +
+              interestBonus +
+              iconicMuseumBonus +
+              iconicTouristBonus -
+              distancePenalty -
+              diversityPenalty;
         }
         candidates.sort((a, b) => score(b).compareTo(score(a)));
         final pick = candidates.first.value.candidate;
@@ -1129,11 +1220,13 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
 
   final out = <ActivitySuggestion>[];
 
-  // Tracker les noms de restos déjà utilisés sur le voyage entier pour ne pas
-  // proposer Dar Essalam ou La Pergola 4 fois sur 8 jours (vu sur Marrakech
-  // 26/04). Cap = 2 par resto sur l'ensemble du voyage.
+  // Cap dur 2× sur les restos (fallback si pool petite). La diversification
+  // active passe par le `softExcludeTitlesUseCount` envoyé à _findBestRestoNear
+  // qui pénalise -50 par usage : un resto jamais utilisé écrase un resto déjà
+  // utilisé. Mais si pool maigre, le 2e usage reste possible.
   const maxRestoUsesAcrossTrip = 2;
   final restoUseCount = <String, int>{};
+  final cuisineUseCount = <String, int>{};
 
   // On itère sur TOUS les jours de la pool (pas seulement ceux avec activités
   // Gemini), pour insérer même les repas des jours sans visite Gemini.
@@ -1163,7 +1256,12 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
     final lunchLng = lunchAnchorActivity?.longitude ?? dayCenter.center.longitude;
     final lunchAnchorLabel = lunchAnchorActivity?.title ?? 'centre du jour';
 
-    final lunch = await _findBestRestoNear(
+    // Cuisines déjà utilisées sur le voyage — exclues en première passe pour
+    // diversifier midi/soir entre les jours (pas 2× pizza, 2× sushi, etc.).
+    // Si la pool n'a plus rien après cette exclusion, fallback sans.
+    final cuisinesUsedTrip = cuisineUseCount.keys.toSet();
+
+    var lunch = await _findBestRestoNear(
       nearbyService: nearbyService,
       latitude: lunchLat,
       longitude: lunchLng,
@@ -1172,6 +1270,20 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
       travelerProfile: travelerProfile,
       tripInterests: tripInterests,
       excludeTitlesNorm: excludeTitles,
+      excludePrimaryTypes: cuisinesUsedTrip,
+      softExcludeTitlesUseCount: restoUseCount,
+    );
+    // Fallback : si exclusion cuisines a vidé la pool, retry sans.
+    lunch ??= await _findBestRestoNear(
+      nearbyService: nearbyService,
+      latitude: lunchLat,
+      longitude: lunchLng,
+      radius: mealRadius,
+      languageCode: languageCode,
+      travelerProfile: travelerProfile,
+      tripInterests: tripInterests,
+      excludeTitlesNorm: excludeTitles,
+      softExcludeTitlesUseCount: restoUseCount,
     );
 
     String? lunchPrimaryType;
@@ -1193,6 +1305,9 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
       final lunchKey = norm(lunch.name);
       excludeTitles.add(lunchKey);
       restoUseCount[lunchKey] = (restoUseCount[lunchKey] ?? 0) + 1;
+      if (lunchPrimaryType != null) {
+        cuisineUseCount[lunchPrimaryType] = (cuisineUseCount[lunchPrimaryType] ?? 0) + 1;
+      }
     }
 
     // Ancre dîner : aprem (13h-19h) ou centre du jour
@@ -1207,13 +1322,14 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
     final dinnerLng = dinnerAnchorActivity?.longitude ?? dayCenter.center.longitude;
     final dinnerAnchorLabel = dinnerAnchorActivity?.title ?? 'centre du jour';
 
-    // Diversité midi/soir : exclut le primary type du déjeuner pour le dîner.
-    // Sushi midi → pas sushi le soir. Cf. fix B 26/04.
-    final excludeTypesForDinner = <String>{
+    // Dîner : on exclut le primary type du déjeuner du jour ET les cuisines
+    // déjà utilisées sur le voyage (en passe 1). Fallback si pool vide.
+    final cuisinesUsedTripForDinner = <String>{
+      ...cuisineUseCount.keys,
       if (lunchPrimaryType != null) lunchPrimaryType,
     };
 
-    final dinner = await _findBestRestoNear(
+    var dinner = await _findBestRestoNear(
       nearbyService: nearbyService,
       latitude: dinnerLat,
       longitude: dinnerLng,
@@ -1222,11 +1338,29 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
       travelerProfile: travelerProfile,
       tripInterests: tripInterests,
       excludeTitlesNorm: excludeTitles,
-      excludePrimaryTypes: excludeTypesForDinner,
+      excludePrimaryTypes: cuisinesUsedTripForDinner,
+      softExcludeTitlesUseCount: restoUseCount,
+    );
+    // Fallback 1 : retry sans exclusion cuisines voyage (mais conserve
+    // l'exclusion midi du jour pour ne pas servir 2× pareil dans la journée).
+    dinner ??= await _findBestRestoNear(
+      nearbyService: nearbyService,
+      latitude: dinnerLat,
+      longitude: dinnerLng,
+      radius: mealRadius,
+      languageCode: languageCode,
+      travelerProfile: travelerProfile,
+      tripInterests: tripInterests,
+      excludeTitlesNorm: excludeTitles,
+      excludePrimaryTypes: <String>{
+        if (lunchPrimaryType != null) lunchPrimaryType,
+      },
+      softExcludeTitlesUseCount: restoUseCount,
     );
 
     if (dinner != null) {
       final dM = distMeters(dinnerLat, dinnerLng, dinner.latitude, dinner.longitude);
+      final dinnerPrimaryType = dinner.types.isNotEmpty ? dinner.types.first : null;
       out.add(ActivitySuggestion(
         dayDate: dayCenter.day,
         startTime: '19:30',
@@ -1241,6 +1375,9 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
       ));
       final dinnerKey = norm(dinner.name);
       restoUseCount[dinnerKey] = (restoUseCount[dinnerKey] ?? 0) + 1;
+      if (dinnerPrimaryType != null) {
+        cuisineUseCount[dinnerPrimaryType] = (cuisineUseCount[dinnerPrimaryType] ?? 0) + 1;
+      }
     }
   }
   debugPrint('[places_first] Insertion déterministe : ${out.length} repas insérés');
