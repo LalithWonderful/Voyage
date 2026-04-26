@@ -1969,6 +1969,10 @@ class _PlanningContentState extends ConsumerState<_PlanningContent> {
                 });
               return ReorderableListView.builder(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+                // Drag handles explicites au lieu du long-press par défaut.
+                // Sur Android, le défaut n'affichait AUCUN indicateur visuel et
+                // les utilisateurs ignoraient que le reorder existait.
+                buildDefaultDragHandles: false,
                 header: Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: _DayHeader(
@@ -2004,10 +2008,31 @@ class _PlanningContentState extends ConsumerState<_PlanningContent> {
                       transport == null &&
                       !isVirtualActivity(a.id) &&
                       !isVirtualActivity(next.id);
+                  // Handle de drag visible (icône grid à gauche). Pour les
+                  // activités virtuelles (liées à un wallet doc), pas de handle
+                  // — on aligne avec un SizedBox de même largeur pour garder
+                  // les cards alignées.
                   return Column(
                     key: ValueKey(a.id),
                     children: [
-                      _ActivityItem(activity: a, overlapColors: overlapColorByActivityId[a.id]),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          if (!isVirtualActivity(a.id))
+                            ReorderableDragStartListener(
+                              index: idx,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
+                                child: Icon(Icons.drag_indicator, size: 22, color: AppColors.textSecondary),
+                              ),
+                            )
+                          else
+                            const SizedBox(width: 26),
+                          Expanded(
+                            child: _ActivityItem(activity: a, overlapColors: overlapColorByActivityId[a.id]),
+                          ),
+                        ],
+                      ),
                       if (transport != null && next != null)
                         _TransportLeg(transport: transport, fromActivity: a, toActivity: next)
                       else if (canAddTransport)
@@ -2040,6 +2065,8 @@ class _PlanningContentState extends ConsumerState<_PlanningContent> {
   }
 
   Future<void> _handleReorder(List<TripActivity> dayActs, int oldIndex, int newIndex) async {
+    final originalOldIdx = oldIndex;
+    final originalNewIdx = newIndex;
     if (newIndex > oldIndex) newIndex -= 1;
     if (oldIndex == newIndex) return;
 
@@ -2052,9 +2079,17 @@ class _PlanningContentState extends ConsumerState<_PlanningContent> {
       return;
     }
 
+    // Logging defensif : permet de répro un éventuel bug d'inversion en
+    // capturant l'ordre vu par Flutter (oldIdx/newIdx avant correction) ET
+    // l'ordre construit par l'algo. Si Lalith signale "drag → ordre inversé",
+    // ces logs permettent de comparer ordre attendu vs ordre appliqué.
+    debugPrint('[reorder] flutter oldIdx=$originalOldIdx newIdx=$originalNewIdx → corrected newIdx=$newIndex');
+    debugPrint('[reorder] dayActs initial: ${dayActs.map((a) => '${a.title}@${a.startTime}').join(' | ')}');
+
     final reordered = [...dayActs];
     final item = reordered.removeAt(oldIndex);
     reordered.insert(newIndex, item);
+    debugPrint('[reorder] reordered after insert: ${reordered.map((a) => '${a.title}@${a.startTime}').join(' | ')}');
 
     final client = ref.read(supabaseProvider);
 
@@ -2112,14 +2147,19 @@ class _PlanningContentState extends ConsumerState<_PlanningContent> {
       prevId = a.id;
     }
 
-    // Applique les updates en DB
-    for (final entry in updates.entries) {
+    debugPrint('[reorder] updates à appliquer: ${updates.entries.map((e) => '${e.key.substring(0, 6)}→${e.value}').join(' | ')}');
+
+    // Applique les updates en DB en parallèle pour minimiser la fenêtre où
+    // l'UI montre encore les anciens horaires (entre la fin du drag et le
+    // re-fetch via `ref.invalidate`). Sequentiel = ~50ms × N updates ; parallel
+    // = max(50ms). Réduit l'effet "snap-back" perçu pendant le drag.
+    await Future.wait(updates.entries.map((entry) async {
       try {
         await client.from('trip_activities').update({'start_time': entry.value}).eq('id', entry.key);
       } catch (e) {
         developer.log('Erreur update time ${entry.key}: $e', name: 'planning');
       }
-    }
+    }));
 
     // Réaligne les trajets sur les nouvelles adjacences
     await _fixTransportsAfterReorder(reordered);

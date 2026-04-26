@@ -249,7 +249,17 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
     final raw = response.text;
     if (raw == null || raw.isEmpty) throw Exception('Réponse vide de Gemini.');
     final cleaned = _stripCodeFences(raw).trim();
-    final parsed = jsonDecode(cleaned);
+    // Gemini peut ajouter un préambule type "Voici votre itinéraire :\n```json\n{...}```"
+    // → après _stripCodeFences il reste "Voici votre itinéraire :\n{...}". On extrait
+    // le 1er bloc {...} ou [...] valide pour ne pas exploser sur un FormatException.
+    final jsonStr = _extractJsonBlock(cleaned);
+    dynamic parsed;
+    try {
+      parsed = jsonDecode(jsonStr);
+    } catch (e) {
+      developer.log('Gemini regional itinerary parse error: $e\nReponse brute (200 premiers car.): ${raw.substring(0, raw.length.clamp(0, 200))}', name: 'ai');
+      throw Exception('Réponse Gemini invalide. Réessaie ou simplifie la destination.');
+    }
     final segs = (parsed is Map) ? (parsed['segments'] as List?) ?? const [] : const [];
     final result = <({String city, String country, int days, String description})>[];
     for (final s in segs) {
@@ -809,4 +819,22 @@ $inputLabel
     return t;
   }
 
+  /// Extrait le 1er bloc JSON valide ({...} ou [...]) d'une string. Robustifie
+  /// le parsing quand Gemini ajoute un préambule explicatif avant le JSON
+  /// (ex: "Voici votre itinéraire :\n{...}"). Si aucun bloc clair n'est
+  /// détecté, retourne la string telle quelle (jsonDecode plantera, le caller
+  /// gère).
+  String _extractJsonBlock(String text) {
+    final firstObj = text.indexOf('{');
+    final firstArr = text.indexOf('[');
+    final start = (firstObj == -1)
+        ? firstArr
+        : (firstArr == -1 ? firstObj : (firstObj < firstArr ? firstObj : firstArr));
+    if (start < 0) return text;
+    final lastObj = text.lastIndexOf('}');
+    final lastArr = text.lastIndexOf(']');
+    final end = lastObj > lastArr ? lastObj : lastArr;
+    if (end <= start) return text;
+    return text.substring(start, end + 1);
+  }
 }

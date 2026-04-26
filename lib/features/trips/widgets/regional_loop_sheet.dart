@@ -193,11 +193,11 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
                 children: [
                   Row(
                     children: [
-                      const Text('💡', style: TextStyle(fontSize: 22)),
+                      const Text('✨', style: TextStyle(fontSize: 22)),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Boucle régionale suggérée',
+                          'Propose-moi un itinéraire',
                           style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                         ),
                       ),
@@ -388,15 +388,33 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
               style: TextStyle(color: AppColors.error, fontSize: 13),
             ),
             const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  _loading = true;
-                  _error = null;
-                });
-                _fetch();
-              },
-              child: const Text('Réessayer'),
+            // 2 actions visibles sur l'écran d'erreur : "Réessayer" pour relancer
+            // l'appel Gemini, "Fermer" pour quitter le sheet sans avoir à swipe
+            // (le swipe est parfois peu découvrable sur Android — bug signalé
+            // "je ne peux pas quitter l'écran" en cas d'erreur).
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.textSecondary,
+                    side: BorderSide(color: AppColors.border),
+                  ),
+                  child: const Text('Fermer'),
+                ),
+                const SizedBox(width: 10),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _loading = true;
+                      _error = null;
+                    });
+                    _fetch();
+                  },
+                  child: const Text('Réessayer'),
+                ),
+              ],
             ),
           ],
         ),

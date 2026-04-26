@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:voyage/core/theme/app_theme.dart';
+import 'package:voyage/core/widgets/city_autocomplete_field.dart';
 import 'package:voyage/features/auth/providers/auth_provider.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
@@ -15,7 +16,19 @@ class DestinationScreen extends ConsumerStatefulWidget {
 }
 
 class _DestinationScreenState extends ConsumerState<DestinationScreen> {
-  final _searchCtrl = TextEditingController();
+  /// Saisie courante du champ destination. Mise à jour à chaque keystroke via
+  /// l'autocomplete pour que `_canSave` fonctionne même si l'utilisateur ne
+  /// clique aucune suggestion.
+  String _typedDestination = '';
+  /// Type de la destination saisie (`city`/`country`/`region`/`place`/`unknown`).
+  /// Si pays/région → on affiche un bandeau d'info doux en dessous du champ.
+  /// Le découpage en étapes sera proposé après création (cf. trip_edit_sheet).
+  String _destinationKind = 'unknown';
+  /// Version du widget autocomplete : incrémenté pour forcer la reconstruction
+  /// quand on veut reset programmatiquement le champ (ex: clic sur "Inspire-moi"
+  /// ou sur une destination pré-remplie). Le widget gère son propre controller
+  /// donc le seul moyen propre de le vider est via Key.
+  int _destFieldVersion = 0;
   DateTime? _startDate;
   DateTime? _endDate;
   bool _loading = false;
@@ -29,16 +42,12 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
     ('🇮🇩', 'Bali, Indonésie', 'Nightlife · Bons plans', 86, [Color(0xFF10B981), Color(0xFF14B8A6)]),
   ];
 
-  @override
-  void initState() {
-    super.initState();
-    _searchCtrl.addListener(() => setState(() {}));
-  }
-
-  @override
-  void dispose() {
-    _searchCtrl.dispose();
-    super.dispose();
+  /// Reset programmatique du champ destination (vide la saisie + reset le kind).
+  /// À appeler quand on bascule sur une destination pré-remplie.
+  void _resetDestinationField() {
+    _typedDestination = '';
+    _destinationKind = 'unknown';
+    _destFieldVersion++;
   }
 
   Future<void> _addTraveler() async {
@@ -74,17 +83,24 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
   }
 
   String? get _chosenDestination {
-    final typed = _searchCtrl.text.trim();
+    final typed = _typedDestination.trim();
     if (typed.isNotEmpty) return typed;
     if (_selectedIndex != null) return _destinations[_selectedIndex!].$2;
     return null;
   }
 
   String? get _chosenEmoji {
-    if (_searchCtrl.text.trim().isNotEmpty) return '✈️';
+    if (_typedDestination.trim().isNotEmpty) return '✈️';
     if (_selectedIndex != null) return _destinations[_selectedIndex!].$1;
     return '✈️';
   }
+
+  /// True quand la destination saisie est un pays ou une région — on affiche
+  /// alors un bandeau d'info doux pour préparer l'utilisateur au fait qu'on lui
+  /// demandera ses villes après création (le bandeau orange du sheet d'édition
+  /// prendra le relais). Pas bloquant : il peut continuer la création.
+  bool get _showCountryHint =>
+      _destinationKind == 'country' || _destinationKind == 'region';
 
   bool get _canSave =>
       _chosenDestination != null && _startDate != null && _endDate != null && !_loading;
@@ -134,7 +150,7 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
     final i = random.nextInt(_destinations.length);
     setState(() {
       _selectedIndex = i;
-      _searchCtrl.clear();
+      _resetDestinationField();
     });
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -165,19 +181,70 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
                     const SizedBox(height: 6),
                     Text('Choisis une destination, ou laisse-toi inspirer.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
                     const SizedBox(height: 14),
-                    TextField(
-                      controller: _searchCtrl,
+                    // Autocomplete élargi : accepte villes, pays, régions, lieux.
+                    // Le `kind` détecté nourrit le bandeau d'info pays/région
+                    // ci-dessous. La Key change quand on reset programmatiquement
+                    // le champ (clic sur une card pré-remplie ou "Inspire-moi"),
+                    // ce qui force la reconstruction du widget pour vider sa
+                    // saisie interne.
+                    CityAutocompleteField(
+                      key: ValueKey('onboarding-dest-$_destFieldVersion'),
+                      initialValue: _typedDestination,
+                      acceptAnyDestination: true,
+                      hintText: 'Pays, ville, région... (ex: Nancy, Maroc, Bali)',
                       onChanged: (v) {
-                        if (v.trim().isNotEmpty && _selectedIndex != null) {
-                          setState(() => _selectedIndex = null);
-                        }
+                        // Suit la saisie en temps réel pour que `_canSave`
+                        // fonctionne sans clic de suggestion. Reset le `kind`
+                        // si l'utilisateur édite après une sélection.
+                        setState(() {
+                          _typedDestination = v;
+                          if (v.trim().isEmpty) {
+                            _destinationKind = 'unknown';
+                          } else if (_destinationKind != 'unknown') {
+                            // L'utilisateur a tapé après avoir sélectionné →
+                            // on annule le kind capturé pour ne pas afficher
+                            // un bandeau périmé.
+                            _destinationKind = 'unknown';
+                          }
+                          if (v.trim().isNotEmpty && _selectedIndex != null) {
+                            _selectedIndex = null;
+                          }
+                        });
                       },
-                      decoration: InputDecoration(
-                        hintText: '🔍 Pays, ville, région...',
-                        hintStyle: TextStyle(color: AppColors.textSecondary),
-                        fillColor: AppColors.surface,
-                      ),
+                      onSelectedDetailed: (city, _, _, kind) {
+                        setState(() {
+                          _typedDestination = city;
+                          _destinationKind = kind;
+                          _selectedIndex = null;
+                        });
+                      },
                     ),
+                    if (_showCountryHint) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AppColors.accent.withValues(alpha: 0.1),
+                          border: Border.all(color: AppColors.accent.withValues(alpha: 0.4)),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('💡', style: TextStyle(fontSize: 14)),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _destinationKind == 'country'
+                                    ? 'Tu pars dans tout un pays — on te demandera tes premières villes après création.'
+                                    : 'Tu pars dans une région — on te demandera tes premières villes après création.',
+                                style: TextStyle(fontSize: 11, color: AppColors.textPrimary, height: 1.4),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 16),
 
                     Text('PÉRIODE DU VOYAGE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
@@ -241,7 +308,7 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
                         selected: _selectedIndex == i,
                         onTap: () => setState(() {
                           _selectedIndex = i;
-                          _searchCtrl.clear();
+                          _resetDestinationField();
                         }),
                       );
                     }),

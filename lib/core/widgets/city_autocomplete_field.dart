@@ -35,6 +35,11 @@ class CityAutocompleteField extends ConsumerStatefulWidget {
   /// ce cas aussi.
   final void Function(String city, String? country, String? placeId, String kind)? onSelectedDetailed;
 
+  /// Notifié à chaque keystroke (en temps réel, pas debounce). Utile pour les
+  /// formulaires qui veulent valider la saisie même quand l'utilisateur n'a
+  /// cliqué aucune suggestion (ex: bouton "Créer mon voyage" en onboarding).
+  final void Function(String value)? onChanged;
+
   /// Si true, n'applique PAS le filtre `(cities)` — ramène aussi pays/régions.
   /// Par défaut (false) : autocomplete villes uniquement, comportement historique.
   final bool acceptAnyDestination;
@@ -58,6 +63,7 @@ class CityAutocompleteField extends ConsumerStatefulWidget {
     this.initialValue,
     this.onSelected,
     this.onSelectedDetailed,
+    this.onChanged,
     this.acceptAnyDestination = false,
     this.restrictToCountryCode,
     this.hintText,
@@ -93,6 +99,7 @@ class _CityAutocompleteFieldState extends ConsumerState<CityAutocompleteField> {
   }
 
   void _onChanged(String value) {
+    widget.onChanged?.call(value);
     if (_justSelected) {
       _justSelected = false;
       return;
@@ -197,6 +204,11 @@ class _CityAutocompleteFieldState extends ConsumerState<CityAutocompleteField> {
                         onPressed: () {
                           _ctrl.clear();
                           setState(() => _suggestions = const []);
+                          // Notifie le parent que la saisie est vidée — sinon le state
+                          // parent garde l'ancienne valeur (bug : "destination Lisbonne
+                          // → X → save → réouvre → Lisbonne toujours là").
+                          widget.onChanged?.call('');
+                          widget.onSelectedDetailed?.call('', null, null, 'unknown');
                         },
                       )
                     : null),

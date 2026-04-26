@@ -121,7 +121,20 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
     // (évite de prendre une homonymie au cas où la destination est ambiguë).
     final exact = results.where((r) => r.mainText.toLowerCase() == dest.toLowerCase());
     final pick = exact.isNotEmpty ? exact.first : results.first;
-    setState(() => _destinationKind = pick.kind);
+    setState(() {
+      _destinationKind = pick.kind;
+      // Auto-seed la 1ère étape si destination=ville claire ET aucune étape :
+      // évite la card collapsed "Voyage multi-villes ?" pour un voyage qui a
+      // pourtant une ville bien définie. L'utilisateur peut toujours supprimer
+      // l'étape s'il ne veut pas l'avoir. On ne le fait PAS pour kind=country
+      // /region (le bandeau orange + ses CTAs prennent le relais) ni pour
+      // kind=place (adresse précise type "Tour Eiffel" — pas une ville).
+      if (pick.kind == 'city' && _segments.isEmpty) {
+        _autoSeedFirstSegmentFromDestination();
+        _enforceSingleSegmentRule();
+        _segmentsCardExpanded = true;
+      }
+    });
     // Récupère le code ISO du pays pour filtrer les étapes par la suite.
     // Marche pour kind=country/region (remonte au pays parent) ET kind=city
     // (le pays de la ville est utile aussi pour proposer d'autres villes du
@@ -256,6 +269,41 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
     if (_segments.length == 1 && _segments[0].days != _tripDays) {
       _segments[0] = _segments[0].copyWith(days: _tripDays);
     }
+  }
+
+  /// Extrait la 1ère partie avant la 1ère virgule d'une string. Utilisé pour
+  /// récupérer juste la ville quand la destination contient un suffixe pays
+  /// ("Lisbonne, Portugal" → "Lisbonne"). Si pas de virgule, retourne la string
+  /// telle quelle.
+  String _firstWordBeforeComma(String s) {
+    final t = s.trim();
+    final c = t.indexOf(',');
+    return c > 0 ? t.substring(0, c).trim() : t;
+  }
+
+  /// Auto-crée une 1ère étape = destination quand l'utilisateur déplie le CTA
+  /// "Voyage multi-villes ?". Évite le cas confus "destination=Nancy,
+  /// étapes=[Épinal]" où Nancy disparaît du circuit. Skip si pays/région (le
+  /// bandeau orange et ses CTAs prennent le relais), si déjà des étapes, ou si
+  /// destination vide.
+  ///
+  /// Si la destination contient une virgule ("Lisbonne, Portugal" via card
+  /// pré-remplie), on extrait la 1ère partie comme ville et la dernière comme
+  /// pays — sinon le segment afficherait "Lisbonne, Portugal" comme nom de
+  /// ville, ce qui est moche et casse la cohérence avec d'autres étapes.
+  void _autoSeedFirstSegmentFromDestination() {
+    if (_segments.isNotEmpty) return;
+    final dest = _destCtrl.text.trim();
+    if (dest.isEmpty) return;
+    if (_destinationKind == 'country' || _destinationKind == 'region') return;
+    final firstComma = dest.indexOf(',');
+    final city = firstComma > 0 ? dest.substring(0, firstComma).trim() : dest;
+    final countryFromText = firstComma > 0 ? dest.substring(firstComma + 1).trim() : '';
+    _segments.add(TripSegment(
+      city: city,
+      days: _tripDays,
+      country: countryFromText.isEmpty ? null : countryFromText,
+    ));
   }
 
   /// True quand la destination détectée est un pays ou une région : impose
@@ -604,6 +652,29 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
                       hintText: 'Ville, pays ou région (ex: Nancy, Maroc, Bali)',
                       onSelectedDetailed: (dest, _, placeId, kind) {
                         setState(() {
+                          // Auto-sync de la 1ère étape avec la nouvelle destination
+                          // si elle correspondait à l'ancienne (cas auto-créée).
+                          // Ex: destination Lisbonne + étape Lisbonne → modifier
+                          // destination en Bangkok devrait mettre à jour l'étape,
+                          // pas la conserver à Lisbonne.
+                          final oldCity = _firstWordBeforeComma(_destCtrl.text);
+                          final newCity = _firstWordBeforeComma(dest);
+                          final firstSegMatchesOld = _segments.isNotEmpty &&
+                              _segments[0].city.toLowerCase() == oldCity.toLowerCase();
+                          if (firstSegMatchesOld) {
+                            if (kind == 'country' || kind == 'region') {
+                              // Nouvelle dest = pays/région → l'ancienne ville n'a
+                              // plus de sens comme étape (l'IA proposera des villes
+                              // via le bandeau orange + CTAs). On la supprime.
+                              _segments.removeAt(0);
+                            } else {
+                              // Nouvelle dest = ville/place/unknown → on remplace
+                              // la 1ère étape par la nouvelle ville (préserve days
+                              // et country qui seront re-normalisés).
+                              _segments[0] = _segments[0].copyWith(city: newCity, country: null);
+                            }
+                            _enforceSingleSegmentRule();
+                          }
                           _destCtrl.text = dest;
                           _destinationKind = kind;
                           // On reset le code pays — il sera rafraîchi par le
@@ -1061,7 +1132,11 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
   /// Pour les voyages mono-ville, ça évite l'overwhelm visuel par défaut.
   Widget _buildSegmentsCta() {
     return InkWell(
-      onTap: () => setState(() => _segmentsCardExpanded = true),
+      onTap: () => setState(() {
+        _autoSeedFirstSegmentFromDestination();
+        _enforceSingleSegmentRule();
+        _segmentsCardExpanded = true;
+      }),
       borderRadius: BorderRadius.circular(10),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),

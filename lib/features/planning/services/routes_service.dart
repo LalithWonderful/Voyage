@@ -50,10 +50,15 @@ class RoutesService {
     if (cached != null) {
       final list = cached['options'] as List?;
       if (list != null && list.isNotEmpty) {
-        return list
+        final cachedOpts = list
             .whereType<Map<String, dynamic>>()
             .map(TransportOption.fromJson)
             .toList();
+        // CRITIQUE : on filtre les options absurdes même au retour cache.
+        // Sans ça, un cache pré-fix (avec WALK 600min) sert toujours la mauvaise
+        // valeur. Bug signalé par Lalith : "10h à pied" persistait après le fix
+        // côté _computeOne car les options venaient du cache, pas d'un call frais.
+        return _filterAbsurdOptions(cachedOpts);
       }
     }
 
@@ -73,11 +78,49 @@ class RoutesService {
     final options = results.whereType<TransportOption>().toList();
     if (options.isEmpty) return null;
 
-    // Cache (best-effort)
+    // Cache (best-effort) — on cache AVANT filtrage : si la logique de filtre
+    // évolue, on n'invalide pas tout le cache. Le filtre est appliqué à chaque
+    // lecture (cache ou fresh) côté `computeOptions`.
     await _cache?.put('routes_pair', cacheKey, {
       'options': options.map((o) => o.toJson()).toList(),
     });
-    return options;
+    return _filterAbsurdOptions(options);
+  }
+
+  /// Filtre post-hoc des options absurdes : appelé à chaque retour de
+  /// `computeOptions`, que les options viennent du cache ou d'un call frais.
+  /// Permet au filtre d'évoluer sans invalider le cache et de couvrir les
+  /// caches pré-fix qui contenaient déjà des valeurs aberrantes.
+  /// Règles :
+  /// - WALK : >180 min OU >15 km → on enlève (10h à pied, c'est non-sens UX)
+  /// - BIKE : >80 km → on enlève
+  /// - DRIVE / TRANSIT / autres : on garde tel quel
+  List<TransportOption> _filterAbsurdOptions(List<TransportOption> options) {
+    final kept = <TransportOption>[];
+    for (final o in options) {
+      // Extrait la distance depuis `detail` ("X.Y km") quand présent.
+      double? distanceKm;
+      if (o.detail != null) {
+        final m = RegExp(r'(\d+(?:\.\d+)?)\s*km').firstMatch(o.detail!);
+        if (m != null) distanceKm = double.tryParse(m.group(1)!);
+      }
+      if (o.mode == 'walk' && (o.durationMinutes > 180 || (distanceKm != null && distanceKm > 15))) {
+        developer.log(
+          'Routes filter: WALK rejeté (${o.durationMinutes}min, ${distanceKm?.toStringAsFixed(1) ?? "?"}km) — aberrant pour la marche',
+          name: 'routes',
+        );
+        continue;
+      }
+      if (o.mode == 'bike' && distanceKm != null && distanceKm > 80) {
+        developer.log(
+          'Routes filter: BIKE rejeté (${distanceKm.toStringAsFixed(1)}km) — trop long pour le vélo',
+          name: 'routes',
+        );
+        continue;
+      }
+      kept.add(o);
+    }
+    return kept;
   }
 
   /// Appelle Routes API pour UN seul mode. Renvoie `null` en cas d'échec
@@ -127,6 +170,36 @@ class RoutesService {
       final distanceM = (route['distance_meters'] as num?)?.toInt() ??
           (route['distanceMeters'] as num?)?.toInt() ??
           0;
+
+      // Filtre les options absurdes : WALK >15km ou >3h, BIKE >80km. Au-delà,
+      // proposer ces modes n'a pas de sens UX (cas réel : "10h à pied" à Épinal
+      // quand le suggesteur place 2 activités à 50km l'une de l'autre par erreur).
+      // DRIVE et TRANSIT restent autorisés à toute distance — le caller peut
+      // décider d'afficher un avertissement en amont.
+      if (voyageMode == 'walk' && (distanceM > 15000 || minutes > 180)) {
+        developer.log(
+          'Routes: WALK filtré ($fromPlaceId → $toPlaceId) — ${(distanceM / 1000).toStringAsFixed(1)}km, ${minutes}min aberrants pour la marche',
+          name: 'routes',
+        );
+        return null;
+      }
+      if (voyageMode == 'bike' && distanceM > 80000) {
+        developer.log(
+          'Routes: BIKE filtré ($fromPlaceId → $toPlaceId) — ${(distanceM / 1000).toStringAsFixed(1)}km trop long pour le vélo',
+          name: 'routes',
+        );
+        return null;
+      }
+      // Logging défensif : si DRIVE >50km entre 2 activités, c'est suspect (probable
+      // bug suggesteur ayant placé 2 activités lointaines sur la même journée, ex:
+      // Marrakech→Fès = 256km/388€). Aide à diagnostiquer en amont.
+      if (voyageMode == 'taxi' && distanceM > 50000) {
+        developer.log(
+          'Routes: DRIVE longue distance ($fromPlaceId → $toPlaceId) — ${(distanceM / 1000).toStringAsFixed(1)}km. Vérifier que le suggesteur ne place pas 2 activités lointaines sur le même jour.',
+          name: 'routes',
+        );
+      }
+
       return TransportOption(
         mode: voyageMode,
         durationMinutes: minutes,

@@ -328,9 +328,11 @@ class PlacesService {
             .toList(growable: false);
         // Mapping types Google → kind métier :
         // - 'country' → country
-        // - 'administrative_area_level_1' (région/État, sans 'locality') → region
-        // - 'locality' ou 'sublocality' ou 'postal_town' → city
-        // - sinon → 'place' (POI, adresse...). Côté UI on bloque save sur
+        // - 'administrative_area_level_1/2' (région/État/département) → region
+        // - 'natural_feature' (île, archipel, parc, montagne) → region (Bali,
+        //   Sicile, etc. peuvent revenir avec ce type SANS administrative_area)
+        // - 'locality' / 'sublocality' / 'postal_town' → city
+        // - sinon → 'place' (POI, adresse précise). Côté UI on bloque save sur
         //   country/region uniquement, pas sur 'place' (laisse passer même
         //   si l'utilisateur tape une adresse précise).
         final String kind;
@@ -341,7 +343,9 @@ class PlacesService {
             types.contains('sublocality')) {
           kind = 'city';
         } else if (types.contains('administrative_area_level_1') ||
-            types.contains('administrative_area_level_2')) {
+            types.contains('administrative_area_level_2') ||
+            types.contains('natural_feature') ||
+            types.contains('archipelago')) {
           kind = 'region';
         } else {
           kind = 'place';
