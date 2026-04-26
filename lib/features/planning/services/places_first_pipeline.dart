@@ -970,13 +970,31 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           // Cap par cluster : autorise jusqu'à `maxReusePerCluster` fois le
           // même lieu sur l'ensemble du cluster (jours différents).
           if ((useCountThisCluster[n] ?? 0) >= maxReusePerCluster) return false;
+          // Hard cap voyage = 1× pour les lieux iconiques (musées ≥200 avis,
+          // monuments ≥500 avis). Le scoring -50/usage trip ne suffisait pas
+          // (Muséum-Aquarium qualité 37 + bonus +6 vs alternatives <25 →
+          // toujours repris en J6 après J1). Lalith 26/04 : iconic = 1×/voyage.
+          final reviewN = c.userRatingCount ?? 0;
+          final isIconicMuseum = reviewN >= 200 &&
+              (c.types.contains('museum') ||
+                  c.types.contains('art_museum') ||
+                  c.types.contains('art_gallery'));
+          final isIconicTourist = reviewN >= 500 &&
+              (c.types.contains('tourist_attraction') ||
+                  c.types.contains('historical_landmark') ||
+                  c.types.contains('monument') ||
+                  c.types.contains('landmark'));
+          if ((isIconicMuseum || isIconicTourist) &&
+              (useCountAcrossTrip[n] ?? 0) >= 1) {
+            return false;
+          }
           return true;
         }).toList();
 
         if (baseCandidates.isEmpty) {
           // Diagnostic : pourquoi aucun candidat ne passe les filtres durs ?
           var rejectTime = 0, rejectMeal = 0, rejectExisting = 0;
-          var rejectCity = 0, rejectDay = 0, rejectReuse = 0;
+          var rejectCity = 0, rejectDay = 0, rejectReuse = 0, rejectIconic = 0;
           for (final e in entries) {
             final c = e.value.candidate;
             if (!_isAppropriateForTime(c, slot)) { rejectTime++; continue; }
@@ -986,10 +1004,22 @@ List<ActivitySuggestion> selectVisitsDeterministic({
             if (cityNamesNorm.contains(n)) { rejectCity++; continue; }
             if (usedThisDay.contains(n)) { rejectDay++; continue; }
             if ((useCountThisCluster[n] ?? 0) >= maxReusePerCluster) { rejectReuse++; continue; }
+            final reviewN = c.userRatingCount ?? 0;
+            final isIconicMuseum = reviewN >= 200 &&
+                (c.types.contains('museum') ||
+                    c.types.contains('art_museum') ||
+                    c.types.contains('art_gallery'));
+            final isIconicTourist = reviewN >= 500 &&
+                (c.types.contains('tourist_attraction') ||
+                    c.types.contains('historical_landmark') ||
+                    c.types.contains('monument') ||
+                    c.types.contains('landmark'));
+            if ((isIconicMuseum || isIconicTourist) &&
+                (useCountAcrossTrip[n] ?? 0) >= 1) { rejectIconic++; continue; }
           }
           debugPrint(
             '[places_first] ⚠️ ${day.toIso8601String().split("T").first} slot $slot : 0 candidat sur ${entries.length} '
-            '(rejet horaire=$rejectTime, repas=$rejectMeal, existant=$rejectExisting, ville=$rejectCity, déjà-jour=$rejectDay, sur-utilisé=$rejectReuse)',
+            '(rejet horaire=$rejectTime, repas=$rejectMeal, existant=$rejectExisting, ville=$rejectCity, déjà-jour=$rejectDay, sur-utilisé=$rejectReuse, iconic-déjà-vu=$rejectIconic)',
           );
           continue;
         }
