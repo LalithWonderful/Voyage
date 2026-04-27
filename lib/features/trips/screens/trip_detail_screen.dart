@@ -434,34 +434,42 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
               ),
               const SizedBox(height: 20),
 
-              // Cards principales avec sous-texte dynamique : transforme les
-              // boutons "navigation" en "résumé d'état". Plus engageant + plus
-              // utile (l'utilisateur sait déjà ce qu'il y a derrière).
-              _RichActionCard(
-                icon: Icons.calendar_month,
-                label: 'Planning',
-                subtitle: () {
-                  if (activitiesCount == null) return 'Chargement...';
-                  if (activitiesCount == 0) return 'Aucun planning pour l\'instant';
-                  // Compte les jours uniques avec ≥1 activité (pas le total
-                  // d'activités). Plus parlant : "8 jours planifiés" > "40 activités".
-                  final activities = activitiesAsync.valueOrNull ?? const [];
-                  final daysWith = activities
-                      .map((a) => DateTime(a.dayDate.year, a.dayDate.month, a.dayDate.day))
-                      .toSet()
-                      .length;
-                  return '$daysWith jour${daysWith > 1 ? "s" : ""} planifié${daysWith > 1 ? "s" : ""}';
-                }(),
-                onTap: () => context.go('/trips/${trip.id}/planning'),
-              ),
-              const SizedBox(height: 12),
-              _RichActionCard(
-                icon: Icons.wallet,
-                label: 'Documents',
-                subtitle: 'Billets, hôtels, confirmations',
-                onTap: () => context.go('/wallet'),
-              ),
-              const SizedBox(height: 12),
+              // Cards principales avec sous-texte dynamique. Visibilité :
+              // - Planning : visible uniquement si ≥1 activité (sinon le
+              //   `_NextStepCard` au-dessus propose déjà "Générer mon planning",
+              //   pas la peine de dupliquer le point d'entrée).
+              // - Documents : visible uniquement si ≥1 doc (hôtel OU autre).
+              //   Sinon les tuiles "Où dors-tu ?" / "Ajoute tes réservations"
+              //   au-dessus suffisent, et /wallet reste accessible via la
+              //   bottom nav.
+              // - Carte : toujours visible avec un sous-texte adapté (état
+              //   vide explicite "Tes lieux apparaîtront ici..."). Conservée
+              //   pour ne pas perdre l'accès à la carte du voyage.
+              if (activitiesCount != null && activitiesCount > 0) ...[
+                _RichActionCard(
+                  icon: Icons.calendar_month,
+                  label: 'Planning',
+                  subtitle: () {
+                    final activities = activitiesAsync.valueOrNull ?? const [];
+                    final daysWith = activities
+                        .map((a) => DateTime(a.dayDate.year, a.dayDate.month, a.dayDate.day))
+                        .toSet()
+                        .length;
+                    return '$daysWith jour${daysWith > 1 ? "s" : ""} planifié${daysWith > 1 ? "s" : ""}';
+                  }(),
+                  onTap: () => context.go('/trips/${trip.id}/planning'),
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (docs.isNotEmpty) ...[
+                _RichActionCard(
+                  icon: Icons.wallet,
+                  label: 'Documents',
+                  subtitle: 'Billets, hôtels, confirmations',
+                  onTap: () => context.go('/wallet'),
+                ),
+                const SizedBox(height: 12),
+              ],
               _RichActionCard(
                 icon: Icons.map,
                 label: 'Carte',
