@@ -48,6 +48,45 @@ class TripDetailScreen extends ConsumerWidget {
   }
 }
 
+/// Extrait la ville d'un hôtel à partir de son adresse. Heuristique V1 :
+/// pour les adresses françaises "26 rue X, 88000 Épinal, France" on cherche
+/// le code postal (4-5 chiffres) suivi du nom de ville. Sinon fallback sur
+/// l'avant-dernier segment séparé par virgule (".. , Bangkok, Thaïlande" → "Bangkok").
+/// Retourne null si rien d'extractible. À terme : ajouter un champ explicite
+/// `city` dans `TripDocument.metadata` saisi au moment du formulaire.
+String? _extractCityFromHotel(TripDocument hotel) {
+  final addr = hotel.metadata['address'] as String?;
+  if (addr == null || addr.trim().isEmpty) return null;
+  // Format FR : "X rue Y, 12345 Ville, France" — code postal 4-5 chiffres
+  final postalMatch = RegExp(r'\b\d{4,5}\s+([^,]+)').firstMatch(addr);
+  if (postalMatch != null) {
+    final candidate = postalMatch.group(1)?.trim();
+    if (candidate != null && candidate.isNotEmpty) return candidate;
+  }
+  // Fallback : avant-dernier segment (avant le pays)
+  final parts = addr
+      .split(',')
+      .map((s) => s.trim())
+      .where((s) => s.isNotEmpty)
+      .toList();
+  if (parts.length >= 2) return parts[parts.length - 2];
+  return null;
+}
+
+/// Construit la séquence de villes du parcours à partir des hôtels triés par
+/// check-in ASC. Supprime les doublons consécutifs (Nancy → Nancy → Épinal
+/// devient Nancy → Épinal). Skip les hôtels sans ville extractible.
+List<String> _journeyCities(List<TripDocument> hotels) {
+  final cities = <String>[];
+  for (final h in hotels) {
+    final c = _extractCityFromHotel(h);
+    if (c == null || c.isEmpty) continue;
+    if (cities.isNotEmpty && cities.last.toLowerCase() == c.toLowerCase()) continue;
+    cities.add(c);
+  }
+  return cities;
+}
+
 /// Statut d'avancement d'un voyage. Calculé à partir du Trip + de ses
 /// dépendances (activités, étapes, kind de destination). Préparé extensible :
 /// V1 = 3 statuts simples ; en V2 on pourra ajouter `inProgress`/`past` quand
@@ -393,7 +432,22 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
                   ),
                 )
               else ...[
+                // Parcours global "Nancy → Épinal" : narrative de voyage
+                // extraite des villes uniques consécutives des hôtels triés
+                // par check-in. Affiché uniquement à partir de 2 villes
+                // distinctes — pour 1 seule ville, c'est sans intérêt.
+                if (_journeyCities(hotels).length >= 2) ...[
+                  _JourneyOverview(cities: _journeyCities(hotels)),
+                  const SizedBox(height: 14),
+                ],
                 _HotelsCarousel(hotels: hotels, fmtDate: _fmtDate),
+                // Liste compacte si ≥3 hôtels — permet de scanner rapidement
+                // tout le parcours sans swiper le carrousel un par un. Format
+                // "Ville (DD–DD)" sur même mois, "Ville (DD/MM–DD/MM)" sinon.
+                if (hotels.length >= 3) ...[
+                  const SizedBox(height: 10),
+                  _CompactHotelList(hotels: hotels),
+                ],
                 const SizedBox(height: 10),
                 _QuickActionTile(
                   emoji: '🏨',
@@ -557,7 +611,11 @@ class _HotelsCarouselState extends State<_HotelsCarousel> {
   late final PageController _controller;
   late int _currentPage;
 
-  static const double _cardHeight = 124;
+  // 144 (au lieu de 124 historique) pour accommoder la ligne "🚗 Arrivée
+  // depuis X" qui apparaît sur l'hôtel courant en multi-hôtels. Pour le mode
+  // solo (1 seul hôtel sans transition) on rogne 20px côté SizedBox via le
+  // build pour ne pas avoir un espace vide en bas.
+  static const double _cardHeight = 144;
 
   int _initialIndex() {
     final today = DateTime.now();
@@ -609,9 +667,23 @@ class _HotelsCarouselState extends State<_HotelsCarousel> {
     super.dispose();
   }
 
+  /// Calcule l'étiquette de position de l'hôtel courant : Début / Étape X / Fin
+  /// avec un dot coloré sobre (vert/bleu/rouge). Remplace l'ancien "HÉBERGEMENT 1/2"
+  /// pour donner un sens narratif au parcours.
+  ({String label, Color color}) _positionLabel(int index, int total) {
+    if (total == 1) return (label: 'Hébergement', color: AppColors.primary);
+    if (index == 0) return (label: 'Début du séjour', color: AppColors.success);
+    if (index == total - 1) return (label: 'Fin du séjour', color: AppColors.error);
+    return (label: 'Étape ${index + 1}', color: AppColors.primary);
+  }
+
   @override
   Widget build(BuildContext context) {
     final hotels = widget.hotels;
+    final pos = _positionLabel(_currentPage, hotels.length);
+    final previousCity = _currentPage > 0
+        ? _extractCityFromHotel(hotels[_currentPage - 1])
+        : null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -621,9 +693,24 @@ class _HotelsCarouselState extends State<_HotelsCarousel> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'HÉBERGEMENT ${_currentPage + 1}/${hotels.length}',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 8, height: 8,
+                      decoration: BoxDecoration(shape: BoxShape.circle, color: pos.color),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      pos.label.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textSecondary,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
                 ),
                 Text(
                   'Glisser ›',
@@ -638,7 +725,14 @@ class _HotelsCarouselState extends State<_HotelsCarousel> {
             controller: _controller,
             itemCount: hotels.length,
             onPageChanged: (i) => setState(() => _currentPage = i),
-            itemBuilder: (_, i) => _HotelCard(hotel: hotels[i], fmtDate: widget.fmtDate),
+            itemBuilder: (_, i) => _HotelCard(
+              hotel: hotels[i],
+              fmtDate: widget.fmtDate,
+              // La transition n'apparaît que sur l'hôtel courant pour rester
+              // contextuelle au swipe — sinon toutes les cards afficheraient
+              // "Arrivée depuis ..." y compris la 1ère.
+              previousCity: i == _currentPage ? previousCity : null,
+            ),
           ),
         ),
         if (hotels.length > 1) ...[
@@ -670,7 +764,16 @@ class _HotelsCarouselState extends State<_HotelsCarousel> {
 class _HotelCard extends ConsumerWidget {
   final TripDocument hotel;
   final String Function(DateTime) fmtDate;
-  const _HotelCard({required this.hotel, required this.fmtDate});
+  /// Ville de l'hôtel précédent dans le parcours — quand non null, on affiche
+  /// "🚗 Arrivée depuis X" au-dessus du nom de l'hôtel pour rendre la transition
+  /// inter-villes lisible. Null pour le 1er hôtel ou les hôtels qui n'ont pas
+  /// de prédécesseur identifié.
+  final String? previousCity;
+  const _HotelCard({
+    required this.hotel,
+    required this.fmtDate,
+    this.previousCity,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -693,6 +796,17 @@ class _HotelCard extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (previousCity != null) ...[
+                    Text(
+                      '🚗 Arrivée depuis $previousCity',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                  ],
                   Text(hotel.name, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                   if (hotel.metadata['address'] != null) ...[
                     const SizedBox(height: 2),
@@ -718,6 +832,116 @@ class _HotelCard extends ConsumerWidget {
             Icon(Icons.edit, size: 16, color: AppColors.textSecondary),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Vue d'ensemble du parcours du voyage : "Nancy → Épinal" / "Shanghai → Hangzhou
+/// → Xi'an". Construit à partir de la liste de villes uniques consécutives
+/// (cf. `_journeyCities`). Affiché au-dessus du carrousel pour donner une
+/// narrative immédiate du déplacement avant le détail par hôtel.
+class _JourneyOverview extends StatelessWidget {
+  final List<String> cities;
+  const _JourneyOverview({required this.cities});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.primaryLight,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.route, size: 16, color: AppColors.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              cities.join('  →  '),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppColors.primary,
+              ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Liste compacte des hébergements — affichée à partir de 3 hôtels pour
+/// permettre de scanner rapidement le parcours sans swiper le carrousel un
+/// par un. Format "Ville (DD–DD)" sur même mois, "Ville (DD/MM–DD/MM)" sinon.
+/// La ville est extraite de l'adresse (cf. `_extractCityFromHotel`) ; en
+/// fallback on utilise le nom de l'hôtel.
+class _CompactHotelList extends StatelessWidget {
+  final List<TripDocument> hotels;
+  const _CompactHotelList({required this.hotels});
+
+  String _formatPeriod(TripDocument h) {
+    final ciStr = h.metadata['check_in'];
+    final coStr = h.metadata['check_out'];
+    if (ciStr is! String || coStr is! String) return '';
+    final ci = DateTime.tryParse(ciStr);
+    final co = DateTime.tryParse(coStr);
+    if (ci == null || co == null) return '';
+    final cd = ci.day.toString().padLeft(2, '0');
+    final cm = ci.month.toString().padLeft(2, '0');
+    final od = co.day.toString().padLeft(2, '0');
+    final om = co.month.toString().padLeft(2, '0');
+    if (ci.month == co.month && ci.year == co.year) return '$cd–$od';
+    return '$cd/$cm–$od/$om';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (var i = 0; i < hotels.length; i++) ...[
+            if (i > 0) const SizedBox(height: 6),
+            Row(
+              children: [
+                Container(
+                  width: 5, height: 5,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _extractCityFromHotel(hotels[i]) ?? hotels[i].name,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Text(
+                  _formatPeriod(hotels[i]),
+                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+          ],
+        ],
       ),
     );
   }
