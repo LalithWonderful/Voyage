@@ -186,6 +186,9 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
     }
   }
 
+  /// Modal obligatoire de suppression — appelé depuis la section "Actions"
+  /// en bas de page. Wording aligné sur la spec V3 (court et direct, l'utilisateur
+  /// est déjà dans la zone "Actions" donc on n'a pas besoin de réexpliquer).
   Future<void> _confirmDeleteTrip(BuildContext context, WidgetRef ref) async {
     final messenger = ScaffoldMessenger.of(context);
     final router = GoRouter.of(context);
@@ -193,11 +196,7 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
       context: context,
       builder: (dialogCtx) => AlertDialog(
         title: const Text('Supprimer ce voyage ?'),
-        content: Text(
-          '« ${trip.title} » ainsi que toutes ses activités et trajets seront '
-          'définitivement supprimés. Les documents (hôtels, vols, billets) restent '
-          'dans ton wallet et peuvent être réutilisés sur un autre voyage. Action irréversible.',
-        ),
+        content: const Text('Cette action est définitive.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogCtx, false), child: const Text('Annuler')),
           TextButton(
@@ -254,9 +253,10 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
             onPressed: () => context.go('/trips'),
           ),
           actions: [
-            // Bouton Modifier visible : icône + texte (au-delà des 600px on
-            // peut afficher le label, sinon icon seul). Plus parlant que la
-            // simple icône crayon de l'ancienne version.
+            // Bouton Modifier visible : icône + texte. Plus parlant que la
+            // simple icône crayon de l'ancienne version. Supprimer n'est PLUS
+            // ici — il vit dans la section "Actions" en bas de la page (zone
+            // safe contre les clics accidentels mobile, voir spec V3).
             TextButton.icon(
               onPressed: () => openTripEditSheet(context, ref, trip: trip),
               icon: const Icon(Icons.edit_outlined, color: Colors.white, size: 18),
@@ -264,28 +264,6 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
               style: TextButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
               ),
-            ),
-            // PopupMenu kebab conservé pour l'instant (Supprimer reste accessible).
-            // Sera retiré en tranche 6 quand la section Actions du bas sera
-            // ajoutée avec une icône corbeille séparée.
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert, color: Colors.white),
-              tooltip: 'Options',
-              onSelected: (v) {
-                if (v == 'delete') _confirmDeleteTrip(context, ref);
-              },
-              itemBuilder: (_) => [
-                PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete_outline, size: 18, color: AppColors.error),
-                      const SizedBox(width: 10),
-                      const Text('Supprimer le voyage'),
-                    ],
-                  ),
-                ),
-              ],
             ),
           ],
           flexibleSpace: FlexibleSpaceBar(
@@ -502,6 +480,47 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
                     : 'Voir les lieux de ton voyage',
                 onTap: () => context.go('/trips/${trip.id}/map'),
               ),
+              // Section "Actions" en bas — séparée des actions principales
+              // pour héberger les actions destructives. Position basse =
+              // hors zone de clic accidentel (UX mobile safe selon spec V3).
+              const SizedBox(height: 32),
+              Text(
+                'ACTIONS',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 8),
+              InkWell(
+                onTap: () => _confirmDeleteTrip(context, ref),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_outline, color: AppColors.error, size: 20),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Supprimer ce voyage',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.error,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
             ]),
           ),
         ),
