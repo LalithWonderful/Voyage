@@ -1090,8 +1090,8 @@ class _NextStepCard extends StatelessWidget {
         'Pensé pour toi',
       ),
       _NextStepCase.generatePlan => (
-        'Ton planning n\'est pas encore prêt',
-        'Génère un itinéraire adapté à ton voyage.',
+        'Ton voyage est prêt à être planifié ✨',
+        'Génère ton itinéraire personnalisé.',
         'Générer mon planning',
         '✨',
         null,
