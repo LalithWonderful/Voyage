@@ -48,28 +48,63 @@ class TripDetailScreen extends ConsumerWidget {
   }
 }
 
-/// Extrait la ville d'un hôtel à partir de son adresse. Heuristique V1 :
-/// pour les adresses françaises "26 rue X, 88000 Épinal, France" on cherche
-/// le code postal (4-5 chiffres) suivi du nom de ville. Sinon fallback sur
-/// l'avant-dernier segment séparé par virgule (".. , Bangkok, Thaïlande" → "Bangkok").
-/// Retourne null si rien d'extractible. À terme : ajouter un champ explicite
-/// `city` dans `TripDocument.metadata` saisi au moment du formulaire.
+/// Mots fréquents dans les noms d'hôtels qui ne sont JAMAIS des villes.
+/// Utilisés pour filtrer le fallback "dernier mot capitalisé du nom".
+const Set<String> _hotelNameStopwords = <String>{
+  // Marques / chaînes
+  'Hotel', 'Hôtel', 'Best', 'Western', 'Resort', 'Inn', 'Suites', 'Lodge',
+  'Royal', 'Grand', 'Boutique', 'Auberge', 'Spa', 'Palace', 'Plaza',
+  'Mercure', 'Novotel', 'Ibis', 'Sofitel', 'Mövenpick', 'Marriott', 'Hilton',
+  'Sheraton', 'Westin', 'Holiday', 'Express', 'Premier', 'Comfort', 'Quality',
+  // Génériques
+  'Maison', 'Villa', 'Château', 'Manoir', 'Domaine', 'Ferme', 'Gîte',
+  'Apart', 'Apartments', 'Studio', 'Studios', 'Camping',
+  // Compléments
+  'Centre', 'Center', 'City', 'Centre-Ville', 'Airport', 'Aéroport',
+  'Boulevard', 'Plage', 'Beach',
+};
+
+/// Extrait la ville d'un hôtel. Heuristique V1 multi-passes :
+/// 1. Adresse avec code postal FR : "26 rue X, 88000 Épinal, France" → "Épinal"
+/// 2. Adresse multi-segments : ", Bangkok, Thaïlande" → "Bangkok"
+/// 3. Fallback nom de l'hôtel : dernier mot capitalisé non-stopword
+///    ("Best Western Epinal" → "Epinal", "Royal Mansour Marrakech" → "Marrakech")
+/// Retourne null si rien n'est extractible. À terme : ajouter un champ
+/// explicite `city` dans `TripDocument.metadata` saisi au formulaire.
 String? _extractCityFromHotel(TripDocument hotel) {
   final addr = hotel.metadata['address'] as String?;
-  if (addr == null || addr.trim().isEmpty) return null;
-  // Format FR : "X rue Y, 12345 Ville, France" — code postal 4-5 chiffres
-  final postalMatch = RegExp(r'\b\d{4,5}\s+([^,]+)').firstMatch(addr);
-  if (postalMatch != null) {
-    final candidate = postalMatch.group(1)?.trim();
-    if (candidate != null && candidate.isNotEmpty) return candidate;
+  if (addr != null && addr.trim().isNotEmpty) {
+    // 1. Code postal 4-5 chiffres puis ville (jusqu'à virgule ou fin)
+    final postalMatch = RegExp(r'\b\d{4,5}\s+([^,]+)').firstMatch(addr);
+    if (postalMatch != null) {
+      final candidate = postalMatch.group(1)?.trim();
+      if (candidate != null && candidate.isNotEmpty) return candidate;
+    }
+    // 2. Avant-dernier segment, en nettoyant les éventuels chiffres résiduels
+    final parts = addr
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+    if (parts.length >= 2) {
+      final cleaned = parts[parts.length - 2]
+          .replaceAll(RegExp(r'\b\d+\b'), '')
+          .trim();
+      if (cleaned.isNotEmpty) return cleaned;
+    }
   }
-  // Fallback : avant-dernier segment (avant le pays)
-  final parts = addr
-      .split(',')
-      .map((s) => s.trim())
-      .where((s) => s.isNotEmpty)
-      .toList();
-  if (parts.length >= 2) return parts[parts.length - 2];
+  // 3. Fallback : dernier mot "ville-like" du nom de l'hôtel. Itère depuis la
+  //    fin pour matcher "Best Western Epinal" → "Epinal", "Royal Mansour
+  //    Marrakech" → "Marrakech". Filtre les stopwords (chaînes hôtelières,
+  //    génériques) pour éviter de retourner "Royal" ou "Hotel".
+  final words = hotel.name.split(RegExp(r'\s+'));
+  for (final w in words.reversed) {
+    final clean = w.replaceAll(RegExp(r'[^a-zA-ZÀ-ÿ\-]'), '');
+    if (clean.length < 4) continue;
+    if (clean[0] != clean[0].toUpperCase()) continue;
+    if (_hotelNameStopwords.contains(clean)) continue;
+    return clean;
+  }
   return null;
 }
 
