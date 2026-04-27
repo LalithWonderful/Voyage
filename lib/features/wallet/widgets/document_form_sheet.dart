@@ -400,6 +400,47 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
       );
       return;
     }
+
+    // Validation overlap dates (hôtels uniquement, sur un voyage donné). Empêche
+    // qu'un même utilisateur ait 2 hôtels qui se chevauchent — sinon ambiguïté
+    // "où je dors la nuit X" (le code utilise hotelsSleepingOnNight avec
+    // sleep_nights pour résoudre, mais on préfère bloquer en amont selon spec
+    // Lalith 28/04). La continuité est autorisée : checkout = checkin (suite
+    // logique du séjour). Skip si on n'est pas sur un voyage ou si dates
+    // manquantes.
+    if (_category == DocumentCategory.hotel && _tripId != null) {
+      final builtMetaPreview = _buildMetadata();
+      final newCiStr = builtMetaPreview['check_in'] as String?;
+      final newCoStr = builtMetaPreview['check_out'] as String?;
+      if (newCiStr != null && newCoStr != null) {
+        final newCi = DateTime.tryParse(newCiStr);
+        final newCo = DateTime.tryParse(newCoStr);
+        if (newCi != null && newCo != null) {
+          final hotels = await ref.read(tripHotelsProvider(_tripId!).future);
+          if (!mounted) return;
+          for (final h in hotels) {
+            if (widget.existing != null && h.id == widget.existing!.id) continue;
+            final otherCi = DateTime.tryParse(h.metadata['check_in'] as String? ?? '');
+            final otherCo = DateTime.tryParse(h.metadata['check_out'] as String? ?? '');
+            if (otherCi == null || otherCo == null) continue;
+            // Overlap = intersection non vide en ouverture stricte sur les
+            // bornes : [newCi, newCo) ∩ [otherCi, otherCo) ≠ ∅. Avec cette
+            // règle, checkout=checkin est autorisé (suite logique).
+            final overlaps = newCi.isBefore(otherCo) && otherCi.isBefore(newCo);
+            if (overlaps) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('⚠️ Chevauchement avec « ${h.name} »'),
+                  backgroundColor: AppColors.error,
+                ),
+              );
+              return;
+            }
+          }
+        }
+      }
+    }
+
     setState(() => _saving = true);
     try {
       final client = ref.read(supabaseProvider);
