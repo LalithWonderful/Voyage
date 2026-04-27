@@ -11,6 +11,104 @@ import 'package:voyage/features/planning/services/traveler_to_places_mapping.dar
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/wallet/models/document_model.dart';
 
+/// Stopwords FR/EN à ignorer quand on tokenise une query pour le check de
+/// matching. Tout mot ≤4 chars OU dans cette liste est considéré comme
+/// non-significatif (articles, prépositions, auxiliaires) et ne participe pas
+/// au matching. Ex: "parc du château" → mots signif = ["parc", "château"].
+const Set<String> _queryStopwords = <String>{
+  // FR
+  'le', 'la', 'les', 'un', 'une', 'des', 'du', 'de', 'au', 'aux', 'et', 'ou',
+  'avec', 'sans', 'sur', 'sous', 'dans', 'pour', 'par', 'chez', 'mais', 'donc',
+  // EN
+  'the', 'a', 'an', 'of', 'in', 'on', 'at', 'and', 'or', 'with', 'without',
+  'for', 'by', 'to', 'from',
+};
+
+/// Normalise une string pour le matching : lowercase + suppression des
+/// diacritiques courants (français/espagnol/italien). Volontairement simple,
+/// pas de package externe — couvre 95% des cas FR.
+String _normalizeForMatch(String s) {
+  return s
+      .toLowerCase()
+      .replaceAll(RegExp(r'[àâäáã]'), 'a')
+      .replaceAll(RegExp(r'[éèêëẽ]'), 'e')
+      .replaceAll(RegExp(r'[îïíìĩ]'), 'i')
+      .replaceAll(RegExp(r'[ôöóòõ]'), 'o')
+      .replaceAll(RegExp(r'[ùûüúũ]'), 'u')
+      .replaceAll(RegExp(r'[ç]'), 'c')
+      .replaceAll(RegExp(r'[ñ]'), 'n');
+}
+
+/// Tokenize une string en mots significatifs pour le matching :
+/// - normalisation accents/casse
+/// - split sur tout caractère non alphanumérique
+/// - garde uniquement les mots de longueur ≥4 ET hors stopwords
+List<String> _significantWords(String s) {
+  final normalized = _normalizeForMatch(s);
+  return normalized
+      .split(RegExp(r'[^a-z0-9]+'))
+      .where((w) => w.length >= 4 && !_queryStopwords.contains(w))
+      .toList(growable: false);
+}
+
+/// Filtre B + Logging C combinés pour les résultats d'un searchText.
+/// - B : si la query a au moins 1 mot signif, exiger qu'au moins 1 de ces mots
+///   soit dans le name du Place (substring match). Sinon → reject + log.
+///   Si la query n'a aucun mot signif (query trop générique type "outlet" ou
+///   très courte), on accepte tout (tolérant pour ne pas perdre de bons résultats).
+/// - C : pour chaque résultat (accepté ou rejeté), log la paire
+///   query → name → primary type → adresse → coords. Permet à Lalith
+///   d'identifier les data-bugs Google (ex: Place "Parc du Château" Épinal
+///   qui pointe en fait sur le Château d'Épinal voisin) pour les blacklister
+///   manuellement via `_isExcludedPlace` ou pour signaler à Google Maps.
+List<NearbyCandidate> _filterByQueryNameMatch(
+  List<NearbyCandidate> results,
+  String textQuery,
+  String interest,
+) {
+  // Log d'entrée systématique : permet de voir si la fonction est appelée
+  // mais avec 0 results (Places API n'a rien retourné pour cette query).
+  debugPrint(
+    '[places_first_match] >> filter q="$textQuery" interest=$interest '
+    'results=${results.length}',
+  );
+  final queryWords = _significantWords(textQuery);
+  if (queryWords.isEmpty) {
+    // Query trop générique pour filtrer (ex: "outlet"). On log juste les
+    // résultats pour visibilité mais on ne rejette rien.
+    for (final c in results) {
+      final primaryType = c.types.isNotEmpty ? c.types.first : '?';
+      debugPrint(
+        '[places_first_match] interest=$interest q="$textQuery" (générique) '
+        '→ "${c.name}" type=$primaryType addr="${c.address}" '
+        '@${c.latitude.toStringAsFixed(4)},${c.longitude.toStringAsFixed(4)}',
+      );
+    }
+    return results;
+  }
+  final kept = <NearbyCandidate>[];
+  for (final c in results) {
+    final nameNorm = _normalizeForMatch(c.name);
+    final matched = queryWords.any((qw) => nameNorm.contains(qw));
+    final primaryType = c.types.isNotEmpty ? c.types.first : '?';
+    if (matched) {
+      kept.add(c);
+      debugPrint(
+        '[places_first_match] interest=$interest q="$textQuery" ✓ "${c.name}" '
+        'type=$primaryType addr="${c.address}" '
+        '@${c.latitude.toStringAsFixed(4)},${c.longitude.toStringAsFixed(4)}',
+      );
+    } else {
+      debugPrint(
+        '[places_first_match] interest=$interest q="$textQuery" ✗ rejeté "${c.name}" '
+        'type=$primaryType addr="${c.address}" — aucun mot de la query '
+        '(${queryWords.join(",")}) dans le name',
+      );
+    }
+  }
+  return kept;
+}
+
 /// Types Places à exclure de la pool DÈS la récolte. Lieux jamais touristiques
 /// par eux-mêmes : administrations, écoles, médical, agences, infrastructure
 /// du quotidien. Filtre déterministe en amont — Gemini ne peut PAS les
@@ -110,13 +208,55 @@ const Set<String> _hardExcludedAnyTypes = <String>{
 /// - Soft : primary dans `_excludedPlaceTypes` MAIS aucun signal touristique
 ///   secondaire → exclure (mairie sans signal historique = bureau, mairie
 ///   avec `historical_landmark` secondaire = monument, on garde).
+/// Blacklist statique de placeIds connus pour avoir des données erronées chez
+/// Google (mismatch name/coords/types confirmé manuellement). À enrichir
+/// quand on identifie des nouveaux cas via les logs `[places_first_pick]`.
+const Set<String> _blacklistedPlaceIds = <String>{
+  // "Parc du château" Épinal — 1 seul placeId chez Google qui mélange le
+  // Château d'Épinal (26 rue Saint-Michel, primary type=castle) et le Parc
+  // du Château voisin. Le name affiché est "Parc du château" mais les coords
+  // pointent sur le château. Identifié 2026-04-27 via logs places_first_pick.
+  'ChIJD9gWgomgk0cRCSmE3pSQ7nc',
+};
+
+/// Mots-clés "espace vert" qui suggèrent un parc/jardin dans le name.
+/// Utilisés pour l'heuristique de cohérence name vs primary type.
+const Set<String> _greenspaceNameKeywords = <String>{
+  'parc', 'park', 'jardin', 'garden', 'square',
+};
+
+/// Primary types compatibles avec un nom contenant "parc/park/jardin/garden".
+/// Si le name suggère un espace vert mais que le primary est hors de cette
+/// liste, c'est probablement un mismatch data Google.
+const Set<String> _greenspacePrimaryTypes = <String>{
+  'park', 'city_park', 'national_park', 'state_park', 'garden',
+  'botanical_garden', 'plaza', 'wildlife_park', 'amusement_park',
+  'tourist_attraction', 'point_of_interest', 'natural_feature',
+};
+
 bool _isExcludedPlace(NearbyCandidate c) {
   if (c.types.isEmpty) return false;
+  if (_blacklistedPlaceIds.contains(c.placeId)) return true;
   if (c.types.any(_hardExcludedAnyTypes.contains)) return true;
   final primary = c.types.first;
   if (_hardExcludedPrimaryTypes.contains(primary)) return true;
   if (_excludedPlaceTypes.contains(primary)) {
     return !c.types.any(_touristicSignals.contains);
+  }
+  // Heuristique de cohérence : si le name suggère un espace vert (parc/jardin)
+  // mais que le primary type ne l'est pas (ex: castle, church, restaurant),
+  // c'est très probablement un mismatch Google. Catégorie ouverte mais on
+  // la garde tolérante via `_greenspacePrimaryTypes` qui inclut tourist_attraction
+  // et point_of_interest pour ne pas rejeter des cas légitimes.
+  final nameNorm = _normalizeForMatch(c.name);
+  final hasGreenspaceWord = _greenspaceNameKeywords.any((kw) =>
+      RegExp('\\b$kw\\b').hasMatch(nameNorm));
+  if (hasGreenspaceWord && !_greenspacePrimaryTypes.contains(primary)) {
+    debugPrint(
+      '[places_first_excluded] mismatch name/primary : "${c.name}" '
+      'primary=$primary placeId=${c.placeId} — exclu (probable data-bug Google)',
+    );
+    return true;
   }
   return false;
 }
@@ -254,6 +394,14 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
         if (travelerProfile != null) ...travelerProfile.additionalTextQueries,
       ];
 
+      // Diagnostic : combien de calls par intérêt (Nearby + N × searchText).
+      // Sert à comprendre quand le filtre `_filterByQueryNameMatch` ne tourne
+      // pas — souvent parce que `mergedTextQueries` est vide pour cet intérêt.
+      debugPrint(
+        '[places_first_match] interest=$interest types=${mergedTypes.length} '
+        'textQueries=${mergedTextQueries.length} '
+        '${mergedTextQueries.isEmpty ? "" : "(${mergedTextQueries.join(", ")})"}',
+      );
       final calls = <Future<List<NearbyCandidate>>>[];
       if (mergedTypes.isNotEmpty) {
         calls.add(nearbyService.searchNearby(
@@ -264,6 +412,14 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
           languageCode: languageCode,
         ));
       }
+      // Pour chaque searchText, on filtre à la source : si la query a au moins
+      // 1 mot signif (>4 chars hors stopwords) ET aucun de ces mots n'est dans
+      // le `name` du Place retourné, on rejette + log. Évite les cas où Google
+      // remonte un homonyme distant (ex: query "hiking trail" → name "Restaurant
+      // Le Sentier"). NB : ne fixe pas les data-bugs Google (ex: Place "Parc du
+      // Château" Épinal qui pointe en fait sur le Château d'Épinal voisin —
+      // dans ce cas le name matche, le bug est côté Google) : pour ces cas le
+      // logging C ci-dessous donne la visibilité pour blacklister manuellement.
       for (final tq in mergedTextQueries) {
         calls.add(nearbyService.searchText(
           textQuery: tq,
@@ -271,7 +427,7 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
           longitude: center.longitude,
           radius: radius,
           languageCode: languageCode,
-        ));
+        ).then((results) => _filterByQueryNameMatch(results, tq, interest)));
       }
       final fetched = await Future.wait(calls);
       final merged = <String, NearbyCandidate>{};
@@ -1123,6 +1279,17 @@ List<ActivitySuggestion> selectVisitsDeterministic({
                       : '🚕 ${dM}m · taxi/voiture conseillé';
           reasonParts.add('$distLabel depuis "${lastActivity.title}"');
         }
+        // Log diagnostique de chaque pick final : permet d'identifier les Places
+        // mal géocodés par Google (ex: "Parc du Château" Épinal qui pointe sur
+        // 26 rue Saint Michel = adresse du Château d'Épinal voisin). Sortie
+        // ciblée (40 picks max par voyage), le placeId permettra de blacklister
+        // manuellement via `_blacklistedPlaceIds` si besoin.
+        debugPrint(
+          '[places_first_pick] ${day.toIso8601String().split("T").first} $slot '
+          'tag=$tag → "${pick.name}" placeId=${pick.placeId} '
+          'addr="${pick.address}" types=[${pick.types.take(3).join(",")}] '
+          '@${pick.latitude.toStringAsFixed(4)},${pick.longitude.toStringAsFixed(4)}',
+        );
         out.add(ActivitySuggestion(
           dayDate: day,
           startTime: slot,
