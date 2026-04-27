@@ -475,11 +475,42 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
               ),
               const SizedBox(height: 16),
 
-              _ActionButton(icon: Icons.calendar_month, label: 'Planning', onTap: () => context.go('/trips/${trip.id}/planning')),
+              // Cards principales avec sous-texte dynamique : transforme les
+              // boutons "navigation" en "résumé d'état". Plus engageant + plus
+              // utile (l'utilisateur sait déjà ce qu'il y a derrière).
+              _RichActionCard(
+                icon: Icons.calendar_month,
+                label: 'Planning',
+                subtitle: () {
+                  if (activitiesCount == null) return 'Chargement...';
+                  if (activitiesCount == 0) return 'Aucun planning pour l\'instant';
+                  // Compte les jours uniques avec ≥1 activité (pas le total
+                  // d'activités). Plus parlant : "8 jours planifiés" > "40 activités".
+                  final activities = activitiesAsync.valueOrNull ?? const [];
+                  final daysWith = activities
+                      .map((a) => DateTime(a.dayDate.year, a.dayDate.month, a.dayDate.day))
+                      .toSet()
+                      .length;
+                  return '$daysWith jour${daysWith > 1 ? "s" : ""} planifié${daysWith > 1 ? "s" : ""}';
+                }(),
+                onTap: () => context.go('/trips/${trip.id}/planning'),
+              ),
               const SizedBox(height: 12),
-              _ActionButton(icon: Icons.wallet, label: 'Documents', onTap: () => context.go('/wallet')),
+              _RichActionCard(
+                icon: Icons.wallet,
+                label: 'Documents',
+                subtitle: 'Billets, hôtels, confirmations',
+                onTap: () => context.go('/wallet'),
+              ),
               const SizedBox(height: 12),
-              _ActionButton(icon: Icons.map, label: 'Carte', onTap: () => context.go('/trips/${trip.id}/map')),
+              _RichActionCard(
+                icon: Icons.map,
+                label: 'Carte',
+                subtitle: (activitiesCount == null || activitiesCount == 0)
+                    ? 'Tes lieux apparaîtront ici dès que tu auras un planning.'
+                    : 'Voir les lieux de ton voyage',
+                onTap: () => context.go('/trips/${trip.id}/map'),
+              ),
             ]),
           ),
         ),
@@ -688,11 +719,22 @@ class _HotelCard extends ConsumerWidget {
   }
 }
 
-class _ActionButton extends StatelessWidget {
+/// Card d'action enrichie : icône + label + sous-texte dynamique + chevron.
+/// Remplace l'ancien `_ActionButton` qui n'avait que icône+label. Le sous-texte
+/// donne un état immédiat ("8 jours planifiés", "Aucun planning pour l'instant",
+/// "Billets, hôtels, confirmations") qui transforme la card de simple bouton
+/// de navigation en résumé d'état du voyage.
+class _RichActionCard extends StatelessWidget {
   final IconData icon;
   final String label;
+  final String subtitle;
   final VoidCallback onTap;
-  const _ActionButton({required this.icon, required this.label, required this.onTap});
+  const _RichActionCard({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -700,7 +742,7 @@ class _ActionButton extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(16),
@@ -708,11 +750,43 @@ class _ActionButton extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(icon, color: AppColors.primary),
-            const SizedBox(width: 16),
-            Text(label, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-            const Spacer(),
-            Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
+            Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                color: AppColors.primaryLight,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: AppColors.primary, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                      height: 1.3,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.textSecondary),
           ],
         ),
       ),
