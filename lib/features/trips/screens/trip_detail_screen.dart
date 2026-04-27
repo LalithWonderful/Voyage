@@ -416,42 +416,33 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
               // Bloc Hébergement(s) — carrousel swipeable (une carte visible à la fois)
               // pour que le bouton Planning reste proche du haut même sur un road trip 15 jours.
               if (hotels.isEmpty)
-                OutlinedButton.icon(
-                  onPressed: () => openDocumentFormSheet(
+                _QuickActionTile(
+                  emoji: '🏨',
+                  label: 'Où dors-tu ?',
+                  subtitle: 'Ajoute hôtel, Airbnb ou adresse',
+                  onTap: () => openDocumentFormSheet(
                     context, ref,
                     initialTripId: trip.id,
                     initialCategory: DocumentCategory.hotel,
-                  ),
-                  icon: const Icon(Icons.hotel_outlined),
-                  label: const Text('Ajouter un hébergement'),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 52),
-                    foregroundColor: AppColors.primary,
-                    side: BorderSide(color: AppColors.primary),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 )
               else ...[
                 _HotelsCarousel(hotels: hotels, fmtDate: _fmtDate),
                 const SizedBox(height: 10),
-                OutlinedButton.icon(
-                  onPressed: () => openDocumentFormSheet(
+                _QuickActionTile(
+                  emoji: '🏨',
+                  label: 'Ajouter un autre hébergement',
+                  subtitle: 'Hôtel, Airbnb ou adresse complémentaire',
+                  onTap: () => openDocumentFormSheet(
                     context, ref,
                     initialTripId: trip.id,
                     initialCategory: DocumentCategory.hotel,
                   ),
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('Ajouter un autre hébergement'),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 44),
-                    foregroundColor: AppColors.primary,
-                    side: BorderSide(color: AppColors.border),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
                 ),
               ],
 
-              // Autres documents du voyage
+              // Autres documents du voyage — affichage condensé en lecture
+              // (la card "Documents" en bas reste le point d'accès consolidé).
               if (others.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 Text('AUTRES DOCUMENTS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
@@ -466,14 +457,14 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
                   ),
               ],
 
-              const SizedBox(height: 10),
-              TextButton.icon(
-                onPressed: () => openDocumentFormSheet(context, ref, initialTripId: trip.id),
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Ajouter un document'),
-                style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+              const SizedBox(height: 12),
+              _QuickActionTile(
+                emoji: '📄',
+                label: others.isEmpty ? 'Ajoute tes réservations' : 'Ajouter une réservation',
+                subtitle: 'Vols, billets, confirmations',
+                onTap: () => openDocumentFormSheet(context, ref, initialTripId: trip.id),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
 
               // Cards principales avec sous-texte dynamique : transforme les
               // boutons "navigation" en "résumé d'état". Plus engageant + plus
@@ -712,6 +703,70 @@ class _HotelCard extends ConsumerWidget {
               ),
             ),
             Icon(Icons.edit, size: 16, color: AppColors.textSecondary),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Tuile d'action rapide avec emoji (au lieu d'une icône Material). Utilisée
+/// pour les points d'entrée d'écriture rapide ("Où dors-tu ?", "Ajoute tes
+/// réservations") qui méritent un style chaleureux et conversationnel —
+/// distinct des cards principales de navigation (`_RichActionCard`).
+class _QuickActionTile extends StatelessWidget {
+  final String emoji;
+  final String label;
+  final String subtitle;
+  final VoidCallback onTap;
+  const _QuickActionTile({
+    required this.emoji,
+    required this.label,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 26)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.add, color: AppColors.primary, size: 20),
           ],
         ),
       ),
