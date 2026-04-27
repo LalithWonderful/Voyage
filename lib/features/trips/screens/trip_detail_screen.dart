@@ -8,6 +8,7 @@ import 'package:voyage/features/auth/providers/auth_provider.dart';
 import 'package:voyage/features/planning/providers/planning_provider.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
+import 'package:voyage/features/trips/widgets/regional_loop_sheet.dart';
 import 'package:voyage/features/trips/widgets/trip_edit_sheet.dart';
 import 'package:voyage/features/wallet/models/document_model.dart';
 import 'package:voyage/features/wallet/providers/wallet_provider.dart';
@@ -151,6 +152,39 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
 
   String _fmtDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+
+  /// Mode "clé en main" V1 — pour l'instant on chaîne uniquement la 1ère moitié
+  /// (boucle régionale qui propose des villes via Gemini). La 2e moitié (génération
+  /// auto du planning) sera la tranche 3 du redesign : pour l'instant, après
+  /// création des étapes, on redirige vers le planning où l'utilisateur peut
+  /// cliquer "Suggérer". Pas idéal UX mais ça compile et ne casse rien.
+  Future<void> _runTurnkeyItinerary() async {
+    final segments = await openRegionalLoopSheet(
+      context, ref,
+      mainDestination: trip.destination,
+      durationDays: trip.durationDays,
+      travelerType: trip.travelerType,
+      interests: trip.interests ?? const [],
+    );
+    if (segments == null || segments.isEmpty || !mounted) return;
+    try {
+      await ref.read(supabaseProvider).from('trips').update({
+        'itinerary_segments': segments.map((s) => s.toJson()).toList(),
+      }).eq('id', trip.id);
+      ref.invalidate(tripsProvider);
+      ref.invalidate(tripByIdProvider(trip.id));
+      if (!mounted) return;
+      // TODO tranche 3 : enchaîner avec la génération du planning ici (loader
+      // 1/2 → 2/2). Pour l'instant on navigue, l'utilisateur clique "Suggérer".
+      context.go('/trips/${trip.id}/planning');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur : $e'), backgroundColor: AppColors.error),
+        );
+      }
+    }
+  }
 
   Future<void> _confirmDeleteTrip(BuildContext context, WidgetRef ref) async {
     final messenger = ScaffoldMessenger.of(context);
@@ -345,6 +379,28 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
           padding: const EdgeInsets.all(24),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
+              // Card "Prochaine étape" : guide l'utilisateur sur la prochaine
+              // action selon l'état du voyage (3 cas dynamiques mappés sur le
+              // statut). Tant que `status` n'est pas chargé (kind en cours de
+              // détection ou activitiesAsync loading), on skip — évite le flicker
+              // "À compléter" → "Voyage prêt" au boot.
+              if (status != null)
+                _NextStepCard(
+                  trip: trip,
+                  nextCase: switch (status) {
+                    _TripStatus.toComplete => _NextStepCase.discoverItinerary,
+                    _TripStatus.readyToPlan => _NextStepCase.generatePlan,
+                    _TripStatus.ready => _NextStepCase.viewPlan,
+                  },
+                  onPrimary: switch (status) {
+                    _TripStatus.toComplete => _runTurnkeyItinerary,
+                    _TripStatus.readyToPlan => () => context.go('/trips/${trip.id}/planning'),
+                    _TripStatus.ready => () => context.go('/trips/${trip.id}/planning'),
+                  },
+                  onSecondary: status == _TripStatus.toComplete
+                      ? () => openTripEditSheet(context, ref, trip: trip)
+                      : null,
+                ),
               _InfoRow(icon: Icons.location_on, text: trip.destination),
               const SizedBox(height: 12),
               _InfoRow(icon: Icons.calendar_today, text: _formatRange()),
@@ -659,6 +715,159 @@ class _ActionButton extends StatelessWidget {
             Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Card "Prochaine étape" : guide l'utilisateur sur l'action suivante selon
+/// l'état du voyage. 3 cas dynamiques :
+/// - `_NextStepCase.discoverItinerary` : destination=country/region + 0 étape
+///   → 2 CTAs (clé en main / manuel)
+/// - `_NextStepCase.generatePlan` : étapes définies + 0 activité
+///   → 1 CTA "Générer mon planning"
+/// - `_NextStepCase.viewPlan` : ≥1 activité
+///   → 1 CTA "Voir le planning"
+enum _NextStepCase { discoverItinerary, generatePlan, viewPlan }
+
+class _NextStepCard extends StatelessWidget {
+  final Trip trip;
+  final _NextStepCase nextCase;
+  /// Callback du CTA principal (mode auto / générer / voir selon le cas).
+  final VoidCallback onPrimary;
+  /// Callback du CTA secondaire — utilisé uniquement dans le cas
+  /// `discoverItinerary` (ajout manuel des étapes). Null pour les autres cas.
+  final VoidCallback? onSecondary;
+
+  const _NextStepCard({
+    required this.trip,
+    required this.nextCase,
+    required this.onPrimary,
+    this.onSecondary,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final (title, body, primaryLabel, primaryEmoji, primaryHint) = switch (nextCase) {
+      _NextStepCase.discoverItinerary => (
+        'Crée ton voyage',
+        'Ta destination est large. Choisis comment tu veux organiser ton voyage.',
+        'Crée-moi un circuit clé en main',
+        '✨',
+        'Pensé pour toi',
+      ),
+      _NextStepCase.generatePlan => (
+        'Ton planning n\'est pas encore prêt',
+        'Génère un itinéraire adapté à ton voyage.',
+        'Générer mon planning',
+        '✨',
+        null,
+      ),
+      _NextStepCase.viewPlan => (
+        'Ton voyage est prêt',
+        'Consulte ou ajuste ton planning.',
+        'Voir le planning',
+        null,
+        null,
+      ),
+    };
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.border),
+        // Ombre très légère pour donner du poids sans alourdir.
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            body,
+            style: TextStyle(
+              fontSize: 13,
+              color: AppColors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 14),
+          // CTA principal : bouton plein bleu, plus visible. L'emoji est
+          // optionnel selon le cas (✨ pour l'IA, rien pour le simple "Voir").
+          ElevatedButton(
+            onPressed: onPrimary,
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 48),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (primaryEmoji != null) ...[
+                  Text(primaryEmoji, style: const TextStyle(fontSize: 16)),
+                  const SizedBox(width: 8),
+                ],
+                Flexible(
+                  child: Text(
+                    primaryLabel,
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (primaryHint != null) ...[
+            const SizedBox(height: 6),
+            Center(
+              child: Text(
+                primaryHint,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
+          ],
+          // CTA secondaire (uniquement dans le cas "destination large") :
+          // ajout manuel des étapes via le sheet d'édition.
+          if (onSecondary != null) ...[
+            const SizedBox(height: 10),
+            OutlinedButton(
+              onPressed: onSecondary,
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 44),
+                foregroundColor: AppColors.primary,
+                side: BorderSide(color: AppColors.border),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text(
+                '+ Ajouter mes étapes manuellement',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
