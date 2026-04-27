@@ -348,23 +348,21 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
           sliver: SliverList(
             delegate: SliverChildListDelegate([
               // Card "Prochaine étape" : guide l'utilisateur sur la prochaine
-              // action selon l'état du voyage (3 cas dynamiques mappés sur le
-              // statut). Tant que `status` n'est pas chargé (kind en cours de
-              // détection ou activitiesAsync loading), on skip — évite le flicker
-              // "À compléter" → "Voyage prêt" au boot.
-              if (status != null)
+              // action selon l'état du voyage. Affichée pour 2 cas seulement :
+              // - `toComplete` : destination=country/region + 0 étape
+              // - `readyToPlan` : ≥1 étape + 0 activité
+              // Le cas "voyage prêt" est volontairement masqué (Lalith 27/04) :
+              // il ferait doublon avec la card Planning enrichie en bas qui
+              // dit déjà "X jours planifiés" et mène au même écran.
+              if (status == _TripStatus.toComplete || status == _TripStatus.readyToPlan)
                 _NextStepCard(
                   trip: trip,
-                  nextCase: switch (status) {
-                    _TripStatus.toComplete => _NextStepCase.discoverItinerary,
-                    _TripStatus.readyToPlan => _NextStepCase.generatePlan,
-                    _TripStatus.ready => _NextStepCase.viewPlan,
-                  },
-                  onPrimary: switch (status) {
-                    _TripStatus.toComplete => _runTurnkeyItinerary,
-                    _TripStatus.readyToPlan => () => context.go('/trips/${trip.id}/planning'),
-                    _TripStatus.ready => () => context.go('/trips/${trip.id}/planning'),
-                  },
+                  nextCase: status == _TripStatus.toComplete
+                      ? _NextStepCase.discoverItinerary
+                      : _NextStepCase.generatePlan,
+                  onPrimary: status == _TripStatus.toComplete
+                      ? _runTurnkeyItinerary
+                      : () => context.go('/trips/${trip.id}/planning'),
                   onSecondary: status == _TripStatus.toComplete
                       ? () => openTripEditSheet(context, ref, trip: trip)
                       : null,
