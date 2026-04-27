@@ -267,25 +267,13 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
             ),
           ],
           flexibleSpace: FlexibleSpaceBar(
-            // Titre compact pinned (visible quand collapsed). On garde juste
-            // le titre + budget pour ne pas surcharger la barre repliée.
-            title: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Flexible(
-                  child: Text(
-                    trip.title,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (budgetLabel != null) ...[
-                  const SizedBox(width: 12),
-                  Text(budgetLabel, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                ],
-              ],
-            ),
-            titlePadding: const EdgeInsetsDirectional.only(start: 56, bottom: 14, end: 16),
+            // Pas de `title:` ici : le grand titre du `background` (Stack)
+            // suffit en expanded. En collapsed, on n'affiche pas de titre dans
+            // la barre — l'utilisateur sait qu'il est sur le voyage par le
+            // contexte de navigation. Si un jour on veut un titre collapsed,
+            // il faudrait soit doubler (complexe à gérer sans flicker),
+            // soit ne garder que celui de FlexibleSpaceBar et perdre la grande
+            // typo en expanded. Pour V1 le grand titre prime.
             // Background expanded : gradient subtil bleu primary → primaryDark
             // (10% d'opacité de différence — plus que ça vire kitsch). Emoji
             // 64px aligné gauche, titre grand dessous, sous-titre durée/dates,
@@ -331,7 +319,9 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
                         children: [
                           Flexible(
                             child: Text(
-                              _headerSubtitle(),
+                              budgetLabel != null
+                                  ? '${_headerSubtitle()} · $budgetLabel'
+                                  : _headerSubtitle(),
                               style: TextStyle(
                                 color: Colors.white.withValues(alpha: 0.85),
                                 fontSize: 13,
