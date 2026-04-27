@@ -434,17 +434,16 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
               ),
               const SizedBox(height: 20),
 
-              // Cards principales avec sous-texte dynamique. Visibilité :
-              // - Planning : visible uniquement si ≥1 activité (sinon le
-              //   `_NextStepCard` au-dessus propose déjà "Générer mon planning",
-              //   pas la peine de dupliquer le point d'entrée).
-              // - Documents : visible uniquement si ≥1 doc (hôtel OU autre).
-              //   Sinon les tuiles "Où dors-tu ?" / "Ajoute tes réservations"
-              //   au-dessus suffisent, et /wallet reste accessible via la
-              //   bottom nav.
-              // - Carte : toujours visible avec un sous-texte adapté (état
-              //   vide explicite "Tes lieux apparaîtront ici..."). Conservée
-              //   pour ne pas perdre l'accès à la carte du voyage.
+              // Cards principales avec sous-texte dynamique. Toutes 3 ont la
+              // même logique de visibilité : on n'affiche QUE si elles ont
+              // quelque chose de concret à offrir, pour ne pas surcharger la
+              // page d'accès à des écrans vides.
+              // - Planning : ≥1 activité (sinon `_NextStepCard` propose déjà
+              //   "Générer mon planning")
+              // - Documents : ≥1 doc (sinon les tuiles "Où dors-tu ?" /
+              //   "Ajoute tes réservations" en haut suffisent ; /wallet reste
+              //   accessible via la bottom nav)
+              // - Carte : ≥1 activité (sans planning, la map est forcément vide)
               if (activitiesCount != null && activitiesCount > 0) ...[
                 _RichActionCard(
                   icon: Icons.calendar_month,
@@ -470,14 +469,13 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
                 ),
                 const SizedBox(height: 12),
               ],
-              _RichActionCard(
-                icon: Icons.map,
-                label: 'Carte',
-                subtitle: (activitiesCount == null || activitiesCount == 0)
-                    ? 'Tes lieux apparaîtront ici dès que tu auras un planning.'
-                    : 'Voir les lieux de ton voyage',
-                onTap: () => context.go('/trips/${trip.id}/map'),
-              ),
+              if (activitiesCount != null && activitiesCount > 0)
+                _RichActionCard(
+                  icon: Icons.map,
+                  label: 'Carte',
+                  subtitle: 'Voir les lieux de ton voyage',
+                  onTap: () => context.go('/trips/${trip.id}/map'),
+                ),
               // Section "Actions" en bas — séparée des actions principales
               // pour héberger les actions destructives. Position basse =
               // hors zone de clic accidentel (UX mobile safe selon spec V3).
