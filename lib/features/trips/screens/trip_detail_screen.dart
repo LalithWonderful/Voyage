@@ -687,38 +687,42 @@ class _HotelsCarouselState extends State<_HotelsCarousel> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (hotels.length > 1)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 8, height: 8,
-                      decoration: BoxDecoration(shape: BoxShape.circle, color: pos.color),
+        // Label position toujours affiché — y compris pour 1 hôtel solo
+        // (le dot bleu + "HÉBERGEMENT" donne un repère visuel cohérent avec
+        // les voyages multi-hôtels). "Glisser ›" uniquement quand on a plus
+        // d'1 hôtel à swiper.
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 8, height: 8,
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: pos.color),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    pos.label.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textSecondary,
+                      letterSpacing: 0.5,
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      pos.label.toUpperCase(),
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textSecondary,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
+              ),
+              if (hotels.length > 1)
                 Text(
                   'Glisser ›',
                   style: TextStyle(fontSize: 11, color: AppColors.textSecondary, fontStyle: FontStyle.italic),
                 ),
-              ],
-            ),
+            ],
           ),
+        ),
         SizedBox(
           height: _cardHeight,
           child: PageView.builder(

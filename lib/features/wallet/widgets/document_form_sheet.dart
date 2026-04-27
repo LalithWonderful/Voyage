@@ -401,41 +401,71 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
       return;
     }
 
-    // Validation overlap dates (hôtels uniquement, sur un voyage donné). Empêche
-    // qu'un même utilisateur ait 2 hôtels qui se chevauchent — sinon ambiguïté
-    // "où je dors la nuit X" (le code utilise hotelsSleepingOnNight avec
-    // sleep_nights pour résoudre, mais on préfère bloquer en amont selon spec
-    // Lalith 28/04). La continuité est autorisée : checkout = checkin (suite
-    // logique du séjour). Skip si on n'est pas sur un voyage ou si dates
-    // manquantes.
+    // Validations cohérence dates pour les hôtels rattachés à un voyage :
+    // 1) Check-in/check-out doivent être DANS la plage du voyage (la convention
+    //    Voyage est `endDate` = dernier jour inclus, donc check-out le jour de
+    //    fin = OK ; check-out > endDate = erreur).
+    // 2) Pas de chevauchement avec un autre hôtel du même voyage. Continuité
+    //    autorisée (checkout d'un hôtel = checkin du suivant). Si chevauchement
+    //    légitime (transit court, 2 hôtels même nuit), on assouplira.
+    // Skip si pas de tripId ou dates manquantes.
     if (_category == DocumentCategory.hotel && _tripId != null) {
       final builtMetaPreview = _buildMetadata();
       final newCiStr = builtMetaPreview['check_in'] as String?;
       final newCoStr = builtMetaPreview['check_out'] as String?;
-      if (newCiStr != null && newCoStr != null) {
-        final newCi = DateTime.tryParse(newCiStr);
-        final newCo = DateTime.tryParse(newCoStr);
-        if (newCi != null && newCo != null) {
-          final hotels = await ref.read(tripHotelsProvider(_tripId!).future);
-          if (!mounted) return;
-          for (final h in hotels) {
-            if (widget.existing != null && h.id == widget.existing!.id) continue;
-            final otherCi = DateTime.tryParse(h.metadata['check_in'] as String? ?? '');
-            final otherCo = DateTime.tryParse(h.metadata['check_out'] as String? ?? '');
-            if (otherCi == null || otherCo == null) continue;
-            // Overlap = intersection non vide en ouverture stricte sur les
-            // bornes : [newCi, newCo) ∩ [otherCi, otherCo) ≠ ∅. Avec cette
-            // règle, checkout=checkin est autorisé (suite logique).
-            final overlaps = newCi.isBefore(otherCo) && otherCi.isBefore(newCo);
-            if (overlaps) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('⚠️ Chevauchement avec « ${h.name} »'),
-                  backgroundColor: AppColors.error,
-                ),
-              );
-              return;
-            }
+      final newCi = newCiStr != null ? DateTime.tryParse(newCiStr) : null;
+      final newCo = newCoStr != null ? DateTime.tryParse(newCoStr) : null;
+
+      // 1) Cohérence avec les dates du voyage
+      if (newCi != null || newCo != null) {
+        final trip = await ref.read(tripByIdProvider(_tripId!).future);
+        if (!mounted) return;
+        if (trip != null) {
+          final tripStart = DateTime(trip.startDate.year, trip.startDate.month, trip.startDate.day);
+          final tripEnd = DateTime(trip.endDate.year, trip.endDate.month, trip.endDate.day);
+          String fmt(DateTime d) => '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}';
+          if (newCi != null && newCi.isBefore(tripStart)) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('⚠️ Check-in (${fmt(newCi)}) avant le début du voyage (${fmt(tripStart)}).'),
+                backgroundColor: AppColors.error,
+              ),
+            );
+            return;
+          }
+          if (newCo != null && newCo.isAfter(tripEnd)) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('⚠️ Check-out (${fmt(newCo)}) après la fin du voyage (${fmt(tripEnd)}).'),
+                backgroundColor: AppColors.error,
+              ),
+            );
+            return;
+          }
+        }
+      }
+
+      // 2) Overlap avec les autres hôtels du voyage
+      if (newCi != null && newCo != null) {
+        final hotels = await ref.read(tripHotelsProvider(_tripId!).future);
+        if (!mounted) return;
+        for (final h in hotels) {
+          if (widget.existing != null && h.id == widget.existing!.id) continue;
+          final otherCi = DateTime.tryParse(h.metadata['check_in'] as String? ?? '');
+          final otherCo = DateTime.tryParse(h.metadata['check_out'] as String? ?? '');
+          if (otherCi == null || otherCo == null) continue;
+          // Overlap = intersection non vide en ouverture stricte sur les
+          // bornes : [newCi, newCo) ∩ [otherCi, otherCo) ≠ ∅. Avec cette
+          // règle, checkout=checkin est autorisé (suite logique).
+          final overlaps = newCi.isBefore(otherCo) && otherCi.isBefore(newCo);
+          if (overlaps) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('⚠️ Chevauchement avec « ${h.name} »'),
+                backgroundColor: AppColors.error,
+              ),
+            );
+            return;
           }
         }
       }
