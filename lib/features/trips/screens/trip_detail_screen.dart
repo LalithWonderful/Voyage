@@ -47,14 +47,86 @@ class TripDetailScreen extends ConsumerWidget {
   }
 }
 
-class _TripDetail extends ConsumerWidget {
+/// Statut d'avancement d'un voyage. Calculé à partir du Trip + de ses
+/// dépendances (activités, étapes, kind de destination). Préparé extensible :
+/// V1 = 3 statuts simples ; en V2 on pourra ajouter `inProgress`/`past` quand
+/// on les voudra.
+enum _TripStatus {
+  /// Destination = pays/région ET aucune étape — l'utilisateur doit préciser
+  /// au moins une ville pour que l'IA sache où chercher.
+  toComplete,
+  /// ≥1 étape définie ET 0 activité — l'utilisateur peut générer le planning.
+  readyToPlan,
+  /// ≥1 activité — le voyage est prêt à consulter / ajuster.
+  ready,
+}
+
+class _TripDetail extends ConsumerStatefulWidget {
   final Trip trip;
   const _TripDetail({required this.trip});
+
+  @override
+  ConsumerState<_TripDetail> createState() => _TripDetailState();
+}
+
+class _TripDetailState extends ConsumerState<_TripDetail> {
+  /// Type de destination détecté via Places autocomplete au boot. Sert à
+  /// distinguer "destination ville" (auto-création possible d'étape par défaut)
+  /// vs "destination pays/région" (nécessite des étapes explicites).
+  /// `null` au boot = en cours de détection ; `'unknown'` = échec / saisie manuelle
+  /// non présente dans Places. On traite `unknown` comme une ville par défaut
+  /// (ne bloque rien), mais le statut "À compléter" ne se déclenche que pour
+  /// `country`/`region` confirmés.
+  String? _destinationKind;
+
+  Trip get trip => widget.trip;
 
   static const _months = [
     'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
     'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _detectDestinationKind();
+  }
+
+  Future<void> _detectDestinationKind() async {
+    final dest = trip.destination.trim();
+    if (dest.isEmpty) {
+      if (mounted) setState(() => _destinationKind = 'unknown');
+      return;
+    }
+    try {
+      final places = ref.read(placesServiceProvider);
+      final results = await places.autocompleteDestinations(dest);
+      if (!mounted) return;
+      if (results.isEmpty) {
+        setState(() => _destinationKind = 'unknown');
+        return;
+      }
+      // Prend la 1ère suggestion dont le mainText matche exactement la destination
+      // pour éviter les homonymies (cf. trip_edit_sheet._detectInitialKind).
+      final exact = results.where((r) => r.mainText.toLowerCase() == dest.toLowerCase());
+      final pick = exact.isNotEmpty ? exact.first : results.first;
+      setState(() => _destinationKind = pick.kind);
+    } catch (_) {
+      if (mounted) setState(() => _destinationKind = 'unknown');
+    }
+  }
+
+  /// Calcule le statut courant du voyage. `activitiesCount` vient d'un provider
+  /// async — quand il est null (pas encore chargé), on ne montre pas de badge
+  /// pour ne pas afficher "À compléter" puis "Voyage prêt" juste après le boot.
+  _TripStatus? _computeStatus(int? activitiesCount) {
+    if (activitiesCount == null) return null;
+    if (activitiesCount > 0) return _TripStatus.ready;
+    final hasSegments = trip.itinerarySegments.isNotEmpty;
+    final destIsLarge = _destinationKind == 'country' || _destinationKind == 'region';
+    if (destIsLarge && !hasSegments) return _TripStatus.toComplete;
+    return _TripStatus.readyToPlan;
+  }
 
   String _formatRange() {
     final s = trip.startDate;
@@ -64,6 +136,17 @@ class _TripDetail extends ConsumerWidget {
       return '${s.day} – ${e.day} ${_months[e.month - 1]} ${e.year} • ${trip.durationDays} jours';
     }
     return '${s.day} ${_months[s.month - 1]} – ${e.day} ${_months[e.month - 1]} ${e.year} • ${trip.durationDays} jours';
+  }
+
+  /// Sous-titre court pour le header : "21 jours · 11–31 mai 2026".
+  String _headerSubtitle() {
+    final s = trip.startDate;
+    final e = trip.endDate;
+    final sameMonth = s.month == e.month && s.year == e.year;
+    final dates = sameMonth
+        ? '${s.day}–${e.day} ${_months[e.month - 1]} ${e.year}'
+        : '${s.day} ${_months[s.month - 1]} – ${e.day} ${_months[e.month - 1]} ${e.year}';
+    return '${trip.durationDays} jour${trip.durationDays > 1 ? "s" : ""} · $dates';
   }
 
   String _fmtDate(DateTime d) =>
@@ -107,7 +190,7 @@ class _TripDetail extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final docsAsync = ref.watch(tripDocumentsProvider(trip.id));
     final docs = docsAsync.valueOrNull ?? const <TripDocument>[];
     final hotelsAsync = ref.watch(tripHotelsProvider(trip.id));
@@ -120,10 +203,16 @@ class _TripDetail extends ConsumerWidget {
         ? '~${CurrencyService.formatAmount(budget.total, userCurrency)}'
         : null;
 
+    final activitiesAsync = ref.watch(tripActivitiesProvider(trip.id));
+    final activitiesCount = activitiesAsync.valueOrNull?.length;
+    final status = _computeStatus(activitiesCount);
+
     return CustomScrollView(
       slivers: [
         SliverAppBar(
-          expandedHeight: 220,
+          // Header plus haut pour accommoder emoji 64px aligné gauche + titre
+          // + sous-titre + badge statut. 240px laisse respirer sans déborder.
+          expandedHeight: 240,
           pinned: true,
           backgroundColor: AppColors.primary,
           leading: IconButton(
@@ -131,11 +220,20 @@ class _TripDetail extends ConsumerWidget {
             onPressed: () => context.go('/trips'),
           ),
           actions: [
-            IconButton(
-              icon: const Icon(Icons.edit_outlined, color: Colors.white),
-              tooltip: 'Modifier',
+            // Bouton Modifier visible : icône + texte (au-delà des 600px on
+            // peut afficher le label, sinon icon seul). Plus parlant que la
+            // simple icône crayon de l'ancienne version.
+            TextButton.icon(
               onPressed: () => openTripEditSheet(context, ref, trip: trip),
+              icon: const Icon(Icons.edit_outlined, color: Colors.white, size: 18),
+              label: const Text('Modifier', style: TextStyle(color: Colors.white)),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+              ),
             ),
+            // PopupMenu kebab conservé pour l'instant (Supprimer reste accessible).
+            // Sera retiré en tranche 6 quand la section Actions du bas sera
+            // ajoutée avec une icône corbeille séparée.
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert, color: Colors.white),
               tooltip: 'Options',
@@ -157,30 +255,89 @@ class _TripDetail extends ConsumerWidget {
             ),
           ],
           flexibleSpace: FlexibleSpaceBar(
+            // Titre compact pinned (visible quand collapsed). On garde juste
+            // le titre + budget pour ne pas surcharger la barre repliée.
             title: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(trip.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                Flexible(
+                  child: Text(
+                    trip.title,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
                 if (budgetLabel != null) ...[
                   const SizedBox(width: 12),
                   Text(budgetLabel, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 ],
               ],
             ),
-            background: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [AppColors.primary, AppColors.primaryDark],
+            titlePadding: const EdgeInsetsDirectional.only(start: 56, bottom: 14, end: 16),
+            // Background expanded : gradient subtil bleu primary → primaryDark
+            // (10% d'opacité de différence — plus que ça vire kitsch). Emoji
+            // 64px aligné gauche, titre grand dessous, sous-titre durée/dates,
+            // badge statut outline. Layout mobile-first, padding généreux pour
+            // éviter de toucher les actions du SliverAppBar.
+            background: Stack(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [AppColors.primary, AppColors.primaryDark],
+                    ),
+                  ),
                 ),
-              ),
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 48),
-                  child: Text(trip.coverEmoji, style: const TextStyle(fontSize: 72)),
+                // SafeArea + padding pour ne pas chevaucher les actions
+                // (AppBar fait ~56px de haut + status bar). On positionne
+                // le contenu dans la moitié basse de l'expanded.
+                Positioned(
+                  left: 24,
+                  right: 24,
+                  bottom: 56,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(trip.coverEmoji, style: const TextStyle(fontSize: 56)),
+                      const SizedBox(height: 8),
+                      Text(
+                        trip.title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 26,
+                          height: 1.1,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              _headerSubtitle(),
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.85),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (status != null) ...[
+                            const SizedBox(width: 10),
+                            _TripStatusBadge(status: status),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ),
@@ -502,6 +659,56 @@ class _ActionButton extends StatelessWidget {
             Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Badge statut "outline" (bordure + texte couleur, fond transparent) — style
+/// Material 3 / iOS moderne. Volontairement discret pour ne pas concurrencer
+/// les CTAs pleins. 3 statuts V1 : "À compléter" (ambre), "Prêt à planifier"
+/// (bleu primary), "Voyage prêt" (vert success). Extensible pour V2 (en cours,
+/// passé) sans changer l'API.
+class _TripStatusBadge extends StatelessWidget {
+  final _TripStatus status;
+  const _TripStatusBadge({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (status) {
+      _TripStatus.toComplete => ('À compléter', AppColors.accent),
+      _TripStatus.readyToPlan => ('Prêt à planifier', AppColors.primaryLight),
+      _TripStatus.ready => ('Voyage prêt', AppColors.success),
+    };
+    // Sur le header bleu, le contraste demande un texte blanc + bordure
+    // claire — on garde le même esprit "outline" mais adapté fond foncé.
+    // Sur fond clair (utilisation future hors header), on tomberait sur le
+    // mode classique : bordure et texte couleur, fond transparent.
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6, height: 6,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
       ),
     );
   }
