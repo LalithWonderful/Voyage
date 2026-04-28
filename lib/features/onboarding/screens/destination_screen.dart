@@ -111,6 +111,14 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
     try {
       final client = ref.read(supabaseProvider);
       final userId = client.auth.currentUser!.id;
+      // Pré-remplit traveler_type + interests depuis le profil voyageur global
+      // pour éviter qu'un voyage neuf ait des chips vides → 0 suggestions.
+      // L'utilisateur peut surcharger ces valeurs ensuite via la sheet d'édition.
+      // planning_mode n'est volontairement pas pré-rempli : la question est
+      // posée au 1er "Suggérer" pour que l'utilisateur choisisse contextuellement.
+      final profile = await ref.read(userProfileProvider.future);
+      final globalInterests = await ref.read(userInterestsProvider.future);
+      final globalTravelerType = profile?['traveler_type'] as String?;
       final inserted = await client.from('trips').insert({
         'user_id': userId,
         'title': _chosenDestination!,
@@ -120,6 +128,8 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
         'cover_emoji': _chosenEmoji,
         'status': 'upcoming',
         'travelers': _travelers.map((t) => t.toJson()).toList(),
+        'traveler_type': ?globalTravelerType,
+        if (globalInterests.isNotEmpty) 'interests': globalInterests,
       }).select();
 
       if ((inserted as List).isEmpty) {
