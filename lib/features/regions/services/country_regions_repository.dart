@@ -180,6 +180,50 @@ class CountryRegionsRepository {
       await prefs.remove(_cacheKey);
     } catch (_) {}
   }
+
+  // ─── Persistance côté trip ─────────────────────────────────────────────
+
+  /// Persiste le pays détecté pour un trip (ISO 2 + nom + kind). Appelé
+  /// après une détection Place Details — évite de re-fetcher à chaque ouverture
+  /// du suggesteur. Idempotent : passer null à un champ ne le clear pas (use
+  /// Supabase update partial).
+  Future<void> persistDestinationCountry({
+    required String tripId,
+    String? countryCode,
+    String? countryName,
+    String? kind,
+  }) async {
+    final updates = <String, dynamic>{
+      'destination_country_code': ?countryCode,
+      'destination_country_name': ?countryName,
+      'destination_kind': ?kind,
+    };
+    if (updates.isEmpty) return;
+    try {
+      await _supabase.from('trips').update(updates).eq('id', tripId);
+    } catch (e) {
+      debugPrint('[regions] persistDestinationCountry KO : $e');
+    }
+  }
+
+  /// Persiste la région choisie pour un trip.
+  /// - [region] non-null : update les 3 colonnes selected_region_*
+  /// - [region] null : clear les 3 colonnes (cas "Tout le pays" ou reset).
+  Future<void> persistSelectedRegion({
+    required String tripId,
+    required CountryRegion? region,
+  }) async {
+    final updates = <String, dynamic>{
+      'selected_region_id': region?.id,
+      'selected_region_name': region?.regionName,
+      'selected_region_radius_km': region?.recommendedRadiusKm,
+    };
+    try {
+      await _supabase.from('trips').update(updates).eq('id', tripId);
+    } catch (e) {
+      debugPrint('[regions] persistSelectedRegion KO : $e');
+    }
+  }
 }
 
 /// Provider Riverpod du repository. Le repo est singleton (cache mémoire

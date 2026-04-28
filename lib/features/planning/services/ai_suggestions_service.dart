@@ -150,6 +150,13 @@ class AiSuggestionsService {
   /// l'inclure elle-même comme étape, ce qui produit "États-Unis 3 jours" en
   /// première card — non-sens UX). On filtre aussi côté code pour les rares cas
   /// où Gemini retombe sur le nom du pays.
+  ///
+  /// [selectedRegion] : si fourni (cas pays large/travel_region où l'utilisateur
+  /// a choisi une région via [CountryRegionsSheet]), Gemini reçoit un cadre plus
+  /// strict : "circuit dans la région X (villes principales : Y, Z)" au lieu de
+  /// "boucle autour du pays Y". Le radius vient de la région et `sameCountryOnly`
+  /// est forcé à true (une région = un seul pays). Tags fournis comme contexte
+  /// pour aider Gemini à orienter ses propositions.
   Future<List<({String city, String country, int days, String description})>> suggestRegionalItinerary({
     required String mainDestination,
     required int durationDays,
@@ -160,7 +167,13 @@ class AiSuggestionsService {
     List<String> excludeCities = const [],
     int daysAlreadyPlaced = 0,
     String? destinationKind,
+    ({String regionName, String label, List<String> tags})? selectedRegion,
   }) async {
+    // Si une région est choisie, on force le contexte : radius depuis la région,
+    // sameCountryOnly forcé à true (une région = un seul pays).
+    if (selectedRegion != null) {
+      sameCountryOnly = true;
+    }
     // Cache : la sortie est quasi déterministe pour les mêmes inputs (mainCity,
     // durée, profil, rayon, étapes déjà placées). On normalise les listes en les
     // triant pour stabiliser la clé.
@@ -176,6 +189,7 @@ class AiSuggestionsService {
       (k: 'exclude', v: sortedExcludes),
       (k: 'placed', v: daysAlreadyPlaced),
       (k: 'kind', v: GeminiCacheService.normKey(destinationKind ?? '')),
+      (k: 'region', v: GeminiCacheService.normKey(selectedRegion?.regionName ?? '')),
     ]);
     final cached = await _cache?.get('regional_itinerary', cacheKey);
     if (cached != null) {
@@ -214,13 +228,21 @@ class AiSuggestionsService {
     // sauf si l'utilisateur l'a déjà ajoutée manuellement comme étape.
     final isLargeDestination =
         destinationKind == 'country' || destinationKind == 'region';
-    final mustIncludeMain = isLargeDestination
-        ? '- ⚠️ $mainDestination est un ${destinationKind == 'country' ? 'pays' : 'une région'} — ne le propose JAMAIS comme étape. Propose UNIQUEMENT des villes précises situées DANS $mainDestination (et villes frontalières si transfrontalier autorisé).'
-        : (excludeCities
-                .map((c) => c.trim().toLowerCase())
-                .contains(mainDestination.trim().toLowerCase())
-            ? '- ⚠️ $mainDestination est déjà dans les étapes du voyageur — NE LA REPROPOSE PAS, propose UNIQUEMENT des villes voisines.'
-            : '- Inclus OBLIGATOIREMENT $mainDestination dans la boucle (avec assez de jours pour la visiter, 2-3 jours typiquement).');
+    final mustIncludeMain = selectedRegion != null
+        ? '- ⚠️ Cible UNIQUEMENT la région **${selectedRegion.regionName}** dans $mainDestination. Villes principales de cette région : ${selectedRegion.label}. Tu peux inclure des villes voisines proches (dans le rayon de $radiusKm km) si elles enrichissent le circuit, mais reste DANS cette région — ne propose pas de villes d\'autres régions du pays.'
+        : (isLargeDestination
+            ? '- ⚠️ $mainDestination est un ${destinationKind == 'country' ? 'pays' : 'une région'} — ne le propose JAMAIS comme étape. Propose UNIQUEMENT des villes précises situées DANS $mainDestination (et villes frontalières si transfrontalier autorisé).'
+            : (excludeCities
+                    .map((c) => c.trim().toLowerCase())
+                    .contains(mainDestination.trim().toLowerCase())
+                ? '- ⚠️ $mainDestination est déjà dans les étapes du voyageur — NE LA REPROPOSE PAS, propose UNIQUEMENT des villes voisines.'
+                : '- Inclus OBLIGATOIREMENT $mainDestination dans la boucle (avec assez de jours pour la visiter, 2-3 jours typiquement).'));
+    // Si une région ciblée, on enrichit le contexte avec ses tags pour orienter
+    // les choix Gemini (mais sans imposer — Gemini reste libre du choix de villes
+    // précises, on cadre juste le périmètre).
+    final regionTagsBlock = selectedRegion != null && selectedRegion.tags.isNotEmpty
+        ? '\n- Mots-clés thématiques de cette région : ${selectedRegion.tags.join(", ")}. Privilégie des villes qui collent à cette ambiance.'
+        : '';
     final excludeBlock = excludeCities.isEmpty
         ? ''
         : '\n- NE PROPOSE PAS ces villes (elles sont déjà dans le planning du voyageur) : ${excludeCities.join(', ')}.';
@@ -244,7 +266,7 @@ Profil du voyageur :
 $interestsStr
 
 Contraintes :
-$mustIncludeMain
+$mustIncludeMain$regionTagsBlock
 - **Total des jours proposés = EXACTEMENT $totalDays** (ni plus, ni moins). Un "jour" = une journée calendaire que le voyageur passe basé dans cette ville (où il dort). N'invente pas de jours supplémentaires "au cas où".$alreadyPlacedBlock
 - Étapes ordonnées géographiquement (pas d'aller-retour absurde A→B→A).
 - Pour chaque étape : une ville précise (pas une région), un nombre de jours réaliste (1-4), le pays (en français, ex: "France", "Allemagne", "Belgique", "Luxembourg"), et 1 phrase courte d'accroche (ce qu'on y fait, pourquoi y aller).$excludeBlock

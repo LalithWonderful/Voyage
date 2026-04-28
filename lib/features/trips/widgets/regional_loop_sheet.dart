@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:voyage/core/theme/app_theme.dart';
 import 'package:voyage/features/planning/providers/planning_provider.dart';
+import 'package:voyage/features/regions/data/country_regions.dart';
+import 'package:voyage/features/regions/models/country_region.dart';
+import 'package:voyage/features/regions/services/country_regions_repository.dart';
+import 'package:voyage/features/regions/widgets/country_regions_sheet.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 
 /// Affiche un bottom sheet qui propose une boucle régionale (suggestion Gemini)
@@ -17,6 +21,13 @@ import 'package:voyage/features/trips/models/trip_model.dart';
 /// [destinationKind] : `city` / `country` / `region` / `place` / `unknown`.
 /// Si pays/région, le service Gemini propose des villes DANS la destination
 /// (pas la destination elle-même). Sert aussi à adapter le sous-titre.
+///
+/// [tripId] / [countryCode] / [initialSelectedRegion] : activent le flow
+/// "régions des grands pays". Si countryCode ∈ largeCountries ou
+/// travelRegionCountries ET initialSelectedRegion absent, la sheet ouvre
+/// automatiquement [CountryRegionsSheet] pour faire choisir une région avant
+/// de lancer le suggesteur Gemini. Le radius utilisé est alors celui de la
+/// région choisie (pas le sélecteur 50/100/.../500 km).
 Future<List<TripSegment>?> openRegionalLoopSheet(
   BuildContext context,
   WidgetRef ref, {
@@ -27,6 +38,9 @@ Future<List<TripSegment>?> openRegionalLoopSheet(
   List<String> existingCities = const [],
   int existingDaysPlaced = 0,
   String? destinationKind,
+  String? tripId,
+  String? countryCode,
+  CountryRegion? initialSelectedRegion,
 }) async {
   return await showModalBottomSheet<List<TripSegment>?>(
     context: context,
@@ -41,6 +55,9 @@ Future<List<TripSegment>?> openRegionalLoopSheet(
       existingCities: existingCities,
       existingDaysPlaced: existingDaysPlaced,
       destinationKind: destinationKind,
+      tripId: tripId,
+      countryCode: countryCode,
+      initialSelectedRegion: initialSelectedRegion,
     ),
   );
 }
@@ -53,6 +70,9 @@ class _RegionalLoopSheet extends ConsumerStatefulWidget {
   final List<String> existingCities;
   final int existingDaysPlaced;
   final String? destinationKind;
+  final String? tripId;
+  final String? countryCode;
+  final CountryRegion? initialSelectedRegion;
   const _RegionalLoopSheet({
     required this.mainDestination,
     required this.durationDays,
@@ -61,6 +81,9 @@ class _RegionalLoopSheet extends ConsumerStatefulWidget {
     required this.existingCities,
     required this.existingDaysPlaced,
     this.destinationKind,
+    this.tripId,
+    this.countryCode,
+    this.initialSelectedRegion,
   });
 
   @override
@@ -71,7 +94,8 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
   /// Périmètres proposés (km). 150 par défaut = bonne valeur pour une région
   /// française moyenne (Lorraine + Alsace + Luxembourg accessibles).
   static const _radiiKm = [50, 100, 150, 250, 500];
-  int _radiusKm = 150;
+  late int _radiusKm =
+      widget.initialSelectedRegion?.recommendedRadiusKm ?? 150;
 
   /// Si vrai, l'IA ne propose QUE des villes du même pays que la destination.
   /// Utile pour les voyageurs qui ne veulent pas multiplier les changements
@@ -83,6 +107,19 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
   /// (Strasbourg → Trèves, Lille → Bruges).
   late bool _sameCountryOnly =
       widget.destinationKind == 'country' || widget.destinationKind == 'region';
+
+  /// Région choisie par l'utilisateur via [CountryRegionsSheet]. Quand non-null :
+  /// le sélecteur de rayon est masqué et le radius vient de la région.
+  late CountryRegion? _chosenRegion = widget.initialSelectedRegion;
+
+  /// True si l'utilisateur a explicitement choisi "Tout le pays / rayon manuel"
+  /// dans la sheet de sélection. Uniquement possible pour travel_region_country
+  /// (TR, TH). Empêche la réouverture automatique de la sheet de sélection.
+  bool _wholeCountryChosen = false;
+
+  /// True si on a déjà tenté l'auto-open de la sheet de régions (pour pays
+  /// large/travel_region sans région choisie). Évite la boucle si l'user annule.
+  bool _regionPickerAttempted = false;
 
   bool _loading = false;
   bool _hasFetchedOnce = false;
@@ -105,6 +142,80 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
   /// Sert à adapter le wording ("autour de Nancy" vs "· États-Unis").
   bool get _isLargeDestination =>
       widget.destinationKind == 'country' || widget.destinationKind == 'region';
+
+  /// True si l'on doit ouvrir [CountryRegionsSheet] avant le fetch Gemini :
+  /// pays large/travel_region + pas de région choisie + pas encore tenté.
+  bool get _shouldOpenRegionPicker =>
+      widget.countryCode != null &&
+      isCountryWithRegions(widget.countryCode) &&
+      _chosenRegion == null &&
+      !_wholeCountryChosen &&
+      !_regionPickerAttempted;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_shouldOpenRegionPicker) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _openRegionPicker();
+      });
+    }
+  }
+
+  /// Ouvre la sheet de sélection de région et applique le résultat.
+  Future<void> _openRegionPicker() async {
+    if (!mounted) return;
+    _regionPickerAttempted = true;
+    final choice = await openCountryRegionsSheet(
+      context, ref,
+      countryCode: widget.countryCode!,
+      userInterests: widget.interests,
+      travelerType: widget.travelerType,
+    );
+    if (!mounted) return;
+    if (choice == null) {
+      // Annulé. Pour large_country, le choix est obligatoire → on ferme la
+      // sheet régionale aussi (l'utilisateur doit recommencer s'il veut
+      // continuer). Pour travel_region, on reste avec le sélecteur de rayon.
+      if (isLargeCountry(widget.countryCode)) {
+        Navigator.of(context).pop();
+      }
+      return;
+    }
+    if (choice.hasRegion) {
+      final region = choice.region!;
+      setState(() {
+        _chosenRegion = region;
+        _radiusKm = region.recommendedRadiusKm;
+        _wholeCountryChosen = false;
+        _sameCountryOnly = true;
+      });
+      if (widget.tripId != null) {
+        await ref
+            .read(countryRegionsRepositoryProvider)
+            .persistSelectedRegion(tripId: widget.tripId!, region: region);
+      }
+    } else {
+      // "Tout le pays" sur travel_region : pas de région choisie, on bascule
+      // sur le sélecteur de rayon manuel (comportement par défaut).
+      setState(() {
+        _chosenRegion = null;
+        _wholeCountryChosen = true;
+      });
+      if (widget.tripId != null) {
+        await ref
+            .read(countryRegionsRepositoryProvider)
+            .persistSelectedRegion(tripId: widget.tripId!, region: null);
+      }
+    }
+  }
+
+  /// Permet à l'utilisateur de revenir sur son choix de région via le bandeau
+  /// "Région : ... [Changer]".
+  Future<void> _changeRegion() async {
+    _regionPickerAttempted = false;
+    await _openRegionPicker();
+  }
 
   /// Détecte si une suggestion est une ville déjà ajoutée par l'utilisateur
   /// (comparaison case-insensitive sur le nom de la ville).
@@ -134,6 +245,7 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
         ...widget.existingCities,
         ..._previouslyProposed,
       }.toList();
+      final region = _chosenRegion;
       final result = await service.suggestRegionalItinerary(
         mainDestination: widget.mainDestination,
         durationDays: widget.durationDays,
@@ -144,6 +256,15 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
         excludeCities: excludeAll,
         daysAlreadyPlaced: widget.existingDaysPlaced,
         destinationKind: widget.destinationKind,
+        // Si une région est choisie, on cadre Gemini : "circuit DANS cette
+        // région" au lieu de "boucle autour du pays". Cf. spec V1 grands pays.
+        selectedRegion: region == null
+            ? null
+            : (
+                regionName: region.regionName,
+                label: region.label,
+                tags: region.tags,
+              ),
       );
       if (!mounted) return;
       // Coche tout par défaut SAUF les villes déjà ajoutées au voyage
@@ -232,36 +353,91 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
                     style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                   ),
                   const SizedBox(height: 14),
-                  Text(
-                    'PÉRIMÈTRE DE RECHERCHE',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textSecondary, letterSpacing: 0.5),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '150 km couvre généralement la région + pays voisins. 250-500 km = grande boucle.',
-                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.35),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    children: _radiiKm.map((km) {
-                      final selected = _radiusKm == km;
-                      return ChoiceChip(
-                        label: Text('$km km'),
-                        selected: selected,
-                        onSelected: _loading ? null : (v) {
-                          if (v) setState(() => _radiusKm = km);
-                        },
-                        selectedColor: AppColors.primary,
-                        labelStyle: TextStyle(
-                          color: selected ? Colors.white : AppColors.textPrimary,
-                          fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-                          fontSize: 12,
-                        ),
-                      );
-                    }).toList(),
-                  ),
+                  // Si une région est choisie : on affiche un bandeau qui
+                  // résume la région + son rayon, avec un lien "Changer".
+                  // Le sélecteur de rayon manuel est masqué (le radius vient
+                  // de la région — cohérent avec la spec V1 grands pays).
+                  if (_chosenRegion != null) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryLight,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.primary, width: 1),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.place, size: 18, color: AppColors.primary),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _chosenRegion!.regionName,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Rayon ${_chosenRegion!.recommendedRadiusKm} km',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _loading ? null : _changeRegion,
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              foregroundColor: AppColors.primary,
+                            ),
+                            child: const Text(
+                              'Changer',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ] else ...[
+                    Text(
+                      'PÉRIMÈTRE DE RECHERCHE',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textSecondary, letterSpacing: 0.5),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '150 km couvre généralement la région + pays voisins. 250-500 km = grande boucle.',
+                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.35),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: _radiiKm.map((km) {
+                        final selected = _radiusKm == km;
+                        return ChoiceChip(
+                          label: Text('$km km'),
+                          selected: selected,
+                          onSelected: _loading ? null : (v) {
+                            if (v) setState(() => _radiusKm = km);
+                          },
+                          selectedColor: AppColors.primary,
+                          labelStyle: TextStyle(
+                            color: selected ? Colors.white : AppColors.textPrimary,
+                            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                            fontSize: 12,
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   // Toggle "rester dans le pays" — utile pour éviter changements
                   // devise/langue/visa lors d'un voyage régional.

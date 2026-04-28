@@ -345,6 +345,11 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
       existingCities: _segments.map((s) => s.city).toList(),
       existingDaysPlaced: _totalSegmentDays,
       destinationKind: _destinationKind,
+      tripId: widget.trip.id,
+      // Code pays détecté à la volée par _detectInitialKind via
+      // getCountryCodeFromPlaceId. Active le flow régions si le pays est
+      // dans largeCountries / travelRegionCountries.
+      countryCode: _destinationCountryCode,
     );
     if (result == null || result.isEmpty || !mounted) return;
     setState(() {
@@ -811,7 +816,7 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
               Expanded(
                 child: Text(title, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textSecondary, letterSpacing: 0.5)),
               ),
-              if (trailing != null) trailing,
+              ?trailing,
             ],
           ),
           if (hint != null) ...[

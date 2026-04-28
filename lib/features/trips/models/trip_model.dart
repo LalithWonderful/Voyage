@@ -186,6 +186,29 @@ class Trip {
   final List<TripSegment> itinerarySegments;
   final DateTime createdAt;
 
+  /// ISO 2 du pays détecté à partir de la destination (ex: 'US', 'TH').
+  /// Mémorisé à la création/édition pour éviter de re-fetcher Place Details.
+  final String? destinationCountryCode;
+
+  /// Nom FR du pays (ex: 'États-Unis'). Utile pour l'UI sans relookup table.
+  final String? destinationCountryName;
+
+  /// Type de destination détecté ('city', 'country', 'region', 'place', 'unknown').
+  /// Sert à décider du flow de suggestion (régions vs rayon manuel).
+  final String? destinationKind;
+
+  /// ID Supabase de la région choisie dans `country_regions` (ou null si
+  /// pays non concerné OU "Tout le pays" choisi sur travel_region).
+  final int? selectedRegionId;
+
+  /// Nom FR de la région choisie (ex: 'New York & Côte Est'). Dupliqué
+  /// pour affichage rapide sans re-lookup.
+  final String? selectedRegionName;
+
+  /// Rayon (km) de la région choisie. Pré-rempli depuis
+  /// `country_regions.recommended_radius_km` au moment du choix.
+  final int? selectedRegionRadiusKm;
+
   const Trip({
     required this.id,
     required this.userId,
@@ -202,6 +225,12 @@ class Trip {
     this.planningMode,
     this.itinerarySegments = const [],
     required this.createdAt,
+    this.destinationCountryCode,
+    this.destinationCountryName,
+    this.destinationKind,
+    this.selectedRegionId,
+    this.selectedRegionName,
+    this.selectedRegionRadiusKm,
   });
 
   /// Date de début (incluse) calculée pour un segment selon son ordre dans la liste.
@@ -262,6 +291,12 @@ class Trip {
     PlanningMode? planningMode,
     List<TripSegment>? itinerarySegments,
     DateTime? createdAt,
+    String? destinationCountryCode,
+    String? destinationCountryName,
+    String? destinationKind,
+    int? selectedRegionId,
+    String? selectedRegionName,
+    int? selectedRegionRadiusKm,
   }) {
     return Trip(
       id: id ?? this.id,
@@ -279,6 +314,12 @@ class Trip {
       planningMode: planningMode ?? this.planningMode,
       itinerarySegments: itinerarySegments ?? this.itinerarySegments,
       createdAt: createdAt ?? this.createdAt,
+      destinationCountryCode: destinationCountryCode ?? this.destinationCountryCode,
+      destinationCountryName: destinationCountryName ?? this.destinationCountryName,
+      destinationKind: destinationKind ?? this.destinationKind,
+      selectedRegionId: selectedRegionId ?? this.selectedRegionId,
+      selectedRegionName: selectedRegionName ?? this.selectedRegionName,
+      selectedRegionRadiusKm: selectedRegionRadiusKm ?? this.selectedRegionRadiusKm,
     );
   }
 
@@ -304,5 +345,11 @@ class Trip {
             .toList() ??
         const [],
     createdAt: DateTime.parse(json['created_at'] as String),
+    destinationCountryCode: json['destination_country_code'] as String?,
+    destinationCountryName: json['destination_country_name'] as String?,
+    destinationKind: json['destination_kind'] as String?,
+    selectedRegionId: (json['selected_region_id'] as num?)?.toInt(),
+    selectedRegionName: json['selected_region_name'] as String?,
+    selectedRegionRadiusKm: (json['selected_region_radius_km'] as num?)?.toInt(),
   );
 }

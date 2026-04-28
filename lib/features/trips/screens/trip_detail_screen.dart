@@ -298,6 +298,10 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
       travelerType: trip.travelerType,
       interests: trip.interests ?? const [],
       destinationKind: _destinationKind,
+      tripId: trip.id,
+      // Si le pays a été détecté précédemment (persisté en BDD), on l'utilise.
+      // Active le flow régions pour les pays large/travel_region.
+      countryCode: trip.destinationCountryCode,
     );
     if (segments == null || segments.isEmpty || !mounted) return;
     try {
