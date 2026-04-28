@@ -152,6 +152,16 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
       !_wholeCountryChosen &&
       !_regionPickerAttempted;
 
+  /// True si le bouton "Suggérer" doit être désactivé : pays avec régions
+  /// (large ou travel_region) sans région choisie ni "Tout le pays" validé.
+  /// Pour les pays normaux, le bouton est toujours actif (le rayon manuel
+  /// suffit comme cadre — comportement V1 existant).
+  bool get _suggestDisabled {
+    if (_chosenRegion != null) return false;
+    if (_wholeCountryChosen) return false;
+    return isCountryWithRegions(widget.countryCode);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -353,10 +363,13 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
                     style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                   ),
                   const SizedBox(height: 14),
-                  // Si une région est choisie : on affiche un bandeau qui
-                  // résume la région + son rayon, avec un lien "Changer".
-                  // Le sélecteur de rayon manuel est masqué (le radius vient
-                  // de la région — cohérent avec la spec V1 grands pays).
+                  // Pour les pays large_country, le sélecteur de rayon manuel
+                  // est TOUJOURS masqué (cf. spec V1) :
+                  // - Si une région est choisie → bandeau région
+                  // - Sinon → CTA "Choisir une région" (le bouton Suggérer
+                  //   est désactivé tant qu'on n'a pas de région).
+                  // Pour travel_region_country : sélecteur visible uniquement
+                  // si l'user a explicitement choisi "Tout le pays".
                   if (_chosenRegion != null) ...[
                     Container(
                       padding: const EdgeInsets.all(12),
@@ -401,6 +414,55 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
                             child: const Text(
                               'Changer',
                               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ] else if (isLargeCountry(widget.countryCode) ||
+                      (isTravelRegionCountry(widget.countryCode) && !_wholeCountryChosen)) ...[
+                    // Pays large (ou travel_region où l'user n'a pas encore
+                    // choisi "Tout le pays") : sélecteur de rayon JAMAIS visible.
+                    // À la place, un CTA pour ouvrir la sheet de sélection.
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Choisis d\'abord une région',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${widget.mainDestination} est trop vaste pour un rayon manuel. Choisis une région pour cadrer le circuit.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                              height: 1.35,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: _loading ? null : _openRegionPicker,
+                              icon: const Text('✨', style: TextStyle(fontSize: 14)),
+                              label: const Text('Choisir une région'),
+                              style: ElevatedButton.styleFrom(
+                                minimumSize: const Size(double.infinity, 42),
+                                backgroundColor: AppColors.primary,
+                                foregroundColor: Colors.white,
+                              ),
                             ),
                           ),
                         ],
@@ -472,7 +534,10 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: _loading ? null : _fetch,
+                      // Désactivé tant qu'aucune région n'est choisie sur un
+                      // pays large (le rayon manuel n'existe plus pour ces
+                      // pays — il faut d'abord cadrer via une région).
+                      onPressed: (_loading || _suggestDisabled) ? null : _fetch,
                       icon: _loading
                           ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                           : Icon(_hasFetchedOnce ? Icons.refresh : Icons.auto_awesome),

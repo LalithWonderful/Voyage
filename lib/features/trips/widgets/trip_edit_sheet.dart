@@ -1,11 +1,13 @@
+import 'dart:async';
+import 'dart:developer' as developer;
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:voyage/core/theme/app_theme.dart';
 import 'package:voyage/core/widgets/city_autocomplete_field.dart';
-import 'dart:developer' as developer;
-import 'dart:math' as math;
 import 'package:voyage/features/auth/providers/auth_provider.dart';
 import 'package:voyage/features/planning/providers/planning_provider.dart';
+import 'package:voyage/features/regions/services/country_regions_repository.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
 import 'package:voyage/features/trips/widgets/regional_loop_sheet.dart';
@@ -143,6 +145,15 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
       final code = await places.getCountryCodeFromPlaceId(pick.placeId);
       if (mounted && code != null) {
         setState(() => _destinationCountryCode = code);
+        // Persiste les champs `destination_*` sur le trip pour que le flow
+        // régions des grands pays se déclenche aussi depuis trip_detail
+        // (sans avoir à re-passer par la sheet d'édition + Place Details).
+        unawaited(ref.read(countryRegionsRepositoryProvider).persistDestinationCountry(
+          tripId: widget.trip.id,
+          countryCode: code,
+          countryName: pick.mainText,
+          kind: pick.kind,
+        ));
       }
     }
   }
