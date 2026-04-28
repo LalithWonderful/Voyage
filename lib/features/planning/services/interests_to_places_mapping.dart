@@ -109,12 +109,14 @@ class InterestPlacesQuery {
 const interestPlacesQueries = <String, InterestPlacesQuery>{
   'Randonnée': InterestPlacesQuery(
     includedTypes: ['park', 'national_park', 'tourist_attraction'],
-    textQueries: ['hiking trail', 'sentier randonnée', 'viewpoint', 'nature walk'],
+    // Queries en FR : Places searchText fonctionne mieux dans la langue locale.
+    // Test 27/04 en France : queries EN ('hiking trail') retournaient 0 résultat.
+    textQueries: ['sentier de randonnée', 'point de vue', 'balade nature'],
     minRating: 4.2,
   ),
   'Shopping': InterestPlacesQuery(
     includedTypes: ['shopping_mall', 'clothing_store', 'department_store', 'market', 'store'],
-    textQueries: ['outlet', 'shopping street', 'local market', 'souvenir'],
+    textQueries: ['rue commerçante', 'marché local', 'boutique souvenirs', 'magasin d\'usine'],
   ),
   'Nightlife': InterestPlacesQuery(
     includedTypes: ['bar', 'night_club'],
@@ -143,7 +145,7 @@ const interestPlacesQueries = <String, InterestPlacesQuery>{
   ),
   'Bons plans': InterestPlacesQuery(
     includedTypes: ['restaurant', 'cafe', 'bakery', 'park', 'museum', 'market'],
-    textQueries: ['cheap', 'budget', 'gratuit', 'free'],
+    textQueries: ['pas cher', 'gratuit', 'entrée libre', 'petit prix'],
     maxPriceLevel: 1,
     // Test Nancy : E.Leclerc (supermarché) remontait via la requête `bakery`,
     // Burger King via fast_food_restaurant. Pas glamour pour un voyage.
@@ -161,12 +163,12 @@ const interestPlacesQueries = <String, InterestPlacesQuery>{
   ),
   'Esthétique': InterestPlacesQuery(
     includedTypes: ['beauty_salon', 'hair_care', 'spa'],
-    textQueries: ['facial', 'skincare', 'laser', 'esthetic'],
+    textQueries: ['soin du visage', 'soins de la peau', 'épilation laser', 'institut de beauté'],
     minRating: 4.4,
   ),
   'Gastronomie': InterestPlacesQuery(
     includedTypes: ['restaurant', 'cafe', 'bakery', 'meal_takeaway'],
-    textQueries: ['local food', 'traditional cuisine', 'street food', 'fine dining'],
+    textQueries: ['cuisine locale', 'cuisine traditionnelle', 'street food', 'restaurant gastronomique'],
     // Bumpé de 4.0 à 4.3 — pour Gastronomie on ne veut pas d'options
     // moyennes type Burger King à 4.1.
     minRating: 4.3,
@@ -181,29 +183,29 @@ const interestPlacesQueries = <String, InterestPlacesQuery>{
   ),
   'Culture': InterestPlacesQuery(
     includedTypes: ['museum', 'art_gallery', 'library', 'church'],
-    textQueries: ['historical landmark', 'cultural site'],
+    textQueries: ['monument historique', 'site culturel', 'patrimoine'],
     minRating: 4.0,
     rule: 'vérifier ouverture aux horaires du créneau et durée compatible',
   ),
   'Plage': InterestPlacesQuery(
     includedTypes: ['park', 'tourist_attraction'],
-    textQueries: ['beach', 'lake', 'seaside', 'waterfront'],
+    textQueries: ['plage', 'lac', 'bord de mer', 'front de mer'],
     minRating: 4.0,
     rule: 'vérifier distance réelle au littoral',
   ),
   'Sports': InterestPlacesQuery(
     includedTypes: ['gym', 'stadium'],
-    textQueries: ['bike rental', 'kayak', 'climbing gym', 'tennis court'],
+    textQueries: ['location vélo', 'kayak', 'salle d\'escalade', 'court de tennis'],
     minRating: 4.0,
   ),
   'Nature': InterestPlacesQuery(
     includedTypes: ['park', 'national_park', 'zoo'],
-    textQueries: ['forest', 'lake', 'viewpoint', 'nature reserve', 'botanical garden'],
+    textQueries: ['forêt', 'lac', 'point de vue', 'réserve naturelle', 'jardin botanique'],
     minRating: 4.0,
   ),
   'Événements': InterestPlacesQuery(
     includedTypes: ['stadium', 'night_club'],
-    textQueries: ['concert hall', 'theater', 'event venue'],
+    textQueries: ['salle de concert', 'théâtre', 'salle de spectacle'],
     minRating: 4.0,
     excludeFoodPrimaryType: true,
     rule: 'Places valide le venue mais pas l\'événement réel — à compléter post-MVP avec une API événementielle',

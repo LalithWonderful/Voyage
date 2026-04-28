@@ -1,7 +1,8 @@
 import 'dart:convert';
-import 'dart:developer' as developer;
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:voyage/core/constants/ai_constants.dart';
+import 'package:voyage/core/services/location_service.dart';
 import 'package:voyage/features/planning/services/gemini_cache_service.dart';
 
 /// Un candidat retourné par Places Nearby Search ou Text Search v1.
@@ -149,10 +150,15 @@ class PlacesNearbyService {
     if (cached != null) {
       final list = cached['places'] as List?;
       if (list != null) {
-        return list
+        final results = list
             .whereType<Map<String, dynamic>>()
             .map(NearbyCandidate.fromCacheJson)
             .toList();
+        debugPrint(
+          '[places_nearby] cache HIT searchNearby types=$includedTypes '
+          'r=${radius}m → ${results.length} candidats',
+        );
+        return results;
       }
     }
 
@@ -179,9 +185,9 @@ class PlacesNearbyService {
         body: body,
       );
       if (resp.statusCode != 200) {
-        developer.log(
-          'Places searchNearby HTTP ${resp.statusCode} types=$includedTypes: ${resp.body}',
-          name: 'places_nearby',
+        debugPrint(
+          '[places_nearby] HTTP ${resp.statusCode} searchNearby types=$includedTypes '
+          'body="${resp.body}"',
         );
         return [];
       }
@@ -192,9 +198,10 @@ class PlacesNearbyService {
           .map(NearbyCandidate.fromPlacesV1)
           .where((c) => c.placeId.isNotEmpty && c.name.isNotEmpty)
           .toList();
-      developer.log(
-        'searchNearby types=$includedTypes (${latitude.toStringAsFixed(3)},${longitude.toStringAsFixed(3)}) → ${results.length} candidats',
-        name: 'places_nearby',
+      debugPrint(
+        '[places_nearby] API searchNearby types=$includedTypes '
+        '(${latitude.toStringAsFixed(3)},${longitude.toStringAsFixed(3)}) r=${radius}m '
+        '→ ${results.length} candidats',
       );
 
       await _cache?.put('places_search', cacheKey, {
@@ -202,7 +209,7 @@ class PlacesNearbyService {
       });
       return results;
     } catch (e) {
-      developer.log('Places searchNearby exception: $e', name: 'places_nearby');
+      debugPrint('[places_nearby] EXCEPTION searchNearby types=$includedTypes error="$e"');
       return [];
     }
   }
@@ -238,22 +245,32 @@ class PlacesNearbyService {
     if (cached != null) {
       final list = cached['places'] as List?;
       if (list != null) {
-        return list
+        final results = list
             .whereType<Map<String, dynamic>>()
             .map(NearbyCandidate.fromCacheJson)
             .toList();
+        debugPrint(
+          '[places_nearby] cache HIT searchText q="$query" r=${radius}m '
+          '→ ${results.length} candidats',
+        );
+        return results;
       }
     }
 
     try {
       final uri = Uri.https('places.googleapis.com', '/v1/places:searchText');
+      // searchText n'accepte PAS `locationRestriction.circle` (réservé à
+      // searchNearby) — utiliser ce format renvoyait HTTP 400 silencieusement
+      // → toutes les queries retournaient 0 résultats. Bug observé 2026-04-28.
+      // On utilise `locationBias.circle` (le seul format circle supporté pour
+      // searchText) PUIS on filtre côté code par Haversine pour respecter le
+      // radius strict — sans ce filtre, des textQueries génériques type
+      // "guided tour" remontent des résultats à l'autre bout du monde
+      // (ex: "USA Guided Tours" à NYC pour un voyage Nancy).
       final body = jsonEncode({
         'textQuery': query,
         'maxResultCount': maxResults.clamp(1, 20),
-        // locationRestriction (pas Bias) : exclut tout ce qui est hors du
-        // cercle. Indispensable car des textQueries génériques type "guided tour"
-        // déclenchent sinon des résultats à l'autre bout du monde.
-        'locationRestriction': {
+        'locationBias': {
           'circle': {
             'center': {'latitude': latitude, 'longitude': longitude},
             'radius': radius,
@@ -271,22 +288,34 @@ class PlacesNearbyService {
         body: body,
       );
       if (resp.statusCode != 200) {
-        developer.log(
-          'Places searchText HTTP ${resp.statusCode} q="$query": ${resp.body}',
-          name: 'places_nearby',
+        debugPrint(
+          '[places_nearby] HTTP ${resp.statusCode} searchText q="$query" '
+          'body="${resp.body}"',
         );
         return [];
       }
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
       final places = (data['places'] as List?) ?? const [];
-      final results = places
+      final raw = places
           .whereType<Map<String, dynamic>>()
           .map(NearbyCandidate.fromPlacesV1)
           .where((c) => c.placeId.isNotEmpty && c.name.isNotEmpty)
           .toList();
-      developer.log(
-        'searchText "$query" (${latitude.toStringAsFixed(3)},${longitude.toStringAsFixed(3)}) → ${results.length} candidats',
-        name: 'places_nearby',
+      // Filtre dur par distance — corollaire de l'usage de locationBias (soft).
+      final radiusKm = radius / 1000.0;
+      final results = raw.where((c) {
+        final d = haversineKm(latitude, longitude, c.latitude, c.longitude);
+        return d <= radiusKm;
+      }).toList();
+      final droppedFar = raw.length - results.length;
+      // Diagnostic : on log même quand 0 résultats pour distinguer cache hit vs
+      // API call qui retourne réellement 0 (Google n'a aucun match dans la zone).
+      debugPrint(
+        '[places_nearby] API searchText q="$query" '
+        '(${latitude.toStringAsFixed(3)},${longitude.toStringAsFixed(3)}) r=${radius}m '
+        'lang=${languageCode ?? "default"} → ${results.length} candidats'
+        '${droppedFar > 0 ? " (-$droppedFar hors radius)" : ""}'
+        '${results.isEmpty && raw.isEmpty ? " (0 brut Google)" : ""}',
       );
 
       await _cache?.put('places_search', cacheKey, {
@@ -294,7 +323,7 @@ class PlacesNearbyService {
       });
       return results;
     } catch (e) {
-      developer.log('Places searchText exception: $e', name: 'places_nearby');
+      debugPrint('[places_nearby] EXCEPTION searchText q="$query" error="$e"');
       return [];
     }
   }
