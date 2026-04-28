@@ -19,17 +19,16 @@ String countryFlagEmoji(String iso2) {
 /// Card "✨ Recommandé pour toi" affichée en haut de la liste, mise en
 /// évidence visuellement. Affiche la région top-1 du scoring déterministe
 /// avec son explication ("Choisi pour : Culture · Histoire · Palais") et
-/// 2 boutons : choisir / voir les autres.
+/// un bouton "Choisir cette région". Pas de bouton "Voir les autres" :
+/// les autres régions sont déjà listées juste en dessous, c'est redondant.
 class RecommendedRegionCard extends StatelessWidget {
   final RegionScore score;
   final VoidCallback onChoose;
-  final VoidCallback onSeeOthers;
 
   const RecommendedRegionCard({
     super.key,
     required this.score,
     required this.onChoose,
-    required this.onSeeOthers,
   });
 
   @override
@@ -119,21 +118,6 @@ class RecommendedRegionCard extends StatelessWidget {
               child: const Text(
                 'Choisir cette région',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
-          const SizedBox(height: 6),
-          SizedBox(
-            width: double.infinity,
-            child: TextButton(
-              onPressed: onSeeOthers,
-              style: TextButton.styleFrom(
-                minimumSize: const Size(double.infinity, 40),
-                foregroundColor: AppColors.primary,
-              ),
-              child: const Text(
-                'Voir les autres régions',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
               ),
             ),
           ),

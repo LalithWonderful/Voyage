@@ -67,13 +67,6 @@ class _CountryRegionsSheet extends ConsumerStatefulWidget {
 }
 
 class _CountryRegionsSheetState extends ConsumerState<_CountryRegionsSheet> {
-  /// Clé du ScrollController pour scroller vers la liste quand l'user clique
-  /// "Voir les autres régions" sur la card recommandée.
-  final _scrollController = ScrollController();
-
-  /// Clé du widget "première carte standard" (pour cibler le scroll).
-  final _otherRegionsKey = GlobalKey();
-
   /// Une seule fois par session de la sheet, pour éviter de rescore à
   /// chaque rebuild (économie cycles, surtout important si 5+ régions).
   List<RegionScore>? _scoredCache;
@@ -84,23 +77,6 @@ class _CountryRegionsSheetState extends ConsumerState<_CountryRegionsSheet> {
 
   void _onChooseWholeCountry() {
     Navigator.of(context).pop(const CountryRegionChoice.wholeCountry());
-  }
-
-  void _onSeeOthers() {
-    final ctx = _otherRegionsKey.currentContext;
-    if (ctx == null) return;
-    Scrollable.ensureVisible(
-      ctx,
-      duration: const Duration(milliseconds: 350),
-      curve: Curves.easeOut,
-      alignment: 0.0,
-    );
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
   }
 
   @override
@@ -187,7 +163,6 @@ class _CountryRegionsSheetState extends ConsumerState<_CountryRegionsSheet> {
     final countryName = regions.first.countryName;
 
     return ListView(
-      controller: _scrollController,
       padding: const EdgeInsets.symmetric(horizontal: 20),
       children: [
         // Header
@@ -210,7 +185,6 @@ class _CountryRegionsSheetState extends ConsumerState<_CountryRegionsSheet> {
         RecommendedRegionCard(
           score: topRecommended,
           onChoose: () => _onChooseRegion(topRecommended.region),
-          onSeeOthers: _onSeeOthers,
         ),
 
         const SizedBox(height: 8),
@@ -226,14 +200,10 @@ class _CountryRegionsSheetState extends ConsumerState<_CountryRegionsSheet> {
         const SizedBox(height: 10),
 
         // Liste des régions standard (5 cards)
-        for (var i = 0; i < regions.length; i++)
-          KeyedSubtree(
-            // 1ère card avec key pour le scroll smooth depuis "Voir les autres"
-            key: i == 0 ? _otherRegionsKey : null,
-            child: RegionCard(
-              region: regions[i],
-              onTap: () => _onChooseRegion(regions[i]),
-            ),
+        for (final region in regions)
+          RegionCard(
+            region: region,
+            onTap: () => _onChooseRegion(region),
           ),
 
         // Card "Tout le pays" pour travel_region (TR, TH)
