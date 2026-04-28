@@ -572,8 +572,31 @@ class PlanningScreen extends ConsumerWidget {
         }
       }
 
-      // Préférences : trip-level si défini, sinon fallback profil utilisateur
+      // Préférences : trip-level si défini, sinon fallback profil utilisateur.
+      // Le formulaire d'édition affiche "Optionnel — vide = on utilise ton
+      // profil voyageur global" : on aligne le runtime sur cette promesse,
+      // sinon le pipeline retourne 0 candidats (intérêts vides → pool vide).
       final effectiveTravelerType = trip.travelerType ?? profile?['traveler_type'] as String?;
+      final tripInterests = trip.interests;
+      final globalInterests = await ref.read(userInterestsProvider.future);
+      final effectiveInterests = (tripInterests != null && tripInterests.isNotEmpty)
+          ? tripInterests
+          : globalInterests;
+      final effectiveTrip = trip.copyWith(
+        travelerType: effectiveTravelerType,
+        interests: effectiveInterests,
+      );
+      if (effectiveInterests.isEmpty) {
+        closeDialog();
+        if (!context.mounted) return;
+        messenger.showSnackBar(
+          const SnackBar(content: Text(
+            'Aucun intérêt défini, ni sur ce voyage ni sur ton profil. '
+            'Édite ton profil ou ce voyage pour en ajouter.',
+          )),
+        );
+        return;
+      }
 
       // ─── MODE COPILOT — flow Places-first (refonte 2026-04-25) ──────────
       // Bypass complet de l'ancien pipeline Gemini-first. On va directement
@@ -598,7 +621,7 @@ class PlanningScreen extends ConsumerWidget {
 
         try {
           final groups = await runCoPilotPlacesFirst(
-            trip: trip,
+            trip: effectiveTrip,
             hotels: hotels,
             geocoder: geocoder,
             nearbyService: nearbyService,
@@ -659,7 +682,7 @@ class PlanningScreen extends ConsumerWidget {
       final existingTitlesNorm = existing.map((a) => norm(a.title)).toSet();
 
       final rawSuggestions = await runAutoPlacesFirst(
-        trip: trip,
+        trip: effectiveTrip,
         hotels: hotels,
         geocoder: geocoder,
         nearbyService: nearbyService,
@@ -1180,11 +1203,13 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
       DateTime? tryParseDate(dynamic v) => v is String ? DateTime.tryParse(v) : null;
       final ci = tryParseDate(dayHotel.metadata['check_in']);
       final co = tryParseDate(dayHotel.metadata['check_out']);
-      // Si l'hôtel a des dates, on vérifie que ce jour est bien dans sa période.
+      // Si l'hôtel a des dates, on vérifie que ce jour est bien une NUIT dormie
+      // chez lui : [check_in, check_out[ (le jour du check-out on part le matin
+      // donc on n'y dort pas — cohérent avec `_sleepNightsRange` du wallet).
       // Sans dates, on accepte tous les jours du voyage (legacy).
       if (ci != null && co != null) {
         final inRange = !day.isBefore(DateTime(ci.year, ci.month, ci.day)) &&
-            !day.isAfter(DateTime(co.year, co.month, co.day));
+            day.isBefore(DateTime(co.year, co.month, co.day));
         if (!inRange) continue;
       }
 

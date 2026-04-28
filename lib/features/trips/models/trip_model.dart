@@ -242,6 +242,46 @@ class Trip {
 
   int get durationDays => endDate.difference(startDate).inDays + 1;
 
+  /// Crée une copie en remplaçant uniquement les champs fournis. Utile pour
+  /// matérialiser un "trip effectif" en runtime (ex: fallback intérêts/profil
+  /// voyageur sur le profil utilisateur global quand le voyage ne les définit
+  /// pas) avant de le passer au pipeline de suggestions.
+  Trip copyWith({
+    String? id,
+    String? userId,
+    String? title,
+    String? destination,
+    DateTime? startDate,
+    DateTime? endDate,
+    String? coverEmoji,
+    String? status,
+    List<Traveler>? travelers,
+    Accommodation? accommodation,
+    String? travelerType,
+    List<String>? interests,
+    PlanningMode? planningMode,
+    List<TripSegment>? itinerarySegments,
+    DateTime? createdAt,
+  }) {
+    return Trip(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      title: title ?? this.title,
+      destination: destination ?? this.destination,
+      startDate: startDate ?? this.startDate,
+      endDate: endDate ?? this.endDate,
+      coverEmoji: coverEmoji ?? this.coverEmoji,
+      status: status ?? this.status,
+      travelers: travelers ?? this.travelers,
+      accommodation: accommodation ?? this.accommodation,
+      travelerType: travelerType ?? this.travelerType,
+      interests: interests ?? this.interests,
+      planningMode: planningMode ?? this.planningMode,
+      itinerarySegments: itinerarySegments ?? this.itinerarySegments,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
   factory Trip.fromJson(Map<String, dynamic> json) => Trip(
     id: json['id'] as String,
     userId: json['user_id'] as String,
