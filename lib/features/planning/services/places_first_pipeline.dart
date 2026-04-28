@@ -130,11 +130,13 @@ const Set<String> _excludedPlaceTypes = <String>{
   'body_art_service', 'hair_salon', 'beauty_salon', 'nail_salon',
   'barber_shop', 'tattoo_parlor', 'tattoo', 'massage', 'spa_and_beauty',
   'tanning_studio', 'piercing_shop',
-  // Bars / clubs / nightlife : aucun intérêt courant ne les demande sauf
-  // "Nightlife" (qui n'est pas dans la liste des profils Senior/Famille).
-  // Si un profil Fun veut nightlife, on créera une exception conditionnelle.
+  // Bars / clubs / nightlife / casinos : aucun intérêt courant ne les demande
+  // sauf "Nightlife" (et même là, casinos rarement). Cas observé Bussang
+  // 2026-04-28 : "Casino of Bussang" remontait pour profil Road-trip Randonnée
+  // car classé `tourist_attraction` côté Google. Si un futur intérêt "Casino"
+  // ou "Vegas-like" est ajouté, on créera une exception conditionnelle.
   'pub', 'irish_pub', 'sports_bar', 'wine_bar', 'cocktail_bar',
-  'lounge_bar', 'night_club', 'hookah_bar', 'karaoke',
+  'lounge_bar', 'night_club', 'hookah_bar', 'karaoke', 'casino',
   // Sports / stades : pas un intérêt général touristique. Stade Marcel Picot,
   // Stade de la Colombière etc. sortaient comme "Événements" alors que ce
   // sont juste des terrains.
