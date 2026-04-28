@@ -916,7 +916,7 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
           : null,
       hint: _travelerType == null
           ? 'Optionnel — vide = on utilise ton profil voyageur global.'
-          : 'Préférences spécifiques à ce voyage, utilisées par l\'IA.',
+          : 'Préférences spécifiques à ce voyage, appliquées à tes suggestions.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1066,7 +1066,7 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Sans ville, l\'IA ne sait pas où chercher des activités. Choisis une option ci-dessous.',
+                      'Sans ville, je ne sais pas où chercher des activités. Choisis une option ci-dessous.',
                       style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.35),
                     ),
                   ],
@@ -1164,7 +1164,7 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
                   Text('Voyage multi-villes ?', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                   const SizedBox(height: 2),
                   Text(
-                    'Ajoute des étapes pour que l\'IA colle au bon endroit chaque jour.',
+                    'Ajoute des étapes pour que je colle au bon endroit chaque jour.',
                     style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.35),
                   ),
                 ],
@@ -1510,7 +1510,7 @@ class _OrderPreviewDialog extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'En partant de $anchorName, l\'IA propose ce nouvel ordre pour limiter les zigzags. Le nombre de jours par étape reste le même.',
+              'En partant de $anchorName, je propose ce nouvel ordre pour limiter les zigzags. Le nombre de jours par étape reste le même.',
               style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4),
             ),
             const SizedBox(height: 16),

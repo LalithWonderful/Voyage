@@ -131,7 +131,7 @@ class _EmptyState extends StatelessWidget {
           SizedBox(height: 16),
           Text('Aucun document pour l\'instant', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
           SizedBox(height: 6),
-          Text('Ajoute tes réservations d\'hôtel, billets de vol, tickets...\nColle un email de confirmation, l\'IA fait le reste.', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.5)),
+          Text('Ajoute tes réservations d\'hôtel, billets de vol, tickets...\nColle un email de confirmation, je fais le reste.', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.5)),
         ],
       ),
     );

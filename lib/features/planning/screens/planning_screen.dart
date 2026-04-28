@@ -139,9 +139,9 @@ class PlanningScreen extends ConsumerWidget {
             content: Text(
               kind == 'country'
                   ? 'Tu pars en ${trip.destination}, mais tu n\'as pas dit dans quelle(s) ville(s) tu seras. '
-                      'Ajoute au moins une étape pour que l\'IA puisse chercher des activités au bon endroit.'
+                      'Ajoute au moins une étape pour que je puisse chercher des activités au bon endroit.'
                   : 'Tu pars en ${trip.destination}, mais c\'est une région. '
-                      'Ajoute au moins une ville-étape pour que l\'IA puisse chercher des activités au bon endroit.',
+                      'Ajoute au moins une ville-étape pour que je puisse chercher des activités au bon endroit.',
               style: const TextStyle(height: 1.4),
             ),
             actions: [
@@ -912,7 +912,7 @@ class _LoadingDialog extends StatelessWidget {
           children: [
             Text('✨', style: TextStyle(fontSize: 48)),
             SizedBox(height: 12),
-            Text('L\'IA prépare ton planning...', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            Text('Je prépare ton planning...', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
             SizedBox(height: 4),
             Text('Quelques secondes', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
             SizedBox(height: 16),
@@ -1051,7 +1051,7 @@ class _EmptyPlanning extends StatelessWidget {
             const SizedBox(height: 16),
             Text('Aucune activité pour l\'instant', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
             const SizedBox(height: 6),
-            Text('Laisse l\'IA construire un planning ou crée tes activités à la main.', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.5)),
+            Text('Laisse-moi construire un planning ou crée tes activités à la main.', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.5)),
             if (onSuggest != null) ...[
               const SizedBox(height: 24),
               ElevatedButton.icon(
@@ -2870,7 +2870,7 @@ class _AddTransportButtonState extends ConsumerState<_AddTransportButton> {
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
-                          _loading ? 'L\'IA cherche les options…' : 'Ajouter un trajet',
+                          _loading ? 'Je cherche les options…' : 'Ajouter un trajet',
                           style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary),
                         ),
                       ),
