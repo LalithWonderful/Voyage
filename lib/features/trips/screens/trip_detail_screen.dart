@@ -48,6 +48,64 @@ class TripDetailScreen extends ConsumerWidget {
   }
 }
 
+/// Pays/régions masculins en français commençant par une consonne (qui prennent
+/// "au"). Liste à enrichir au fil du temps si on rate un cas. Pour les masculins
+/// commençant par voyelle (Iran, Israël, Iraq...), on garde "en" qui est le
+/// fallback.
+const Set<String> _frMasculineConsonant = <String>{
+  'Maroc', 'Portugal', 'Brésil', 'Japon', 'Canada', 'Pérou', 'Mexique',
+  'Vietnam', 'Cambodge', 'Laos', 'Sénégal', 'Kenya', 'Chili', 'Yémen',
+  'Liban', 'Honduras', 'Nicaragua', 'Salvador', 'Panama', 'Guatemala',
+  'Pakistan', 'Bangladesh', 'Bhoutan', 'Népal', 'Tadjikistan', 'Kazakhstan',
+  'Turkménistan', 'Kirghizistan', 'Ouzbékistan', 'Soudan', 'Tchad', 'Mali',
+  'Niger', 'Botswana', 'Cameroun', 'Gabon', 'Congo', 'Mozambique',
+  'Zimbabwe', 'Lesotho', 'Burkina Faso', 'Bénin', 'Togo', 'Ghana',
+  'Suriname', 'Paraguay', 'Uruguay', 'Venezuela', 'Costa Rica',
+  'Liechtenstein', 'Luxembourg', 'Royaume-Uni', 'Danemark', 'Vatican',
+  'Belize', 'Bélarus', 'Bélize', 'Sri Lanka', 'Tibet', 'Groenland',
+  'Kosovo', 'Monténégro', 'Surinam', 'Soudan du Sud',
+};
+
+/// Pays/régions au pluriel en français (qui prennent "aux").
+const Set<String> _frPlural = <String>{
+  'États-Unis', 'Pays-Bas', 'Philippines', 'Émirats arabes unis',
+  'Émirats Arabes Unis', 'Bahamas', 'Maldives', 'Seychelles', 'Comores',
+  'Antilles néerlandaises', 'Îles Salomon', 'Îles Cook', 'Fidji',
+  'Caraïbes', 'Açores', 'Bermudes', 'Tonga', 'Samoa',
+};
+
+/// Pays/régions traités comme des villes (article-less, prennent "à"). En
+/// majorité des îles ou micro-États dont l'usage français est sans article.
+const Set<String> _frArticleLess = <String>{
+  'Bali', 'Cuba', 'Madagascar', 'Malte', 'Chypre', 'Hawaï', 'Hawaii',
+  'Tahiti', 'Singapour', 'Hong Kong', 'Monaco', 'Andorre', 'Bahreïn',
+  'Saint-Marin', 'Vanuatu', 'Djibouti', 'Maurice', 'Oman', 'Qatar',
+  'Brunei', 'Macao', 'Taïwan', 'Taiwan', 'Goa',
+};
+
+/// Construit la phrase "voyage en/au/aux/à {destination}" en français correct.
+/// Heuristique :
+/// - kind=city → "à {destination}"
+/// - destination dans `_frArticleLess` → "à"
+/// - destination dans `_frMasculineConsonant` → "au"
+/// - destination dans `_frPlural` → "aux"
+/// - sinon → "en" (féminin OU masculin avec voyelle initiale, qui couvre la
+///   majorité des cas restants : Italie, Allemagne, Inde, Iran, Israël,
+///   Iraq, Égypte, Afghanistan, etc.)
+///
+/// Édge cases connus à enrichir si rencontrés : pays exotiques avec genre
+/// non-trivial. Le fallback "en" reste lisible même quand grammaticalement
+/// incorrect (ex: "en Maroc" au lieu de "au Maroc" — non grave, juste pas idéal).
+String _frenchJourneyPhrase(String destination, String? kind) {
+  final firstPart = destination.split(',').first.trim();
+  if (firstPart.isEmpty) return '';
+  if (kind == 'city') return 'à $firstPart';
+  if (_frArticleLess.contains(firstPart)) return 'à $firstPart';
+  if (_frPlural.contains(firstPart)) return 'aux $firstPart';
+  if (_frMasculineConsonant.contains(firstPart)) return 'au $firstPart';
+  return 'en $firstPart';
+}
+
 /// Mots fréquents dans les noms d'hôtels qui ne sont JAMAIS des villes.
 /// Utilisés pour filtrer le fallback "dernier mot capitalisé du nom".
 const Set<String> _hotelNameStopwords = <String>{
@@ -431,6 +489,7 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
               if (status == _TripStatus.toComplete || status == _TripStatus.readyToPlan)
                 _NextStepCard(
                   trip: trip,
+                  destinationKind: _destinationKind,
                   nextCase: status == _TripStatus.toComplete
                       ? _NextStepCase.discoverItinerary
                       : _NextStepCase.generatePlan,
@@ -1066,6 +1125,10 @@ enum _NextStepCase { discoverItinerary, generatePlan, viewPlan }
 class _NextStepCard extends StatelessWidget {
   final Trip trip;
   final _NextStepCase nextCase;
+  /// Type de destination (`city` / `country` / `region` / `place` / `unknown`).
+  /// Sert à choisir la bonne préposition française dans le titre du cas
+  /// `discoverItinerary` ("au Maroc" / "en Thaïlande" / "à Bali" / "à Bangkok").
+  final String? destinationKind;
   /// Callback du CTA principal (mode auto / générer / voir selon le cas).
   final VoidCallback onPrimary;
   /// Callback du CTA secondaire — utilisé uniquement dans le cas
@@ -1076,22 +1139,28 @@ class _NextStepCard extends StatelessWidget {
     required this.trip,
     required this.nextCase,
     required this.onPrimary,
+    this.destinationKind,
     this.onSecondary,
   });
 
   @override
   Widget build(BuildContext context) {
-    // `body` est nullable : pour les cas où il ajoute peu d'info utile (ex:
-    // "Génère ton itinéraire personnalisé" sous "Ton voyage est prêt à être
-    // planifié"), on peut le sauter pour un look plus premium et léger.
+    // Phrase grammaticalement correcte selon le pays/région : "au Maroc",
+    // "en Thaïlande", "aux États-Unis", "à Bali", etc.
+    final journey = _frenchJourneyPhrase(trip.destination, destinationKind);
+
+    // `body` est nullable : pour les cas où il ajoute peu d'info utile, on
+    // peut le sauter pour un look plus premium et léger.
     final (String title, String? body, String primaryLabel, String? primaryEmoji, String? primaryHint) =
         switch (nextCase) {
       _NextStepCase.discoverItinerary => (
-        'Crée ton voyage',
-        'Ta destination est large. Choisis comment tu veux organiser ton voyage.',
-        'Crée-moi un circuit clé en main',
+        journey.isEmpty
+            ? 'Et si on créait ton voyage ? ✨'
+            : 'Et si on créait ton voyage $journey ? ✨',
+        null,
+        'Crée mon itinéraire',
         '✨',
-        'Pensé pour toi',
+        'Adapté à tes envies',
       ),
       _NextStepCase.generatePlan => (
         'Ton voyage est prêt à être planifié ✨',
@@ -1182,21 +1251,26 @@ class _NextStepCard extends StatelessWidget {
               ),
             ),
           ],
-          // CTA secondaire (uniquement dans le cas "destination large") :
-          // ajout manuel des étapes via le sheet d'édition.
+          // CTA secondaire en lien texte gris (caption) — escape hatch
+          // discret pour les utilisateurs qui veulent ajouter leurs étapes
+          // manuellement sans passer par le mode auto. Présent mais jamais
+          // dominant : ne concurrence pas le CTA principal.
           if (onSecondary != null) ...[
             const SizedBox(height: 10),
-            OutlinedButton(
-              onPressed: onSecondary,
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 44),
-                foregroundColor: AppColors.primary,
-                side: BorderSide(color: AppColors.border),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Text(
-                '+ Ajouter mes étapes manuellement',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            Center(
+              child: InkWell(
+                onTap: onSecondary,
+                borderRadius: BorderRadius.circular(6),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  child: Text(
+                    'Préférer ajouter mes étapes manuellement →',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
