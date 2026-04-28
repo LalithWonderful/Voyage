@@ -307,7 +307,11 @@ class PlacesService {
     try {
       final uri = Uri.https('maps.googleapis.com', '/maps/api/place/autocomplete/json', {
         'input': trimmed,
-        // Pas de filtre 'types' → ramène villes + pays + régions + locality.
+        // `types=geocode` exclut les établissements (hôpitaux, restos, hôtels...)
+        // tout en laissant passer pays/régions/villes/adresses précises. Sans
+        // ce filtre, taper "Chine" remontait "Chinese General Hospital and
+        // Medical Center" en 1ère suggestion (bug observé Lalith 28/04).
+        'types': 'geocode',
         'language': 'fr',
         'key': key,
       });
