@@ -1,0 +1,100 @@
+{
+  "version": 1,
+  "regions": [
+    { "country_code": "US", "country_name": "États-Unis", "region_name": "New York & Côte Est", "label": "New York, Boston, Washington DC, Philadelphie", "priority": 1, "recommended_radius_km": 350, "tags": ["city", "culture", "first_time", "food", "shopping"] },
+    { "country_code": "US", "country_name": "États-Unis", "region_name": "Californie", "label": "Los Angeles, San Francisco, San Diego, Big Sur", "priority": 2, "recommended_radius_km": 550, "tags": ["city", "roadtrip", "coast", "shopping", "food"] },
+    { "country_code": "US", "country_name": "États-Unis", "region_name": "Ouest américain", "label": "Las Vegas, Grand Canyon, Utah, Arizona", "priority": 3, "recommended_radius_km": 700, "tags": ["nature", "roadtrip", "parks", "adventure"] },
+    { "country_code": "US", "country_name": "États-Unis", "region_name": "Floride", "label": "Miami, Orlando, Keys, Everglades", "priority": 4, "recommended_radius_km": 450, "tags": ["beach", "family", "theme_parks", "nature"] },
+    { "country_code": "US", "country_name": "États-Unis", "region_name": "Hawaï", "label": "Oahu, Maui, Big Island, Kauai", "priority": 5, "recommended_radius_km": 350, "tags": ["beach", "nature", "honeymoon", "relax"] },
+
+    { "country_code": "CN", "country_name": "Chine", "region_name": "Shanghai & villages d'eau", "label": "Shanghai, Suzhou, Hangzhou, Wuzhen", "priority": 1, "recommended_radius_km": 180, "tags": ["city", "food", "shopping", "culture", "first_time"] },
+    { "country_code": "CN", "country_name": "Chine", "region_name": "Pékin & Grande Muraille", "label": "Pékin, Mutianyu, Tianjin", "priority": 2, "recommended_radius_km": 200, "tags": ["history", "culture", "monuments", "first_time"] },
+    { "country_code": "CN", "country_name": "Chine", "region_name": "Yunnan", "label": "Kunming, Dali, Lijiang, Shangri-La", "priority": 3, "recommended_radius_km": 450, "tags": ["nature", "villages", "authentic", "slow_travel"] },
+    { "country_code": "CN", "country_name": "Chine", "region_name": "Sichuan", "label": "Chengdu, Leshan, Emeishan, Jiuzhaigou", "priority": 4, "recommended_radius_km": 450, "tags": ["food", "nature", "pandas", "culture"] },
+    { "country_code": "CN", "country_name": "Chine", "region_name": "Guilin & Yangshuo", "label": "Guilin, Yangshuo, Longji Rice Terraces", "priority": 5, "recommended_radius_km": 180, "tags": ["nature", "landscape", "river", "photo"] },
+
+    { "country_code": "BR", "country_name": "Brésil", "region_name": "Rio & Costa Verde", "label": "Rio de Janeiro, Ilha Grande, Paraty, Angra dos Reis", "priority": 1, "recommended_radius_km": 350, "tags": ["beach", "city", "nature", "first_time"] },
+    { "country_code": "BR", "country_name": "Brésil", "region_name": "São Paulo & Sudeste", "label": "São Paulo, Campos do Jordão, Ilhabela", "priority": 2, "recommended_radius_km": 350, "tags": ["city", "food", "culture", "shopping"] },
+    { "country_code": "BR", "country_name": "Brésil", "region_name": "Bahia", "label": "Salvador, Praia do Forte, Chapada Diamantina", "priority": 3, "recommended_radius_km": 500, "tags": ["culture", "beach", "music", "nature"] },
+    { "country_code": "BR", "country_name": "Brésil", "region_name": "Nordeste plages", "label": "Recife, Porto de Galinhas, Natal, Jericoacoara", "priority": 4, "recommended_radius_km": 700, "tags": ["beach", "relax", "kitesurf", "sun"] },
+    { "country_code": "BR", "country_name": "Brésil", "region_name": "Amazonie", "label": "Manaus, Rio Negro, lodges amazoniens", "priority": 5, "recommended_radius_km": 600, "tags": ["nature", "wildlife", "adventure"] },
+
+    { "country_code": "IN", "country_name": "Inde", "region_name": "Rajasthan & Agra", "label": "Jaipur, Udaipur, Jodhpur, Jaisalmer, Agra", "priority": 1, "recommended_radius_km": 650, "tags": ["culture", "history", "palaces", "first_time"] },
+    { "country_code": "IN", "country_name": "Inde", "region_name": "Delhi & Nord classique", "label": "Delhi, Agra, Varanasi, Rishikesh", "priority": 2, "recommended_radius_km": 650, "tags": ["culture", "spiritual", "history"] },
+    { "country_code": "IN", "country_name": "Inde", "region_name": "Kerala", "label": "Kochi, Alleppey, Munnar, Varkala", "priority": 3, "recommended_radius_km": 400, "tags": ["nature", "wellness", "beach", "slow_travel"] },
+    { "country_code": "IN", "country_name": "Inde", "region_name": "Goa & Karnataka", "label": "Goa, Hampi, Gokarna, Mysore", "priority": 4, "recommended_radius_km": 500, "tags": ["beach", "relax", "culture"] },
+    { "country_code": "IN", "country_name": "Inde", "region_name": "Himalaya indien", "label": "Ladakh, Manali, Dharamshala, Shimla", "priority": 5, "recommended_radius_km": 700, "tags": ["mountain", "nature", "adventure"] },
+
+    { "country_code": "AU", "country_name": "Australie", "region_name": "Sydney & Nouvelle-Galles du Sud", "label": "Sydney, Blue Mountains, Hunter Valley, Byron Bay", "priority": 1, "recommended_radius_km": 500, "tags": ["city", "beach", "nature", "first_time"] },
+    { "country_code": "AU", "country_name": "Australie", "region_name": "Melbourne & Victoria", "label": "Melbourne, Great Ocean Road, Phillip Island", "priority": 2, "recommended_radius_km": 450, "tags": ["city", "food", "roadtrip", "coast"] },
+    { "country_code": "AU", "country_name": "Australie", "region_name": "Queensland", "label": "Brisbane, Gold Coast, Cairns, Grande Barrière de Corail", "priority": 3, "recommended_radius_km": 900, "tags": ["beach", "nature", "diving", "family"] },
+    { "country_code": "AU", "country_name": "Australie", "region_name": "Outback & Centre rouge", "label": "Uluru, Alice Springs, Kings Canyon", "priority": 4, "recommended_radius_km": 800, "tags": ["desert", "nature", "adventure"] },
+    { "country_code": "AU", "country_name": "Australie", "region_name": "Australie Occidentale", "label": "Perth, Margaret River, Ningaloo, Broome", "priority": 5, "recommended_radius_km": 1000, "tags": ["roadtrip", "nature", "beach", "wildlife"] },
+
+    { "country_code": "CA", "country_name": "Canada", "region_name": "Québec & Ontario", "label": "Montréal, Québec, Ottawa, Toronto, Niagara", "priority": 1, "recommended_radius_km": 700, "tags": ["city", "culture", "nature", "first_time"] },
+    { "country_code": "CA", "country_name": "Canada", "region_name": "Rocheuses canadiennes", "label": "Calgary, Banff, Jasper, Lake Louise", "priority": 2, "recommended_radius_km": 450, "tags": ["mountain", "nature", "roadtrip"] },
+    { "country_code": "CA", "country_name": "Canada", "region_name": "Colombie-Britannique", "label": "Vancouver, Whistler, Victoria, Vancouver Island", "priority": 3, "recommended_radius_km": 500, "tags": ["nature", "city", "coast", "wildlife"] },
+    { "country_code": "CA", "country_name": "Canada", "region_name": "Provinces atlantiques", "label": "Halifax, Cape Breton, New Brunswick, PEI", "priority": 4, "recommended_radius_km": 700, "tags": ["coast", "nature", "roadtrip"] },
+    { "country_code": "CA", "country_name": "Canada", "region_name": "Yukon & Grand Nord", "label": "Whitehorse, Dawson City, Northern Lights", "priority": 5, "recommended_radius_km": 800, "tags": ["adventure", "nature", "remote"] },
+
+    { "country_code": "RU", "country_name": "Russie", "region_name": "Moscou & Anneau d'or", "label": "Moscou, Serguiev Possad, Souzdal, Vladimir", "priority": 1, "recommended_radius_km": 300, "tags": ["city", "history", "culture"] },
+    { "country_code": "RU", "country_name": "Russie", "region_name": "Saint-Pétersbourg", "label": "Saint-Pétersbourg, Peterhof, Pushkin", "priority": 2, "recommended_radius_km": 180, "tags": ["culture", "museums", "architecture"] },
+    { "country_code": "RU", "country_name": "Russie", "region_name": "Lac Baïkal", "label": "Irkoutsk, Listvyanka, Olkhon Island", "priority": 3, "recommended_radius_km": 500, "tags": ["nature", "lake", "adventure"] },
+    { "country_code": "RU", "country_name": "Russie", "region_name": "Transsibérien", "label": "Moscou, Kazan, Ekaterinbourg, Novossibirsk, Irkoutsk", "priority": 4, "recommended_radius_km": 2500, "tags": ["train", "adventure", "long_trip"] },
+    { "country_code": "RU", "country_name": "Russie", "region_name": "Caucase russe", "label": "Sotchi, Krasnaïa Poliana, Elbrus", "priority": 5, "recommended_radius_km": 500, "tags": ["mountain", "nature", "wellness"] },
+
+    { "country_code": "AR", "country_name": "Argentine", "region_name": "Buenos Aires & Pampas", "label": "Buenos Aires, Tigre, San Antonio de Areco", "priority": 1, "recommended_radius_km": 250, "tags": ["city", "culture", "food", "first_time"] },
+    { "country_code": "AR", "country_name": "Argentine", "region_name": "Patagonie", "label": "El Calafate, El Chaltén, Ushuaia, Bariloche", "priority": 2, "recommended_radius_km": 1200, "tags": ["nature", "hiking", "glaciers", "adventure"] },
+    { "country_code": "AR", "country_name": "Argentine", "region_name": "Nord-Ouest argentin", "label": "Salta, Jujuy, Cafayate, Quebrada de Humahuaca", "priority": 3, "recommended_radius_km": 600, "tags": ["landscape", "culture", "roadtrip"] },
+    { "country_code": "AR", "country_name": "Argentine", "region_name": "Mendoza & Andes", "label": "Mendoza, Aconcagua, vignobles", "priority": 4, "recommended_radius_km": 400, "tags": ["wine", "mountain", "food"] },
+    { "country_code": "AR", "country_name": "Argentine", "region_name": "Chutes d'Iguazú", "label": "Puerto Iguazú, parc national Iguazú", "priority": 5, "recommended_radius_km": 150, "tags": ["nature", "waterfalls", "short_trip"] },
+
+    { "country_code": "MX", "country_name": "Mexique", "region_name": "Mexico City & Centre", "label": "Mexico City, Teotihuacan, Puebla, Taxco", "priority": 1, "recommended_radius_km": 300, "tags": ["city", "culture", "food", "first_time"] },
+    { "country_code": "MX", "country_name": "Mexique", "region_name": "Yucatán & Riviera Maya", "label": "Cancún, Tulum, Valladolid, Mérida, Chichén Itzá", "priority": 2, "recommended_radius_km": 400, "tags": ["beach", "culture", "ruins", "family"] },
+    { "country_code": "MX", "country_name": "Mexique", "region_name": "Oaxaca & Chiapas", "label": "Oaxaca, San Cristóbal, Palenque, Sumidero", "priority": 3, "recommended_radius_km": 650, "tags": ["culture", "food", "nature", "authentic"] },
+    { "country_code": "MX", "country_name": "Mexique", "region_name": "Baja California", "label": "Los Cabos, La Paz, Todos Santos", "priority": 4, "recommended_radius_km": 500, "tags": ["beach", "whales", "roadtrip"] },
+    { "country_code": "MX", "country_name": "Mexique", "region_name": "Côte Pacifique", "label": "Puerto Vallarta, Sayulita, Guadalajara", "priority": 5, "recommended_radius_km": 500, "tags": ["beach", "relax", "food"] },
+
+    { "country_code": "ID", "country_name": "Indonésie", "region_name": "Bali & îles proches", "label": "Bali, Nusa Penida, Lombok, Gili Islands", "priority": 1, "recommended_radius_km": 250, "tags": ["beach", "wellness", "nature", "first_time"] },
+    { "country_code": "ID", "country_name": "Indonésie", "region_name": "Java culturel", "label": "Jakarta, Yogyakarta, Borobudur, Bromo", "priority": 2, "recommended_radius_km": 700, "tags": ["culture", "volcano", "history"] },
+    { "country_code": "ID", "country_name": "Indonésie", "region_name": "Sumatra", "label": "Medan, Lake Toba, Bukit Lawang", "priority": 3, "recommended_radius_km": 600, "tags": ["nature", "wildlife", "adventure"] },
+    { "country_code": "ID", "country_name": "Indonésie", "region_name": "Komodo & Flores", "label": "Labuan Bajo, Komodo, Kelimutu", "priority": 4, "recommended_radius_km": 500, "tags": ["nature", "diving", "adventure"] },
+    { "country_code": "ID", "country_name": "Indonésie", "region_name": "Sulawesi", "label": "Makassar, Tana Toraja, Bunaken", "priority": 5, "recommended_radius_km": 700, "tags": ["culture", "diving", "nature"] },
+
+    { "country_code": "SA", "country_name": "Arabie saoudite", "region_name": "Riyad & centre", "label": "Riyad, Diriyah, Edge of the World", "priority": 1, "recommended_radius_km": 350, "tags": ["city", "culture", "desert"] },
+    { "country_code": "SA", "country_name": "Arabie saoudite", "region_name": "Djeddah & mer Rouge", "label": "Djeddah, Al Balad, côte mer Rouge", "priority": 2, "recommended_radius_km": 350, "tags": ["coast", "culture", "diving"] },
+    { "country_code": "SA", "country_name": "Arabie saoudite", "region_name": "AlUla & nord-ouest", "label": "AlUla, Hegra, oasis, désert", "priority": 3, "recommended_radius_km": 450, "tags": ["desert", "history", "luxury", "nature"] },
+    { "country_code": "SA", "country_name": "Arabie saoudite", "region_name": "Médine & ouest", "label": "Médine, Khaybar, Yanbu", "priority": 4, "recommended_radius_km": 400, "tags": ["culture", "spiritual", "history"] },
+    { "country_code": "SA", "country_name": "Arabie saoudite", "region_name": "Province orientale", "label": "Dammam, Al Khobar, Al Ahsa", "priority": 5, "recommended_radius_km": 400, "tags": ["city", "oasis", "coast"] },
+
+    { "country_code": "ZA", "country_name": "Afrique du Sud", "region_name": "Cape Town & Garden Route", "label": "Cape Town, Stellenbosch, Hermanus, Knysna", "priority": 1, "recommended_radius_km": 700, "tags": ["city", "nature", "wine", "first_time"] },
+    { "country_code": "ZA", "country_name": "Afrique du Sud", "region_name": "Johannesburg & Kruger", "label": "Johannesburg, Pretoria, Kruger, Blyde River Canyon", "priority": 2, "recommended_radius_km": 600, "tags": ["safari", "nature", "history"] },
+    { "country_code": "ZA", "country_name": "Afrique du Sud", "region_name": "Durban & KwaZulu-Natal", "label": "Durban, Drakensberg, Hluhluwe", "priority": 3, "recommended_radius_km": 600, "tags": ["beach", "mountain", "safari"] },
+    { "country_code": "ZA", "country_name": "Afrique du Sud", "region_name": "Route des vins", "label": "Stellenbosch, Franschhoek, Paarl", "priority": 4, "recommended_radius_km": 150, "tags": ["wine", "food", "relax"] },
+    { "country_code": "ZA", "country_name": "Afrique du Sud", "region_name": "Wild Coast & Eastern Cape", "label": "Coffee Bay, Addo Elephant Park, Port Elizabeth", "priority": 5, "recommended_radius_km": 600, "tags": ["coast", "nature", "roadtrip"] },
+
+    { "country_code": "DZ", "country_name": "Algérie", "region_name": "Alger & côte centre", "label": "Alger, Tipaza, Blida, Cherchell", "priority": 1, "recommended_radius_km": 250, "tags": ["city", "culture", "coast"] },
+    { "country_code": "DZ", "country_name": "Algérie", "region_name": "Oran & ouest", "label": "Oran, Tlemcen, Mostaganem", "priority": 2, "recommended_radius_km": 400, "tags": ["city", "culture", "coast"] },
+    { "country_code": "DZ", "country_name": "Algérie", "region_name": "Constantine & est", "label": "Constantine, Annaba, Guelma, Timgad", "priority": 3, "recommended_radius_km": 500, "tags": ["history", "culture", "roman_sites"] },
+    { "country_code": "DZ", "country_name": "Algérie", "region_name": "Sahara central", "label": "Ghardaïa, Timimoun, El Menia", "priority": 4, "recommended_radius_km": 800, "tags": ["desert", "culture", "adventure"] },
+    { "country_code": "DZ", "country_name": "Algérie", "region_name": "Tassili & Hoggar", "label": "Djanet, Tamanrasset, Assekrem", "priority": 5, "recommended_radius_km": 900, "tags": ["desert", "remote", "trekking"] },
+
+    { "country_code": "KZ", "country_name": "Kazakhstan", "region_name": "Almaty & montagnes", "label": "Almaty, Shymbulak, Big Almaty Lake, Charyn Canyon", "priority": 1, "recommended_radius_km": 350, "tags": ["mountain", "nature", "city"] },
+    { "country_code": "KZ", "country_name": "Kazakhstan", "region_name": "Astana & nord", "label": "Astana, Burabay, Steppe kazakhe", "priority": 2, "recommended_radius_km": 400, "tags": ["city", "nature", "culture"] },
+    { "country_code": "KZ", "country_name": "Kazakhstan", "region_name": "Turkestan & sud", "label": "Turkestan, Shymkent, Aksu-Zhabagly", "priority": 3, "recommended_radius_km": 500, "tags": ["history", "culture", "nature"] },
+    { "country_code": "KZ", "country_name": "Kazakhstan", "region_name": "Caspienne & ouest", "label": "Aktau, Mangystau, Bozzhyra", "priority": 4, "recommended_radius_km": 800, "tags": ["desert", "landscape", "roadtrip"] },
+    { "country_code": "KZ", "country_name": "Kazakhstan", "region_name": "Est Kazakhstan", "label": "Ust-Kamenogorsk, Altai, Katon-Karagay", "priority": 5, "recommended_radius_km": 700, "tags": ["mountain", "nature", "remote"] },
+
+    { "country_code": "TR", "country_name": "Turquie", "region_name": "Istanbul & Marmara", "label": "Istanbul, Bursa, Îles des Princes", "priority": 1, "recommended_radius_km": 250, "tags": ["city", "culture", "food", "first_time"] },
+    { "country_code": "TR", "country_name": "Turquie", "region_name": "Cappadoce & Anatolie centrale", "label": "Göreme, Ürgüp, Kayseri, Konya", "priority": 2, "recommended_radius_km": 400, "tags": ["landscape", "culture", "balloon"] },
+    { "country_code": "TR", "country_name": "Turquie", "region_name": "Côte égéenne", "label": "Izmir, Éphèse, Bodrum, Pamukkale", "priority": 3, "recommended_radius_km": 550, "tags": ["beach", "history", "roadtrip"] },
+    { "country_code": "TR", "country_name": "Turquie", "region_name": "Côte méditerranéenne", "label": "Antalya, Kas, Fethiye, Kekova", "priority": 4, "recommended_radius_km": 550, "tags": ["beach", "nature", "relax"] },
+    { "country_code": "TR", "country_name": "Turquie", "region_name": "Est anatolien", "label": "Van, Kars, Mont Ararat, Ani", "priority": 5, "recommended_radius_km": 800, "tags": ["history", "mountain", "adventure"] },
+
+    { "country_code": "TH", "country_name": "Thaïlande", "region_name": "Bangkok & centre", "label": "Bangkok, Ayutthaya, Kanchanaburi, Amphawa", "priority": 1, "recommended_radius_km": 250, "tags": ["city", "food", "culture", "first_time"] },
+    { "country_code": "TH", "country_name": "Thaïlande", "region_name": "Nord Thaïlande", "label": "Chiang Mai, Chiang Rai, Pai, Mae Hong Son", "priority": 2, "recommended_radius_km": 450, "tags": ["nature", "temples", "slow_travel"] },
+    { "country_code": "TH", "country_name": "Thaïlande", "region_name": "Sud Andaman", "label": "Phuket, Krabi, Koh Phi Phi, Koh Lanta", "priority": 3, "recommended_radius_km": 350, "tags": ["beach", "islands", "relax"] },
+    { "country_code": "TH", "country_name": "Thaïlande", "region_name": "Golfe de Thaïlande", "label": "Koh Samui, Koh Phangan, Koh Tao", "priority": 4, "recommended_radius_km": 350, "tags": ["beach", "diving", "islands"] },
+    { "country_code": "TH", "country_name": "Thaïlande", "region_name": "Isan & est", "label": "Korat, Ubon Ratchathani, Nong Khai", "priority": 5, "recommended_radius_km": 500, "tags": ["authentic", "culture", "food"] }
+  ]
+}
