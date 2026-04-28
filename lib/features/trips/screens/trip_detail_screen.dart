@@ -297,6 +297,7 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
       durationDays: trip.durationDays,
       travelerType: trip.travelerType,
       interests: trip.interests ?? const [],
+      destinationKind: _destinationKind,
     );
     if (segments == null || segments.isEmpty || !mounted) return;
     try {
@@ -1149,9 +1150,7 @@ class _NextStepCard extends StatelessWidget {
     // "en Thaïlande", "aux États-Unis", "à Bali", etc.
     final journey = _frenchJourneyPhrase(trip.destination, destinationKind);
 
-    // `body` est nullable : pour les cas où il ajoute peu d'info utile, on
-    // peut le sauter pour un look plus premium et léger.
-    final (String title, String? body, String primaryLabel, String? primaryEmoji, String? primaryHint) =
+    final (String title, String? body, String primaryLabel, String? primaryEmoji) =
         switch (nextCase) {
       _NextStepCase.discoverItinerary => (
         journey.isEmpty
@@ -1160,20 +1159,17 @@ class _NextStepCard extends StatelessWidget {
         null,
         'Générer mon itinéraire',
         '✨',
-        'Adapté à mes envies',
       ),
       _NextStepCase.generatePlan => (
         'Ton voyage est prêt à être planifié ✨',
         null,
         'Générer mon planning',
         '✨',
-        null,
       ),
       _NextStepCase.viewPlan => (
         'Ton voyage est prêt',
         'Consulte ou ajuste ton planning.',
         'Voir le planning',
-        null,
         null,
       ),
     };
@@ -1238,54 +1234,24 @@ class _NextStepCard extends StatelessWidget {
               ],
             ),
           ),
-          if (primaryHint != null) ...[
-            const SizedBox(height: 6),
-            Center(
-              child: Text(
-                primaryHint,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: AppColors.textSecondary,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-            ),
-          ],
-          // CTA secondaire = vraie option B avec séparateur "OU CRÉER MOI-MÊME".
-          // Hiérarchie visuelle : le bouton principal (bleu plein) reste dominant,
-          // mais l'alternative manuelle est clairement visible — pas perdue dans
-          // un caption gris. Pattern "ou X / ou Y" classique des écrans de choix
-          // (ex: Login social vs Email).
+          // CTA secondaire = OutlinedButton de même taille/radius que le principal.
+          // Pattern Airbnb/Apple : 2 boutons cohérents > bouton + lien texte.
+          // Pas de séparateur "OU" ni sous-texte → le titre + 2 boutons suffisent.
           if (onSecondary != null) ...[
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(child: Container(height: 1, color: AppColors.border)),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: Text(
-                    'OU CRÉER MOI-MÊME',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textSecondary,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
-                Expanded(child: Container(height: 1, color: AppColors.border)),
-              ],
-            ),
-            const SizedBox(height: 6),
-            TextButton(
+            const SizedBox(height: 10),
+            OutlinedButton(
               onPressed: onSecondary,
-              style: TextButton.styleFrom(
-                minimumSize: const Size(double.infinity, 42),
-                foregroundColor: AppColors.primary,
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 48),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                side: BorderSide(color: AppColors.border),
+                foregroundColor: AppColors.textPrimary,
+                backgroundColor: AppColors.surface,
               ),
               child: const Text(
-                'Ajouter mes étapes →',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                'Créer moi-même',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
               ),
             ),
           ],

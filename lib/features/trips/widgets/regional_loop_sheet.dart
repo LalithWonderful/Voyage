@@ -14,6 +14,9 @@ import 'package:voyage/features/trips/models/trip_model.dart';
 /// [existingDaysPlaced] : total des jours déjà placés dans les étapes — Gemini
 /// reçoit cette info pour ne proposer que le reliquat (évite que la somme dépasse
 /// la durée du voyage sur un 2e clic).
+/// [destinationKind] : `city` / `country` / `region` / `place` / `unknown`.
+/// Si pays/région, le service Gemini propose des villes DANS la destination
+/// (pas la destination elle-même). Sert aussi à adapter le sous-titre.
 Future<List<TripSegment>?> openRegionalLoopSheet(
   BuildContext context,
   WidgetRef ref, {
@@ -23,6 +26,7 @@ Future<List<TripSegment>?> openRegionalLoopSheet(
   List<String> interests = const [],
   List<String> existingCities = const [],
   int existingDaysPlaced = 0,
+  String? destinationKind,
 }) async {
   return await showModalBottomSheet<List<TripSegment>?>(
     context: context,
@@ -36,6 +40,7 @@ Future<List<TripSegment>?> openRegionalLoopSheet(
       interests: interests,
       existingCities: existingCities,
       existingDaysPlaced: existingDaysPlaced,
+      destinationKind: destinationKind,
     ),
   );
 }
@@ -47,6 +52,7 @@ class _RegionalLoopSheet extends ConsumerStatefulWidget {
   final List<String> interests;
   final List<String> existingCities;
   final int existingDaysPlaced;
+  final String? destinationKind;
   const _RegionalLoopSheet({
     required this.mainDestination,
     required this.durationDays,
@@ -54,6 +60,7 @@ class _RegionalLoopSheet extends ConsumerStatefulWidget {
     required this.interests,
     required this.existingCities,
     required this.existingDaysPlaced,
+    this.destinationKind,
   });
 
   @override
@@ -69,7 +76,13 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
   /// Si vrai, l'IA ne propose QUE des villes du même pays que la destination.
   /// Utile pour les voyageurs qui ne veulent pas multiplier les changements
   /// de devise / passer la frontière.
-  bool _sameCountryOnly = false;
+  ///
+  /// Défaut adaptatif : coché quand l'utilisateur a tapé un pays/une région
+  /// comme destination (signal explicite "je veux ce pays"). Décoché pour les
+  /// destinations ville où l'extension transfrontalière a souvent du sens
+  /// (Strasbourg → Trèves, Lille → Bruges).
+  late bool _sameCountryOnly =
+      widget.destinationKind == 'country' || widget.destinationKind == 'region';
 
   bool _loading = false;
   bool _hasFetchedOnce = false;
@@ -87,6 +100,11 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
   /// l'utilisateur a changé de paramètres pour adapter le label du bouton.
   int? _lastFetchedRadius;
   bool? _lastFetchedSameCountry;
+
+  /// True si la destination est un pays ou une région (vs une ville précise).
+  /// Sert à adapter le wording ("autour de Nancy" vs "· États-Unis").
+  bool get _isLargeDestination =>
+      widget.destinationKind == 'country' || widget.destinationKind == 'region';
 
   /// Détecte si une suggestion est une ville déjà ajoutée par l'utilisateur
   /// (comparaison case-insensitive sur le nom de la ville).
@@ -125,6 +143,7 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
         sameCountryOnly: _sameCountryOnly,
         excludeCities: excludeAll,
         daysAlreadyPlaced: widget.existingDaysPlaced,
+        destinationKind: widget.destinationKind,
       );
       if (!mounted) return;
       // Coche tout par défaut SAUF les villes déjà ajoutées au voyage
@@ -205,7 +224,11 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Pour ${widget.durationDays} jours autour de ${widget.mainDestination}',
+                    // "autour de" pour une ville ; "·" neutre pour pays/région
+                    // (où "autour des États-Unis" n'a aucun sens).
+                    _isLargeDestination
+                        ? 'Pour ${widget.durationDays} jours · ${widget.mainDestination}'
+                        : 'Pour ${widget.durationDays} jours autour de ${widget.mainDestination}',
                     style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                   ),
                   const SizedBox(height: 14),
@@ -278,7 +301,7 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
                           ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                           : Icon(_hasFetchedOnce ? Icons.refresh : Icons.auto_awesome),
                       label: Text(_loading
-                          ? 'Gemini réfléchit...'
+                          ? 'Je prépare ton itinéraire...'
                           : !_hasFetchedOnce
                               ? 'Suggérer'
                               : _paramsChangedSinceLastFetch
@@ -294,7 +317,7 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
                   if (_hasFetchedOnce && !_paramsChangedSinceLastFetch) ...[
                     const SizedBox(height: 4),
                     Text(
-                      'Les villes déjà proposées seront exclues — Gemini cherchera ailleurs dans le même rayon.',
+                      'Les villes déjà proposées seront exclues — je chercherai ailleurs dans le même rayon.',
                       style: TextStyle(fontSize: 10, color: AppColors.textSecondary, fontStyle: FontStyle.italic),
                     ),
                   ],
@@ -369,7 +392,7 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
           children: [
             const CircularProgressIndicator(),
             const SizedBox(height: 14),
-            Text('Gemini cherche les meilleures étapes...', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+            Text('Je cherche les meilleures étapes...', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
           ],
         ),
       );

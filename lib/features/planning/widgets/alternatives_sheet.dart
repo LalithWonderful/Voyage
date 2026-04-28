@@ -158,7 +158,7 @@ class _AlternativesSheetState extends ConsumerState<_AlternativesSheet> {
             SizedBox(height: 12),
             CircularProgressIndicator(strokeWidth: 2.5),
             SizedBox(height: 8),
-            Text('Gemini cherche des alternatives…', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+            Text('Je cherche des alternatives…', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
           ],
         ),
       );

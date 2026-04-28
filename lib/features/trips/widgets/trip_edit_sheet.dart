@@ -344,6 +344,7 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
       interests: _interests.toList(),
       existingCities: _segments.map((s) => s.city).toList(),
       existingDaysPlaced: _totalSegmentDays,
+      destinationKind: _destinationKind,
     );
     if (result == null || result.isEmpty || !mounted) return;
     setState(() {

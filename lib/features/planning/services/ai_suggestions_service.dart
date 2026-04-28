@@ -144,6 +144,12 @@ class AiSuggestionsService {
   /// Sémantique "jours" : la somme des `days` de toutes les étapes doit couvrir
   /// la durée du voyage (ex: 9 jours = somme = 9). Voir `TripSegment` pour le détail.
   /// Le caller affiche le résultat dans une sheet multi-select (cf. RegionalLoopSheet).
+  /// [destinationKind] : `city` / `country` / `region` / `place` / `unknown`.
+  /// Quand la destination est un pays ou une région, on bascule sur un prompt
+  /// adapté : Gemini propose des villes DANS la destination (au lieu de
+  /// l'inclure elle-même comme étape, ce qui produit "États-Unis 3 jours" en
+  /// première card — non-sens UX). On filtre aussi côté code pour les rares cas
+  /// où Gemini retombe sur le nom du pays.
   Future<List<({String city, String country, int days, String description})>> suggestRegionalItinerary({
     required String mainDestination,
     required int durationDays,
@@ -153,6 +159,7 @@ class AiSuggestionsService {
     bool sameCountryOnly = false,
     List<String> excludeCities = const [],
     int daysAlreadyPlaced = 0,
+    String? destinationKind,
   }) async {
     // Cache : la sortie est quasi déterministe pour les mêmes inputs (mainCity,
     // durée, profil, rayon, étapes déjà placées). On normalise les listes en les
@@ -168,6 +175,7 @@ class AiSuggestionsService {
       (k: 'same_country', v: sameCountryOnly),
       (k: 'exclude', v: sortedExcludes),
       (k: 'placed', v: daysAlreadyPlaced),
+      (k: 'kind', v: GeminiCacheService.normKey(destinationKind ?? '')),
     ]);
     final cached = await _cache?.get('regional_itinerary', cacheKey);
     if (cached != null) {
@@ -200,11 +208,19 @@ class AiSuggestionsService {
             '(${excludeCities.isEmpty ? "étapes existantes" : excludeCities.join(', ')}). Tu ne dois proposer QUE des nouvelles étapes '
             'pour combler les $remainingDays jour${remainingDays > 1 ? 's' : ''} restants (sur un total de $tripDaysTotal jours de voyage).'
         : '';
-    final mustIncludeMain = excludeCities
-            .map((c) => c.trim().toLowerCase())
-            .contains(mainDestination.trim().toLowerCase())
-        ? '- ⚠️ $mainDestination est déjà dans les étapes du voyageur — NE LA REPROPOSE PAS, propose UNIQUEMENT des villes voisines.'
-        : '- Inclus OBLIGATOIREMENT $mainDestination dans la boucle (avec assez de jours pour la visiter, 2-3 jours typiquement).';
+    // Si la destination est un pays/région, on NE l'inclut PAS comme étape
+    // (sinon Gemini propose "États-Unis 3 jours" comme première card → non-sens).
+    // Sinon (city/place/unknown) on garde la consigne d'inclusion historique,
+    // sauf si l'utilisateur l'a déjà ajoutée manuellement comme étape.
+    final isLargeDestination =
+        destinationKind == 'country' || destinationKind == 'region';
+    final mustIncludeMain = isLargeDestination
+        ? '- ⚠️ $mainDestination est un ${destinationKind == 'country' ? 'pays' : 'une région'} — ne le propose JAMAIS comme étape. Propose UNIQUEMENT des villes précises situées DANS $mainDestination (et villes frontalières si transfrontalier autorisé).'
+        : (excludeCities
+                .map((c) => c.trim().toLowerCase())
+                .contains(mainDestination.trim().toLowerCase())
+            ? '- ⚠️ $mainDestination est déjà dans les étapes du voyageur — NE LA REPROPOSE PAS, propose UNIQUEMENT des villes voisines.'
+            : '- Inclus OBLIGATOIREMENT $mainDestination dans la boucle (avec assez de jours pour la visiter, 2-3 jours typiquement).');
     final excludeBlock = excludeCities.isEmpty
         ? ''
         : '\n- NE PROPOSE PAS ces villes (elles sont déjà dans le planning du voyageur) : ${excludeCities.join(', ')}.';
@@ -262,6 +278,7 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
     }
     final segs = (parsed is Map) ? (parsed['segments'] as List?) ?? const [] : const [];
     final result = <({String city, String country, int days, String description})>[];
+    final mainDestNorm = mainDestination.trim().toLowerCase();
     for (final s in segs) {
       if (s is! Map<String, dynamic>) continue;
       final city = (s['city'] as String?)?.trim() ?? '';
@@ -271,6 +288,12 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
       final days = ((s['days'] as num?) ?? (s['nights'] as num?))?.toInt() ?? 0;
       final desc = (s['description'] as String?)?.trim() ?? '';
       if (city.isEmpty || days < 1) continue;
+      // Garde-fou : pour les destinations pays/région, Gemini retombe parfois
+      // sur le nom de la destination malgré la consigne. On filtre.
+      if (isLargeDestination && city.trim().toLowerCase() == mainDestNorm) {
+        developer.log('Gemini regional itinerary: skipping suggestion "$city" matching $destinationKind destination "$mainDestination"', name: 'ai');
+        continue;
+      }
       result.add((city: city, country: country, days: days, description: desc));
     }
     if (result.isNotEmpty) {
