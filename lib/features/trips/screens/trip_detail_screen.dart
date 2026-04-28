@@ -1158,9 +1158,9 @@ class _NextStepCard extends StatelessWidget {
             ? 'Et si on créait ton voyage ? ✨'
             : 'Et si on créait ton voyage $journey ? ✨',
         null,
-        'Crée mon itinéraire',
+        'Générer mon itinéraire',
         '✨',
-        'Adapté à tes envies',
+        'Adapté à mes envies',
       ),
       _NextStepCase.generatePlan => (
         'Ton voyage est prêt à être planifié ✨',
@@ -1251,26 +1251,41 @@ class _NextStepCard extends StatelessWidget {
               ),
             ),
           ],
-          // CTA secondaire en lien texte gris (caption) — escape hatch
-          // discret pour les utilisateurs qui veulent ajouter leurs étapes
-          // manuellement sans passer par le mode auto. Présent mais jamais
-          // dominant : ne concurrence pas le CTA principal.
+          // CTA secondaire = vraie option B avec séparateur "OU CRÉER MOI-MÊME".
+          // Hiérarchie visuelle : le bouton principal (bleu plein) reste dominant,
+          // mais l'alternative manuelle est clairement visible — pas perdue dans
+          // un caption gris. Pattern "ou X / ou Y" classique des écrans de choix
+          // (ex: Login social vs Email).
           if (onSecondary != null) ...[
-            const SizedBox(height: 10),
-            Center(
-              child: InkWell(
-                onTap: onSecondary,
-                borderRadius: BorderRadius.circular(6),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(child: Container(height: 1, color: AppColors.border)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
                   child: Text(
-                    'Préférer ajouter mes étapes manuellement →',
+                    'OU CRÉER MOI-MÊME',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
                       color: AppColors.textSecondary,
+                      letterSpacing: 0.5,
                     ),
                   ),
                 ),
+                Expanded(child: Container(height: 1, color: AppColors.border)),
+              ],
+            ),
+            const SizedBox(height: 6),
+            TextButton(
+              onPressed: onSecondary,
+              style: TextButton.styleFrom(
+                minimumSize: const Size(double.infinity, 42),
+                foregroundColor: AppColors.primary,
+              ),
+              child: const Text(
+                'Ajouter mes étapes →',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
               ),
             ),
           ],
