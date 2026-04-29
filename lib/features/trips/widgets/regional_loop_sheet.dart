@@ -304,6 +304,36 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
     }
   }
 
+  /// Transforme l'exception brute (parfois un JSON Gemini complet, parfois
+  /// une SocketException, etc.) en un message conversationnel à la 1ère
+  /// personne. Évite d'exposer les détails techniques à l'utilisateur final.
+  String _humanizeError(String raw) {
+    if (raw.contains('AiTransientException') ||
+        raw.contains('Je suis débordé')) {
+      return 'Je suis un peu débordé pour l\'instant 🙏\nRéessaie dans quelques instants.';
+    }
+    if (raw.contains('[503]') ||
+        raw.contains('UNAVAILABLE') ||
+        raw.contains('overloaded')) {
+      return 'Je suis un peu débordé pour l\'instant 🙏\nRéessaie dans quelques instants.';
+    }
+    if (raw.contains('[429]') ||
+        raw.contains('rate') ||
+        raw.contains('quota')) {
+      return 'Trop de demandes coup sur coup. Patiente une minute et réessaie.';
+    }
+    if (raw.contains('SocketException') ||
+        raw.contains('Failed host lookup') ||
+        raw.contains('TimeoutException')) {
+      return 'Pas de connexion internet. Vérifie ta connexion et réessaie.';
+    }
+    if (raw.contains('Réponse Gemini invalide') ||
+        raw.contains('parse')) {
+      return 'Je n\'ai pas réussi à formuler une réponse claire. Réessaie ou simplifie la destination.';
+    }
+    return 'Quelque chose a coincé de mon côté. Réessaie dans un instant.';
+  }
+
   int get _totalDaysSelected =>
       _selected.fold(0, (sum, i) => sum + _suggestions[i].days);
 
@@ -639,7 +669,12 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
       );
     }
     if (_error != null) {
-      return Padding(
+      // Wrappé dans un SingleChildScrollView pour garantir que les boutons
+      // "Fermer" / "Réessayer" restent toujours accessibles, même si le
+      // message d'erreur est long ou si la zone d'affichage est réduite
+      // (clavier ouvert, écran court). Sinon les boutons peuvent sortir
+      // du viewport et bloquer la navigation.
+      return SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -647,9 +682,9 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
             Icon(Icons.error_outline, size: 40, color: AppColors.error),
             const SizedBox(height: 10),
             Text(
-              'Erreur : $_error',
+              _humanizeError(_error!),
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.error, fontSize: 13),
+              style: TextStyle(color: AppColors.textPrimary, fontSize: 14, height: 1.4),
             ),
             const SizedBox(height: 16),
             // 2 actions visibles sur l'écran d'erreur : "Réessayer" pour relancer

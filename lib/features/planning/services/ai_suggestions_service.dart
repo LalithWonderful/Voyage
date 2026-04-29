@@ -18,6 +18,29 @@ class AiRateLimitException implements Exception {
       'Tu as atteint la limite d\'utilisation IA pour cette action. Réessaie dans quelques minutes.';
 }
 
+/// Erreur Gemini transitoire qui a déjà été retentée — l'appelant peut afficher
+/// un message conversationnel sans exposer le détail technique JSON.
+/// Triggers connus : HTTP 503 (overloaded), 429 (rate limited), 504, network.
+class AiTransientException implements Exception {
+  final Object cause;
+  AiTransientException(this.cause);
+  @override
+  String toString() =>
+      'Je suis débordé pour l\'instant 🙏 Réessaie dans quelques instants.';
+}
+
+bool _isTransientAiError(Object e) {
+  final s = e.toString();
+  return s.contains('[503]') ||
+      s.contains('[429]') ||
+      s.contains('[504]') ||
+      s.contains('UNAVAILABLE') ||
+      s.contains('overloaded') ||
+      s.contains('SocketException') ||
+      s.contains('TimeoutException') ||
+      s.contains('Failed host lookup');
+}
+
 class TransportSuggestion {
   final String fromTitle;
   final String toTitle;
@@ -283,7 +306,11 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
 
     developer.log('Gemini regional itinerary pour $mainDestination ($durationDays j)', name: 'ai');
     final model = _buildModel();
-    final response = await model.generateContent([Content.text(prompt)]);
+    final response = await _generateWithRetry(
+      model,
+      [Content.text(prompt)],
+      tag: 'regional_itinerary',
+    );
     final raw = response.text;
     if (raw == null || raw.isEmpty) throw Exception('Réponse vide de Gemini.');
     final cleaned = _stripCodeFences(raw).trim();
@@ -385,6 +412,34 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
       await _cache?.put(cacheAction, cacheKey, {'raw': raw});
     }
     return raw;
+  }
+
+  /// Wrapper autour de `model.generateContent` qui retente 1 fois après 2s en
+  /// cas d'erreur transitoire (503/429/504/UNAVAILABLE/network). Si la 2e
+  /// tentative échoue aussi sur une erreur transitoire, throw `AiTransientException`
+  /// pour que l'UI affiche un message conversationnel. Les autres erreurs
+  /// (parse, quota strict, etc.) remontent telles quelles.
+  Future<GenerateContentResponse> _generateWithRetry(
+    GenerativeModel model,
+    List<Content> contents, {
+    required String tag,
+  }) async {
+    try {
+      return await model.generateContent(contents);
+    } catch (e) {
+      if (!_isTransientAiError(e)) rethrow;
+      developer.log('Gemini transient error sur $tag — retry dans 2s : $e', name: 'ai');
+      await Future<void>.delayed(const Duration(seconds: 2));
+      try {
+        return await model.generateContent(contents);
+      } catch (e2) {
+        if (_isTransientAiError(e2)) {
+          developer.log('Gemini transient error persistant sur $tag : $e2', name: 'ai');
+          throw AiTransientException(e2);
+        }
+        rethrow;
+      }
+    }
   }
 
   GenerativeModel _buildModel({double temperature = 0.7}) {
