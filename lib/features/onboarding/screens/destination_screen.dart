@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:voyage/core/theme/app_theme.dart';
 import 'package:voyage/core/widgets/city_autocomplete_field.dart';
 import 'package:voyage/features/auth/providers/auth_provider.dart';
+import 'package:voyage/features/planning/providers/planning_provider.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
 
@@ -24,6 +25,11 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
   /// Si pays/région → on affiche un bandeau d'info doux en dessous du champ.
   /// Le découpage en étapes sera proposé après création (cf. trip_edit_sheet).
   String _destinationKind = 'unknown';
+  /// PlaceId Google de la suggestion sélectionnée. Sert à résoudre le code
+  /// pays ISO 2 à la création pour activer d'emblée le flow régions des grands
+  /// pays (sinon il fallait passer par trip_edit_sheet pour qu'il soit détecté).
+  /// Reset à null si l'user édite après sélection.
+  String? _selectedPlaceId;
   /// Version du widget autocomplete : incrémenté pour forcer la reconstruction
   /// quand on veut reset programmatiquement le champ (ex: clic sur "Inspire-moi"
   /// ou sur une destination pré-remplie). Le widget gère son propre controller
@@ -47,6 +53,7 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
   void _resetDestinationField() {
     _typedDestination = '';
     _destinationKind = 'unknown';
+    _selectedPlaceId = null;
     _destFieldVersion++;
   }
 
@@ -119,6 +126,15 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
       final profile = await ref.read(userProfileProvider.future);
       final globalInterests = await ref.read(userInterestsProvider.future);
       final globalTravelerType = profile?['traveler_type'] as String?;
+      // Résout le code pays ISO 2 si l'user a sélectionné une suggestion
+      // Places. Permet d'activer le flow régions des grands pays dès la 1ère
+      // ouverture du voyage, sans passer par trip_edit_sheet.
+      String? countryCode;
+      if (_selectedPlaceId != null && _selectedPlaceId!.isNotEmpty) {
+        try {
+          countryCode = await ref.read(placesServiceProvider).getCountryCodeFromPlaceId(_selectedPlaceId!);
+        } catch (_) {}
+      }
       final inserted = await client.from('trips').insert({
         'user_id': userId,
         'title': _chosenDestination!,
@@ -130,6 +146,9 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
         'travelers': _travelers.map((t) => t.toJson()).toList(),
         'traveler_type': ?globalTravelerType,
         if (globalInterests.isNotEmpty) 'interests': globalInterests,
+        'destination_country_code': ?countryCode,
+        'destination_country_name': countryCode != null ? _chosenDestination : null,
+        'destination_kind': _destinationKind == 'unknown' ? null : _destinationKind,
       }).select();
 
       if ((inserted as List).isEmpty) {
@@ -205,26 +224,30 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
                       onChanged: (v) {
                         // Suit la saisie en temps réel pour que `_canSave`
                         // fonctionne sans clic de suggestion. Reset le `kind`
-                        // si l'utilisateur édite après une sélection.
+                        // et le placeId si l'utilisateur édite après une sélection.
                         setState(() {
                           _typedDestination = v;
                           if (v.trim().isEmpty) {
                             _destinationKind = 'unknown';
+                            _selectedPlaceId = null;
                           } else if (_destinationKind != 'unknown') {
                             // L'utilisateur a tapé après avoir sélectionné →
                             // on annule le kind capturé pour ne pas afficher
-                            // un bandeau périmé.
+                            // un bandeau périmé. Idem placeId : il ne pointe
+                            // plus la saisie courante.
                             _destinationKind = 'unknown';
+                            _selectedPlaceId = null;
                           }
                           if (v.trim().isNotEmpty && _selectedIndex != null) {
                             _selectedIndex = null;
                           }
                         });
                       },
-                      onSelectedDetailed: (city, _, _, kind) {
+                      onSelectedDetailed: (city, _, placeId, kind) {
                         setState(() {
                           _typedDestination = city;
                           _destinationKind = kind;
+                          _selectedPlaceId = placeId;
                           _selectedIndex = null;
                         });
                       },
