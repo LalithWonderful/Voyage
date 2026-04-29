@@ -1469,24 +1469,13 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
           .order('day_date', ascending: true)
           .order('start_time', ascending: true);
       final allActivities = (all as List).map((e) => TripActivity.fromJson(e)).toList();
-
-      // Fusionne les activités virtuelles issues des documents (hôtels, vols,
-      // etc.). Permet au pipeline de calculer les trajets hôtel ↔ activité :
-      // un check-in/check-out d'hôtel devient un waypoint avec lat/lng (issus
-      // du géocodage au save du doc, cf. document_form_sheet._geocodeHotelAddress).
-      // Tri global après fusion pour respecter l'ordre temporel.
-      final docs = await ref.read(tripDocumentsProvider(widget.tripId).future);
-      final virtualActs = <TripActivity>[
-        for (final doc in docs) ...virtualActivitiesFromDocument(doc),
-      ];
-      if (virtualActs.isNotEmpty) {
-        allActivities.addAll(virtualActs);
-        allActivities.sort((a, b) {
-          final dayCmp = a.dayDate.compareTo(b.dayDate);
-          if (dayCmp != 0) return dayCmp;
-          return a.startTime.compareTo(b.startTime);
-        });
-      }
+      // NOTE : on ne fusionne PAS les activités virtuelles `doc:xxx:checkin/checkout`
+      // ici. Elles ne sont pas en DB (calculées à la volée par planningTimelineProvider)
+      // donc leurs IDs préfixés `doc:` ne sont pas des UUID valides — l'INSERT dans
+      // `trip_transports.from_activity_id` (colonne uuid) plante avec
+      // "invalid input syntax for type uuid". Les trajets hôtel ↔ activité sont
+      // assurés par les vraies activités "Retour à <hôtel>" créées par
+      // _autoInsertHotelReturns (avec UUID propre + lat/lng depuis le doc géocodé).
 
       // Récupère les transports déjà en base pour éviter les doublons
       final existingTransportsData = await client
