@@ -3223,26 +3223,70 @@ class _TransportOptionsSheetState extends ConsumerState<_TransportOptionsSheet> 
     'plane': 'transit',
   };
 
+  /// Seuil de bascule entre cas A (planification à distance, coords explicites)
+  /// et cas B (utilisation in-situ, géoloc Google Maps). Si je suis à moins de
+  /// 50 km de l'activité de départ, je suis "sur place" → guidage temps réel.
+  static const _inSituThresholdKm = 50.0;
+
   Future<void> _openDirections() async {
     final from = widget.fromActivity;
     final to = widget.toActivity;
     final mode = _travelModeMap[_selectedMode ?? 'walk'] ?? 'walking';
 
-    String originParam;
     String destParam;
-    if (from.hasCoordinates) {
-      originParam = '${from.latitude},${from.longitude}';
-    } else {
-      originParam = Uri.encodeComponent('${from.title} ${from.detail ?? ''}'.trim());
-    }
     if (to.hasCoordinates) {
       destParam = '${to.latitude},${to.longitude}';
     } else {
       destParam = Uri.encodeComponent('${to.title} ${to.detail ?? ''}'.trim());
     }
 
+    // Choix de l'origine selon le contexte d'usage :
+    // - Cas A (planification à distance, ex: prépa depuis la France pour un
+    //   voyage à Lisbonne) : on force l'origine en coords explicites de
+    //   l'activité de départ. Sans ça, Google Maps essaie de calculer un
+    //   trajet France→Lisbonne en métro et échoue.
+    // - Cas B (utilisation in-situ pendant le voyage, à <50 km de l'activité
+    //   de départ) : on omet `origin=` pour que Google Maps utilise la géoloc
+    //   temps réel et guide pas à pas.
+    // Discriminant : distance Haversine entre `ma_position` GPS et l'activité
+    // de départ (PAS la distance globale du voyage). Marche pour Bangkok →
+    // Chiang Mai car ma_pos ≈ activité départ ≈ 0 km.
+    // Edge cases (perm refusée / GPS off / pas de coords sur `from`) : on
+    // retombe sur coords explicites par défaut.
+    String? originParam;
+    if (from.hasCoordinates) {
+      try {
+        final myPos = await LocationService.instance
+            .getCurrentLocation()
+            .timeout(const Duration(seconds: 2));
+        if (myPos != null) {
+          final distKm = haversineKm(
+            myPos.latitude, myPos.longitude,
+            from.latitude!, from.longitude!,
+          );
+          if (distKm < _inSituThresholdKm) {
+            // Cas B : in-situ → laisse Google Maps utiliser la géoloc
+            originParam = null;
+          } else {
+            // Cas A : à distance → coords explicites
+            originParam = '${from.latitude},${from.longitude}';
+          }
+        } else {
+          // Perm refusée / GPS off → coords explicites par défaut
+          originParam = '${from.latitude},${from.longitude}';
+        }
+      } on TimeoutException {
+        // Géoloc trop lente → on n'attend pas, coords explicites
+        originParam = '${from.latitude},${from.longitude}';
+      }
+    } else {
+      // Pas de coords sur l'activité de départ : fallback texte
+      originParam = Uri.encodeComponent('${from.title} ${from.detail ?? ''}'.trim());
+    }
+
+    final originPart = originParam != null ? '&origin=$originParam' : '';
     final uri = Uri.parse(
-      'https://www.google.com/maps/dir/?api=1&origin=$originParam&destination=$destParam&travelmode=$mode',
+      'https://www.google.com/maps/dir/?api=1$originPart&destination=$destParam&travelmode=$mode',
     );
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
