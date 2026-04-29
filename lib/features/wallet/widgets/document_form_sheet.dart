@@ -383,6 +383,50 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
     return m;
   }
 
+  /// Tente de géocoder l'adresse d'un hôtel et met à jour `meta` en place
+  /// (`latitude`, `longitude`, `geocoding_failed`). Comportement :
+  /// - Adresse vide → reset coords + flag (l'user a effacé l'adresse).
+  /// - Adresse inchangée + coords déjà présents → no-op (économie d'appel API).
+  /// - Adresse nouvelle/changée → appel `GeocodingService.geocode` avec le
+  ///   code pays du voyage en hint pour fiabiliser sur les adresses partielles.
+  /// - Succès : pose lat/lng, retire le flag d'échec.
+  /// - Échec (réseau / pas de résultat) : pose `geocoding_failed=true` et
+  ///   retire les coords précédentes (l'adresse a changé donc les anciennes
+  ///   coords ne sont plus valides).
+  Future<void> _geocodeHotelAddress(Map<String, dynamic> meta) async {
+    final newAddress = (meta['address'] as String?)?.trim() ?? '';
+    if (newAddress.isEmpty) {
+      meta.remove('latitude');
+      meta.remove('longitude');
+      meta.remove('geocoding_failed');
+      return;
+    }
+    final oldAddress =
+        ((widget.existing?.metadata['address']) as String?)?.trim() ?? '';
+    final hadCoords = widget.existing?.metadata['latitude'] != null &&
+        widget.existing?.metadata['longitude'] != null;
+    if (newAddress == oldAddress && hadCoords) {
+      return;
+    }
+    String? regionHint;
+    if (_tripId != null) {
+      final trip = await ref.read(tripByIdProvider(_tripId!).future);
+      regionHint = trip?.destinationCountryCode;
+    }
+    final geo = await ref
+        .read(geocodingServiceProvider)
+        .geocode(newAddress, regionHint: regionHint);
+    if (geo != null) {
+      meta['latitude'] = geo.latitude;
+      meta['longitude'] = geo.longitude;
+      meta.remove('geocoding_failed');
+    } else {
+      meta['geocoding_failed'] = true;
+      meta.remove('latitude');
+      meta.remove('longitude');
+    }
+  }
+
   Future<void> _save() async {
     // Force le commit IME : sans ça, si l'utilisateur tape "Enregistrer" alors
     // que l'adresse a encore le focus (saisie en cours, autocomplete pending,
@@ -476,6 +520,14 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
       final client = ref.read(supabaseProvider);
       final userId = client.auth.currentUser!.id;
       final builtMeta = _buildMetadata();
+      // Géocodage des adresses d'hébergement pour permettre l'affichage des
+      // trajets hôtel ↔ activité dans la timeline. Idempotent : on ne ré-appelle
+      // l'API que si l'adresse a changé OU qu'on n'a pas encore de coords.
+      // Échec = flag `geocoding_failed`, le caller affiche un badge UX (pas bloquant).
+      if (_category == DocumentCategory.hotel) {
+        await _geocodeHotelAddress(builtMeta);
+        if (!mounted) return;
+      }
       final payload = {
         'user_id': userId,
         'trip_id': _tripId,

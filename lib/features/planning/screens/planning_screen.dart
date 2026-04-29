@@ -23,6 +23,7 @@ import 'package:voyage/features/planning/widgets/suggestion_detail_sheet.dart';
 import 'package:voyage/features/planning/services/ai_suggestions_service.dart';
 import 'package:voyage/features/planning/services/document_to_activity.dart';
 import 'package:voyage/features/planning/services/places_first_pipeline.dart';
+import 'package:voyage/features/planning/services/routes_service.dart';
 import 'package:voyage/features/planning/services/traveler_to_places_mapping.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:voyage/features/wallet/providers/wallet_provider.dart';
@@ -1396,6 +1397,24 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
           .order('start_time', ascending: true);
       final allActivities = (all as List).map((e) => TripActivity.fromJson(e)).toList();
 
+      // Fusionne les activités virtuelles issues des documents (hôtels, vols,
+      // etc.). Permet au pipeline de calculer les trajets hôtel ↔ activité :
+      // un check-in/check-out d'hôtel devient un waypoint avec lat/lng (issus
+      // du géocodage au save du doc, cf. document_form_sheet._geocodeHotelAddress).
+      // Tri global après fusion pour respecter l'ordre temporel.
+      final docs = await ref.read(tripDocumentsProvider(widget.tripId).future);
+      final virtualActs = <TripActivity>[
+        for (final doc in docs) ...virtualActivitiesFromDocument(doc),
+      ];
+      if (virtualActs.isNotEmpty) {
+        allActivities.addAll(virtualActs);
+        allActivities.sort((a, b) {
+          final dayCmp = a.dayDate.compareTo(b.dayDate);
+          if (dayCmp != 0) return dayCmp;
+          return a.startTime.compareTo(b.startTime);
+        });
+      }
+
       // Récupère les transports déjà en base pour éviter les doublons
       final existingTransportsData = await client
           .from('trip_transports')
@@ -1434,20 +1453,32 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
         name: 'planning',
       );
       // Lance les calculs Routes en parallèle pour limiter la latence sur les
-      // gros plannings. Chaque slot fait Places lookup (cache) + Routes API call (cache).
+      // gros plannings. Chaque slot construit 2 RouteEndpoints :
+      // - Si l'activité a déjà lat/lng (cas hôtel virtual géocodé au save),
+      //   on les utilise directement → pas de Places lookup, pas de coût.
+      // - Sinon (activité réelle Places), on fait le findInfo() pour obtenir
+      //   le placeId.
+      Future<RouteEndpoint?> resolveEndpoint(TripActivity act) async {
+        if (act.hasCoordinates) {
+          return RouteEndpoint.coords(lat: act.latitude!, lng: act.longitude!);
+        }
+        final info = await placesService.findInfo(title: act.title, destination: destination);
+        if (info.placeId != null && info.placeId!.isNotEmpty) {
+          return RouteEndpoint.placeId(info.placeId!);
+        }
+        return null;
+      }
+
       final transportResults = await Future.wait(pairs.map((pair) async {
         final (a, b) = pair;
-        final infoA = await placesService.findInfo(title: a.title, destination: destination);
-        final infoB = await placesService.findInfo(title: b.title, destination: destination);
+        final epA = await resolveEndpoint(a);
+        final epB = await resolveEndpoint(b);
 
         List<TransportOption>? routesOptions;
-        if (infoA.placeId != null &&
-            infoA.placeId!.isNotEmpty &&
-            infoB.placeId != null &&
-            infoB.placeId!.isNotEmpty) {
-          routesOptions = await routesService.computeOptions(
-            fromPlaceId: infoA.placeId!,
-            toPlaceId: infoB.placeId!,
+        if (epA != null && epB != null) {
+          routesOptions = await routesService.computeOptionsFromEndpoints(
+            from: epA,
+            to: epB,
           );
           developer.log(
             'Routes "${a.title}" → "${b.title}" : '
@@ -1456,7 +1487,7 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
           );
         } else {
           developer.log(
-            'Routes "${a.title}" → "${b.title}" : SKIP (placeId manquant — A=${infoA.placeId == null ? "null" : "ok"}, B=${infoB.placeId == null ? "null" : "ok"})',
+            'Routes "${a.title}" → "${b.title}" : SKIP (endpoint introuvable — A=${epA == null ? "null" : "ok"}, B=${epB == null ? "null" : "ok"})',
             name: 'planning',
           );
         }

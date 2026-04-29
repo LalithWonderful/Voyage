@@ -14,6 +14,7 @@ import 'package:voyage/features/wallet/models/document_model.dart';
 import 'package:voyage/features/wallet/providers/wallet_provider.dart';
 import 'package:voyage/features/wallet/screens/wallet_screen.dart';
 import 'package:voyage/features/wallet/widgets/document_form_sheet.dart';
+import 'package:voyage/features/wallet/widgets/hotel_doc_warnings.dart';
 
 class TripDetailScreen extends ConsumerWidget {
   final String tripId;
@@ -705,7 +706,9 @@ class _HotelsCarouselState extends State<_HotelsCarousel> {
 
   // 124 — la transition "Arrivée depuis X" est maintenant au-dessus du
   // carrousel (step actif), donc la card revient à sa hauteur initiale.
-  static const double _cardHeight = 124;
+  // Hauteur fixée pour absorber les warnings UX (dates manquantes, adresse
+  // introuvable) sans overflow, même quand les 2 sont présents simultanément.
+  static const double _cardHeight = 150;
 
   int _initialIndex() {
     final today = DateTime.now();
@@ -942,6 +945,7 @@ class _HotelCard extends ConsumerWidget {
                     const SizedBox(height: 4),
                     Text('N° ${hotel.reservationNumber}', style: TextStyle(fontSize: 11, color: AppColors.textSecondary, fontStyle: FontStyle.italic)),
                   ],
+                  HotelDocWarnings(doc: hotel, fontSize: 11),
                 ],
               ),
             ),

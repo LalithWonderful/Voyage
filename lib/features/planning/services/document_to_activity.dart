@@ -36,6 +36,11 @@ List<TripActivity> virtualActivitiesFromDocument(TripDocument doc) {
       // Fallback si doc.name est vide (édition incomplète, import raté...) pour
       // ne pas afficher un card avec un titre vide dans le planning.
       final hotelLabel = doc.name.trim().isNotEmpty ? doc.name.trim() : 'hébergement';
+      // Coordonnées géocodées au save du doc (cf. _DocumentFormSheet._geocodeHotelAddress).
+      // Permettent au pipeline de calculer les trajets hôtel ↔ activité sans
+      // passer par un Places lookup (qui échoue souvent sur le titre "🏨 Arrivée · Hôtel X").
+      final hotelLat = (m['latitude'] as num?)?.toDouble();
+      final hotelLng = (m['longitude'] as num?)?.toDouble();
       if (checkIn != null) {
         result.add(_make(
           id: '$virtualActivityPrefix${doc.id}:checkin',
@@ -46,6 +51,8 @@ List<TripActivity> virtualActivitiesFromDocument(TripDocument doc) {
           detail: m['address'] as String?,
           tag: 'Hébergement',
           durationMinutes: 30,
+          latitude: hotelLat,
+          longitude: hotelLng,
         ));
       }
       if (checkOut != null) {
@@ -58,6 +65,8 @@ List<TripActivity> virtualActivitiesFromDocument(TripDocument doc) {
           detail: m['address'] as String?,
           tag: 'Hébergement',
           durationMinutes: 30,
+          latitude: hotelLat,
+          longitude: hotelLng,
         ));
       }
       return result;
@@ -169,6 +178,8 @@ TripActivity _make({
   String? detail,
   required String tag,
   required int durationMinutes,
+  double? latitude,
+  double? longitude,
 }) {
   return TripActivity(
     id: id,
@@ -180,6 +191,8 @@ TripActivity _make({
     tag: tag,
     suggested: false,
     durationMinutes: durationMinutes,
+    latitude: latitude,
+    longitude: longitude,
   );
 }
 

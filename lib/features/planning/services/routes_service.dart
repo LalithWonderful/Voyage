@@ -19,13 +19,59 @@ import 'package:voyage/features/planning/services/gemini_cache_service.dart';
 /// Cache : table `gemini_cache` avec action `routes_pair`. Une paire de
 /// place_id donne le même résultat tant que les routes ne changent pas, donc
 /// TTL long (30j par défaut). Les hits sont gratuits pour tous les voyageurs.
+/// Endpoint Routes API : soit un placeId Google, soit des coordonnées GPS.
+/// Permet de calculer un trajet vers/depuis un hôtel géocodé (qui n'a pas
+/// forcément de placeId, ex: AirBnB, adresse de particulier).
+class RouteEndpoint {
+  final String? placeId;
+  final double? lat;
+  final double? lng;
+
+  const RouteEndpoint.placeId(String this.placeId)
+      : lat = null,
+        lng = null;
+  const RouteEndpoint.coords({required double this.lat, required double this.lng})
+      : placeId = null;
+
+  bool get isValid =>
+      (placeId != null && placeId!.isNotEmpty) ||
+      (lat != null && lng != null);
+
+  /// Représentation pour le body Routes API (`origin` ou `destination`).
+  Map<String, dynamic> toApiBody() {
+    if (placeId != null && placeId!.isNotEmpty) {
+      return {'placeId': placeId};
+    }
+    return {
+      'location': {
+        'latLng': {'latitude': lat, 'longitude': lng},
+      },
+    };
+  }
+
+  /// Identifiant stable pour la clé de cache et les logs. Coordonnées arrondies
+  /// à 5 décimales (~1m de précision) pour éviter de fragmenter le cache sur
+  /// des dérives sub-mètre.
+  String get cacheKey {
+    if (placeId != null && placeId!.isNotEmpty) return 'P:$placeId';
+    return 'C:${lat!.toStringAsFixed(5)},${lng!.toStringAsFixed(5)}';
+  }
+
+  @override
+  String toString() => cacheKey;
+}
+
 class RoutesService {
   final GeminiCacheService? _cache;
 
   RoutesService({GeminiCacheService? cache}) : _cache = cache;
 
   /// Calcule les options de transport réalistes pour une paire (origin, destination).
-  /// Retourne `null` si tout a échoué (réseau, clé, place_ids invalides).
+  /// Retourne `null` si tout a échoué (réseau, clé, endpoints invalides).
+  ///
+  /// Compat : accepte les anciens params `fromPlaceId` / `toPlaceId` (string).
+  /// Pour passer des coordonnées GPS (cas hôtel géocodé sans placeId), utilise
+  /// plutôt `computeOptionsFromEndpoints`.
   ///
   /// `travelerType` influence le `default_mode` retourné dans le bundle :
   /// Grand luxe / Voyage pro → taxi, Backpack / Meilleur prix → walk ou transit,
@@ -36,15 +82,29 @@ class RoutesService {
     required String fromPlaceId,
     required String toPlaceId,
   }) async {
+    if (fromPlaceId.isEmpty || toPlaceId.isEmpty) return null;
+    return computeOptionsFromEndpoints(
+      from: RouteEndpoint.placeId(fromPlaceId),
+      to: RouteEndpoint.placeId(toPlaceId),
+    );
+  }
+
+  /// Variante générique : accepte n'importe quel endpoint (placeId OU coords).
+  /// Utilisée pour les transitions hôtel ↔ activité où l'hôtel n'a pas de
+  /// placeId mais a été géocodé au save (lat/lng dans `metadata`).
+  Future<List<TransportOption>?> computeOptionsFromEndpoints({
+    required RouteEndpoint from,
+    required RouteEndpoint to,
+  }) async {
     final key = AiConstants.googleMapsApiKey;
     if (key.isEmpty || key == 'COLLE_TA_CLE_MAPS_ICI') return null;
-    if (fromPlaceId.isEmpty || toPlaceId.isEmpty) return null;
-    if (fromPlaceId == toPlaceId) return null;
+    if (!from.isValid || !to.isValid) return null;
+    if (from.cacheKey == to.cacheKey) return null;
 
     // Lookup cache (clé = paire ordonnée — A→B et B→A peuvent différer en transit).
     final cacheKey = GeminiCacheService.hashKey([
-      (k: 'from', v: fromPlaceId),
-      (k: 'to', v: toPlaceId),
+      (k: 'from', v: from.cacheKey),
+      (k: 'to', v: to.cacheKey),
     ]);
     final cached = await _cache?.get('routes_pair', cacheKey);
     if (cached != null) {
@@ -70,10 +130,10 @@ class RoutesService {
     // critique pour le guide-par-la-main : "Tram 1, arrêt Place Stanislas, dir.
     // Vandœuvre" ≠ "Bus 4, arrêt République, dir. Centre".
     final results = await Future.wait([
-      _computeOne(fromPlaceId, toPlaceId, 'WALK', 'walk', key),
-      _computeOne(fromPlaceId, toPlaceId, 'DRIVE', 'taxi', key),
-      _computeTransit(fromPlaceId, toPlaceId, key),
-      _computeOne(fromPlaceId, toPlaceId, 'BICYCLE', 'bike', key),
+      _computeOne(from, to, 'WALK', 'walk', key),
+      _computeOne(from, to, 'DRIVE', 'taxi', key),
+      _computeTransit(from, to, key),
+      _computeOne(from, to, 'BICYCLE', 'bike', key),
     ]);
     final options = results.whereType<TransportOption>().toList();
     if (options.isEmpty) return null;
@@ -126,8 +186,8 @@ class RoutesService {
   /// Appelle Routes API pour UN seul mode. Renvoie `null` en cas d'échec
   /// (mode pas adapté entre A et B, par ex. transit dans une zone non desservie).
   Future<TransportOption?> _computeOne(
-    String fromPlaceId,
-    String toPlaceId,
+    RouteEndpoint from,
+    RouteEndpoint to,
     String googleMode,
     String voyageMode,
     String key,
@@ -135,8 +195,8 @@ class RoutesService {
     try {
       final uri = Uri.https('routes.googleapis.com', '/directions/v2:computeRoutes');
       final body = jsonEncode({
-        'origin': {'placeId': fromPlaceId},
-        'destination': {'placeId': toPlaceId},
+        'origin': from.toApiBody(),
+        'destination': to.toApiBody(),
         'travelMode': googleMode,
         // routingPreference n'est valide que pour DRIVE — Google rejette le request
         // (400) si on l'envoie pour les autres modes.
@@ -178,14 +238,14 @@ class RoutesService {
       // décider d'afficher un avertissement en amont.
       if (voyageMode == 'walk' && (distanceM > 15000 || minutes > 180)) {
         developer.log(
-          'Routes: WALK filtré ($fromPlaceId → $toPlaceId) — ${(distanceM / 1000).toStringAsFixed(1)}km, ${minutes}min aberrants pour la marche',
+          'Routes: WALK filtré ($from → $to) — ${(distanceM / 1000).toStringAsFixed(1)}km, ${minutes}min aberrants pour la marche',
           name: 'routes',
         );
         return null;
       }
       if (voyageMode == 'bike' && distanceM > 80000) {
         developer.log(
-          'Routes: BIKE filtré ($fromPlaceId → $toPlaceId) — ${(distanceM / 1000).toStringAsFixed(1)}km trop long pour le vélo',
+          'Routes: BIKE filtré ($from → $to) — ${(distanceM / 1000).toStringAsFixed(1)}km trop long pour le vélo',
           name: 'routes',
         );
         return null;
@@ -195,7 +255,7 @@ class RoutesService {
       // Marrakech→Fès = 256km/388€). Aide à diagnostiquer en amont.
       if (voyageMode == 'taxi' && distanceM > 50000) {
         developer.log(
-          'Routes: DRIVE longue distance ($fromPlaceId → $toPlaceId) — ${(distanceM / 1000).toStringAsFixed(1)}km. Vérifier que le suggesteur ne place pas 2 activités lointaines sur le même jour.',
+          'Routes: DRIVE longue distance ($from → $to) — ${(distanceM / 1000).toStringAsFixed(1)}km. Vérifier que le suggesteur ne place pas 2 activités lointaines sur le même jour.',
           name: 'routes',
         );
       }
@@ -221,12 +281,12 @@ class RoutesService {
   ///
   /// Si plusieurs segments TRANSIT (ex: bus + tram), `mode` = celui dont la
   /// durée est la plus longue, et `detail` enchaîne les instructions avec "puis".
-  Future<TransportOption?> _computeTransit(String fromPlaceId, String toPlaceId, String key) async {
+  Future<TransportOption?> _computeTransit(RouteEndpoint from, RouteEndpoint to, String key) async {
     try {
       final uri = Uri.https('routes.googleapis.com', '/directions/v2:computeRoutes');
       final body = jsonEncode({
-        'origin': {'placeId': fromPlaceId},
-        'destination': {'placeId': toPlaceId},
+        'origin': from.toApiBody(),
+        'destination': to.toApiBody(),
         'travelMode': 'TRANSIT',
       });
       final resp = await http.post(
@@ -240,20 +300,20 @@ class RoutesService {
         body: body,
       );
       if (resp.statusCode != 200) {
-        developer.log('Routes HTTP ${resp.statusCode} (TRANSIT) $fromPlaceId→$toPlaceId: ${resp.body}', name: 'routes');
+        developer.log('Routes HTTP ${resp.statusCode} (TRANSIT) $from→$to: ${resp.body}', name: 'routes');
         return null;
       }
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
       final routes = data['routes'] as List?;
       if (routes == null || routes.isEmpty) {
-        developer.log('Routes TRANSIT: aucune route renvoyée pour $fromPlaceId→$toPlaceId (probablement trop proche ou pas de réseau)', name: 'routes');
+        developer.log('Routes TRANSIT: aucune route renvoyée pour $from→$to (probablement trop proche ou pas de réseau)', name: 'routes');
         return null;
       }
       final route = routes.first as Map<String, dynamic>;
 
       final seconds = _parseDurationSeconds(route['duration'] as String?);
       if (seconds == null || seconds <= 0) {
-        developer.log('Routes TRANSIT: durée nulle/invalide $fromPlaceId→$toPlaceId', name: 'routes');
+        developer.log('Routes TRANSIT: durée nulle/invalide $from→$to', name: 'routes');
         return null;
       }
       final minutes = (seconds / 60).round().clamp(1, 600);
@@ -276,7 +336,7 @@ class RoutesService {
         // Pas de step TRANSIT identifié (peut-être un trajet 100% marche que Google
         // a mis en TRANSIT par défaut). On renvoie une option transit générique.
         developer.log(
-          'Routes TRANSIT: aucun segment transit dans la route $fromPlaceId→$toPlaceId '
+          'Routes TRANSIT: aucun segment transit dans la route $from→$to '
           '(${minutes}min, ${(distanceM / 1000).toStringAsFixed(1)}km) — fallback générique',
           name: 'routes',
         );
