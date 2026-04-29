@@ -1380,8 +1380,49 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
       // Tous les titres/adresses viennent DÉJÀ de Places (Auto + CoPilot sont
       // sur Places-first depuis 4d 2026-04-26) — pas besoin de canonisation.
       final client = ref.read(supabaseProvider);
-      final rows = rawSelections.map((s) => s.toInsertJson(widget.tripId)).toList();
-      developer.log('Insertion de ${rows.length} activité(s) dans trip_activities', name: 'planning');
+      final rawRows = rawSelections.map((s) => s.toInsertJson(widget.tripId)).toList();
+      // Dédup sur (day_date, start_time) : la contrainte unique
+      // `trip_activities_unique_entry` côté Postgres rejette 2 activités au même
+      // créneau. Le pipeline Places-first peut proposer 2 lieux pour le même
+      // slot quand 2 intérêts ciblent le même créneau (ex: Randonnée 14h +
+      // Nature 14h). On décale les suivants de 30 min, sinon on les drop si
+      // ça déborde minuit.
+      final taken = <String>{};
+      final rows = <Map<String, dynamic>>[];
+      for (final row in rawRows) {
+        final day = row['day_date'] as String;
+        var time = row['start_time'] as String;
+        var key = '$day|$time';
+        var attempts = 0;
+        while (taken.contains(key) && attempts < 12) {
+          // Décale de 30 min jusqu'à trouver un slot libre (max 6h de décalage).
+          final parts = time.split(':');
+          final h = int.parse(parts[0]);
+          final m = int.parse(parts[1]);
+          final totalMin = h * 60 + m + 30;
+          if (totalMin >= 24 * 60) break;
+          time = '${(totalMin ~/ 60).toString().padLeft(2, '0')}:${(totalMin % 60).toString().padLeft(2, '0')}';
+          key = '$day|$time';
+          attempts++;
+        }
+        if (taken.contains(key)) {
+          developer.log(
+            'Dédup : drop "${row['title']}" — slot $day $time déjà pris (et impossible à décaler)',
+            name: 'planning',
+          );
+          continue;
+        }
+        if (time != row['start_time']) {
+          developer.log(
+            'Dédup : "${row['title']}" décalé de ${row['start_time']} → $time pour éviter conflit',
+            name: 'planning',
+          );
+          row['start_time'] = time;
+        }
+        taken.add(key);
+        rows.add(row);
+      }
+      developer.log('Insertion de ${rows.length} activité(s) dans trip_activities (depuis ${rawRows.length} suggestions)', name: 'planning');
       final inserted = await client.from('trip_activities').insert(rows).select();
       developer.log('Résultat insert : ${(inserted as List).length} ligne(s) retournée(s)', name: 'planning');
       if (inserted.isEmpty) {
