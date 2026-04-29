@@ -1233,6 +1233,31 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
           }
         }
       }
+      // Si le returnTime calculé tombe sur le slot d'une activité existante
+      // (cas typique : la dernière activité du jour fait pile durée=N min et
+      // returnTime calculé = startTime de la N+1ème activité), on décale
+      // pour éviter le conflit unique constraint sur (trip_id, day, time).
+      final takenTimes = entry.value.map((a) => a.startTime).toSet();
+      var attempts = 0;
+      while (takenTimes.contains(returnTime) && attempts < 20) {
+        final parts = returnTime.split(':');
+        final h = int.parse(parts[0]);
+        final m = int.parse(parts[1]);
+        final totalMin = h * 60 + m + 15;
+        if (totalMin >= 24 * 60) {
+          // Pas de slot dispo dans la journée : on skip ce retour pour ne pas
+          // crasher l'insert. L'utilisateur peut l'ajouter manuellement.
+          developer.log(
+            'Retour hôtel skip : tous les slots après ${sorted.last.startTime} pris pour le ${day.toIso8601String().split("T").first}',
+            name: 'planning',
+          );
+          returnTime = '';
+          break;
+        }
+        returnTime = '${(totalMin ~/ 60).toString().padLeft(2, '0')}:${(totalMin % 60).toString().padLeft(2, '0')}';
+        attempts++;
+      }
+      if (returnTime.isEmpty) continue;
 
       // Stocke l'adresse de l'hôtel dans `detail` pour que "Voir sur Maps" puisse
       // l'utiliser directement (évite la recherche fuzzy sur le titre qui fait planter
