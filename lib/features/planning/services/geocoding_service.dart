@@ -42,9 +42,15 @@ class GeocodingService {
       if (results.isEmpty) return null;
       final first = results.first as Map<String, dynamic>;
       final location = first['geometry']['location'] as Map<String, dynamic>;
+      final lat = (location['lat'] as num).toDouble();
+      final lng = (location['lng'] as num).toDouble();
+      developer.log(
+        'Geocoding OK "$trimmed" → ${lat.toStringAsFixed(5)},${lng.toStringAsFixed(5)}',
+        name: 'geocoding',
+      );
       return GeocodingResult(
-        latitude: (location['lat'] as num).toDouble(),
-        longitude: (location['lng'] as num).toDouble(),
+        latitude: lat,
+        longitude: lng,
         formattedAddress: first['formatted_address'] as String? ?? trimmed,
       );
     } catch (e) {

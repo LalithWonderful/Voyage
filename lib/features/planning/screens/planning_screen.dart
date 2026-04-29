@@ -1238,6 +1238,11 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
       // l'utiliser directement (évite la recherche fuzzy sur le titre qui fait planter
       // l'app Maps sur un nom d'hébergement privé).
       final hotelAddress = dayHotel.metadata['address'] as String?;
+      // Propage lat/lng géocodés au save du doc Hébergement → l'activité
+      // "Retour à hôtel" devient un waypoint avec coords précises pour le
+      // pipeline trajets et le bouton Itinéraire.
+      final hotelLat = (dayHotel.metadata['latitude'] as num?)?.toDouble();
+      final hotelLng = (dayHotel.metadata['longitude'] as num?)?.toDouble();
       rows.add({
         'trip_id': widget.tripId,
         'day_date': day.toIso8601String().split('T').first,
@@ -1248,6 +1253,8 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
         'duration_minutes': 15,
         'price_estimate': 'Gratuit',
         'suggested': true,
+        'latitude': ?hotelLat,
+        'longitude': ?hotelLng,
       });
     }
 

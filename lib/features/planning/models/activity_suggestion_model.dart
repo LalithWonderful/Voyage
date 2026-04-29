@@ -42,6 +42,8 @@ class ActivitySuggestion {
     matchReason: (json['match_reason'] as String?)?.trim().isEmpty == true
         ? null
         : json['match_reason'] as String?,
+    latitude: (json['latitude'] as num?)?.toDouble(),
+    longitude: (json['longitude'] as num?)?.toDouble(),
   );
 
   Map<String, dynamic> toInsertJson(String tripId) => {
@@ -54,6 +56,12 @@ class ActivitySuggestion {
     'suggested': true,
     'duration_minutes': durationMinutes,
     'price_estimate': priceEstimate,
+    // Persistance des coords Places-first : sans ça, le bouton Itinéraire et
+    // le pipeline trajets retombent sur un Places lookup textuel qui échoue
+    // souvent (titre français vs Places en anglais, etc.). Ces 2 colonnes
+    // existent déjà sur `trip_activities` (cf. TripActivity.latitude/longitude).
+    'latitude': latitude,
+    'longitude': longitude,
   };
 }
 
