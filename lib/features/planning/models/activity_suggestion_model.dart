@@ -1,9 +1,12 @@
+import 'package:voyage/features/planning/models/trip_activity_model.dart';
+
 class ActivitySuggestion {
   final DateTime dayDate;
   final String startTime;
   final String title;
   final String? detail;
   final String tag;
+  final ActivityKind kind;
   final int? durationMinutes;
   final String? priceEstimate;
   /// Phrase courte expliquant pourquoi cette option matche le profil voyageur
@@ -24,6 +27,7 @@ class ActivitySuggestion {
     required this.title,
     this.detail,
     required this.tag,
+    this.kind = ActivityKind.main,
     this.durationMinutes,
     this.priceEstimate,
     this.matchReason,
@@ -37,6 +41,7 @@ class ActivitySuggestion {
     title: json['title'] as String,
     detail: json['detail'] as String?,
     tag: json['tag'] as String? ?? 'Activité',
+    kind: (json['activity_kind'] == 'logistic') ? ActivityKind.logistic : ActivityKind.main,
     durationMinutes: (json['duration_minutes'] as num?)?.toInt(),
     priceEstimate: json['price_estimate'] as String?,
     matchReason: (json['match_reason'] as String?)?.trim().isEmpty == true
@@ -53,6 +58,7 @@ class ActivitySuggestion {
     'title': title,
     'detail': detail,
     'tag': tag,
+    'activity_kind': TripActivity.kindColumnValue(kind),
     'suggested': true,
     'duration_minutes': durationMinutes,
     'price_estimate': priceEstimate,

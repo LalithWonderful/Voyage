@@ -1275,6 +1275,11 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
         'title': 'Retour à ${dayHotel.name}',
         if (hotelAddress != null && hotelAddress.isNotEmpty) 'detail': hotelAddress,
         'tag': 'Hébergement',
+        // Le retour à l'hôtel est sémantiquement un transit (déplacement de
+        // fin de journée vers le point d'ancrage). Marqué logistic pour que
+        // la timeline le rende distinctement des activités de contenu, sans
+        // pour autant masquer les infos pratiques (adresse, itinéraire).
+        'activity_kind': 'logistic',
         'duration_minutes': 15,
         'price_estimate': 'Gratuit',
         'suggested': true,

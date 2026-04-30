@@ -367,6 +367,108 @@ class PlacesService {
     }
   }
 
+  /// Autocomplete d'aéroports OU de gares pour les docs de transport.
+  ///
+  /// `type` doit être `'airport'` ou `'train_station'` (types Google Places
+  /// supportés). Filtre les suggestions aux hubs de transport correspondants
+  /// — l'user voit uniquement des aéroports/gares valides et choisit dans la
+  /// liste, plus de saisie libre type "bkkooo".
+  ///
+  /// `sessionToken` doit être un UUID stable durant le burst de saisie (du
+  /// premier keystroke jusqu'au pick d'une suggestion). Permet à Google de
+  /// facturer 1 session = N keystrokes + 1 Place Details, au lieu de billing
+  /// par requête. À régénérer après chaque pick (voir
+  /// `TransportAutocompleteField`).
+  ///
+  /// `language=fr` retourne des noms en français quand dispo (ex: "Aéroport
+  /// Charles-de-Gaulle" plutôt que "Charles de Gaulle Airport").
+  Future<List<({String description, String mainText, String placeId})>>
+      autocompleteTransport(
+    String query, {
+    required String type,
+    String? sessionToken,
+  }) async {
+    final key = AiConstants.googleMapsApiKey;
+    final trimmed = query.trim();
+    if (trimmed.length < 2 || key.isEmpty || key == 'COLLE_TA_CLE_MAPS_ICI') return const [];
+    if (type != 'airport' && type != 'train_station') return const [];
+    try {
+      final params = <String, String>{
+        'input': trimmed,
+        'types': type,
+        'language': 'fr',
+        'key': key,
+      };
+      if (sessionToken != null && sessionToken.isNotEmpty) {
+        params['sessiontoken'] = sessionToken;
+      }
+      final uri = Uri.https('maps.googleapis.com', '/maps/api/place/autocomplete/json', params);
+      final resp = await http.get(uri);
+      if (resp.statusCode != 200) return const [];
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      if (data['status'] != 'OK' && data['status'] != 'ZERO_RESULTS') {
+        developer.log('Autocomplete transport status=${data['status']}', name: 'places');
+        return const [];
+      }
+      final preds = (data['predictions'] as List?) ?? const [];
+      return preds.whereType<Map<String, dynamic>>().map((p) {
+        final desc = (p['description'] as String?) ?? '';
+        final structured = p['structured_formatting'] as Map<String, dynamic>?;
+        final main = (structured?['main_text'] as String?) ?? desc.split(',').first.trim();
+        return (
+          description: desc,
+          mainText: main,
+          placeId: (p['place_id'] as String?) ?? '',
+        );
+      }).where((r) => r.description.isNotEmpty).toList();
+    } catch (e) {
+      developer.log('Erreur Autocomplete transport : $e', name: 'places');
+      return const [];
+    }
+  }
+
+  /// Résout un placeId Google → coords (lat/lng) + nom officiel via Place
+  /// Details. À utiliser après un pick d'autocomplete ; passe le même
+  /// `sessionToken` que l'autocomplete pour rester en tarif "session".
+  ///
+  /// Coût : 1 appel Place Details (~$0.005 avec champs Basic uniquement —
+  /// `geometry/location,name`). À combiner avec `place_lookup_cache` côté
+  /// Supabase pour rendre asymptotiquement gratuit.
+  Future<({double lat, double lng, String name})?> resolvePlaceCoords(
+    String placeId, {
+    String? sessionToken,
+  }) async {
+    final key = AiConstants.googleMapsApiKey;
+    if (placeId.isEmpty || key.isEmpty || key == 'COLLE_TA_CLE_MAPS_ICI') return null;
+    try {
+      final params = <String, String>{
+        'place_id': placeId,
+        'fields': 'geometry/location,name',
+        'language': 'fr',
+        'key': key,
+      };
+      if (sessionToken != null && sessionToken.isNotEmpty) {
+        params['sessiontoken'] = sessionToken;
+      }
+      final uri = Uri.https('maps.googleapis.com', '/maps/api/place/details/json', params);
+      final resp = await http.get(uri);
+      if (resp.statusCode != 200) return null;
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      if (data['status'] != 'OK') return null;
+      final result = data['result'] as Map<String, dynamic>?;
+      final geometry = result?['geometry'] as Map<String, dynamic>?;
+      final location = geometry?['location'] as Map<String, dynamic>?;
+      final lat = (location?['lat'] as num?)?.toDouble();
+      final lng = (location?['lng'] as num?)?.toDouble();
+      final name = (result?['name'] as String?)?.trim() ?? '';
+      if (lat == null || lng == null || name.isEmpty) return null;
+      return (lat: lat, lng: lng, name: name);
+    } catch (e) {
+      developer.log('Erreur resolvePlaceCoords : $e', name: 'places');
+      return null;
+    }
+  }
+
   /// Récupère le code ISO 2 lettres du pays correspondant à un placeId Google.
   /// Utilisé pour restreindre l'autocomplete des étapes au pays choisi en
   /// destination (Thaïlande → 'th', les étapes proposées seront thaï

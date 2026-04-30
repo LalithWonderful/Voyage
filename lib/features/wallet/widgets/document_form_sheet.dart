@@ -1,8 +1,10 @@
 import 'dart:developer' as developer;
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:voyage/core/theme/app_theme.dart';
+import 'package:voyage/core/widgets/transport_autocomplete_field.dart';
 import 'package:voyage/features/auth/providers/auth_provider.dart';
 import 'package:voyage/features/planning/providers/planning_provider.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
@@ -50,6 +52,13 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
   // Champs dynamiques stockés par clé
   final Map<String, TextEditingController> _textCtrls = {};
   final Map<String, DateTime?> _dates = {};
+  // PlaceId Google + session token associés aux champs `from`/`to` (Vol/Train)
+  // quand l'user pick une suggestion via TransportAutocompleteField. Le token
+  // est ré-utilisé au save pour le Place Details (continuité tarif session).
+  // Réinitialisé si l'user édite le champ après un pick (le champ devient
+  // "saisie libre" et retombe en fallback Geocoding texte au save).
+  final Map<String, String> _placeIds = {};
+  final Map<String, String> _sessionTokens = {};
 
   @override
   void initState() {
@@ -139,6 +148,8 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
 
   void _hydrateFromMetadata(Map<String, dynamic> m) {
     _dates.clear();
+    _placeIds.clear();
+    _sessionTokens.clear();
     for (final spec in _fields) {
       final v = m[spec.key];
       if (spec.type == _FieldType.date) {
@@ -149,6 +160,13 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
         _ctrl(spec.key).text = v.toString();
       }
     }
+    // Restaure les placeIds existants pour les endpoints Vol/Train. Permet
+    // l'idempotence au save : si l'user n'a pas changé le champ, on garde
+    // le placeId et on saute Place Details via le cache.
+    final fromPid = m['from_place_id'] as String?;
+    final toPid = m['to_place_id'] as String?;
+    if (fromPid != null && fromPid.isNotEmpty) _placeIds['from'] = fromPid;
+    if (toPid != null && toPid.isNotEmpty) _placeIds['to'] = toPid;
   }
 
   Future<void> _pickDate(String key) async {
@@ -290,6 +308,69 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
         ? '✨ Détecté : ${categoryLabel(newCategory)} — voyage rattaché automatiquement.'
         : '✨ Détecté : ${categoryLabel(newCategory)} — vérifie avant d\'enregistrer.';
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+
+    // Pour les docs Vol/Train extraits par Gemini : résolution silencieuse en
+    // arrière-plan des placeIds Google pour `from`/`to`. Sans ça, le save
+    // tomberait en fallback Geocoding texte (chemin 3) qui n'alimente pas
+    // `place_lookup_cache` → un user qui chercherait le même aéroport plus
+    // tard manuellement repaierait Place Details. Ici on harmonise les deux
+    // modes : Gemini extraction = même bénéfice cache que pick manuel.
+    if (newCategory == DocumentCategory.flight || newCategory == DocumentCategory.train) {
+      // Fire-and-forget : pas d'await pour ne pas bloquer l'UX. Si l'user
+      // édite/save avant que le lookup résolve, le save retombe en chemin 3.
+      // ignore: unawaited_futures
+      _autoResolveTransportPlaceIds();
+    }
+  }
+
+  /// Pour chaque endpoint (`from`/`to`) qui a un texte mais pas de placeId,
+  /// fait un autocomplete Places avec la 1ère suggestion. Si l'user n'a pas
+  /// modifié le champ entre-temps, on persiste le placeId trouvé pour que le
+  /// save bénéficie du cache. Silencieux : aucun feedback UI, aucun blocage.
+  Future<void> _autoResolveTransportPlaceIds() async {
+    final type = _category == DocumentCategory.flight ? 'airport' : 'train_station';
+    final placesService = ref.read(placesServiceProvider);
+    for (final fieldKey in const ['from', 'to']) {
+      final value = _ctrl(fieldKey).text.trim();
+      if (value.isEmpty) continue;
+      if (_placeIds.containsKey(fieldKey)) continue; // déjà résolu
+      // Session token unique pour ce lookup silencieux. Sera ré-utilisé au
+      // save pour le Place Details (continuité tarif session).
+      final token = _newSessionToken();
+      try {
+        final results = await placesService.autocompleteTransport(
+          value,
+          type: type,
+          sessionToken: token,
+        );
+        if (!mounted) return;
+        if (results.isEmpty) continue;
+        // Si l'user a édité entre-temps, on n'écrase pas sa saisie.
+        if (_ctrl(fieldKey).text.trim() != value) continue;
+        final picked = results.first;
+        _placeIds[fieldKey] = picked.placeId;
+        _sessionTokens[fieldKey] = token;
+        // On peut aligner le name sur la 1ère suggestion (ex: "BKK" → "Aéroport
+        // de Bangkok-Suvarnabhumi") pour cohérence avec le mode pick manuel.
+        // setState pour rafraîchir l'affichage du TextField.
+        setState(() {
+          _ctrl(fieldKey).text = picked.mainText;
+        });
+      } catch (e) {
+        developer.log('[gemini-extract] auto-resolve $fieldKey failed: $e', name: 'wallet');
+      }
+    }
+  }
+
+  /// UUID v4-like pour les session tokens Google Places. Mêmes contraintes
+  /// que le widget : juste un identifiant unique côté client, opaque côté
+  /// Google. Dupliqué ici (vs le widget) car cette résolution silencieuse
+  /// court-circuite le widget.
+  String _newSessionToken() {
+    final rng = math.Random.secure();
+    final bytes = List<int>.generate(16, (_) => rng.nextInt(256));
+    final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
   }
 
   /// Retourne la date "principale" d'un document selon sa catégorie.
@@ -393,6 +474,134 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
   /// - Échec (réseau / pas de résultat) : pose `geocoding_failed=true` et
   ///   retire les coords précédentes (l'adresse a changé donc les anciennes
   ///   coords ne sont plus valides).
+  /// Résout un endpoint de transport (`from` ou `to`) en coords + nom canonique
+  /// et écrit le résultat dans `meta`. Trois chemins possibles :
+  ///
+  /// 1. **PlaceId disponible** (l'user a pick une suggestion autocomplete) →
+  ///    lookup `place_lookup_cache` partagé. Hit = 0 appel API. Miss = 1
+  ///    Place Details (Basic, $0.005) puis upsert dans le cache.
+  /// 2. **Pas de placeId mais champ inchangé** (édition sans toucher) → no-op,
+  ///    on garde les coords existantes.
+  /// 3. **Pas de placeId, champ saisi librement** (extraction Gemini, doc legacy
+  ///    importé sans pick) → fallback Geocoding texte avec préfixe + regionHint.
+  ///
+  /// `kind` = 'airport' ou 'train_station' (alimente le cache pour ré-utilisation
+  /// future + permet de différencier les types).
+  Future<void> _resolveTransportEndpoint({
+    required Map<String, dynamic> meta,
+    required String fieldKey,
+    required String kind,
+    required String prefix,
+    required String? regionHint,
+  }) async {
+    final latKey = '${fieldKey}_latitude';
+    final lngKey = '${fieldKey}_longitude';
+    final failKey = '${fieldKey}_geocoding_failed';
+    final placeIdKey = '${fieldKey}_place_id';
+
+    final newVal = (meta[fieldKey] as String?)?.trim() ?? '';
+    if (newVal.isEmpty) {
+      // Champ vidé → on nettoie tout (coords, flag, placeId).
+      meta.remove(latKey);
+      meta.remove(lngKey);
+      meta.remove(failKey);
+      meta.remove(placeIdKey);
+      return;
+    }
+
+    // Chemin 1 : placeId fraîchement posé par autocomplete OU déjà en metadata
+    // (édition sans changement). Sécurise les coords par le cache partagé.
+    final pickedPlaceId = _placeIds[fieldKey];
+    final existingPlaceId = pickedPlaceId ?? (widget.existing?.metadata[placeIdKey] as String?);
+    if (existingPlaceId != null && existingPlaceId.isNotEmpty) {
+      final oldVal = ((widget.existing?.metadata[fieldKey]) as String?)?.trim() ?? '';
+      final hadCoords = widget.existing?.metadata[latKey] != null &&
+          widget.existing?.metadata[lngKey] != null;
+      // Si le user a édité (pas de pick frais) ET le name n'a pas changé ET
+      // les coords sont là, on saute le cache aussi (économie max).
+      if (pickedPlaceId == null && newVal == oldVal && hadCoords) {
+        meta[placeIdKey] = existingPlaceId;
+        meta[latKey] = widget.existing!.metadata[latKey];
+        meta[lngKey] = widget.existing!.metadata[lngKey];
+        meta.remove(failKey);
+        return;
+      }
+      final cache = ref.read(placeLookupCacheServiceProvider);
+      final resolved = await cache.resolveCoords(
+        placeId: existingPlaceId,
+        kind: kind,
+        sessionToken: _sessionTokens[fieldKey],
+      );
+      if (resolved != null) {
+        meta[placeIdKey] = existingPlaceId;
+        meta[latKey] = resolved.lat;
+        meta[lngKey] = resolved.lng;
+        // Si Place Details renvoie un nom différent (ex: "BKK" → "Aéroport
+        // de Bangkok-Suvarnabhumi"), on écrase le name pour cohérence avec
+        // ce que l'user a vu dans le dropdown — c'est déjà le cas si pick
+        // frais, on garantit aussi pour le hit cache pur.
+        if (resolved.name.isNotEmpty) meta[fieldKey] = resolved.name;
+        meta.remove(failKey);
+        return;
+      }
+      // Place Details a foiré (rare) → on tombe en fallback Geocoding texte.
+    }
+
+    // Chemin 3 : pas de placeId, fallback Geocoding texte. Idempotent : pas
+    // de re-call si rien n'a changé.
+    final oldVal = ((widget.existing?.metadata[fieldKey]) as String?)?.trim() ?? '';
+    final hadCoords = widget.existing?.metadata[latKey] != null &&
+        widget.existing?.metadata[lngKey] != null;
+    if (newVal == oldVal && hadCoords) {
+      return;
+    }
+    // Skip le préfixe si l'utilisateur a déjà tapé un mot équivalent (FR/EN/ES).
+    const equivalents = ['airport', 'aéroport', 'aeroport', 'gare', 'station', 'estación', 'estacion', 'bahnhof'];
+    final lower = newVal.toLowerCase();
+    final alreadyTyped = equivalents.any(lower.contains);
+    final query = alreadyTyped ? newVal : '$prefix$newVal';
+    final geo = await ref
+        .read(geocodingServiceProvider)
+        .geocode(query, regionHint: regionHint);
+    if (geo != null) {
+      meta[latKey] = geo.latitude;
+      meta[lngKey] = geo.longitude;
+      meta.remove(failKey);
+      meta.remove(placeIdKey);
+    } else {
+      meta[failKey] = true;
+      meta.remove(latKey);
+      meta.remove(lngKey);
+      meta.remove(placeIdKey);
+    }
+  }
+
+  /// Résout les deux endpoints (`from` et `to`) d'un doc Vol ou Train.
+  Future<void> _geocodeTransportDocument(Map<String, dynamic> meta) async {
+    String? regionHint;
+    if (_tripId != null) {
+      final trip = await ref.read(tripByIdProvider(_tripId!).future);
+      regionHint = trip?.destinationCountryCode;
+    }
+    final isFlight = _category == DocumentCategory.flight;
+    final kind = isFlight ? 'airport' : 'train_station';
+    final prefix = isFlight ? 'airport ' : 'train station ';
+    await _resolveTransportEndpoint(
+      meta: meta,
+      fieldKey: 'from',
+      kind: kind,
+      prefix: prefix,
+      regionHint: regionHint,
+    );
+    await _resolveTransportEndpoint(
+      meta: meta,
+      fieldKey: 'to',
+      kind: kind,
+      prefix: prefix,
+      regionHint: regionHint,
+    );
+  }
+
   Future<void> _geocodeHotelAddress(Map<String, dynamic> meta) async {
     final newAddress = (meta['address'] as String?)?.trim() ?? '';
     if (newAddress.isEmpty) {
@@ -526,6 +735,15 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
       // Échec = flag `geocoding_failed`, le caller affiche un badge UX (pas bloquant).
       if (_category == DocumentCategory.hotel) {
         await _geocodeHotelAddress(builtMeta);
+        if (!mounted) return;
+      }
+      // Géocodage des aéroports/gares pour les docs Vol et Train. Permet de
+      // générer 2 activités virtuelles géolocalisées (départ + arrivée) dans
+      // la timeline (cf. virtualActivitiesFromDocument). Échec sur un endpoint
+      // = flag `from_geocoding_failed` / `to_geocoding_failed`, le warning UX
+      // s'affiche dans la card du wallet.
+      if (_category == DocumentCategory.flight || _category == DocumentCategory.train) {
+        await _geocodeTransportDocument(builtMeta);
         if (!mounted) return;
       }
       final payload = {
@@ -827,6 +1045,39 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
   }
 
   Widget _buildField(_FieldSpec spec) {
+    // Cas spéciaux : champs `from`/`to` des docs Vol/Train → autocomplete
+    // Google Places filtré sur les aéroports/gares. Évite les saisies libres
+    // ("bkkooo") et fournit directement un placeId pour résolution coords
+    // précise via le cache partagé.
+    if ((spec.key == 'from' || spec.key == 'to') &&
+        (_category == DocumentCategory.flight || _category == DocumentCategory.train)) {
+      final type = _category == DocumentCategory.flight
+          ? TransportPlaceType.airport
+          : TransportPlaceType.trainStation;
+      return TransportAutocompleteField(
+        key: ValueKey('${spec.key}_$_category'),
+        type: type,
+        initialValue: _ctrl(spec.key).text,
+        labelText: null, // le label est rendu au-dessus par le parent (cohérence)
+        hintText: type == TransportPlaceType.airport
+            ? 'Ex : Bangkok, BKK, Charles de Gaulle…'
+            : 'Ex : Lyon Part-Dieu, Bangkok Hua Lamphong…',
+        onChanged: (value) {
+          _ctrl(spec.key).text = value;
+          // Si l'user édite après un pick, le placeId stocké n'est plus
+          // valide — on le clear pour retomber en fallback Geocoding au save.
+          if (_placeIds.containsKey(spec.key)) {
+            _placeIds.remove(spec.key);
+            _sessionTokens.remove(spec.key);
+          }
+        },
+        onSelected: (name, placeId, sessionToken) {
+          _ctrl(spec.key).text = name;
+          _placeIds[spec.key] = placeId;
+          _sessionTokens[spec.key] = sessionToken;
+        },
+      );
+    }
     switch (spec.type) {
       case _FieldType.date:
         final d = _dates[spec.key];

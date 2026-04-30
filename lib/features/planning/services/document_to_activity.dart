@@ -72,42 +72,36 @@ List<TripActivity> virtualActivitiesFromDocument(TripDocument doc) {
       return result;
 
     case DocumentCategory.flight:
-      final date = parseDate(m['date']);
-      if (date == null) return const [];
-      final parts = <String>[];
-      if (m['airline'] != null) parts.add(m['airline'] as String);
-      if (m['flight_number'] != null) parts.add(m['flight_number'] as String);
-      final line1 = parts.isEmpty ? doc.name : 'Vol ${parts.join(' ')}';
-      final route = (m['from'] != null && m['to'] != null) ? ' : ${m['from']} → ${m['to']}' : '';
-      return [_make(
-        id: '$virtualActivityPrefix${doc.id}:flight',
+      return _splitTransport(
+        doc: doc,
         tripId: tripId,
-        dayDate: date,
-        startTime: parseTime(m['departure_time'], '00:00'),
-        title: '$line1$route',
-        detail: _flightDetail(m),
-        tag: 'Transport',
-        durationMinutes: _computeDurationFromTimes(m['departure_time'], m['arrival_time']) ?? 180,
-      )];
+        emoji: '✈️',
+        legacyPrefix: 'Vol',
+        legacyKey: 'flight',
+        carrierKey: 'airline',
+        numberKey: 'flight_number',
+        fallbackDuration: 180,
+        m: m,
+        parseDate: parseDate,
+        parseTime: parseTime,
+        legacyDetailBuilder: _flightDetail,
+      );
 
     case DocumentCategory.train:
-      final date = parseDate(m['date']);
-      if (date == null) return const [];
-      final parts = <String>[];
-      if (m['company'] != null) parts.add(m['company'] as String);
-      if (m['train_number'] != null) parts.add(m['train_number'] as String);
-      final line1 = parts.isEmpty ? doc.name : 'Train ${parts.join(' ')}';
-      final route = (m['from'] != null && m['to'] != null) ? ' : ${m['from']} → ${m['to']}' : '';
-      return [_make(
-        id: '$virtualActivityPrefix${doc.id}:train',
+      return _splitTransport(
+        doc: doc,
         tripId: tripId,
-        dayDate: date,
-        startTime: parseTime(m['departure_time'], '00:00'),
-        title: '$line1$route',
-        detail: _trainDetail(m),
-        tag: 'Transport',
-        durationMinutes: _computeDurationFromTimes(m['departure_time'], m['arrival_time']) ?? 120,
-      )];
+        emoji: '🚆',
+        legacyPrefix: 'Train',
+        legacyKey: 'train',
+        carrierKey: 'company',
+        numberKey: 'train_number',
+        fallbackDuration: 120,
+        m: m,
+        parseDate: parseDate,
+        parseTime: parseTime,
+        legacyDetailBuilder: _trainDetail,
+      );
 
     case DocumentCategory.carRental:
       final result = <TripActivity>[];
@@ -122,6 +116,7 @@ List<TripActivity> virtualActivitiesFromDocument(TripDocument doc) {
           title: 'Prise en charge ${doc.name}',
           detail: m['pickup_location'] as String?,
           tag: 'Transport',
+          kind: ActivityKind.logistic,
           durationMinutes: 30,
         ));
       }
@@ -134,6 +129,7 @@ List<TripActivity> virtualActivitiesFromDocument(TripDocument doc) {
           title: 'Retour voiture ${doc.name}',
           detail: m['return_location'] as String?,
           tag: 'Transport',
+          kind: ActivityKind.logistic,
           durationMinutes: 20,
         ));
       }
@@ -177,6 +173,7 @@ TripActivity _make({
   required String title,
   String? detail,
   required String tag,
+  ActivityKind kind = ActivityKind.main,
   required int durationMinutes,
   double? latitude,
   double? longitude,
@@ -189,11 +186,164 @@ TripActivity _make({
     title: title,
     detail: detail,
     tag: tag,
+    kind: kind,
     suggested: false,
     durationMinutes: durationMinutes,
     latitude: latitude,
     longitude: longitude,
   );
+}
+
+/// Génère 1 ou 2 activités virtuelles à partir d'un doc Vol ou Train, selon
+/// les endpoints renseignés :
+///
+/// - `from` ET `to` connus → 2 activités logistic : `:departure` (au point
+///   de départ, au `departure_time`, lat/lng = endpoint origine) + `:arrival`
+///   (au point d'arrivée, au `arrival_time`, lat/lng = endpoint destination).
+///   Si `arrival_time` < `departure_time`, on suppose un trajet de nuit
+///   et l'arrivée est posée à J+1 (approximation tant qu'on n'a pas un
+///   champ `arrival_date` séparé).
+/// - Un seul endpoint → 1 activité (le côté connu uniquement).
+/// - Aucun endpoint → 1 activité legacy (titre simple, format avant split).
+///
+/// Toutes les activités sont `tag: 'Transport'`, `kind: logistic`. Les
+/// coords lat/lng viennent de `from_latitude/from_longitude` et
+/// `to_latitude/to_longitude` posés par le form au save (cf. Phase 2).
+List<TripActivity> _splitTransport({
+  required TripDocument doc,
+  required String tripId,
+  required String emoji,
+  required String legacyPrefix,
+  required String legacyKey,
+  required String carrierKey,
+  required String numberKey,
+  required int fallbackDuration,
+  required Map<String, dynamic> m,
+  required DateTime? Function(dynamic) parseDate,
+  required String Function(dynamic, String) parseTime,
+  required String? Function(Map<String, dynamic>) legacyDetailBuilder,
+}) {
+  final date = parseDate(m['date']);
+  if (date == null) return const [];
+
+  final docId = doc.id;
+  final docName = doc.name;
+
+  final from = (m['from'] as String?)?.trim();
+  final to = (m['to'] as String?)?.trim();
+  final hasFrom = from != null && from.isNotEmpty;
+  final hasTo = to != null && to.isNotEmpty;
+
+  // Aucun endpoint → fallback legacy 1 activité (cas import vide ou
+  // saisie incomplète sans même les villes).
+  if (!hasFrom && !hasTo) {
+    final parts = <String>[];
+    if (m[carrierKey] != null) parts.add(m[carrierKey] as String);
+    if (m[numberKey] != null) parts.add(m[numberKey] as String);
+    final title = parts.isEmpty ? docName : '$legacyPrefix ${parts.join(' ')}';
+    return [_make(
+      id: '$virtualActivityPrefix$docId:$legacyKey',
+      tripId: tripId,
+      dayDate: date,
+      startTime: parseTime(m['departure_time'], '00:00'),
+      title: title,
+      detail: legacyDetailBuilder(m),
+      tag: 'Transport',
+      kind: ActivityKind.logistic,
+      durationMinutes: _computeDurationFromTimes(m['departure_time'], m['arrival_time']) ?? fallbackDuration,
+    )];
+  }
+
+  // Construit le label "Vol TG 122" / "Train SNCF 6512" / "Vol" si rien.
+  final carrier = (m[carrierKey] as String?)?.trim();
+  final number = (m[numberKey] as String?)?.trim();
+  final labelParts = <String>[];
+  if (carrier != null && carrier.isNotEmpty) labelParts.add(carrier);
+  if (number != null && number.isNotEmpty) labelParts.add(number);
+  final transportLabel = labelParts.isEmpty ? legacyPrefix : '$legacyPrefix ${labelParts.join(' ')}';
+
+  final fromLat = (m['from_latitude'] as num?)?.toDouble();
+  final fromLng = (m['from_longitude'] as num?)?.toDouble();
+  final toLat = (m['to_latitude'] as num?)?.toDouble();
+  final toLng = (m['to_longitude'] as num?)?.toDouble();
+
+  final result = <TripActivity>[];
+
+  if (hasFrom) {
+    final detailParts = <String>[];
+    if (hasTo) {
+      detailParts.add('$transportLabel pour $to');
+    } else {
+      detailParts.add(transportLabel);
+    }
+    if (m['seat'] != null) detailParts.add('siège ${m['seat']}');
+    if (m['car'] != null && m['seat'] != null) {
+      detailParts
+        ..removeWhere((p) => p.startsWith('siège'))
+        ..add('voiture ${m['car']} · place ${m['seat']}');
+    }
+    if (m['class'] != null) detailParts.add('${m['class']}');
+    if (m['reservation_number'] != null) detailParts.add('résa ${m['reservation_number']}');
+    result.add(_make(
+      id: '$virtualActivityPrefix$docId:departure',
+      tripId: tripId,
+      dayDate: date,
+      startTime: parseTime(m['departure_time'], '00:00'),
+      title: '$emoji Départ · $from',
+      detail: detailParts.join(' · '),
+      tag: 'Transport',
+      kind: ActivityKind.logistic,
+      durationMinutes: 0,
+      latitude: fromLat,
+      longitude: fromLng,
+    ));
+  }
+
+  if (hasTo) {
+    // Vol/Train de nuit : si arrival_time < departure_time, on suppose J+1.
+    var arrivalDate = date;
+    final dep = m['departure_time'];
+    final arr = m['arrival_time'];
+    if (dep is String && arr is String && _isTimeBefore(arr, dep)) {
+      arrivalDate = date.add(const Duration(days: 1));
+    }
+    final detailParts = <String>[];
+    if (hasFrom) {
+      detailParts.add('$transportLabel depuis $from');
+    } else {
+      detailParts.add(transportLabel);
+    }
+    result.add(_make(
+      id: '$virtualActivityPrefix$docId:arrival',
+      tripId: tripId,
+      dayDate: arrivalDate,
+      startTime: parseTime(m['arrival_time'], '00:00'),
+      title: '$emoji Arrivée · $to',
+      detail: detailParts.join(' · '),
+      tag: 'Transport',
+      kind: ActivityKind.logistic,
+      durationMinutes: 0,
+      latitude: toLat,
+      longitude: toLng,
+    ));
+  }
+
+  return result;
+}
+
+/// Compare deux heures "HH:MM". Retourne true si `a` est strictement avant `b`.
+/// Renvoie false si l'une des deux est mal formée (pas la peine de bouleverser
+/// la date d'arrivée sur des données partielles).
+bool _isTimeBefore(String a, String b) {
+  final ap = a.split(':');
+  final bp = b.split(':');
+  if (ap.length != 2 || bp.length != 2) return false;
+  final ah = int.tryParse(ap[0]);
+  final am = int.tryParse(ap[1]);
+  final bh = int.tryParse(bp[0]);
+  final bm = int.tryParse(bp[1]);
+  if (ah == null || am == null || bh == null || bm == null) return false;
+  return (ah * 60 + am) < (bh * 60 + bm);
 }
 
 String? _flightDetail(Map<String, dynamic> m) {

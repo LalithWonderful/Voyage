@@ -8,6 +8,7 @@ import 'package:voyage/features/planning/services/budget_service.dart';
 import 'package:voyage/features/planning/services/document_to_activity.dart';
 import 'package:voyage/features/planning/services/gemini_cache_service.dart';
 import 'package:voyage/features/planning/services/geocoding_service.dart';
+import 'package:voyage/features/planning/services/place_lookup_cache_service.dart';
 import 'package:voyage/features/planning/services/places_cache_service.dart';
 import 'package:voyage/features/planning/services/places_nearby_service.dart';
 import 'package:voyage/features/planning/services/places_service.dart';
@@ -178,6 +179,13 @@ final geocodingServiceProvider = Provider<GeocodingService>((ref) => GeocodingSe
 
 final placesCacheServiceProvider = Provider<PlacesCacheService>((ref) {
   return PlacesCacheService(
+    ref.watch(supabaseProvider),
+    ref.watch(placesServiceProvider),
+  );
+});
+
+final placeLookupCacheServiceProvider = Provider<PlaceLookupCacheService>((ref) {
+  return PlaceLookupCacheService(
     ref.watch(supabaseProvider),
     ref.watch(placesServiceProvider),
   );
