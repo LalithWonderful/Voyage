@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import 'package:voyage/core/constants/ai_constants.dart';
+import 'package:voyage/features/planning/services/airport_city_overrides.dart';
+import 'package:voyage/features/planning/services/place_components.dart';
 
 class PlacePhoto {
   final String url;
@@ -428,16 +430,17 @@ class PlacesService {
   }
 
   /// Résout un placeId Google → coords (lat/lng) + nom officiel + code pays
-  /// ISO 2 via Place Details. À utiliser après un pick d'autocomplete ;
-  /// passe le même `sessionToken` que l'autocomplete pour rester en tarif
-  /// "session".
+  /// ISO 2 + ville (locality) via Place Details. À utiliser après un pick
+  /// d'autocomplete ; passe le même `sessionToken` que l'autocomplete pour
+  /// rester en tarif "session".
   ///
   /// Coût : 1 appel Place Details (~$0.005 avec champs Basic uniquement —
   /// `geometry/location,name,address_components`). Le `country_code` permet
   /// de signaler les vols/trains incohérents avec la destination du voyage
-  /// (ex: BKK→CNX = TH dans un voyage Chine). À combiner avec
+  /// (ex: BKK→CNX = TH dans un voyage Chine). Le `city` permet de déduire
+  /// l'étape voyage depuis un aéroport (CNX → "Chiang Mai"). À combiner avec
   /// `place_lookup_cache` côté Supabase pour rendre asymptotiquement gratuit.
-  Future<({double lat, double lng, String name, String? countryCode})?> resolvePlaceCoords(
+  Future<({double lat, double lng, String name, String? countryCode, String? city})?> resolvePlaceCoords(
     String placeId, {
     String? sessionToken,
   }) async {
@@ -465,20 +468,49 @@ class PlacesService {
       final lng = (location?['lng'] as num?)?.toDouble();
       final name = (result?['name'] as String?)?.trim() ?? '';
       if (lat == null || lng == null || name.isEmpty) return null;
-      // Extraction du code pays ISO 2 depuis address_components.
+      // Extraction du code pays ISO 2 + ville depuis address_components.
+      // Cascade gérée par pickCityFromComponents : préfère admin_level_1
+      // (province) si locality est une subdivision trop fine (Tambon en
+      // Thaïlande). Cf. place_components.dart.
       String? countryCode;
       final components = (result?['address_components'] as List?) ?? const [];
+      String? locality;
+      String? postalTown;
+      String? adminLevel1;
+      String? sublocalityLevel1;
+      String? adminLevel2;
       for (final comp in components.whereType<Map<String, dynamic>>()) {
-        final types = ((comp['types'] as List?) ?? const []).whereType<String>();
+        final types = ((comp['types'] as List?) ?? const []).whereType<String>().toSet();
         if (types.contains('country')) {
           final shortName = comp['short_name'] as String?;
           if (shortName != null && shortName.isNotEmpty) {
             countryCode = shortName.toLowerCase();
           }
-          break;
         }
+        final long = comp['long_name'] as String?;
+        if (long == null || long.isEmpty) continue;
+        if (types.contains('locality')) locality = long;
+        if (types.contains('postal_town')) postalTown = long;
+        if (types.contains('administrative_area_level_1')) adminLevel1 = long;
+        if (types.contains('sublocality_level_1') || types.contains('sublocality')) {
+          sublocalityLevel1 = long;
+        }
+        if (types.contains('administrative_area_level_2')) adminLevel2 = long;
       }
-      return (lat: lat, lng: lng, name: name, countryCode: countryCode);
+      // Override pour les aéroports majeurs : si les coords matchent un aéroport
+      // connu (haversine < 5 km), on prend la ville touristique attendue par le
+      // voyageur (BKK→Bangkok, CDG→Paris, NRT→Tokyo) au lieu de la subdivision
+      // administrative locale (Samut Prakan, Roissy-en-France, Chiba). Si pas
+      // d'override, fallback sur la cascade address_components standard.
+      final city = overrideCityForAirportLatLng(lat, lng) ??
+          pickCityFromComponents(
+            locality: locality,
+            postalTown: postalTown,
+            adminLevel1: adminLevel1,
+            sublocalityLevel1: sublocalityLevel1,
+            adminLevel2: adminLevel2,
+          );
+      return (lat: lat, lng: lng, name: name, countryCode: countryCode, city: city);
     } catch (e) {
       developer.log('Erreur resolvePlaceCoords : $e', name: 'places');
       return null;

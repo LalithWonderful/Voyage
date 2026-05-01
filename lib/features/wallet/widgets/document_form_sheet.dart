@@ -7,6 +7,7 @@ import 'package:voyage/core/theme/app_theme.dart';
 import 'package:voyage/core/widgets/transport_autocomplete_field.dart';
 import 'package:voyage/features/auth/providers/auth_provider.dart';
 import 'package:voyage/features/planning/providers/planning_provider.dart';
+import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
 import 'package:voyage/features/wallet/models/document_model.dart';
 import 'package:voyage/features/wallet/providers/wallet_provider.dart';
@@ -499,15 +500,17 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
     final failKey = '${fieldKey}_geocoding_failed';
     final placeIdKey = '${fieldKey}_place_id';
     final countryKey = '${fieldKey}_country_code';
+    final cityKey = '${fieldKey}_city';
 
     final newVal = (meta[fieldKey] as String?)?.trim() ?? '';
     if (newVal.isEmpty) {
-      // Champ vidé → on nettoie tout (coords, flag, placeId, pays).
+      // Champ vidé → on nettoie tout (coords, flag, placeId, pays, ville).
       meta.remove(latKey);
       meta.remove(lngKey);
       meta.remove(failKey);
       meta.remove(placeIdKey);
       meta.remove(countryKey);
+      meta.remove(cityKey);
       return;
     }
 
@@ -520,16 +523,18 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
       final hadCoords = widget.existing?.metadata[latKey] != null &&
           widget.existing?.metadata[lngKey] != null;
       // Si le user a édité (pas de pick frais) ET le name n'a pas changé ET
-      // les coords sont là, on saute le cache aussi (économie max).
-      if (pickedPlaceId == null && newVal == oldVal && hadCoords) {
+      // les coords sont là, on saute le cache aussi (économie max). On
+      // restaure aussi country_code et city si déjà en metadata, et on
+      // skip uniquement si on a déjà toutes les infos sinon le re-fetch
+      // enrichit l'entrée legacy.
+      final hadCountry = ((widget.existing?.metadata[countryKey] as String?)?.trim().isNotEmpty) ?? false;
+      final hadCity = ((widget.existing?.metadata[cityKey] as String?)?.trim().isNotEmpty) ?? false;
+      if (pickedPlaceId == null && newVal == oldVal && hadCoords && hadCountry && hadCity) {
         meta[placeIdKey] = existingPlaceId;
         meta[latKey] = widget.existing!.metadata[latKey];
         meta[lngKey] = widget.existing!.metadata[lngKey];
-        // country_code peut être null pour les anciens docs — on garde tel quel
-        final existingCountry = widget.existing?.metadata[countryKey];
-        if (existingCountry != null) {
-          meta[countryKey] = existingCountry;
-        }
+        meta[countryKey] = widget.existing!.metadata[countryKey];
+        meta[cityKey] = widget.existing!.metadata[cityKey];
         meta.remove(failKey);
         return;
       }
@@ -548,6 +553,11 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
         } else {
           meta.remove(countryKey);
         }
+        if (resolved.city != null) {
+          meta[cityKey] = resolved.city;
+        } else {
+          meta.remove(cityKey);
+        }
         // Si Place Details renvoie un nom différent (ex: "BKK" → "Aéroport
         // de Bangkok-Suvarnabhumi"), on écrase le name pour cohérence avec
         // ce que l'user a vu dans le dropdown — c'est déjà le cas si pick
@@ -561,8 +571,8 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
 
     // Chemin 3 : pas de placeId, fallback Geocoding texte. Idempotent : pas
     // de re-call si rien n'a changé ET qu'on a déjà toutes les infos (coords
-    // + country_code). Sans la check country_code, les anciens docs créés
-    // avant l'ajout du champ pays ne verraient jamais leur metadata enrichi
+    // + country_code + city). Sans ces checks, les anciens docs créés avant
+    // l'ajout des champs pays/ville ne verraient jamais leur metadata enrichi
     // — l'user ré-édite + save sans intention de modifier, donc rien
     // n'apparaîtrait. Coût : 1 appel Geocoding (~$0.005) le 1er save d'un
     // doc legacy, gratuit ensuite.
@@ -570,7 +580,8 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
     final hadCoords = widget.existing?.metadata[latKey] != null &&
         widget.existing?.metadata[lngKey] != null;
     final hadCountry = ((widget.existing?.metadata[countryKey] as String?)?.trim().isNotEmpty) ?? false;
-    if (newVal == oldVal && hadCoords && hadCountry) {
+    final hadCity = ((widget.existing?.metadata[cityKey] as String?)?.trim().isNotEmpty) ?? false;
+    if (newVal == oldVal && hadCoords && hadCountry && hadCity) {
       return;
     }
     // Skip le préfixe si l'utilisateur a déjà tapé un mot équivalent (FR/EN/ES).
@@ -586,13 +597,18 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
       meta[lngKey] = geo.longitude;
       meta.remove(failKey);
       meta.remove(placeIdKey);
-      // Geocoding API extrait le country_code depuis address_components quand
-      // dispo (souvent le cas pour les aéroports / gares connues). Permet le
-      // warning "vol hors pays" même en fallback texte sans placeId.
+      // Geocoding API extrait country_code et city depuis address_components
+      // quand dispo. Permet le warning "vol hors pays" + l'auto-création
+      // d'étape même en fallback texte sans placeId.
       if (geo.countryCode != null && geo.countryCode!.isNotEmpty) {
         meta[countryKey] = geo.countryCode;
       } else {
         meta.remove(countryKey);
+      }
+      if (geo.city != null && geo.city!.isNotEmpty) {
+        meta[cityKey] = geo.city;
+      } else {
+        meta.remove(cityKey);
       }
     } else {
       meta[failKey] = true;
@@ -600,6 +616,7 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
       meta.remove(lngKey);
       meta.remove(placeIdKey);
       meta.remove(countryKey);
+      meta.remove(cityKey);
     }
   }
 
@@ -882,7 +899,40 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
         }
       }
 
-      if (mounted) Navigator.of(context).pop();
+      // Auto-création d'étapes du voyage à partir des docs Vol/Train.
+      // Conservatif : on n'ajoute que les villes manquantes dans
+      // `itinerary_segments`, on ne touche jamais aux étapes existantes.
+      // Filtré par destination_country_code (cf. TripSegmentSyncService).
+      List<TripSegment> addedSegments = const [];
+      if (_tripId != null &&
+          (_category == DocumentCategory.flight || _category == DocumentCategory.train)) {
+        try {
+          addedSegments = await ref
+              .read(tripSegmentSyncServiceProvider)
+              .syncFromTransportDocs(_tripId!);
+          if (addedSegments.isNotEmpty) {
+            ref.invalidate(tripByIdProvider(_tripId!));
+            ref.invalidate(tripsProvider);
+          }
+        } catch (e) {
+          debugPrint('[trip-segment-sync] failed: $e');
+        }
+        if (!mounted) return;
+      }
+
+      if (mounted) {
+        if (addedSegments.isNotEmpty) {
+          final cities = addedSegments.map((s) => s.city).join(', ');
+          final s = addedSegments.length > 1 ? 's' : '';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('✨ Étape$s ajoutée$s à ton voyage : $cities'),
+              duration: const Duration(seconds: 6),
+            ),
+          );
+        }
+        Navigator.of(context).pop();
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

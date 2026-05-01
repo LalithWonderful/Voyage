@@ -22,29 +22,27 @@ class PlaceLookupCacheService {
 
   PlaceLookupCacheService(this._client, this._places);
 
-  /// Résout `placeId` → coords + nom + code pays ISO 2. `kind` doit valoir
-  /// 'airport' ou 'train_station'. `sessionToken` est passé au Place Details
-  /// si miss (continuité tarif session avec l'autocomplete précédent).
+  /// Résout `placeId` → coords + nom + code pays ISO 2 + ville. `kind` doit
+  /// valoir 'airport' ou 'train_station'. `sessionToken` est passé au Place
+  /// Details si miss (continuité tarif session avec l'autocomplete précédent).
   ///
-  /// Le `countryCode` est null pour les entrées cachées avant l'ajout de la
-  /// colonne `country_code` (migration `place_lookup_cache_country_code.sql`)
-  /// — pas de regression mais le warning "vol hors pays" ne se déclenche pas
-  /// tant que l'entrée n'est pas réécrite par un nouveau lookup.
-  Future<({double lat, double lng, String name, String? countryCode})?> resolveCoords({
+  /// `countryCode` et `city` peuvent être null pour les entrées cachées avant
+  /// l'ajout des colonnes correspondantes — pas de regression, le code force
+  /// alors un re-fetch pour enrichir.
+  Future<({double lat, double lng, String name, String? countryCode, String? city})?> resolveCoords({
     required String placeId,
     required String kind,
     String? sessionToken,
   }) async {
     if (placeId.isEmpty) return null;
 
-    // 1. Lookup cache. Si HIT MAIS country_code est null (entrée écrite avant
-    // l'ajout de la colonne `country_code`), on bypasse pour re-fetch et
-    // enrichir le cache. Bénéfice unique par entrée : après une fois, le hit
-    // devient gratuit avec country_code.
+    // 1. Lookup cache. Si HIT MAIS country_code OU city manque (entrée écrite
+    // avant l'ajout des colonnes), on bypasse pour re-fetch et enrichir.
+    // Bénéfice unique par entrée : après une fois, le hit devient gratuit.
     try {
       final cached = await _client
           .from('place_lookup_cache')
-          .select('latitude,longitude,name,country_code')
+          .select('latitude,longitude,name,country_code,city')
           .eq('place_id', placeId)
           .maybeSingle();
       if (cached != null) {
@@ -52,11 +50,13 @@ class PlaceLookupCacheService {
         final lng = (cached['longitude'] as num?)?.toDouble();
         final name = (cached['name'] as String?)?.trim() ?? '';
         final cachedCountry = (cached['country_code'] as String?)?.trim();
+        final cachedCity = (cached['city'] as String?)?.trim();
         final hasCountry = cachedCountry != null && cachedCountry.isNotEmpty;
-        if (lat != null && lng != null && name.isNotEmpty && hasCountry) {
+        final hasCity = cachedCity != null && cachedCity.isNotEmpty;
+        if (lat != null && lng != null && name.isNotEmpty && hasCountry && hasCity) {
           developer.log('[place_lookup_cache] HIT $placeId', name: 'place_lookup');
           _touchLastSeen(placeId);
-          return (lat: lat, lng: lng, name: name, countryCode: cachedCountry);
+          return (lat: lat, lng: lng, name: name, countryCode: cachedCountry, city: cachedCity);
         }
         if (lat != null && lng != null && name.isNotEmpty) {
           developer.log('[place_lookup_cache] HIT (enrichment) $placeId', name: 'place_lookup');
@@ -68,7 +68,7 @@ class PlaceLookupCacheService {
       developer.log('[place_lookup_cache] lookup error : $e', name: 'place_lookup');
     }
 
-    // 2. Miss OU enrichissement (entrée legacy sans country_code) → Place Details API
+    // 2. Miss OU enrichissement (entrée legacy sans country_code/city) → Place Details API
     final fresh = await _places.resolvePlaceCoords(placeId, sessionToken: sessionToken);
     if (fresh == null) return null;
 
@@ -81,6 +81,7 @@ class PlaceLookupCacheService {
         'longitude': fresh.lng,
         'kind': kind,
         if (fresh.countryCode != null) 'country_code': fresh.countryCode,
+        if (fresh.city != null) 'city': fresh.city,
         'last_seen_at': DateTime.now().toUtc().toIso8601String(),
       }, onConflict: 'place_id');
     } catch (e) {

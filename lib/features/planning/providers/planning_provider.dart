@@ -14,6 +14,7 @@ import 'package:voyage/features/planning/services/places_nearby_service.dart';
 import 'package:voyage/features/planning/services/places_service.dart';
 import 'package:voyage/features/planning/services/routes_service.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
+import 'package:voyage/features/trips/services/trip_segment_sync_service.dart';
 import 'package:voyage/features/wallet/providers/wallet_provider.dart';
 
 /// Vrai si l'activité est sur un jour strictement antérieur à aujourd'hui.
@@ -189,6 +190,10 @@ final placeLookupCacheServiceProvider = Provider<PlaceLookupCacheService>((ref) 
     ref.watch(supabaseProvider),
     ref.watch(placesServiceProvider),
   );
+});
+
+final tripSegmentSyncServiceProvider = Provider<TripSegmentSyncService>((ref) {
+  return TripSegmentSyncService(ref.watch(supabaseProvider));
 });
 
 final activityPhotosProvider = FutureProvider.family<List<PlacePhoto>, TripActivity>((ref, activity) async {
