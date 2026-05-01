@@ -6,6 +6,8 @@ import 'package:voyage/core/providers/currency_provider.dart';
 import 'package:voyage/core/services/currency_service.dart';
 import 'package:voyage/features/auth/providers/auth_provider.dart';
 import 'package:voyage/features/planning/providers/planning_provider.dart';
+import 'package:voyage/features/planning/services/ai_suggestions_service.dart';
+import 'package:voyage/features/planning/services/places_first_pipeline.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
 import 'package:voyage/features/trips/widgets/regional_loop_sheet.dart';
@@ -286,11 +288,18 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
   String _fmtDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
-  /// Mode "clé en main" V1 — pour l'instant on chaîne uniquement la 1ère moitié
-  /// (boucle régionale qui propose des villes via Gemini). La 2e moitié (génération
-  /// auto du planning) sera la tranche 3 du redesign : pour l'instant, après
-  /// création des étapes, on redirige vers le planning où l'utilisateur peut
-  /// cliquer "Suggérer". Pas idéal UX mais ça compile et ne casse rien.
+  /// Mode "clé en main" V1 — chaîne complète :
+  /// 1. `regional_loop_sheet` propose les villes via Gemini, l'user coche → segments
+  /// 2. Update DB `trips.itinerary_segments`
+  /// 3. Loader bloquant `_TurnkeyPlanningLoaderDialog` ouvert
+  /// 4. `runAutoPlacesFirst` génère les `ActivitySuggestion`
+  /// 5. Insert batch dans `trip_activities`
+  /// 6. Invalide les providers, ferme le loader, navigue vers /planning
+  ///
+  /// **Self-healing** : si étape 4 ou 5 plante après étape 2 réussie, on garde
+  /// les segments créés et on affiche un toast explicite. L'user retombe alors
+  /// naturellement sur le `_NextStepCard` Cas 2 ("Ton planning n'est pas encore
+  /// prêt" + CTA "Générer mon planning") qui le relance via le flow normal.
   Future<void> _runTurnkeyItinerary() async {
     final segments = await openRegionalLoopSheet(
       context, ref,
@@ -312,15 +321,80 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
       ref.invalidate(tripsProvider);
       ref.invalidate(tripByIdProvider(trip.id));
       if (!mounted) return;
-      // TODO tranche 3 : enchaîner avec la génération du planning ici (loader
-      // 1/2 → 2/2). Pour l'instant on navigue, l'utilisateur clique "Suggérer".
-      context.go('/trips/${trip.id}/planning');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erreur : $e'), backgroundColor: AppColors.error),
         );
       }
+      return;
+    }
+    // Étape 2/2 : génération du planning. Si plante, self-healing (toast +
+    // l'user reste sur le détail voyage et voit le Cas 2 "Générer mon planning").
+    await _runTurnkeyPlanningGeneration();
+  }
+
+  /// Étape 2/2 du flow clé en main : génère le planning auto via
+  /// `runAutoPlacesFirst` pendant qu'un loader bloquant tient l'écran.
+  /// Insère en batch dans `trip_activities`. Fermeture + navigation au succès,
+  /// toast graceful à l'échec (segments conservés, l'user retombe sur Cas 2).
+  Future<void> _runTurnkeyPlanningGeneration() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final router = GoRouter.of(context);
+
+    // Loader bloquant : barrierDismissible: false + PopScope dans le widget
+    // pour empêcher aussi le bouton retour Android pendant la génération.
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const _TurnkeyPlanningLoaderDialog(),
+    );
+
+    try {
+      // Trip frais (avec les segments fraîchement créés). On lit via le
+      // provider pour bénéficier du cache + invalidations.
+      final freshTrip = await ref.read(tripByIdProvider(trip.id).future);
+      if (freshTrip == null) throw Exception('Voyage introuvable');
+      final hotels = await ref.read(tripHotelsProvider(trip.id).future);
+      final existingActivities = await ref.read(tripActivitiesProvider(trip.id).future);
+      String norm(String s) => s.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
+      final existingTitlesNormalized = existingActivities.map((a) => norm(a.title)).toSet();
+
+      final suggestions = await runAutoPlacesFirst(
+        trip: freshTrip,
+        hotels: hotels,
+        geocoder: ref.read(geocodingServiceProvider),
+        nearbyService: ref.read(placesNearbyServiceProvider),
+        aiService: ref.read(aiSuggestionsServiceProvider),
+        category: SuggestionCategory.all,
+        existingTitlesNormalized: existingTitlesNormalized,
+        languageCode: 'fr',
+      );
+
+      if (suggestions.isNotEmpty) {
+        final rows = suggestions.map((s) => s.toInsertJson(trip.id)).toList();
+        await ref.read(supabaseProvider).from('trip_activities').insert(rows);
+      }
+      ref.invalidate(tripActivitiesProvider(trip.id));
+      ref.invalidate(tripTransportsProvider(trip.id));
+
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop(); // ferme le loader
+      router.go('/trips/${trip.id}/planning');
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop(); // ferme le loader
+      messenger.showSnackBar(
+        SnackBar(
+          content: const Text(
+            '✓ Étapes créées. La génération du planning a échoué — réessaie depuis "Générer mon planning".',
+          ),
+          duration: const Duration(seconds: 8),
+          backgroundColor: AppColors.accent,
+        ),
+      );
+      // Pas de navigation : l'user reste sur le détail voyage et voit
+      // le _NextStepCard Cas 2 ("Ton planning n'est pas encore prêt").
     }
   }
 
@@ -1335,6 +1409,108 @@ class _TripStatusBadge extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Loader bloquant pour la phase 2/2 du flow "clé en main" (génération auto
+/// du planning Places-first). `barrierDismissible: false` côté caller +
+/// `PopScope` ici → l'user ne peut ni taper outside ni utiliser le bouton
+/// retour pendant les 5–15 secondes du process. Reste à l'écran jusqu'à la
+/// fermeture programmée par le caller (succès → navigation /planning, ou
+/// erreur → toast graceful + reste sur le détail voyage).
+///
+/// Step indicator visible : la phase 1/2 (choix des villes) est marquée
+/// terminée (✓), la phase 2/2 (construction du planning) est en cours
+/// (spinner). Texte rassurant pour normaliser le délai.
+class _TurnkeyPlanningLoaderDialog extends StatelessWidget {
+  const _TurnkeyPlanningLoaderDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      child: Dialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Je prépare ton voyage',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              _StepRow(
+                emoji: '✨',
+                label: '1/2 — Choix des villes',
+                done: true,
+              ),
+              const SizedBox(height: 10),
+              _StepRow(
+                emoji: '🗺',
+                label: '2/2 — Construction de ton planning sur place…',
+                done: false,
+              ),
+              const SizedBox(height: 18),
+              Text(
+                'Ça peut prendre 30 secondes, c\'est normal.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StepRow extends StatelessWidget {
+  final String emoji;
+  final String label;
+  final bool done;
+  const _StepRow({required this.emoji, required this.label, required this.done});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(emoji, style: const TextStyle(fontSize: 18)),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              color: done ? AppColors.textSecondary : AppColors.textPrimary,
+              fontWeight: done ? FontWeight.w400 : FontWeight.w600,
+              decoration: done ? TextDecoration.lineThrough : null,
+              decorationColor: AppColors.textSecondary,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        if (done)
+          Icon(Icons.check_circle, size: 18, color: AppColors.success)
+        else
+          const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2.2),
+          ),
+      ],
     );
   }
 }
