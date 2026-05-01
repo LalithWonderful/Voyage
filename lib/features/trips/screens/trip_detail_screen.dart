@@ -398,6 +398,69 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
     }
   }
 
+  /// Ouvre le dialog de réinitialisation : l'user choisit ce qu'il veut
+  /// effacer (étapes / planning / documents). Cas d'usage : préparation de
+  /// voyage en multi-simulations (tester différents itinéraires sans recréer
+  /// le voyage de zéro). Action **neutre** (bleu primary, pas error rouge) —
+  /// la suppression complète reste un autre bouton distinct.
+  ///
+  /// Le détachement des documents (`trip_id := null`) les conserve dans le
+  /// wallet global, l'user peut les rattacher à un autre voyage. Les
+  /// activités du planning sont supprimées **avec** leurs trajets associés
+  /// (FK : trip_transports référencerait des activities inexistantes).
+  Future<void> _openResetTripDialog(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final result = await showDialog<_ResetChoices>(
+      context: context,
+      builder: (_) => _ResetTripDialog(trip: trip),
+    );
+    if (result == null || !result.hasAny) return;
+    final client = ref.read(supabaseProvider);
+    try {
+      // Ordre des deletes : trajets avant activités (FK trip_transports →
+      // trip_activities), puis le reste. Toujours batch-éable côté Supabase.
+      if (result.planning) {
+        await client.from('trip_transports').delete().eq('trip_id', trip.id);
+        await client.from('trip_activities').delete().eq('trip_id', trip.id);
+      }
+      if (result.documents) {
+        await client.from('trip_documents').update({'trip_id': null}).eq('trip_id', trip.id);
+      }
+      if (result.segments) {
+        await client.from('trips').update({
+          'itinerary_segments': const <Map<String, dynamic>>[],
+        }).eq('id', trip.id);
+      }
+      // Invalidations en cascade pour rafraîchir l'UI partout (détail,
+      // wallet, planning…).
+      ref.invalidate(tripsProvider);
+      ref.invalidate(tripByIdProvider(trip.id));
+      if (result.planning) {
+        ref.invalidate(tripActivitiesProvider(trip.id));
+        ref.invalidate(tripTransportsProvider(trip.id));
+      }
+      if (result.documents) {
+        ref.invalidate(tripDocumentsProvider(trip.id));
+        ref.invalidate(documentsProvider);
+      }
+      // Toast récapitulatif : ce qui a été effacé.
+      final parts = <String>[];
+      if (result.segments) parts.add('étapes');
+      if (result.planning) parts.add('planning');
+      if (result.documents) parts.add('documents détachés');
+      messenger.showSnackBar(SnackBar(
+        content: Text('✓ Voyage réinitialisé : ${parts.join(', ')}'),
+        duration: const Duration(seconds: 4),
+      ));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('Erreur lors de la réinitialisation : $e'),
+        backgroundColor: AppColors.error,
+        duration: const Duration(seconds: 8),
+      ));
+    }
+  }
+
   /// Modal obligatoire de suppression — appelé depuis la section "Actions"
   /// en bas de page. Wording aligné sur la spec V3 (court et direct, l'utilisateur
   /// est déjà dans la zone "Actions" donc on n'a pas besoin de réexpliquer).
@@ -726,6 +789,37 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
                   fontWeight: FontWeight.w600,
                   color: AppColors.textSecondary,
                   letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 8),
+              // Réinitialiser : action neutre (pas destructive), permet de
+              // remettre à zéro un voyage pour tester une nouvelle simulation
+              // sans recréer (cas typique : voyageur explore plusieurs
+              // organisations possibles avant de fixer son choix).
+              InkWell(
+                onTap: () => _openResetTripDialog(context, ref),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.restart_alt, color: AppColors.primary, size: 20),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Réinitialiser ce voyage',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 8),
@@ -1470,6 +1564,175 @@ class _TurnkeyPlanningLoaderDialog extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Choix utilisateur dans `_ResetTripDialog` : 3 catégories indépendantes que
+/// l'user peut effacer en une fois ou séparément.
+class _ResetChoices {
+  final bool segments;
+  final bool planning;
+  final bool documents;
+  const _ResetChoices({
+    this.segments = false,
+    this.planning = false,
+    this.documents = false,
+  });
+  bool get hasAny => segments || planning || documents;
+}
+
+/// Dialog "Réinitialiser ce voyage" — l'user choisit via 3 checkboxes ce
+/// qu'il veut effacer. Affiche aussi le compte (X étapes, Y activités,
+/// Z documents) pour qu'il sache ce qu'il efface. Action **neutre** (pas
+/// destructive) : tout reste local au voyage, on conserve la coquille
+/// (titre, dates, destination, profil, intérêts).
+class _ResetTripDialog extends ConsumerStatefulWidget {
+  final Trip trip;
+  const _ResetTripDialog({required this.trip});
+
+  @override
+  ConsumerState<_ResetTripDialog> createState() => _ResetTripDialogState();
+}
+
+class _ResetTripDialogState extends ConsumerState<_ResetTripDialog> {
+  bool _segments = false;
+  bool _planning = false;
+  bool _documents = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final activitiesAsync = ref.watch(tripActivitiesProvider(widget.trip.id));
+    final docsAsync = ref.watch(tripDocumentsProvider(widget.trip.id));
+    final segmentsCount = widget.trip.itinerarySegments.length;
+    final activitiesCount = activitiesAsync.valueOrNull?.length ?? 0;
+    final documentsCount = docsAsync.valueOrNull?.length ?? 0;
+    final hasAny = _segments || _planning || _documents;
+
+    return AlertDialog(
+      title: const Text('Réinitialiser ce voyage ?'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Choisis ce que tu veux effacer. Le voyage est conservé (titre, dates, destination).',
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.4),
+          ),
+          const SizedBox(height: 12),
+          // Cascade descendante uniquement : cocher Étapes coche aussi
+          // Planning (un planning sans étapes ancres devient incohérent).
+          // Mais cocher Planning seul est OK (cas typique : re-générer le
+          // planning sans changer les étapes, par ex. après avoir testé un
+          // mode auto puis voulu le mode co-pilote).
+          _ResetCheckboxTile(
+            label: 'Étapes',
+            sub: segmentsCount > 0
+                ? '$segmentsCount ville${segmentsCount > 1 ? "s" : ""} (le planning sera aussi effacé)'
+                : 'aucune',
+            value: _segments,
+            enabled: segmentsCount > 0,
+            onChanged: (v) => setState(() {
+              _segments = v;
+              if (v) _planning = true; // cascade descendante seulement
+            }),
+          ),
+          _ResetCheckboxTile(
+            label: 'Planning',
+            sub: activitiesCount > 0
+                ? '$activitiesCount activité${activitiesCount > 1 ? "s" : ""} + trajets'
+                : 'aucun',
+            value: _planning,
+            enabled: activitiesCount > 0,
+            onChanged: (v) => setState(() => _planning = v),
+          ),
+          _ResetCheckboxTile(
+            label: 'Documents',
+            sub: documentsCount > 0
+                ? '$documentsCount document${documentsCount > 1 ? "s" : ""} — détachés (conservés dans ton wallet)'
+                : 'aucun',
+            value: _documents,
+            enabled: documentsCount > 0,
+            onChanged: (v) => setState(() => _documents = v),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Annuler'),
+        ),
+        TextButton(
+          onPressed: hasAny
+              ? () => Navigator.pop(
+                    context,
+                    _ResetChoices(
+                      segments: _segments,
+                      planning: _planning,
+                      documents: _documents,
+                    ),
+                  )
+              : null,
+          style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+          child: const Text('Réinitialiser'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ResetCheckboxTile extends StatelessWidget {
+  final String label;
+  final String sub;
+  final bool value;
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+  const _ResetCheckboxTile({
+    required this.label,
+    required this.sub,
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: enabled ? () => onChanged(!value) : null,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Checkbox(
+              value: value,
+              onChanged: enabled ? (v) => onChanged(v ?? false) : null,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: enabled ? AppColors.textPrimary : AppColors.textSecondary,
+                    ),
+                  ),
+                  Text(
+                    sub,
+                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
