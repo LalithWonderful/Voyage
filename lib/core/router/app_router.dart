@@ -93,6 +93,13 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (_, state) => TripMapScreen(tripId: state.pathParameters['id']!),
           ),
           GoRoute(path: '/wallet', builder: (_, __) => const WalletScreen()),
+          // Vue Wallet filtrée sur un voyage (depuis le détail voyage). Réutilise
+          // WalletScreen avec filterTripId pré-rempli — le filtre par voyage est
+          // alors caché (déjà imposé par la route).
+          GoRoute(
+            path: '/trips/:id/documents',
+            builder: (_, state) => WalletScreen(filterTripId: state.pathParameters['id']!),
+          ),
           GoRoute(path: '/assistant', builder: (_, __) => const AssistantScreen()),
           GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
         ],

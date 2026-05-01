@@ -767,7 +767,10 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
                   icon: Icons.wallet,
                   label: 'Documents',
                   subtitle: 'Billets, hôtels, confirmations',
-                  onTap: () => context.go('/wallet'),
+                  // Vue filtrée sur ce voyage uniquement (depuis l'écran détail
+                  // voyage l'user est dans la "bulle" de ce voyage). Le Wallet
+                  // global reste accessible via la nav principale.
+                  onTap: () => context.go('/trips/${trip.id}/documents'),
                 ),
                 const SizedBox(height: 12),
               ],
