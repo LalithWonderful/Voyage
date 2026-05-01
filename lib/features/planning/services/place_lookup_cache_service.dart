@@ -22,40 +22,53 @@ class PlaceLookupCacheService {
 
   PlaceLookupCacheService(this._client, this._places);
 
-  /// Résout `placeId` → coords + nom. `kind` doit valoir 'airport' ou
-  /// 'train_station'. `sessionToken` est passé au Place Details si miss
-  /// (continuité tarif session avec l'autocomplete précédent).
-  Future<({double lat, double lng, String name})?> resolveCoords({
+  /// Résout `placeId` → coords + nom + code pays ISO 2. `kind` doit valoir
+  /// 'airport' ou 'train_station'. `sessionToken` est passé au Place Details
+  /// si miss (continuité tarif session avec l'autocomplete précédent).
+  ///
+  /// Le `countryCode` est null pour les entrées cachées avant l'ajout de la
+  /// colonne `country_code` (migration `place_lookup_cache_country_code.sql`)
+  /// — pas de regression mais le warning "vol hors pays" ne se déclenche pas
+  /// tant que l'entrée n'est pas réécrite par un nouveau lookup.
+  Future<({double lat, double lng, String name, String? countryCode})?> resolveCoords({
     required String placeId,
     required String kind,
     String? sessionToken,
   }) async {
     if (placeId.isEmpty) return null;
 
-    // 1. Lookup cache
+    // 1. Lookup cache. Si HIT MAIS country_code est null (entrée écrite avant
+    // l'ajout de la colonne `country_code`), on bypasse pour re-fetch et
+    // enrichir le cache. Bénéfice unique par entrée : après une fois, le hit
+    // devient gratuit avec country_code.
     try {
       final cached = await _client
           .from('place_lookup_cache')
-          .select('latitude,longitude,name')
+          .select('latitude,longitude,name,country_code')
           .eq('place_id', placeId)
           .maybeSingle();
       if (cached != null) {
         final lat = (cached['latitude'] as num?)?.toDouble();
         final lng = (cached['longitude'] as num?)?.toDouble();
         final name = (cached['name'] as String?)?.trim() ?? '';
-        if (lat != null && lng != null && name.isNotEmpty) {
+        final cachedCountry = (cached['country_code'] as String?)?.trim();
+        final hasCountry = cachedCountry != null && cachedCountry.isNotEmpty;
+        if (lat != null && lng != null && name.isNotEmpty && hasCountry) {
           developer.log('[place_lookup_cache] HIT $placeId', name: 'place_lookup');
-          // Refresh soft de last_seen_at (fire-and-forget, on ignore les erreurs)
           _touchLastSeen(placeId);
-          return (lat: lat, lng: lng, name: name);
+          return (lat: lat, lng: lng, name: name, countryCode: cachedCountry);
         }
+        if (lat != null && lng != null && name.isNotEmpty) {
+          developer.log('[place_lookup_cache] HIT (enrichment) $placeId', name: 'place_lookup');
+        }
+      } else {
+        developer.log('[place_lookup_cache] MISS $placeId', name: 'place_lookup');
       }
-      developer.log('[place_lookup_cache] MISS $placeId', name: 'place_lookup');
     } catch (e) {
       developer.log('[place_lookup_cache] lookup error : $e', name: 'place_lookup');
     }
 
-    // 2. Miss → Place Details API
+    // 2. Miss OU enrichissement (entrée legacy sans country_code) → Place Details API
     final fresh = await _places.resolvePlaceCoords(placeId, sessionToken: sessionToken);
     if (fresh == null) return null;
 
@@ -67,6 +80,7 @@ class PlaceLookupCacheService {
         'latitude': fresh.lat,
         'longitude': fresh.lng,
         'kind': kind,
+        if (fresh.countryCode != null) 'country_code': fresh.countryCode,
         'last_seen_at': DateTime.now().toUtc().toIso8601String(),
       }, onConflict: 'place_id');
     } catch (e) {

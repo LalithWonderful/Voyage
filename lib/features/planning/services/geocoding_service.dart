@@ -7,8 +7,18 @@ class GeocodingResult {
   final double latitude;
   final double longitude;
   final String formattedAddress;
+  /// Code pays ISO 2 (lowercase) extrait des `address_components` quand
+  /// présent. Permet de signaler les vols/trains hors du pays du voyage
+  /// même quand on est passé par le fallback Geocoding texte (pas de
+  /// placeId dispo).
+  final String? countryCode;
 
-  const GeocodingResult({required this.latitude, required this.longitude, required this.formattedAddress});
+  const GeocodingResult({
+    required this.latitude,
+    required this.longitude,
+    required this.formattedAddress,
+    this.countryCode,
+  });
 }
 
 class GeocodingService {
@@ -44,14 +54,29 @@ class GeocodingService {
       final location = first['geometry']['location'] as Map<String, dynamic>;
       final lat = (location['lat'] as num).toDouble();
       final lng = (location['lng'] as num).toDouble();
+      // Extraction du code pays ISO 2 depuis address_components — déjà inclus
+      // dans la réponse Geocoding API par défaut, pas d'appel supplémentaire.
+      String? countryCode;
+      final components = (first['address_components'] as List?) ?? const [];
+      for (final comp in components.whereType<Map<String, dynamic>>()) {
+        final types = ((comp['types'] as List?) ?? const []).whereType<String>();
+        if (types.contains('country')) {
+          final shortName = comp['short_name'] as String?;
+          if (shortName != null && shortName.isNotEmpty) {
+            countryCode = shortName.toLowerCase();
+          }
+          break;
+        }
+      }
       developer.log(
-        'Geocoding OK "$trimmed" → ${lat.toStringAsFixed(5)},${lng.toStringAsFixed(5)}',
+        'Geocoding OK "$trimmed" → ${lat.toStringAsFixed(5)},${lng.toStringAsFixed(5)} (country=$countryCode)',
         name: 'geocoding',
       );
       return GeocodingResult(
         latitude: lat,
         longitude: lng,
         formattedAddress: first['formatted_address'] as String? ?? trimmed,
+        countryCode: countryCode,
       );
     } catch (e) {
       developer.log('Erreur geocoding : $e', name: 'geocoding');

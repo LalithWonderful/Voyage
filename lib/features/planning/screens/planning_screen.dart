@@ -888,7 +888,7 @@ class PlanningScreen extends ConsumerWidget {
                   ]);
                 }
                 final transports = ref.watch(tripTransportsProvider(tripId)).valueOrNull ?? const [];
-                return _PlanningContent(tripId: tripId, activities: activities, transports: transports);
+                return _PlanningContent(tripId: tripId, trip: trip, activities: activities, transports: transports);
               }),
             ),
           ),
@@ -1946,9 +1946,13 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
 
 class _PlanningContent extends ConsumerStatefulWidget {
   final String tripId;
+  // Trip nécessaire pour ancrer J1 = trip.startDate (pas le 1er jour avec
+  // activité). Nullable au cas où le tripByIdProvider est en cours de
+  // chargement — fallback alors sur le comportement legacy basé activités.
+  final Trip? trip;
   final List<TripActivity> activities;
   final List<TripTransport> transports;
-  const _PlanningContent({required this.tripId, required this.activities, this.transports = const []});
+  const _PlanningContent({required this.tripId, required this.trip, required this.activities, this.transports = const []});
 
   @override
   ConsumerState<_PlanningContent> createState() => _PlanningContentState();
@@ -2000,6 +2004,21 @@ class _PlanningContentState extends ConsumerState<_PlanningContent> {
     String norm(String s) => s.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
     final seen = <String>{};
     final uniqueDays = <DateTime>{};
+    // Initialise avec TOUS les jours de la plage du voyage [startDate, endDate]
+    // pour que J1=startDate, J2=startDate+1, etc., même quand le planning n'a
+    // pas encore d'activité sur ces jours. Sans ça, J1 dériverait du 1er jour
+    // ayant une activité (cas observé : voyage 11-31 mai + seul un vol au
+    // 15 mai → J1 affichait 15 mai au lieu du 11).
+    final trip = widget.trip;
+    if (trip != null) {
+      final start = DateTime(trip.startDate.year, trip.startDate.month, trip.startDate.day);
+      final end = DateTime(trip.endDate.year, trip.endDate.month, trip.endDate.day);
+      for (var d = start; !d.isAfter(end); d = d.add(const Duration(days: 1))) {
+        uniqueDays.add(d);
+      }
+    }
+    // Ajoute aussi les jours des activités hors plage (cas edge : vol pré-voyage
+    // ou retour post-voyage avec une date qui sort des bornes).
     for (final a in widget.activities) {
       final key = '${a.dayDate.toIso8601String().split('T').first}|${a.startTime}|${norm(a.title)}';
       if (seen.add(key)) {
@@ -2073,6 +2092,7 @@ class _PlanningContentState extends ConsumerState<_PlanningContent> {
           days: _sortedDays,
           currentIndex: _currentIndex,
           monthsShort: _monthsShort,
+          tripStartDate: widget.trip?.startDate,
           onTap: (i) {
             setState(() => _currentIndex = i);
             _pageController.animateToPage(i, duration: const Duration(milliseconds: 220), curve: Curves.easeOut);
@@ -2099,7 +2119,23 @@ class _PlanningContentState extends ConsumerState<_PlanningContent> {
                 header: Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: _DayHeader(
-                    title: 'Jour ${i + 1} · ${_weekdays[day.weekday - 1]} ${day.day} ${_monthsLong[day.month - 1]}',
+                    // Le numéro J est calculé depuis trip.startDate, pas depuis
+                    // l'index dans _sortedDays. Sans ça, J1 dériverait du 1er
+                    // jour avec activité au lieu du 1er jour du voyage. Pour
+                    // les jours hors plage (avant startDate / après endDate),
+                    // on retombe sur l'index pour ne pas afficher J0 ou J-1.
+                    title: () {
+                      final trip = widget.trip;
+                      if (trip != null) {
+                        final start = DateTime(trip.startDate.year, trip.startDate.month, trip.startDate.day);
+                        final dayKey = DateTime(day.year, day.month, day.day);
+                        final dayNumber = dayKey.difference(start).inDays + 1;
+                        if (dayNumber >= 1) {
+                          return 'Jour $dayNumber · ${_weekdays[day.weekday - 1]} ${day.day} ${_monthsLong[day.month - 1]}';
+                        }
+                      }
+                      return 'Jour ${i + 1} · ${_weekdays[day.weekday - 1]} ${day.day} ${_monthsLong[day.month - 1]}';
+                    }(),
                     count: dayActs.length,
                     tripId: widget.tripId,
                     day: day,
@@ -2358,13 +2394,28 @@ class _DayPillsBar extends StatelessWidget {
   final int currentIndex;
   final List<String> monthsShort;
   final ValueChanged<int> onTap;
+  // Ancre pour le calcul de J : J1 = tripStartDate, pas le 1er jour de `days`.
+  // Permet d'afficher J5 pour le 15 mai d'un voyage commençant le 11 mai même
+  // si seul le 15 mai est dans `days` (cas planning quasi-vide).
+  final DateTime? tripStartDate;
 
   const _DayPillsBar({
     required this.days,
     required this.currentIndex,
     required this.monthsShort,
     required this.onTap,
+    required this.tripStartDate,
   });
+
+  String _dayLabel(DateTime d, int i) {
+    if (tripStartDate != null) {
+      final start = DateTime(tripStartDate!.year, tripStartDate!.month, tripStartDate!.day);
+      final dayKey = DateTime(d.year, d.month, d.day);
+      final n = dayKey.difference(start).inDays + 1;
+      if (n >= 1) return 'J$n';
+    }
+    return 'J${i + 1}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2393,7 +2444,7 @@ class _DayPillsBar extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      'J${i + 1}',
+                      _dayLabel(d, i),
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,

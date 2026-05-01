@@ -58,13 +58,31 @@ class TransportDocWarnings extends StatelessWidget {
       }
     }
 
+    // "Vol/Train hors du pays du voyage" : on alerte SEULEMENT si les 2
+    // endpoints sont dans un même pays ≠ destination du voyage. Pour les
+    // vols internationaux légitimes (ex: Paris→Tokyo dans voyage Japon =
+    // CDG-FR + NRT-JP), un seul endpoint est hors → pas de warning.
+    // Si on n'a pas l'info pays sur l'un des 2 (ancien cache, fallback
+    // Geocoding texte), on s'abstient pour ne pas faire de faux positif.
+    bool foreignTransport = false;
+    final tripCountry = trip?.destinationCountryCode?.trim().toLowerCase();
+    if (tripCountry != null && tripCountry.isNotEmpty) {
+      final fromCountry = (m['from_country_code'] as String?)?.trim().toLowerCase();
+      final toCountry = (m['to_country_code'] as String?)?.trim().toLowerCase();
+      if (fromCountry != null && fromCountry.isNotEmpty &&
+          toCountry != null && toCountry.isNotEmpty) {
+        foreignTransport = fromCountry == toCountry && fromCountry != tripCountry;
+      }
+    }
+
     final hasAny = missingDate ||
         missingTimes ||
         missingFrom ||
         missingTo ||
         fromGeocodingFailed ||
         toGeocodingFailed ||
-        dateOutOfRange;
+        dateOutOfRange ||
+        foreignTransport;
     if (!hasAny) return const SizedBox.shrink();
 
     final isFlight = doc.category == DocumentCategory.flight;
@@ -72,6 +90,7 @@ class TransportDocWarnings extends StatelessWidget {
     final toMissingLabel = isFlight ? 'Aéroport d\'arrivée manquant' : 'Gare d\'arrivée manquante';
     final fromUnknownLabel = isFlight ? 'Aéroport de départ introuvable' : 'Gare de départ introuvable';
     final toUnknownLabel = isFlight ? 'Aéroport d\'arrivée introuvable' : 'Gare d\'arrivée introuvable';
+    final foreignLabel = isFlight ? 'Vol hors du pays du voyage' : 'Trajet hors du pays du voyage';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -104,6 +123,10 @@ class TransportDocWarnings extends StatelessWidget {
         ] else if (toGeocodingFailed) ...[
           const SizedBox(height: 4),
           _row(toUnknownLabel),
+        ],
+        if (foreignTransport) ...[
+          const SizedBox(height: 4),
+          _row(foreignLabel),
         ],
       ],
     );

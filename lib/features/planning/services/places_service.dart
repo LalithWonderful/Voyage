@@ -427,14 +427,17 @@ class PlacesService {
     }
   }
 
-  /// Résout un placeId Google → coords (lat/lng) + nom officiel via Place
-  /// Details. À utiliser après un pick d'autocomplete ; passe le même
-  /// `sessionToken` que l'autocomplete pour rester en tarif "session".
+  /// Résout un placeId Google → coords (lat/lng) + nom officiel + code pays
+  /// ISO 2 via Place Details. À utiliser après un pick d'autocomplete ;
+  /// passe le même `sessionToken` que l'autocomplete pour rester en tarif
+  /// "session".
   ///
   /// Coût : 1 appel Place Details (~$0.005 avec champs Basic uniquement —
-  /// `geometry/location,name`). À combiner avec `place_lookup_cache` côté
-  /// Supabase pour rendre asymptotiquement gratuit.
-  Future<({double lat, double lng, String name})?> resolvePlaceCoords(
+  /// `geometry/location,name,address_components`). Le `country_code` permet
+  /// de signaler les vols/trains incohérents avec la destination du voyage
+  /// (ex: BKK→CNX = TH dans un voyage Chine). À combiner avec
+  /// `place_lookup_cache` côté Supabase pour rendre asymptotiquement gratuit.
+  Future<({double lat, double lng, String name, String? countryCode})?> resolvePlaceCoords(
     String placeId, {
     String? sessionToken,
   }) async {
@@ -443,7 +446,7 @@ class PlacesService {
     try {
       final params = <String, String>{
         'place_id': placeId,
-        'fields': 'geometry/location,name',
+        'fields': 'geometry/location,name,address_components',
         'language': 'fr',
         'key': key,
       };
@@ -462,7 +465,20 @@ class PlacesService {
       final lng = (location?['lng'] as num?)?.toDouble();
       final name = (result?['name'] as String?)?.trim() ?? '';
       if (lat == null || lng == null || name.isEmpty) return null;
-      return (lat: lat, lng: lng, name: name);
+      // Extraction du code pays ISO 2 depuis address_components.
+      String? countryCode;
+      final components = (result?['address_components'] as List?) ?? const [];
+      for (final comp in components.whereType<Map<String, dynamic>>()) {
+        final types = ((comp['types'] as List?) ?? const []).whereType<String>();
+        if (types.contains('country')) {
+          final shortName = comp['short_name'] as String?;
+          if (shortName != null && shortName.isNotEmpty) {
+            countryCode = shortName.toLowerCase();
+          }
+          break;
+        }
+      }
+      return (lat: lat, lng: lng, name: name, countryCode: countryCode);
     } catch (e) {
       developer.log('Erreur resolvePlaceCoords : $e', name: 'places');
       return null;

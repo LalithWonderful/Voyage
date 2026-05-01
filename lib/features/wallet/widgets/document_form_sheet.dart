@@ -498,14 +498,16 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
     final lngKey = '${fieldKey}_longitude';
     final failKey = '${fieldKey}_geocoding_failed';
     final placeIdKey = '${fieldKey}_place_id';
+    final countryKey = '${fieldKey}_country_code';
 
     final newVal = (meta[fieldKey] as String?)?.trim() ?? '';
     if (newVal.isEmpty) {
-      // Champ vidé → on nettoie tout (coords, flag, placeId).
+      // Champ vidé → on nettoie tout (coords, flag, placeId, pays).
       meta.remove(latKey);
       meta.remove(lngKey);
       meta.remove(failKey);
       meta.remove(placeIdKey);
+      meta.remove(countryKey);
       return;
     }
 
@@ -523,6 +525,11 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
         meta[placeIdKey] = existingPlaceId;
         meta[latKey] = widget.existing!.metadata[latKey];
         meta[lngKey] = widget.existing!.metadata[lngKey];
+        // country_code peut être null pour les anciens docs — on garde tel quel
+        final existingCountry = widget.existing?.metadata[countryKey];
+        if (existingCountry != null) {
+          meta[countryKey] = existingCountry;
+        }
         meta.remove(failKey);
         return;
       }
@@ -536,6 +543,11 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
         meta[placeIdKey] = existingPlaceId;
         meta[latKey] = resolved.lat;
         meta[lngKey] = resolved.lng;
+        if (resolved.countryCode != null) {
+          meta[countryKey] = resolved.countryCode;
+        } else {
+          meta.remove(countryKey);
+        }
         // Si Place Details renvoie un nom différent (ex: "BKK" → "Aéroport
         // de Bangkok-Suvarnabhumi"), on écrase le name pour cohérence avec
         // ce que l'user a vu dans le dropdown — c'est déjà le cas si pick
@@ -548,11 +560,17 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
     }
 
     // Chemin 3 : pas de placeId, fallback Geocoding texte. Idempotent : pas
-    // de re-call si rien n'a changé.
+    // de re-call si rien n'a changé ET qu'on a déjà toutes les infos (coords
+    // + country_code). Sans la check country_code, les anciens docs créés
+    // avant l'ajout du champ pays ne verraient jamais leur metadata enrichi
+    // — l'user ré-édite + save sans intention de modifier, donc rien
+    // n'apparaîtrait. Coût : 1 appel Geocoding (~$0.005) le 1er save d'un
+    // doc legacy, gratuit ensuite.
     final oldVal = ((widget.existing?.metadata[fieldKey]) as String?)?.trim() ?? '';
     final hadCoords = widget.existing?.metadata[latKey] != null &&
         widget.existing?.metadata[lngKey] != null;
-    if (newVal == oldVal && hadCoords) {
+    final hadCountry = ((widget.existing?.metadata[countryKey] as String?)?.trim().isNotEmpty) ?? false;
+    if (newVal == oldVal && hadCoords && hadCountry) {
       return;
     }
     // Skip le préfixe si l'utilisateur a déjà tapé un mot équivalent (FR/EN/ES).
@@ -568,11 +586,20 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
       meta[lngKey] = geo.longitude;
       meta.remove(failKey);
       meta.remove(placeIdKey);
+      // Geocoding API extrait le country_code depuis address_components quand
+      // dispo (souvent le cas pour les aéroports / gares connues). Permet le
+      // warning "vol hors pays" même en fallback texte sans placeId.
+      if (geo.countryCode != null && geo.countryCode!.isNotEmpty) {
+        meta[countryKey] = geo.countryCode;
+      } else {
+        meta.remove(countryKey);
+      }
     } else {
       meta[failKey] = true;
       meta.remove(latKey);
       meta.remove(lngKey);
       meta.remove(placeIdKey);
+      meta.remove(countryKey);
     }
   }
 
