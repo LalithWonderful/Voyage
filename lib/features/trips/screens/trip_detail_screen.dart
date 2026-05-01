@@ -353,9 +353,29 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
       ref.invalidate(documentsProvider);
       messenger.showSnackBar(SnackBar(content: Text('« ${trip.title} » supprimé.')));
       router.go('/trips');
-    } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('Erreur : $e'), backgroundColor: AppColors.error),
+    } catch (e, st) {
+      // Cascade peut avoir échoué partiellement → on rafraîchit l'UI quand
+      // même. AlertDialog plutôt que SnackBar : l'erreur reste affichée et
+      // sélectable jusqu'au dismissal manuel (un SnackBar disparait avant
+      // lecture quand l'écran rebuild après invalidate).
+      debugPrint('[trip-delete] échec suppression voyage ${trip.id} : $e');
+      debugPrint('[trip-delete] stack: $st');
+      ref.invalidate(tripsProvider);
+      ref.invalidate(hasTripsProvider);
+      ref.invalidate(documentsProvider);
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogCtx) => AlertDialog(
+          title: const Text('Erreur lors de la suppression'),
+          content: SelectableText('$e'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
       );
     }
   }

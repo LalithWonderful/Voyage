@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:voyage/core/theme/app_theme.dart';
 import 'package:voyage/features/wallet/models/document_model.dart';
 import 'package:voyage/features/wallet/providers/wallet_provider.dart';
+import 'package:voyage/features/trips/providers/trips_provider.dart';
 import 'package:voyage/features/wallet/widgets/document_form_sheet.dart';
 import 'package:voyage/features/wallet/widgets/hotel_doc_warnings.dart';
+import 'package:voyage/features/wallet/widgets/transport_doc_warnings.dart';
 
 class WalletScreen extends ConsumerWidget {
   const WalletScreen({super.key});
@@ -109,6 +111,17 @@ class DocumentCard extends ConsumerWidget {
                     Text('N° ${doc.reservationNumber}', style: TextStyle(fontSize: 10, color: AppColors.textSecondary, fontStyle: FontStyle.italic)),
                   ],
                   HotelDocWarnings(doc: doc, fontSize: 10),
+                  // Trip nécessaire pour valider la date du vol/train contre la
+                  // plage du voyage. `valueOrNull` : si le trip est encore en
+                  // train de charger ou sans tripId, on rend juste les
+                  // warnings doc-only (date manquante, geocoding failed).
+                  TransportDocWarnings(
+                    doc: doc,
+                    trip: doc.tripId != null
+                        ? ref.watch(tripByIdProvider(doc.tripId!)).valueOrNull
+                        : null,
+                    fontSize: 10,
+                  ),
                 ],
               ),
             ),

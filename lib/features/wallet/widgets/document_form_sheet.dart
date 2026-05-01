@@ -576,6 +576,46 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
     }
   }
 
+  /// Si l'utilisateur n'a pas rempli `from`/`to` mais que le `name` contient
+  /// un indice exploitable, on parse pour pré-remplir les champs. Le préfixe
+  /// (Vol|Train|Flight) en début est retiré. Deux heuristiques en cascade :
+  ///
+  /// 1. **Séparateur explicite** (→, _, -, " to ", " vers "…) entouré d'espaces.
+  ///    Couvre "Vol Bangkok → Chiang Mai", "Vol Bangkok _ Chiang Mai".
+  ///    Le `\s+SEP\s+` évite de casser les noms composés (Saint-Étienne,
+  ///    San Francisco).
+  /// 2. **2 codes IATA** (exactement 3 lettres majuscules) dans le name.
+  ///    Couvre "Vol BKK CNX", "BKK → CNX vol direct AF 422" (les 2 codes
+  ///    sont extraits, les autres tokens — AF=2 lettres — ignorés).
+  ///    Si moins ou plus de 2 IATA détectés, on skip (ambiguïté).
+  void _inferFromToFromName(Map<String, dynamic> meta) {
+    final hasFrom = ((meta['from'] as String?)?.trim() ?? '').isNotEmpty;
+    final hasTo = ((meta['to'] as String?)?.trim() ?? '').isNotEmpty;
+    if (hasFrom && hasTo) return;
+
+    var name = _nameCtrl.text.trim();
+    if (name.isEmpty) return;
+    name = name.replaceFirst(RegExp(r'^(vol|train|flight)\s+', caseSensitive: false), '');
+
+    // Heuristique 1 : séparateur explicite.
+    final separator = RegExp(r'\s+(→|->|—|–|_|to|vers|vs|-)\s+', caseSensitive: false);
+    final parts = name.split(separator).map((p) => p.trim()).where((p) => p.isNotEmpty).toList();
+    if (parts.length >= 2) {
+      if (!hasFrom) meta['from'] = parts.first;
+      if (!hasTo) meta['to'] = parts.last;
+      return;
+    }
+
+    // Heuristique 2 : 2 codes IATA exacts (3 lettres MAJUSCULES). Très
+    // spécifique, donc faible risque de faux positif. Si 0, 1 ou >2 matches,
+    // on n'infère rien (ambigu).
+    final iata = RegExp(r'\b[A-Z]{3}\b').allMatches(name).map((m) => m.group(0)!).toList();
+    if (iata.length == 2) {
+      if (!hasFrom) meta['from'] = iata[0];
+      if (!hasTo) meta['to'] = iata[1];
+    }
+  }
+
   /// Résout les deux endpoints (`from` et `to`) d'un doc Vol ou Train.
   Future<void> _geocodeTransportDocument(Map<String, dynamic> meta) async {
     String? regionHint;
@@ -741,8 +781,15 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
       // générer 2 activités virtuelles géolocalisées (départ + arrivée) dans
       // la timeline (cf. virtualActivitiesFromDocument). Échec sur un endpoint
       // = flag `from_geocoding_failed` / `to_geocoding_failed`, le warning UX
-      // s'affiche dans la card du wallet.
+      // s'affiche dans la card du wallet (TransportDocWarnings — qui couvre
+      // aussi date manquante / date hors plage / horaires manquants, donc pas
+      // besoin d'un toast supplémentaire au save).
       if (_category == DocumentCategory.flight || _category == DocumentCategory.train) {
+        // Auto pré-remplissage from/to depuis le name si l'user n'a pas rempli
+        // les champs (cas Lalith : "Vol Bangkok _ Chiang Mai" tapé en NOM mais
+        // champs from/to vides). Évite le fallback "1 seule activité legacy"
+        // dans virtualActivitiesFromDocument et déclenche le split en 2.
+        _inferFromToFromName(builtMeta);
         await _geocodeTransportDocument(builtMeta);
         if (!mounted) return;
       }

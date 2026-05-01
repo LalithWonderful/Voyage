@@ -161,6 +161,7 @@ class _TripsScreenState extends ConsumerState<TripsScreen> {
                               },
                               onDismissed: (_) async {
                                 final messenger = ScaffoldMessenger.of(context);
+                                final navContext = context;
                                 try {
                                   await deleteTripCascade(ref.read(supabaseProvider), trip.id);
                                   ref.invalidate(tripsProvider);
@@ -168,10 +169,29 @@ class _TripsScreenState extends ConsumerState<TripsScreen> {
                                   messenger.showSnackBar(
                                     SnackBar(content: Text('« ${trip.title} » supprimé.')),
                                   );
-                                } catch (e) {
+                                } catch (e, st) {
+                                  // Suppression : un SnackBar court ne tient pas (le swipe + le
+                                  // rebuild de la liste après invalidate fait disparaitre le
+                                  // SnackBar avant lecture). On utilise un AlertDialog qui reste
+                                  // jusqu'au dismissal manuel + texte sélectable pour copie. Log
+                                  // console aussi (debugPrint = visible en `flutter run`).
+                                  debugPrint('[trip-delete] échec suppression voyage ${trip.id} : $e');
+                                  debugPrint('[trip-delete] stack: $st');
                                   ref.invalidate(tripsProvider);
-                                  messenger.showSnackBar(
-                                    SnackBar(content: Text('Erreur : $e'), backgroundColor: AppColors.error),
+                                  ref.invalidate(hasTripsProvider);
+                                  if (!navContext.mounted) return;
+                                  await showDialog<void>(
+                                    context: navContext,
+                                    builder: (dialogCtx) => AlertDialog(
+                                      title: const Text('Erreur lors de la suppression'),
+                                      content: SelectableText('$e'),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(dialogCtx),
+                                          child: const Text('OK'),
+                                        ),
+                                      ],
+                                    ),
                                   );
                                 }
                               },

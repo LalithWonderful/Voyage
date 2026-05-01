@@ -2654,17 +2654,49 @@ class _ActivityItem extends ConsumerWidget {
     }
   }
 
+  Future<void> _openLogisticItinerary(BuildContext context) async {
+    if (!activity.hasCoordinates) return;
+    // Mode simple pour les étapes logistiques : on omet `origin=`, Google Maps
+    // utilise la géoloc temps réel → guidage in-situ. Pour les vols/gares
+    // c'est le cas d'usage standard (l'user veut savoir comment aller à
+    // l'aéroport depuis où il se trouve, pas pré-calculer un trajet).
+    final uri = Uri.parse(
+      'https://www.google.com/maps/dir/?api=1&destination=${activity.latitude},${activity.longitude}',
+    );
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Impossible d\'ouvrir Google Maps.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final suggested = activity.suggested;
-    final timeLabel = suggested ? '${activity.startTime} · Pour vous ✨' : activity.startTime;
+    final isLogistic = activity.isLogistic;
+    // Le bandeau "Pour vous ✨" n'a de sens que pour les vraies recommandations
+    // de contenu (visites/restos suggérés par l'IA). Sur un retour hôtel
+    // auto-inséré (logistic + suggested), c'est trompeur — on retombe sur
+    // l'heure simple.
+    final timeLabel = (suggested && !isLogistic) ? '${activity.startTime} · Pour vous ✨' : activity.startTime;
+    // Couleur d'accent de l'item : sur une activité logistic, on privilégie le
+    // bleu institutionnel (rassurant, "j'ai prévu") plutôt que l'orange de
+    // suggestion. Logistic l'emporte quand les deux flags sont actifs.
+    final useAccentColor = suggested && !isLogistic;
 
-    // Détermine les couleurs de fond/bordure : overlap > suggested > default
+    // Détermine les couleurs de fond/bordure : overlap > logistic > suggested > default
     final Color bg;
     final Color borderColor;
     if (overlapColors != null) {
       bg = overlapColors!.$1;
       borderColor = overlapColors!.$2;
+    } else if (isLogistic) {
+      // Slate doux + left-strip bleu → distinct visuellement, mais pas
+      // effacé. Ne masque jamais l'info pratique (heure/lieu/durée/itinéraire).
+      bg = const Color(0xFFF8FAFC); // slate-50
+      borderColor = const Color(0xFFCBD5E1); // slate-300
     } else if (suggested) {
       bg = const Color(0xFFFFFBEB);
       borderColor = const Color(0xFFFDE68A);
@@ -2682,9 +2714,9 @@ class _ActivityItem extends ConsumerWidget {
               width: 12, height: 12, margin: const EdgeInsets.only(top: 10),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: suggested ? AppColors.accent : AppColors.primary,
+                color: useAccentColor ? AppColors.accent : AppColors.primary,
                 border: Border.all(color: Colors.white, width: 2),
-                boxShadow: [BoxShadow(color: (suggested ? AppColors.accent : AppColors.primary).withValues(alpha: 0.4), blurRadius: 4)],
+                boxShadow: [BoxShadow(color: (useAccentColor ? AppColors.accent : AppColors.primary).withValues(alpha: 0.4), blurRadius: 4)],
               ),
             ),
             Expanded(child: Container(width: 2, color: AppColors.border, margin: const EdgeInsets.only(left: 5))),
@@ -2696,7 +2728,7 @@ class _ActivityItem extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(timeLabel, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: suggested ? AppColors.accent : AppColors.textSecondary)),
+                  Text(timeLabel, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: useAccentColor ? AppColors.accent : (isLogistic ? AppColors.primary : AppColors.textSecondary))),
                   const SizedBox(height: 4),
                   InkWell(
                     onTap: () async {
@@ -2720,7 +2752,8 @@ class _ActivityItem extends ConsumerWidget {
                       color: bg,
                       // Border uniforme obligatoire pour pouvoir utiliser borderRadius
                       // (Flutter interdit les BorderSide de couleurs différentes + borderRadius).
-                      // Le marqueur "activité virtuelle" est rendu comme un strip coloré enfant ci-dessous.
+                      // Le marqueur "activité virtuelle" / "logistique" est rendu comme un
+                      // strip coloré enfant ci-dessous.
                       border: Border.all(color: borderColor),
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -2728,7 +2761,13 @@ class _ActivityItem extends ConsumerWidget {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          if (isVirtualActivity(activity.id))
+                          // Strip 4px à gauche : bleu primary pour logistic (signal "transit
+                          // important, j'ai prévu"), gris pour les autres activités virtuelles
+                          // (signal "vient d'un doc"). Une activité logistic virtuelle prend
+                          // le bleu (priorité info-pratique).
+                          if (isLogistic)
+                            Container(width: 4, color: AppColors.primary)
+                          else if (isVirtualActivity(activity.id))
                             Container(width: 4, color: AppColors.textSecondary),
                           Expanded(
                             child: Padding(
@@ -2752,8 +2791,8 @@ class _ActivityItem extends ConsumerWidget {
                                 children: [
                                   _Pill(
                                     label: activity.tag,
-                                    color: suggested ? AppColors.accent : AppColors.primary,
-                                    bg: suggested ? const Color(0xFFFEF3C7) : AppColors.primaryLight,
+                                    color: useAccentColor ? AppColors.accent : AppColors.primary,
+                                    bg: useAccentColor ? const Color(0xFFFEF3C7) : AppColors.primaryLight,
                                   ),
                                   if (activity.durationMinutes != null && activity.durationMinutes! > 0)
                                     _Pill(label: '⏱ ${formatDuration(activity.durationMinutes)}', color: AppColors.textSecondary, bg: const Color(0xFFF3F4F6)),
@@ -2764,7 +2803,22 @@ class _ActivityItem extends ConsumerWidget {
                             ],
                           ),
                         ),
-                        if (isVirtualActivity(activity.id))
+                        // Action de droite : pour les activités logistic AVEC coords, on
+                        // rend un raccourci "Itinéraire" prominent — les déplacements
+                        // sont anxiogènes pour un voyageur, on garde l'info pratique
+                        // toujours à un tap. Sinon, fallback sur les icônes existantes
+                        // (link pour virtual, lock pour passé, delete sinon).
+                        if (isLogistic && activity.hasCoordinates)
+                          IconButton(
+                            onPressed: () => _openLogisticItinerary(context),
+                            icon: const Icon(Icons.directions, size: 20),
+                            color: AppColors.primary,
+                            splashRadius: 20,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                            tooltip: 'Itinéraire',
+                          )
+                        else if (isVirtualActivity(activity.id))
                           Padding(
                             padding: EdgeInsets.all(6),
                             child: Icon(Icons.link, size: 16, color: AppColors.textSecondary),
