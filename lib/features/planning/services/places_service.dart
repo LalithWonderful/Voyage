@@ -250,24 +250,65 @@ class PlacesService {
     return info.photos;
   }
 
-  /// Autocomplete de noms de villes pour un widget de saisie.
-  /// Filtre les résultats sur le type "(cities)" → exclut régions/pays/POI.
-  /// Le `description` retourné est ce qu'on affiche dans le dropdown ("Gérardmer, France").
-  /// Utilise `language=fr` pour des noms en français quand disponible.
-  /// Retourne une liste vide en cas d'erreur (silencieux, pas d'exception).
-  /// Autocomplete villes avec restriction optionnelle à un pays. `countryCode`
-  /// est le code ISO 2 lettres en minuscules (ex: 'th' pour Thaïlande, 'ma'
-  /// pour Maroc). Quand fourni, Google ne renvoie QUE les villes du pays — ce
-  /// qui sécurise la saisie d'étapes sur les voyages "Pays" (ex: voyage
-  /// Thaïlande → étapes proposées : Bangkok, Chiang Mai, Phuket, pas Paris).
+  /// Autocomplete de noms d'étapes touristiques (villes ET îles, archipels,
+  /// presqu'îles, etc.) pour un widget de saisie. Le `description` retourné
+  /// est ce qu'on affiche dans le dropdown ("Gérardmer, France"). Utilise
+  /// `language=fr` pour des noms en français quand disponible.
+  ///
+  /// **Double call** `(cities)` + `geocode` puis fusion par `placeId` :
+  /// - `(cities)` couvre les villes classiques (locality / admin_3) — c'est
+  ///   ce que Google priorise et range en 1er.
+  /// - `geocode` couvre les autres geocoded results (admin_2, sublocality,
+  ///   et certains natural_feature).
+  /// - Sans le double call, les îles thaï type Koh Samet (classées
+  ///   `natural_feature`) ne remontaient pas en tapant "ko" même en
+  ///   restreignant au pays. Cas Lalith 2026-05-02. Idem prévisible pour
+  ///   Bali, Koh Phangan, Mykonos, etc.
+  ///
+  /// Coût : 2 appels Autocomplete au lieu de 1 (~$5.66/1000 saisies au
+  /// lieu de $2.83). À cacher en backlog `places_autocomplete_cache` pour
+  /// rendre asymptotiquement gratuit (cf. `project_open_improvements.md`).
+  ///
+  /// Filtre côté client : on bloque les types trop larges (country,
+  /// administrative_area_level_1) ou trop précis (adresses, codes postaux,
+  /// rues). Tout le reste passe — locality, sublocality, natural_feature,
+  /// archipelago, admin_2/3, etc.
+  ///
+  /// `countryCode` (ISO 2 lowercase, ex: 'th') restreint aux résultats du
+  /// pays — utile pour les voyages "Pays" (ex: voyage Thaïlande → étapes
+  /// proposées thaï uniquement, pas Paris).
   Future<List<({String description, String mainText, String placeId})>> autocompleteCities(String query, {String? countryCode}) async {
     final key = AiConstants.googleMapsApiKey;
     final trimmed = query.trim();
     if (trimmed.length < 2 || key.isEmpty || key == 'COLLE_TA_CLE_MAPS_ICI') return const [];
+    // Lance les 2 appels en parallèle pour ne pas doubler la latence.
+    final results = await Future.wait([
+      _autocompleteEtape(trimmed, '(cities)', countryCode, key),
+      _autocompleteEtape(trimmed, 'geocode', countryCode, key),
+    ]);
+    // Dédup par placeId. Ordre : (cities) en premier (priorité naturelle aux
+    // villes), puis les ajouts de geocode (îles/archipels) après.
+    final seen = <String>{};
+    final merged = <({String description, String mainText, String placeId})>[];
+    for (final list in results) {
+      for (final item in list) {
+        if (item.placeId.isEmpty) continue;
+        if (seen.add(item.placeId)) merged.add(item);
+      }
+    }
+    return merged;
+  }
+
+  Future<List<({String description, String mainText, String placeId})>> _autocompleteEtape(
+    String trimmed,
+    String typesParam,
+    String? countryCode,
+    String key,
+  ) async {
     try {
       final uri = Uri.https('maps.googleapis.com', '/maps/api/place/autocomplete/json', {
         'input': trimmed,
-        'types': '(cities)',
+        'types': typesParam,
         'language': 'fr',
         if (countryCode != null && countryCode.isNotEmpty) 'components': 'country:$countryCode',
         'key': key,
@@ -276,11 +317,15 @@ class PlacesService {
       if (resp.statusCode != 200) return const [];
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
       if (data['status'] != 'OK' && data['status'] != 'ZERO_RESULTS') {
-        developer.log('Autocomplete status=${data['status']}', name: 'places');
+        developer.log('Autocomplete[$typesParam] status=${data['status']}', name: 'places');
         return const [];
       }
       final preds = (data['predictions'] as List?) ?? const [];
-      return preds.whereType<Map<String, dynamic>>().map((p) {
+      return preds.whereType<Map<String, dynamic>>().where((p) {
+        final types = ((p['types'] as List?) ?? const []).whereType<String>().toSet();
+        if (types.any(_blockedEtapeTypes.contains)) return false;
+        return true;
+      }).map((p) {
         final desc = (p['description'] as String?) ?? '';
         final structured = p['structured_formatting'] as Map<String, dynamic>?;
         final main = (structured?['main_text'] as String?) ?? desc.split(',').first.trim();
@@ -291,10 +336,28 @@ class PlacesService {
         );
       }).where((r) => r.description.isNotEmpty).toList();
     } catch (e) {
-      developer.log('Erreur Autocomplete : $e', name: 'places');
+      developer.log('Erreur Autocomplete[$typesParam] : $e', name: 'places');
       return const [];
     }
   }
+
+  /// Types Google à exclure pour la sélection d'une **étape** de voyage.
+  /// Trop large (un pays / une région) ou trop précis (une adresse exacte,
+  /// un n° de rue) — l'étape c'est entre les 2 : ville, île, presqu'île,
+  /// quartier touristique connu.
+  static const _blockedEtapeTypes = <String>{
+    'country',
+    'administrative_area_level_1',
+    'street_address',
+    'route',
+    'premise',
+    'subpremise',
+    'street_number',
+    'postal_code',
+    'postal_code_prefix',
+    'intersection',
+    'plus_code',
+  };
 
   /// Variante d'`autocompleteCities` qui n'applique PAS le filtre `(cities)` :
   /// renvoie aussi les pays et régions (administrative_area_level_*). Utilisé
