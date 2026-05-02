@@ -574,7 +574,7 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
     final willBeOnlySegment =
         (existing != null && _segments.length == 1) ||
         (existing == null && _segments.isEmpty);
-    final result = await showDialog<TripSegment?>(
+    final result = await showDialog<_SegmentEditResult?>(
       context: context,
       builder: (ctx) => _SegmentEditorDialog(
         existing: existing,
@@ -584,17 +584,74 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
         restrictToCountryCode: _destinationCountryCode,
         lockedToTripDays: willBeOnlySegment,
         tripDays: _tripDays,
+        tripStartDate: widget.trip.startDate,
+        existingSegments: _segments,
       ),
     );
     if (result == null) return;
     setState(() {
       if (index != null) {
-        _segments[index] = result;
+        _segments[index] = result.segment;
+      } else if (result.insertAtDay == null) {
+        // Append simple à la fin (cas par défaut, 80% des usages).
+        _segments.add(result.segment);
       } else {
-        _segments.add(result);
+        // Insertion au milieu d'un séjour : split de l'étape coupée en
+        // morceaux "avant" + nouveau + "après" (même ville pour le retour).
+        // Cas typique : voyage Bangkok 44j, l'user ajoute Ko Samet 2j à
+        // partir du jour 6 → Bangkok 5j / Ko Samet 2j / Bangkok 37j.
+        _insertSegmentAtDay(result.segment, result.insertAtDay!);
       }
       _enforceSingleSegmentRule();
     });
+  }
+
+  /// Insère un segment à une position chronologique précise (1-based) en
+  /// splittant l'étape qui couvre ce jour. Préserve la durée totale du
+  /// voyage : la ville coupée garde l'équivalent de ses jours, juste répartis
+  /// en avant + retour.
+  ///
+  /// Cas couverts :
+  /// - `day` tombe au début d'une étape → pas de "avant", on insère + on
+  ///   réduit l'étape coupée du nombre de jours du nouveau.
+  /// - `day` tombe au milieu d'une étape → split en 3 (avant + nouveau + après).
+  /// - `day` tombe au-delà de toutes les étapes existantes → append simple.
+  /// - Si le nouveau segment dépasse la durée disponible dans l'étape coupée,
+  ///   on tronque le "après" à 0 (= étape coupée disparaît, le nouveau prend
+  ///   sa place complète). Le warning UX existant ("X jours placés dépasse Y")
+  ///   alerte si la somme totale dépasse `tripDays`.
+  void _insertSegmentAtDay(TripSegment newSegment, int day) {
+    var cumulative = 0;
+    for (var i = 0; i < _segments.length; i++) {
+      final s = _segments[i];
+      final segStart = cumulative + 1;
+      final segEnd = cumulative + s.days;
+      if (day >= segStart && day <= segEnd) {
+        final daysBeforeInSeg = day - segStart;
+        final remainingAfter = s.days - daysBeforeInSeg - newSegment.days;
+        if (daysBeforeInSeg == 0) {
+          // Pas de morceau "avant" : on insère le nouveau, et l'étape
+          // existante perd ses 1ers jours.
+          if (remainingAfter > 0) {
+            _segments[i] = s.copyWith(days: remainingAfter);
+            _segments.insert(i, newSegment);
+          } else {
+            _segments[i] = newSegment;
+          }
+        } else {
+          // Split en 2 ou 3 morceaux.
+          _segments[i] = s.copyWith(days: daysBeforeInSeg);
+          _segments.insert(i + 1, newSegment);
+          if (remainingAfter > 0) {
+            _segments.insert(i + 2, s.copyWith(days: remainingAfter));
+          }
+        }
+        return;
+      }
+      cumulative += s.days;
+    }
+    // Aucun segment ne couvre ce jour → append à la fin.
+    _segments.add(newSegment);
   }
 
   @override
@@ -1351,6 +1408,12 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
 /// Les dates exactes sont calculées au runtime depuis l'ordre dans la liste.
 /// Utilise CityAutocompleteField pour empêcher les fautes d'orthographe et
 /// la saisie de régions (ex: "Alsace") au lieu de villes.
+/// Résultat retourné par `_SegmentEditorDialog`. `insertAtDay` est non-null
+/// quand l'user, en mode ajout, a explicitement choisi un jour de début (= il
+/// veut placer l'étape AU MILIEU du voyage). Dans ce cas le caller doit faire
+/// un split de l'étape qui couvre ce jour. Si null → append simple à la fin.
+typedef _SegmentEditResult = ({TripSegment segment, int? insertAtDay});
+
 class _SegmentEditorDialog extends ConsumerStatefulWidget {
   final TripSegment? existing;
   /// Code ISO 2 lettres du pays de la destination du voyage. Quand fourni,
@@ -1363,11 +1426,21 @@ class _SegmentEditorDialog extends ConsumerStatefulWidget {
   final bool lockedToTripDays;
   /// Durée totale du voyage — utilisée comme valeur quand `lockedToTripDays`.
   final int tripDays;
+  /// Date de début du voyage — sert à afficher la date concrète sous le
+  /// picker "Démarrer le jour X" (ex: "Jour 6 · ven. 27 juin"). Aide le
+  /// voyageur à se repérer plutôt que de raisonner uniquement en jours.
+  final DateTime? tripStartDate;
+  /// Liste actuelle des étapes — sert à calculer le default du picker
+  /// "Démarrer le jour X" (= sum des `days` + 1, soit le 1er jour libre
+  /// après la dernière étape). Utilisé seulement en mode ajout.
+  final List<TripSegment> existingSegments;
   const _SegmentEditorDialog({
     this.existing,
     this.restrictToCountryCode,
     this.lockedToTripDays = false,
     required this.tripDays,
+    this.tripStartDate,
+    this.existingSegments = const [],
   });
 
   @override
@@ -1378,7 +1451,23 @@ class _SegmentEditorDialogState extends ConsumerState<_SegmentEditorDialog> {
   String _city = '';
   String? _country;
   late int _days;
+  /// Date de début choisie par l'user via le date picker. Visible uniquement
+  /// en mode ajout (pas édition) et si voyage > 1 jour ET tripStartDate
+  /// connue. Default = 1er jour libre après les étapes existantes (= append
+  /// par défaut, l'user peut ramener la date au milieu pour insérer une
+  /// excursion).
+  DateTime? _startDate;
   String? _error;
+
+  /// Le date picker ne sert que pour l'ajout d'une nouvelle étape (déplacer
+  /// une étape existante = drag-drop dans la liste, géré ailleurs). Pas
+  /// affiché non plus quand l'étape couvre tout le voyage ou si on n'a pas
+  /// la `tripStartDate` (cas edge).
+  bool get _showStartDatePicker =>
+      widget.existing == null &&
+      !widget.lockedToTripDays &&
+      widget.tripDays > 1 &&
+      widget.tripStartDate != null;
 
   @override
   void initState() {
@@ -1388,6 +1477,39 @@ class _SegmentEditorDialogState extends ConsumerState<_SegmentEditorDialog> {
     _days = widget.lockedToTripDays
         ? widget.tripDays
         : widget.existing?.days ?? 2;
+    if (widget.tripStartDate != null) {
+      final placedDays = widget.existingSegments.fold<int>(0, (a, s) => a + s.days);
+      final offset = placedDays.clamp(0, widget.tripDays - 1);
+      _startDate = widget.tripStartDate!.add(Duration(days: offset));
+    }
+  }
+
+  /// Convertit la `_startDate` en jour 1-based depuis `tripStartDate`.
+  /// Utilisé au submit pour passer un `insertAtDay` au caller. Si pas de
+  /// startDate sélectionnée, retombe sur 1.
+  int _startDayFromDate() {
+    if (widget.tripStartDate == null || _startDate == null) return 1;
+    final s = DateTime(widget.tripStartDate!.year, widget.tripStartDate!.month, widget.tripStartDate!.day);
+    final d = DateTime(_startDate!.year, _startDate!.month, _startDate!.day);
+    return d.difference(s).inDays + 1;
+  }
+
+  Future<void> _pickStartDate() async {
+    final start = widget.tripStartDate;
+    if (start == null) return;
+    final tripStart = DateTime(start.year, start.month, start.day);
+    final tripEnd = tripStart.add(Duration(days: widget.tripDays - 1));
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _startDate ?? tripStart,
+      firstDate: tripStart,
+      lastDate: tripEnd,
+      helpText: 'Démarrer cette étape le',
+      locale: const Locale('fr', 'FR'),
+    );
+    if (picked != null && mounted) {
+      setState(() => _startDate = picked);
+    }
   }
 
   void _submit() {
@@ -1400,10 +1522,28 @@ class _SegmentEditorDialogState extends ConsumerState<_SegmentEditorDialog> {
       setState(() => _error = 'Au moins 1 jour.');
       return;
     }
-    // Si l'utilisateur édite la ville sans changer la sélection autocomplete, on
-    // garde le pays existant (cas modif d'une étape déjà saisie). Si la ville a
-    // changé via la saisie manuelle, _country a été reset à null.
-    Navigator.of(context).pop(TripSegment(city: city, days: _days, country: _country));
+    final segment = TripSegment(city: city, days: _days, country: _country);
+    // En mode édition OU si l'user n'a pas changé la date (= valeur par
+    // défaut "à la suite des étapes existantes"), on retombe sur le
+    // comportement simple (insertAtDay null → append).
+    final placedDays = widget.existingSegments.fold<int>(0, (a, s) => a + s.days);
+    final defaultStartDay = (placedDays + 1).clamp(1, widget.tripDays);
+    final startDay = _showStartDatePicker ? _startDayFromDate() : defaultStartDay;
+    final isAppend = !_showStartDatePicker || startDay >= defaultStartDay;
+    Navigator.of(context).pop<_SegmentEditResult>((
+      segment: segment,
+      insertAtDay: isAppend ? null : startDay,
+    ));
+  }
+
+  /// Affichage humain d'une date : "ven. 27 juin 2026".
+  String _formatDate(DateTime d) {
+    const weekdays = ['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'];
+    const months = [
+      'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+      'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
+    ];
+    return '${weekdays[d.weekday - 1]} ${d.day} ${months[d.month - 1]} ${d.year}';
   }
 
   @override
@@ -1485,6 +1625,55 @@ class _SegmentEditorDialogState extends ConsumerState<_SegmentEditorDialog> {
                 'Les dates précises sont calculées automatiquement à partir de l\'ordre des étapes.',
                 style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.4),
               ),
+              if (_showStartDatePicker) ...[
+                const SizedBox(height: 16),
+                Text('DÉMARRER LE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+                const SizedBox(height: 6),
+                // Bouton qui ouvre un date picker contraint à la plage du
+                // voyage. Plus intuitif qu'un compteur de jours : le
+                // voyageur pense en dates, pas en numéros relatifs.
+                InkWell(
+                  onTap: _pickStartDate,
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: AppColors.primary, width: 1.5),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.calendar_today_outlined, size: 18, color: AppColors.primary),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _startDate != null ? _formatDate(_startDate!) : 'Choisir une date',
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                          ),
+                        ),
+                        Icon(Icons.expand_more, color: AppColors.textSecondary),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  // Hint dynamique : explique l'effet selon la position. Si
+                  // l'user laisse la date par défaut (= à la suite), on dit
+                  // ça. Sinon on explique le split (= retour automatique à la
+                  // ville d'avant créé pour préserver la cohérence).
+                  () {
+                    final placedDays = widget.existingSegments.fold<int>(0, (a, s) => a + s.days);
+                    final defaultStartDay = (placedDays + 1).clamp(1, widget.tripDays);
+                    final currentStartDay = _startDayFromDate();
+                    if (currentStartDay >= defaultStartDay) {
+                      return 'Cette étape s\'ajoutera à la suite des autres.';
+                    }
+                    return 'Cette étape s\'insère au milieu de ton voyage. Le retour à la ville précédente sera créé automatiquement.';
+                  }(),
+                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.4),
+                ),
+              ],
             ],
             if (_error != null) ...[
               const SizedBox(height: 10),

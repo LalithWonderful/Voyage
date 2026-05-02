@@ -251,43 +251,46 @@ class PlacesService {
   }
 
   /// Autocomplete de noms d'étapes touristiques (villes ET îles, archipels,
-  /// presqu'îles, etc.) pour un widget de saisie. Le `description` retourné
-  /// est ce qu'on affiche dans le dropdown ("Gérardmer, France"). Utilise
-  /// `language=fr` pour des noms en français quand disponible.
+  /// presqu'îles, sites touristiques majeurs) pour un widget de saisie.
+  /// `language=fr` pour des noms en français quand dispo.
   ///
-  /// **Double call** `(cities)` + `geocode` puis fusion par `placeId` :
-  /// - `(cities)` couvre les villes classiques (locality / admin_3) — c'est
-  ///   ce que Google priorise et range en 1er.
-  /// - `geocode` couvre les autres geocoded results (admin_2, sublocality,
-  ///   et certains natural_feature).
-  /// - Sans le double call, les îles thaï type Koh Samet (classées
-  ///   `natural_feature`) ne remontaient pas en tapant "ko" même en
-  ///   restreignant au pays. Cas Lalith 2026-05-02. Idem prévisible pour
-  ///   Bali, Koh Phangan, Mykonos, etc.
+  /// **3 calls** `(cities)` + `geocode` + `establishment`, fusion par
+  /// `placeId`. Justification :
+  /// - `(cities)` : villes classiques (locality / admin_3) — priorisées par
+  ///   Google, rangées en 1er.
+  /// - `geocode` : autres geocoded results (admin_2, sublocality, certains
+  ///   natural_feature).
+  /// - `establishment` : tourist_attraction et natural_feature classées
+  ///   "business result" par Google. Cas Lalith 2026-05-02 : Ko Samet (île
+  ///   thaï touristique) ne remontait pas car classée `establishment` →
+  ///   exclue de `(cities)` ET `geocode`. Idem Mont Saint-Michel, certains
+  ///   archipels, parcs nationaux, etc.
   ///
-  /// Coût : 2 appels Autocomplete au lieu de 1 (~$5.66/1000 saisies au
-  /// lieu de $2.83). À cacher en backlog `places_autocomplete_cache` pour
-  /// rendre asymptotiquement gratuit (cf. `project_open_improvements.md`).
+  /// Le filtre côté client `_allowedEtapeTypes` (whitelist) garantit qu'on
+  /// ne ramène que ce qui est sémantiquement une étape de voyage : villes,
+  /// quartiers connus, îles, archipels, attractions majeures. Pas de restos,
+  /// hôtels, écoles, etc. (qui sont aussi des `establishment` mais pas
+  /// `tourist_attraction`).
   ///
-  /// Filtre côté client : on bloque les types trop larges (country,
-  /// administrative_area_level_1) ou trop précis (adresses, codes postaux,
-  /// rues). Tout le reste passe — locality, sublocality, natural_feature,
-  /// archipelago, admin_2/3, etc.
+  /// Coût : 3 appels Autocomplete (~$8.49/1000 saisies au lieu de $2.83).
+  /// À cacher en backlog `places_autocomplete_cache` pour rendre
+  /// asymptotiquement gratuit (cf. `project_open_improvements.md`).
   ///
   /// `countryCode` (ISO 2 lowercase, ex: 'th') restreint aux résultats du
-  /// pays — utile pour les voyages "Pays" (ex: voyage Thaïlande → étapes
-  /// proposées thaï uniquement, pas Paris).
+  /// pays — sécurise les étapes sur les voyages "Pays".
   Future<List<({String description, String mainText, String placeId})>> autocompleteCities(String query, {String? countryCode}) async {
     final key = AiConstants.googleMapsApiKey;
     final trimmed = query.trim();
     if (trimmed.length < 2 || key.isEmpty || key == 'COLLE_TA_CLE_MAPS_ICI') return const [];
-    // Lance les 2 appels en parallèle pour ne pas doubler la latence.
+    // 3 appels en parallèle pour latence constante (3 round-trips simultanés).
     final results = await Future.wait([
       _autocompleteEtape(trimmed, '(cities)', countryCode, key),
       _autocompleteEtape(trimmed, 'geocode', countryCode, key),
+      _autocompleteEtape(trimmed, 'establishment', countryCode, key),
     ]);
-    // Dédup par placeId. Ordre : (cities) en premier (priorité naturelle aux
-    // villes), puis les ajouts de geocode (îles/archipels) après.
+    // Dédup par placeId. Ordre : (cities) en premier (priorité villes),
+    // puis geocode, puis establishment (tourist_attraction / natural_feature
+    // après les vraies villes pour ne pas saturer le top de la liste).
     final seen = <String>{};
     final merged = <({String description, String mainText, String placeId})>[];
     for (final list in results) {
@@ -321,10 +324,12 @@ class PlacesService {
         return const [];
       }
       final preds = (data['predictions'] as List?) ?? const [];
+      // Whitelist côté client : on garde uniquement les types pertinents pour
+      // une étape de voyage. Filtre les commerces individuels (restos,
+      // hôtels) qui remonteraient via `establishment`.
       return preds.whereType<Map<String, dynamic>>().where((p) {
         final types = ((p['types'] as List?) ?? const []).whereType<String>().toSet();
-        if (types.any(_blockedEtapeTypes.contains)) return false;
-        return true;
+        return types.any(_allowedEtapeTypes.contains);
       }).map((p) {
         final desc = (p['description'] as String?) ?? '';
         final structured = p['structured_formatting'] as Map<String, dynamic>?;
@@ -341,22 +346,25 @@ class PlacesService {
     }
   }
 
-  /// Types Google à exclure pour la sélection d'une **étape** de voyage.
-  /// Trop large (un pays / une région) ou trop précis (une adresse exacte,
-  /// un n° de rue) — l'étape c'est entre les 2 : ville, île, presqu'île,
-  /// quartier touristique connu.
-  static const _blockedEtapeTypes = <String>{
-    'country',
-    'administrative_area_level_1',
-    'street_address',
-    'route',
-    'premise',
-    'subpremise',
-    'street_number',
-    'postal_code',
-    'postal_code_prefix',
-    'intersection',
-    'plus_code',
+  /// Types Google considérés comme **valides** pour une étape de voyage.
+  /// Whitelist plutôt que blacklist : on garantit que rien d'inattendu ne
+  /// passe (genre un resto individuel ou un quartier ultra-précis), et on
+  /// enrichit la liste explicitement quand on découvre un cas légitime
+  /// manquant. Couvre villes, sous-divisions touristiques connues, îles,
+  /// archipels, et attractions majeures (Ko Samet, Mont Saint-Michel,
+  /// parcs nationaux).
+  static const _allowedEtapeTypes = <String>{
+    'locality',
+    'postal_town',
+    'sublocality',
+    'sublocality_level_1',
+    'neighborhood',
+    'administrative_area_level_2',
+    'administrative_area_level_3',
+    'colloquial_area',
+    'natural_feature',
+    'archipelago',
+    'tourist_attraction',
   };
 
   /// Variante d'`autocompleteCities` qui n'applique PAS le filtre `(cities)` :
