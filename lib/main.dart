@@ -6,6 +6,7 @@ import 'package:voyage/core/constants/supabase_constants.dart';
 import 'package:voyage/core/services/deep_link_service.dart';
 import 'package:voyage/core/services/notification_service.dart';
 import 'package:voyage/core/theme/app_theme.dart';
+import 'package:voyage/core/widgets/connectivity_listener.dart';
 import 'package:voyage/core/router/app_router.dart';
 import 'package:voyage/features/auth/providers/auth_provider.dart';
 
@@ -59,7 +60,10 @@ class _VoyageAppState extends ConsumerState<VoyageApp> {
       themeMode: themeMode,
       builder: (context, child) {
         AppColors.setBrightness(Theme.of(context).brightness);
-        return child!;
+        // ConnectivityListener écoute le retour de connectivité réseau et
+        // invalide automatiquement les providers Trip → re-fetch transparent
+        // → bandeau "hors ligne" disparaît dès que le wifi/data revient.
+        return ConnectivityListener(child: child!);
       },
       routerConfig: router,
       localizationsDelegates: const [
