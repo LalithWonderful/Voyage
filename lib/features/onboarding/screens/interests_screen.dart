@@ -49,10 +49,13 @@ class _InterestsScreenState extends ConsumerState<InterestsScreen> {
       }
       ref.invalidate(userInterestsProvider);
 
-      // Si l'utilisateur a déjà des voyages, on saute l'écran "où tu pars"
+      // Si l'utilisateur a déjà des voyages, on saute l'écran "où tu pars".
+      // Sinon on continue le tunnel onboarding (3e étape) — `?from=onboarding`
+      // signale au DestinationScreen d'afficher la barre de progression
+      // "Étape 3 / 3" et le bouton "Passer" cohérents avec le flow guidé.
       final hasTrips = await ref.read(hasTripsProvider.future);
       if (!mounted) return;
-      context.go(hasTrips ? '/trips' : '/onboarding/destination');
+      context.go(hasTrips ? '/trips' : '/onboarding/destination?from=onboarding');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

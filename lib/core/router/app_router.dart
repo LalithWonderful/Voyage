@@ -74,7 +74,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/reset-password', builder: (_, __) => const ResetPasswordScreen()),
       GoRoute(path: '/onboarding/traveler-type', builder: (_, __) => const TravelerTypeScreen()),
       GoRoute(path: '/onboarding/interests', builder: (_, __) => const InterestsScreen()),
-      GoRoute(path: '/onboarding/destination', builder: (_, __) => const DestinationScreen()),
+      // `?from=onboarding` distingue le 3e step du tunnel post-signup vs la
+      // création standalone depuis la liste de voyages (bouton "+"). Cf.
+      // commentaire de la classe `DestinationScreen`.
+      GoRoute(
+        path: '/onboarding/destination',
+        builder: (_, state) => DestinationScreen(
+          isFromOnboarding: state.uri.queryParameters['from'] == 'onboarding',
+        ),
+      ),
       GoRoute(path: '/trips/create', builder: (_, __) => const CreateTripScreen()),
       ShellRoute(
         builder: (context, state, child) => MainShell(child: child),

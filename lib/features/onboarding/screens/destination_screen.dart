@@ -9,8 +9,24 @@ import 'package:voyage/features/planning/providers/planning_provider.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
 
+/// Écran de création de voyage (destination + dates + voyageurs). Réutilisé
+/// dans 2 contextes :
+///
+/// - **Onboarding initial** (`isFromOnboarding: true`) : 3e étape du flow
+///   post-signup (traveler-type → interests → destination). Affiche la
+///   progression "Étape 3 / 3", flèche retour vers `/onboarding/interests`,
+///   bouton "Passer" pour annuler le tunnel onboarding.
+///
+/// - **Création standalone** (`isFromOnboarding: false`, default) : user
+///   déjà inscrit qui clique sur "+" depuis l'écran "Mes voyages". Pas de
+///   step indicator, header "Nouveau voyage", flèche retour directe vers
+///   `/trips`, bouton "Annuler" (pas "Passer" qui est trompeur).
 class DestinationScreen extends ConsumerStatefulWidget {
-  const DestinationScreen({super.key});
+  /// True quand on arrive depuis l'écran "Centres d'intérêt" du onboarding
+  /// initial (`?from=onboarding` dans l'URL). False par défaut = création
+  /// standalone depuis la liste de voyages.
+  final bool isFromOnboarding;
+  const DestinationScreen({super.key, this.isFromOnboarding = false});
 
   @override
   ConsumerState<DestinationScreen> createState() => _DestinationScreenState();
@@ -224,14 +240,17 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            _buildProgress(2),
+            _buildHeader(),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Où tu pars ?', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                    Text(
+                      widget.isFromOnboarding ? 'Où tu pars ?' : 'Où veux-tu aller ?',
+                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                    ),
                     const SizedBox(height: 6),
                     Text('Choisis une destination, ou laisse-toi inspirer.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
                     const SizedBox(height: 14),
@@ -407,33 +426,64 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
     );
   }
 
-  Widget _buildProgress(int step) {
+  /// Header haut d'écran. Adapté selon le contexte d'arrivée :
+  ///
+  /// - **Onboarding** (`isFromOnboarding: true`) : barre de progression 3
+  ///   étapes + label "Étape 3 / 3" + bouton "Passer" (annule le tunnel
+  ///   onboarding entier). Flèche retour ← vers l'étape précédente.
+  /// - **Standalone** (default) : pas de progression, juste flèche retour
+  ///   directe vers `/trips` + bouton "Annuler" (wording clair vs "Passer"
+  ///   qui suggère "skip cette étape" alors qu'il abandonne tout).
+  Widget _buildHeader() {
+    if (widget.isFromOnboarding) {
+      const step = 2; // 3e étape sur 3 (0-indexed)
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: List.generate(3, (i) => Expanded(
+              child: Container(
+                height: 3,
+                margin: EdgeInsets.only(right: i < 2 ? 6 : 0),
+                decoration: BoxDecoration(
+                  color: i < step ? AppColors.success : (i == step ? AppColors.primary : AppColors.border),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ))),
+            const SizedBox(height: 8),
+            Row(children: [
+              GestureDetector(onTap: () => context.go('/onboarding/interests'), child: const Text('←', style: TextStyle(fontSize: 20))),
+              const SizedBox(width: 10),
+              Text('Étape ${step + 1} / 3', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+              const Spacer(),
+              TextButton(
+                onPressed: () => context.go('/trips'),
+                child: Text('Passer', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+              ),
+            ]),
+          ],
+        ),
+      );
+    }
+    // Mode standalone (création depuis "+" sur la liste de voyages).
+    // Pas de titre dans la barre — le titre principal "Où veux-tu aller ?"
+    // sous le header est suffisant pour le contexte. Sinon "Nouveau voyage"
+    // collé à la flèche fait breadcrumb / indication de tab, confus.
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(children: List.generate(3, (i) => Expanded(
-            child: Container(
-              height: 3,
-              margin: EdgeInsets.only(right: i < 2 ? 6 : 0),
-              decoration: BoxDecoration(
-                color: i < step ? AppColors.success : (i == step ? AppColors.primary : AppColors.border),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ))),
-          const SizedBox(height: 8),
-          Row(children: [
-            GestureDetector(onTap: () => context.go('/onboarding/interests'), child: const Text('←', style: TextStyle(fontSize: 20))),
-            const SizedBox(width: 10),
-            Text('Étape ${step + 1} / 3', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-            const Spacer(),
-            TextButton(
-              onPressed: () => context.go('/trips'),
-              child: Text('Passer', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-            ),
-          ]),
+          GestureDetector(
+            onTap: () => context.go('/trips'),
+            child: const Text('←', style: TextStyle(fontSize: 20)),
+          ),
+          const Spacer(),
+          TextButton(
+            onPressed: () => context.go('/trips'),
+            child: Text('Annuler', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+          ),
         ],
       ),
     );
