@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
 import 'package:voyage/core/constants/ai_constants.dart';
 import 'package:voyage/features/planning/services/airport_city_overrides.dart';
@@ -327,9 +328,30 @@ class PlacesService {
       // Whitelist côté client : on garde uniquement les types pertinents pour
       // une étape de voyage. Filtre les commerces individuels (restos,
       // hôtels) qui remonteraient via `establishment`.
+      // Debug : log brut de chaque prédiction (description + types) pour
+      // diagnostiquer les cas "X ne remonte pas dans l'autocomplete" (cas
+      // Ko Samet 2026-05-03). À garder tant que ces cas surgissent.
+      debugPrint('[places] autocomplete[$typesParam] "$trimmed" → ${preds.length} preds');
+      for (final p in preds.whereType<Map<String, dynamic>>()) {
+        final desc = (p['description'] as String?) ?? '';
+        final types = ((p['types'] as List?) ?? const []).whereType<String>().toList();
+        debugPrint('[places]   • $desc — types=$types');
+      }
       return preds.whereType<Map<String, dynamic>>().where((p) {
         final types = ((p['types'] as List?) ?? const []).whereType<String>().toSet();
-        return types.any(_allowedEtapeTypes.contains);
+        // Doit avoir au moins un type "destination valide".
+        if (!types.any(_allowedEtapeTypes.contains)) return false;
+        // Filtre additionnel : un `point_of_interest` SEUL (sans aucun
+        // type qui en fait une vraie destination touristique) est rejeté.
+        // Cas Ko Samet 2026-05-03 : Google retourne 3 lieux individuels
+        // dans l'île (pier, sentier, autre pier) qui ne sont pas des
+        // "étapes" — juste des POIs internes. Seul le parc national qui
+        // a aussi `park` + `tourist_attraction` passe.
+        if (types.contains('point_of_interest') &&
+            !types.any(_destinationGradeTypes.contains)) {
+          return false;
+        }
+        return true;
       }).map((p) {
         final desc = (p['description'] as String?) ?? '';
         final structured = p['structured_formatting'] as Map<String, dynamic>?;
@@ -351,8 +373,8 @@ class PlacesService {
   /// passe (genre un resto individuel ou un quartier ultra-précis), et on
   /// enrichit la liste explicitement quand on découvre un cas légitime
   /// manquant. Couvre villes, sous-divisions touristiques connues, îles,
-  /// archipels, et attractions majeures (Ko Samet, Mont Saint-Michel,
-  /// parcs nationaux).
+  /// archipels, parcs nationaux, et attractions majeures (Ko Samet via
+  /// son parc englobant, Mont Saint-Michel, etc.).
   static const _allowedEtapeTypes = <String>{
     'locality',
     'postal_town',
@@ -365,6 +387,28 @@ class PlacesService {
     'natural_feature',
     'archipelago',
     'tourist_attraction',
+    'park',
+  };
+
+  /// Sous-ensemble de `_allowedEtapeTypes` qui qualifie un résultat comme
+  /// "vraie destination" (vs un POI interne à une destination existante).
+  /// Utilisé pour filtrer les `point_of_interest` Google qui seraient
+  /// accompagnés UNIQUEMENT d'`establishment` — typiquement les piers,
+  /// sentiers, plages individuelles à l'intérieur d'une île. Si le résultat
+  /// porte aussi un de ces types, c'est une destination grade-A et on garde.
+  static const _destinationGradeTypes = <String>{
+    'locality',
+    'postal_town',
+    'sublocality',
+    'sublocality_level_1',
+    'neighborhood',
+    'administrative_area_level_2',
+    'administrative_area_level_3',
+    'colloquial_area',
+    'natural_feature',
+    'archipelago',
+    'tourist_attraction',
+    'park',
   };
 
   /// Variante d'`autocompleteCities` qui n'applique PAS le filtre `(cities)` :

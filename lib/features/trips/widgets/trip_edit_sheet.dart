@@ -1479,7 +1479,11 @@ class _SegmentEditorDialogState extends ConsumerState<_SegmentEditorDialog> {
         : widget.existing?.days ?? 2;
     if (widget.tripStartDate != null) {
       final placedDays = widget.existingSegments.fold<int>(0, (a, s) => a + s.days);
-      final offset = placedDays.clamp(0, widget.tripDays - 1);
+      // Si voyage déjà saturé (placedDays >= tripDays), default au jour 1
+      // pour favoriser l'insertion au milieu plutôt que finir au dernier
+      // jour. Sinon, default = 1er jour libre après les étapes existantes
+      // (= append à la fin par défaut, comportement attendu).
+      final offset = placedDays >= widget.tripDays ? 0 : placedDays;
       _startDate = widget.tripStartDate!.add(Duration(days: offset));
     }
   }
@@ -1558,7 +1562,7 @@ class _SegmentEditorDialogState extends ConsumerState<_SegmentEditorDialog> {
             CityAutocompleteField(
               initialValue: widget.existing?.city,
               autofocus: widget.existing == null,
-              labelText: 'Ville',
+              labelText: 'Destination',
               hintText: widget.restrictToCountryCode != null
                   ? 'Tape une ville du pays choisi'
                   : 'ex: Strasbourg',
@@ -1596,8 +1600,8 @@ class _SegmentEditorDialogState extends ConsumerState<_SegmentEditorDialog> {
                 ),
               ),
             ] else ...[
-              Text('JOURS SUR PLACE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
-              const SizedBox(height: 6),
+              Text('Durée sur place', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+              const SizedBox(height: 4),
               Row(
                 children: [
                   IconButton(
@@ -1620,18 +1624,25 @@ class _SegmentEditorDialogState extends ConsumerState<_SegmentEditorDialog> {
                   ),
                 ],
               ),
-              const SizedBox(height: 4),
-              Text(
-                'Les dates précises sont calculées automatiquement à partir de l\'ordre des étapes.',
-                style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.4),
-              ),
               if (_showStartDatePicker) ...[
-                const SizedBox(height: 16),
-                Text('DÉMARRER LE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+                const SizedBox(height: 12),
+                // Le label rappelle la plage du voyage pour aider le voyageur
+                // à se repérer (utile sur les longs voyages où il oublie les
+                // bornes exactes saisies à la création).
+                Text.rich(
+                  TextSpan(
+                    style: TextStyle(fontSize: 13, color: AppColors.textPrimary),
+                    children: [
+                      const TextSpan(text: 'Date d\'arrivée', style: TextStyle(fontWeight: FontWeight.w600)),
+                      TextSpan(
+                        text: '  (entre le ${_formatDateShort(widget.tripStartDate!)}'
+                            ' et le ${_formatDateShort(widget.tripStartDate!.add(Duration(days: widget.tripDays - 1)))})',
+                        style: TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w400),
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 6),
-                // Bouton qui ouvre un date picker contraint à la plage du
-                // voyage. Plus intuitif qu'un compteur de jours : le
-                // voyageur pense en dates, pas en numéros relatifs.
                 InkWell(
                   onTap: _pickStartDate,
                   borderRadius: BorderRadius.circular(10),
@@ -1656,23 +1667,13 @@ class _SegmentEditorDialogState extends ConsumerState<_SegmentEditorDialog> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  // Hint dynamique : explique l'effet selon la position. Si
-                  // l'user laisse la date par défaut (= à la suite), on dit
-                  // ça. Sinon on explique le split (= retour automatique à la
-                  // ville d'avant créé pour préserver la cohérence).
-                  () {
-                    final placedDays = widget.existingSegments.fold<int>(0, (a, s) => a + s.days);
-                    final defaultStartDay = (placedDays + 1).clamp(1, widget.tripDays);
-                    final currentStartDay = _startDayFromDate();
-                    if (currentStartDay >= defaultStartDay) {
-                      return 'Cette étape s\'ajoutera à la suite des autres.';
-                    }
-                    return 'Cette étape s\'insère au milieu de ton voyage. Le retour à la ville précédente sera créé automatiquement.';
-                  }(),
-                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.4),
-                ),
+              ],
+              // Bloc résumé : affiché dès que l'user a une ville et une
+              // date. L'user voit l'effet exact de son choix avant de
+              // valider (dates concrètes + comportement après-coup).
+              if (_city.trim().isNotEmpty && _startDate != null) ...[
+                const SizedBox(height: 16),
+                _buildSummaryBlock(),
               ],
             ],
             if (_error != null) ...[
@@ -1684,9 +1685,99 @@ class _SegmentEditorDialogState extends ConsumerState<_SegmentEditorDialog> {
       ),
       actions: [
         TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Annuler')),
-        ElevatedButton(onPressed: _submit, child: const Text('Valider')),
+        ElevatedButton(
+          onPressed: _submit,
+          child: Text(_buttonLabel()),
+        ),
       ],
     );
+  }
+
+  /// Bloc résumé en bas du dialog. Montre les dates exactes (arrivée +
+  /// départ) et le comportement après validation (append vs split). Le
+  /// voyageur voit immédiatement l'effet de son choix.
+  ///
+  /// Sémantique des dates : `_days` = nombre de jours sur place, donc la
+  /// date de **départ** affichée = arrivée + days (exclusive). Ex: arrivée
+  /// 6 août, 2 jours sur place → départ 8 août (l'user passe les 6 et 7
+  /// sur place, repart le 8 au matin). Plus intuitif que "du 6 au 7" qui
+  /// suggère qu'on dort au moins 1 nuit le 7.
+  Widget _buildSummaryBlock() {
+    final start = _startDate!;
+    final end = start.add(Duration(days: _days));
+    final tripStart = widget.tripStartDate!;
+    final tripEnd = tripStart.add(Duration(days: widget.tripDays - 1));
+    final placedDays = widget.existingSegments.fold<int>(0, (a, s) => a + s.days);
+    final defaultStartDay = (placedDays + 1).clamp(1, widget.tripDays);
+    final currentStartDay = _startDayFromDate();
+    final isAppend = currentStartDay >= defaultStartDay;
+    // Détecte si l'étape déborde de la fin du voyage. La date de départ
+    // peut être tripEnd + 1 (l'user repart le lendemain de la fin), donc
+    // on tolère ce cas. Au-delà, on warne.
+    final overflowDays = end.difference(tripEnd.add(const Duration(days: 1))).inDays;
+    final overflows = overflowDays > 0;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: overflows ? const Color(0xFFFEF3C7) : AppColors.primaryLight,
+        borderRadius: BorderRadius.circular(10),
+        border: overflows ? Border.all(color: AppColors.accent.withValues(alpha: 0.5)) : null,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text.rich(
+            TextSpan(
+              style: TextStyle(fontSize: 13, color: AppColors.textPrimary, height: 1.4),
+              children: [
+                TextSpan(text: _city, style: const TextStyle(fontWeight: FontWeight.w700)),
+                const TextSpan(text: ' sera ajouté du '),
+                TextSpan(text: _formatDateShort(start), style: const TextStyle(fontWeight: FontWeight.w700)),
+                const TextSpan(text: ' au '),
+                TextSpan(text: _formatDateShort(end), style: const TextStyle(fontWeight: FontWeight.w700)),
+                const TextSpan(text: '.'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          if (overflows)
+            Text(
+              '⚠️ Cette étape dépasse la fin du voyage de $overflowDays jour${overflowDays > 1 ? 's' : ''}. '
+              'Réduis la durée ou avance la date d\'arrivée.',
+              style: TextStyle(fontSize: 12, color: AppColors.textPrimary, height: 1.4, fontWeight: FontWeight.w500),
+            )
+          else
+            Text(
+              isAppend
+                  ? 'Cette étape s\'ajoute à la suite des autres.'
+                  : 'J\'ajusterai automatiquement les étapes suivantes.',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Label dynamique du bouton de validation.
+  /// - Mode édition : "Enregistrer".
+  /// - Mode ajout avec ville : "Ajouter `<ville>`" (action explicite).
+  /// - Mode ajout sans ville : "Ajouter une étape" (placeholder).
+  String _buttonLabel() {
+    if (widget.existing != null) return 'Enregistrer';
+    final city = _city.trim();
+    if (city.isEmpty) return 'Ajouter une étape';
+    return 'Ajouter $city';
+  }
+
+  /// Format court "jeu. 2 juillet" sans année. Utilisé dans le résumé où
+  /// l'user voit déjà l'année dans le contexte voyage (au-dessus).
+  String _formatDateShort(DateTime d) {
+    const weekdays = ['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'];
+    const months = [
+      'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+      'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
+    ];
+    return '${weekdays[d.weekday - 1]} ${d.day} ${months[d.month - 1]}';
   }
 }
 
