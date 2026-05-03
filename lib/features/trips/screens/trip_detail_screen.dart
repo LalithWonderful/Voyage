@@ -323,8 +323,23 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
       if (!mounted) return;
     } catch (e) {
       if (mounted) {
+        // Wording humanisé : un user qui voit
+        // "Erreur : ClientException: Connection reset by peer, uri=https://..."
+        // ne comprend rien. On classifie selon le type d'erreur pour
+        // afficher quelque chose d'actionnable.
+        final raw = e.toString();
+        final isNetwork = raw.contains('SocketException') ||
+            raw.contains('Failed host lookup') ||
+            raw.contains('TimeoutException') ||
+            raw.contains('ClientException') ||
+            raw.contains('Connection reset') ||
+            raw.contains('Connection refused') ||
+            raw.contains('Network is unreachable');
+        final msg = isNetwork
+            ? 'Pas de connexion internet. Vérifie ta connexion et réessaie.'
+            : 'Quelque chose a coincé. Réessaie dans un instant.';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur : $e'), backgroundColor: AppColors.error),
+          SnackBar(content: Text(msg), backgroundColor: AppColors.error),
         );
       }
       return;
@@ -360,6 +375,12 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
       String norm(String s) => s.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
       final existingTitlesNormalized = existingActivities.map((a) => norm(a.title)).toSet();
 
+      // Timeout de 60s : `runAutoPlacesFirst` enchaîne plusieurs appels Places
+      // Nearby + Geocoding + Gemini. Sans réseau (cas wifi coupé en test ou
+      // utilisateur en zone blanche pendant le voyage), ces calls peuvent
+      // bloquer indéfiniment (HTTP socket sans timeout par défaut). Le
+      // timeout fait throw une `TimeoutException` qui tombe dans le catch
+      // → fermeture du loader + toast graceful + retombe sur Cas 2.
       final suggestions = await runAutoPlacesFirst(
         trip: freshTrip,
         hotels: hotels,
@@ -369,7 +390,7 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
         category: SuggestionCategory.all,
         existingTitlesNormalized: existingTitlesNormalized,
         languageCode: 'fr',
-      );
+      ).timeout(const Duration(seconds: 60));
 
       if (suggestions.isNotEmpty) {
         final rows = suggestions.map((s) => s.toInsertJson(trip.id)).toList();
@@ -505,7 +526,7 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
         context: context,
         builder: (dialogCtx) => AlertDialog(
           title: const Text('Erreur lors de la suppression'),
-          content: SelectableText('$e'),
+          content: SelectableText(_humanizeDeleteError(e)),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogCtx),
@@ -515,6 +536,25 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
         ),
       );
     }
+  }
+
+  /// Wording humanisé du message d'erreur de suppression. L'erreur brute
+  /// `ClientException with SocketException: Failed host lookup: ...` est
+  /// incompréhensible pour un utilisateur — on classifie selon le type
+  /// pour donner une explication actionnable.
+  String _humanizeDeleteError(Object e) {
+    final raw = e.toString();
+    if (raw.contains('SocketException') ||
+        raw.contains('Failed host lookup') ||
+        raw.contains('TimeoutException') ||
+        raw.contains('ClientException') ||
+        raw.contains('Connection reset') ||
+        raw.contains('Connection refused') ||
+        raw.contains('Network is unreachable') ||
+        raw.contains('No address associated')) {
+      return 'Pas de connexion internet. Vérifie ta connexion et réessaie.';
+    }
+    return 'Quelque chose a coincé lors de la suppression. Réessaie dans un instant.';
   }
 
   @override

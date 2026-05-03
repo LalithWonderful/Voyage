@@ -36,6 +36,25 @@ class TripsScreen extends ConsumerStatefulWidget {
 class _TripsScreenState extends ConsumerState<TripsScreen> {
   _TripFilter _filter = _TripFilter.upcoming;
 
+  /// Wording humanisé du message d'erreur de suppression. L'erreur brute
+  /// `ClientException with SocketException: Failed host lookup: ...` est
+  /// incompréhensible — on classifie selon le type pour donner une
+  /// explication actionnable.
+  String _humanizeDeleteError(Object e) {
+    final raw = e.toString();
+    if (raw.contains('SocketException') ||
+        raw.contains('Failed host lookup') ||
+        raw.contains('TimeoutException') ||
+        raw.contains('ClientException') ||
+        raw.contains('Connection reset') ||
+        raw.contains('Connection refused') ||
+        raw.contains('Network is unreachable') ||
+        raw.contains('No address associated')) {
+      return 'Pas de connexion internet. Vérifie ta connexion et réessaie.';
+    }
+    return 'Quelque chose a coincé lors de la suppression. Réessaie dans un instant.';
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
@@ -184,7 +203,7 @@ class _TripsScreenState extends ConsumerState<TripsScreen> {
                                     context: navContext,
                                     builder: (dialogCtx) => AlertDialog(
                                       title: const Text('Erreur lors de la suppression'),
-                                      content: SelectableText('$e'),
+                                      content: SelectableText(_humanizeDeleteError(e)),
                                       actions: [
                                         TextButton(
                                           onPressed: () => Navigator.pop(dialogCtx),

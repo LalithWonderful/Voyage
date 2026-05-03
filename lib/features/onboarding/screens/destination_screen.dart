@@ -135,6 +135,15 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
           countryCode = await ref.read(placesServiceProvider).getCountryCodeFromPlaceId(_selectedPlaceId!);
         } catch (_) {}
       }
+      // Logging défensif pour diagnostiquer le bug "Chine → gb" signalé par
+      // Lalith : si l'user retrouve un voyage avec un mauvais country_code,
+      // ces logs permettent de comprendre quel placeId Google a été
+      // sélectionné (souvent une erreur user qui a cliqué sur "Chichester"
+      // au lieu de "Chine" dans la liste autocomplete).
+      debugPrint(
+        '[destination-create] destination="$_chosenDestination" kind=$_destinationKind '
+        'placeId=$_selectedPlaceId country=$countryCode',
+      );
       final inserted = await client.from('trips').insert({
         'user_id': userId,
         'title': _chosenDestination!,

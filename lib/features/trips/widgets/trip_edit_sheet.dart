@@ -253,7 +253,12 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
   /// Calcule les dates effectives d'une étape selon son index dans la liste.
-  /// Renvoie un libellé compact (ex: "du 25 au 27/04" ou "du 28/04 au 02/05").
+  /// Renvoie un libellé compact (ex: "du 25 au 28/04" ou "du 28/04 au 02/05").
+  /// Format **"départ exclusif"** : `to` = date à laquelle l'user repart de
+  /// l'étape (= début de l'étape suivante). Cohérent avec le résumé du
+  /// dialog d'ajout d'étape qui dit "Ko Samui sera ajouté du jeu. 2 juillet
+  /// au sam. 4 juillet" pour 2 jours sur place. Le voyageur pense en
+  /// termes "j'arrive le X et je repars le Y" (convention hôtelière).
   String _fmtSegmentDates(int index) {
     var offsetBefore = 0;
     for (var i = 0; i < index; i++) {
@@ -261,7 +266,7 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
     }
     final seg = _segments[index];
     final from = _start.add(Duration(days: offsetBefore));
-    final to = from.add(Duration(days: seg.days - 1));
+    final to = from.add(Duration(days: seg.days));
     final sameMonth = from.month == to.month && from.year == to.year;
     if (sameMonth) {
       return 'du ${from.day} au ${to.day}/${to.month.toString().padLeft(2, '0')}';

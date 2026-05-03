@@ -324,7 +324,12 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
     }
     if (raw.contains('SocketException') ||
         raw.contains('Failed host lookup') ||
-        raw.contains('TimeoutException')) {
+        raw.contains('TimeoutException') ||
+        raw.contains('ClientException') ||
+        raw.contains('Connection reset by peer') ||
+        raw.contains('Connection refused') ||
+        raw.contains('Network is unreachable') ||
+        raw.contains('No address associated')) {
       return 'Pas de connexion internet. Vérifie ta connexion et réessaie.';
     }
     if (raw.contains('Réponse Gemini invalide') ||
