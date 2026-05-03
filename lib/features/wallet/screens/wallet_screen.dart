@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:voyage/core/theme/app_theme.dart';
+import 'package:voyage/core/widgets/offline_banner.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
 import 'package:voyage/features/wallet/models/document_model.dart';
@@ -76,10 +77,14 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
         backgroundColor: AppColors.primary,
         child: const Icon(Icons.add, color: Colors.white),
       ),
-      body: docsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Erreur : $e', style: TextStyle(color: AppColors.error))),
-        data: (allDocs) {
+      body: Column(
+        children: [
+          const OfflineBanner(),
+          Expanded(
+            child: docsAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(child: Text('Erreur : $e', style: TextStyle(color: AppColors.error))),
+              data: (allDocs) {
           // Application des filtres en local (ordre stable, pas besoin de re-fetch).
           final filtered = _applyFilters(allDocs);
           return RefreshIndicator(
@@ -129,6 +134,9 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
             ),
           );
         },
+            ),
+          ),
+        ],
       ),
     );
   }

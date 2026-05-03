@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:voyage/core/services/notification_service.dart';
 import 'package:voyage/core/providers/currency_provider.dart';
+import 'package:voyage/core/widgets/offline_banner.dart';
 import 'package:voyage/core/services/currency_service.dart';
 import 'package:voyage/core/theme/app_theme.dart';
 import 'package:voyage/core/widgets/converted_price.dart';
@@ -856,6 +857,7 @@ class PlanningScreen extends ConsumerWidget {
             ),
       body: Column(
         children: [
+          const OfflineBanner(),
           _GradientHeader(
             tripId: tripId,
             trip: trip,

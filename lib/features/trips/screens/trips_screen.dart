@@ -5,6 +5,7 @@ import 'package:voyage/core/providers/currency_provider.dart';
 import 'package:voyage/core/providers/offline_provider.dart';
 import 'package:voyage/core/services/currency_service.dart';
 import 'package:voyage/core/theme/app_theme.dart';
+import 'package:voyage/core/widgets/offline_banner.dart';
 import 'package:voyage/features/auth/providers/auth_provider.dart';
 import 'package:voyage/features/planning/providers/planning_provider.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
@@ -79,31 +80,7 @@ class _TripsScreenState extends ConsumerState<TripsScreen> {
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
-            // Bandeau "hors ligne" : visible dès qu'un provider Trip a
-            // fallback sur le cache local. Disparaît automatiquement quand
-            // un fetch suivant réussit (provider reset à false). Wording
-            // doux + icône cloud_off, couleur ambre cohérente avec les
-            // autres warnings UX (TransportDocWarnings, etc.).
-            if (offline)
-              SliverToBoxAdapter(
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  color: AppColors.accent.withValues(alpha: 0.15),
-                  child: Row(
-                    children: [
-                      Icon(Icons.cloud_off, size: 16, color: AppColors.accent),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Mode hors ligne — affichage depuis le cache local',
-                          style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+            const OfflineSliverBanner(),
             SliverToBoxAdapter(
               child: Container(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),

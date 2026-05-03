@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:voyage/core/theme/app_theme.dart';
 import 'package:voyage/core/providers/currency_provider.dart';
 import 'package:voyage/core/services/currency_service.dart';
+import 'package:voyage/core/widgets/offline_banner.dart';
 import 'package:voyage/features/auth/providers/auth_provider.dart';
 import 'package:voyage/features/planning/providers/planning_provider.dart';
 import 'package:voyage/features/planning/services/ai_suggestions_service.dart';
@@ -577,6 +578,7 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
 
     return CustomScrollView(
       slivers: [
+        const OfflineSliverBanner(),
         SliverAppBar(
           // Header plus haut pour accommoder emoji 64px aligné gauche + titre
           // + sous-titre + badge statut. 240px laisse respirer sans déborder.
