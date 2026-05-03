@@ -1,27 +1,56 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:voyage/core/providers/offline_provider.dart';
 import 'package:voyage/features/auth/providers/auth_provider.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 
+/// Liste des voyages de l'utilisateur. Stratégie offline-first :
+/// 1. Tente fetch Supabase. Si succès → écrit cache local, reset offline,
+///    retourne fresh data.
+/// 2. Si échec réseau → lit cache local. Si cache présent, signale offline
+///    et retourne cached. Sinon relance l'erreur (UI affichera).
 final tripsProvider = FutureProvider<List<Trip>>((ref) async {
   final client = ref.watch(supabaseProvider);
   final user = client.auth.currentUser;
   if (user == null) return [];
 
-  final data = await client
-      .from('trips')
-      .select()
-      .eq('user_id', user.id)
-      .order('start_date', ascending: true);
+  final cache = await ref.watch(localTripsCacheServiceProvider.future);
 
-  return (data as List).map((e) => Trip.fromJson(e)).toList();
+  try {
+    final data = await client
+        .from('trips')
+        .select()
+        .eq('user_id', user.id)
+        .order('start_date', ascending: true);
+    final rows = (data as List).whereType<Map<String, dynamic>>().toList();
+    // Best-effort write : on ne bloque pas la réponse user si le cache
+    // foire (improbable, juste un disk write).
+    cache.writeTrips(rows);
+    // Au succès, on reset l'état offline (l'user était peut-être en zone
+    // blanche et a retrouvé le réseau, on rafraîchit le banner).
+    ref.read(isOfflineProvider.notifier).state = false;
+    return rows.map((e) => Trip.fromJson(e)).toList();
+  } catch (e) {
+    final cached = cache.readTrips();
+    if (cached.isEmpty) {
+      // Pas de cache → on remonte l'erreur, l'UI affichera "Erreur de
+      // chargement" comme avant.
+      rethrow;
+    }
+    developer.log('[trips] fetch failed, using cache (${cached.length} trips) : $e', name: 'cache');
+    ref.read(isOfflineProvider.notifier).state = true;
+    return cached;
+  }
 });
 
+/// Trip individuel avec fallback cache. Lit depuis `tripsProvider` (qui a
+/// déjà sa logique cache) au lieu de refaire un fetch séparé — évite les
+/// doubles appels et les états désynchronisés entre la liste et le détail.
 final tripByIdProvider = FutureProvider.family<Trip?, String>((ref, id) async {
-  final client = ref.watch(supabaseProvider);
-  final data = await client.from('trips').select().eq('id', id).maybeSingle();
-  if (data == null) return null;
-  return Trip.fromJson(data);
+  final trips = await ref.watch(tripsProvider.future);
+  return trips.where((t) => t.id == id).firstOrNull;
 });
 
 /// Supprime un voyage avec cascade propre :

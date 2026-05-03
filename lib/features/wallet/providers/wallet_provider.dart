@@ -1,27 +1,51 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:voyage/core/providers/offline_provider.dart';
 import 'package:voyage/features/auth/providers/auth_provider.dart';
 import 'package:voyage/features/wallet/models/document_model.dart';
 
+/// Tous les documents de l'utilisateur (Wallet global) avec fallback cache.
+/// Cf. `LocalTripsCacheService` pour la stratégie offline-first.
 final documentsProvider = FutureProvider<List<TripDocument>>((ref) async {
   final client = ref.watch(supabaseProvider);
   final user = client.auth.currentUser;
   if (user == null) return [];
-  final data = await client
-      .from('trip_documents')
-      .select()
-      .eq('user_id', user.id)
-      .order('created_at', ascending: false);
-  return (data as List).map((e) => TripDocument.fromJson(e)).toList();
+  final cache = await ref.watch(localTripsCacheServiceProvider.future);
+  try {
+    final data = await client
+        .from('trip_documents')
+        .select()
+        .eq('user_id', user.id)
+        .order('created_at', ascending: false);
+    final rows = (data as List).whereType<Map<String, dynamic>>().toList();
+    cache.writeAllDocuments(rows);
+    ref.read(isOfflineProvider.notifier).state = false;
+    return rows.map((e) => TripDocument.fromJson(e)).toList();
+  } catch (e) {
+    ref.read(isOfflineProvider.notifier).state = true;
+    return cache.readAllDocuments();
+  }
 });
 
+/// Documents d'un voyage avec fallback cache. Comportement offline : si le
+/// cache est vide pour ce voyage spécifique (jamais consulté avant la
+/// coupure réseau), retourne `[]` silencieusement — pas d'erreur écran.
 final tripDocumentsProvider = FutureProvider.family<List<TripDocument>, String>((ref, tripId) async {
   final client = ref.watch(supabaseProvider);
-  final data = await client
-      .from('trip_documents')
-      .select()
-      .eq('trip_id', tripId)
-      .order('created_at', ascending: false);
-  return (data as List).map((e) => TripDocument.fromJson(e)).toList();
+  final cache = await ref.watch(localTripsCacheServiceProvider.future);
+  try {
+    final data = await client
+        .from('trip_documents')
+        .select()
+        .eq('trip_id', tripId)
+        .order('created_at', ascending: false);
+    final rows = (data as List).whereType<Map<String, dynamic>>().toList();
+    cache.writeDocuments(tripId, rows);
+    ref.read(isOfflineProvider.notifier).state = false;
+    return rows.map((e) => TripDocument.fromJson(e)).toList();
+  } catch (e) {
+    ref.read(isOfflineProvider.notifier).state = true;
+    return cache.readDocuments(tripId);
+  }
 });
 
 DateTime? _hotelCheckIn(TripDocument d) {

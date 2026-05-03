@@ -174,8 +174,24 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
       if (mounted) context.go('/trips');
     } catch (e) {
       if (mounted) {
+        // Wording humanisé : un user qui voit
+        // "Erreur : ClientException with SocketException: Failed host lookup..."
+        // ne comprend rien. On classifie selon le type d'erreur pour
+        // afficher quelque chose d'actionnable.
+        final raw = e.toString();
+        final isNetwork = raw.contains('SocketException') ||
+            raw.contains('Failed host lookup') ||
+            raw.contains('TimeoutException') ||
+            raw.contains('ClientException') ||
+            raw.contains('Connection reset') ||
+            raw.contains('Connection refused') ||
+            raw.contains('Network is unreachable') ||
+            raw.contains('No address associated');
+        final msg = isNetwork
+            ? 'Pas de connexion internet. Vérifie ta connexion et réessaie.'
+            : 'Quelque chose a coincé lors de la création. Réessaie dans un instant.';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur : $e')),
+          SnackBar(content: Text(msg), backgroundColor: AppColors.error),
         );
       }
     } finally {

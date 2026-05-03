@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:voyage/core/providers/currency_provider.dart';
+import 'package:voyage/core/providers/offline_provider.dart';
 import 'package:voyage/features/auth/providers/auth_provider.dart';
 import 'package:voyage/features/planning/models/trip_activity_model.dart';
 import 'package:voyage/features/planning/models/trip_transport_model.dart';
@@ -64,22 +65,45 @@ bool isActivityLocked(TripActivity activity, Set<String> unlocked) {
   return isActivityPast(activity) && !unlocked.contains(activity.id);
 }
 
+/// Activités d'un voyage avec fallback cache local (offline-first lecture).
+/// Cf. `LocalTripsCacheService`. Si offline ET cache vide pour ce voyage
+/// (l'user n'a pas consulté ce voyage avant la coupure réseau), on retourne
+/// une liste vide silencieuse — l'écran affichera "Aucune activité" + le
+/// bandeau offline. Plus user-friendly qu'une erreur tech en plein écran.
 final tripActivitiesProvider = FutureProvider.family<List<TripActivity>, String>((ref, tripId) async {
   final client = ref.watch(supabaseProvider);
-  final data = await client
-      .from('trip_activities')
-      .select()
-      .eq('trip_id', tripId)
-      .order('day_date', ascending: true)
-      .order('sort_order', ascending: true)
-      .order('start_time', ascending: true);
-  return (data as List).map((e) => TripActivity.fromJson(e)).toList();
+  final cache = await ref.watch(localTripsCacheServiceProvider.future);
+  try {
+    final data = await client
+        .from('trip_activities')
+        .select()
+        .eq('trip_id', tripId)
+        .order('day_date', ascending: true)
+        .order('sort_order', ascending: true)
+        .order('start_time', ascending: true);
+    final rows = (data as List).whereType<Map<String, dynamic>>().toList();
+    cache.writeActivities(tripId, rows);
+    ref.read(isOfflineProvider.notifier).state = false;
+    return rows.map((e) => TripActivity.fromJson(e)).toList();
+  } catch (e) {
+    ref.read(isOfflineProvider.notifier).state = true;
+    return cache.readActivities(tripId);
+  }
 });
 
 final tripTransportsProvider = FutureProvider.family<List<TripTransport>, String>((ref, tripId) async {
   final client = ref.watch(supabaseProvider);
-  final data = await client.from('trip_transports').select().eq('trip_id', tripId);
-  return (data as List).map((e) => TripTransport.fromJson(e)).toList();
+  final cache = await ref.watch(localTripsCacheServiceProvider.future);
+  try {
+    final data = await client.from('trip_transports').select().eq('trip_id', tripId);
+    final rows = (data as List).whereType<Map<String, dynamic>>().toList();
+    cache.writeTransports(tripId, rows);
+    ref.read(isOfflineProvider.notifier).state = false;
+    return rows.map((e) => TripTransport.fromJson(e)).toList();
+  } catch (e) {
+    ref.read(isOfflineProvider.notifier).state = true;
+    return cache.readTransports(tripId);
+  }
 });
 
 /// Calcul du budget d'un voyage : somme des prix estimés (activités + trajets

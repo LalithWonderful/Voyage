@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:voyage/core/providers/currency_provider.dart';
+import 'package:voyage/core/providers/offline_provider.dart';
 import 'package:voyage/core/services/currency_service.dart';
 import 'package:voyage/core/theme/app_theme.dart';
 import 'package:voyage/features/auth/providers/auth_provider.dart';
@@ -71,11 +72,38 @@ class _TripsScreenState extends ConsumerState<TripsScreen> {
       _TripFilter.past: _applyFilter(allTrips, _TripFilter.past, today).length,
     };
 
+    final offline = ref.watch(isOfflineProvider);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
+            // Bandeau "hors ligne" : visible dès qu'un provider Trip a
+            // fallback sur le cache local. Disparaît automatiquement quand
+            // un fetch suivant réussit (provider reset à false). Wording
+            // doux + icône cloud_off, couleur ambre cohérente avec les
+            // autres warnings UX (TransportDocWarnings, etc.).
+            if (offline)
+              SliverToBoxAdapter(
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  color: AppColors.accent.withValues(alpha: 0.15),
+                  child: Row(
+                    children: [
+                      Icon(Icons.cloud_off, size: 16, color: AppColors.accent),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Mode hors ligne — affichage depuis le cache local',
+                          style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             SliverToBoxAdapter(
               child: Container(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
@@ -90,11 +118,26 @@ class _TripsScreenState extends ConsumerState<TripsScreen> {
                         Text('Mes voyages', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
                       ],
                     )),
+                    // Bouton "+" pour créer un voyage. Grisé en mode hors
+                    // ligne — la création nécessite Supabase (sauvegarde
+                    // immédiate, pas de queue offline pour la beta).
                     GestureDetector(
-                      onTap: () => context.go('/onboarding/destination'),
+                      onTap: offline
+                          ? () => ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Pas de connexion internet. Reconnecte-toi pour créer un voyage.',
+                                  ),
+                                  duration: Duration(seconds: 4),
+                                ),
+                              )
+                          : () => context.go('/onboarding/destination'),
                       child: Container(
                         width: 36, height: 36,
-                        decoration: BoxDecoration(shape: BoxShape.circle, color: AppColors.accent),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: offline ? AppColors.textSecondary.withValues(alpha: 0.3) : AppColors.accent,
+                        ),
                         child: const Center(child: Icon(Icons.add, color: Colors.white, size: 20)),
                       ),
                     ),
