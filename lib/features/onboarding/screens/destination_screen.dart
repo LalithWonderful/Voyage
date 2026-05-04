@@ -64,6 +64,17 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
     ('🇮🇩', 'Bali, Indonésie', 'Nightlife · Bons plans', 86, [Color(0xFF10B981), Color(0xFF14B8A6)]),
   ];
 
+  /// Conversion du score (toujours hardcodé en V1, alimenté par la reco IA en V2)
+  /// vers un libellé humain. Évite la fausse précision algorithmique d'un %
+  /// alors que la donnée n'est pas encore réelle. Seuils choisis pour donner
+  /// trois paliers lisibles : >=95 = très adapté, >=85 = bon match, sinon
+  /// "à découvrir" reste positif (pas "peu adapté").
+  String _matchLabel(int score) {
+    if (score >= 95) return 'Très adapté';
+    if (score >= 85) return 'Bon match';
+    return 'À découvrir';
+  }
+
   /// Reset programmatique du champ destination (vide la saisie + reset le kind).
   /// À appeler quand on bascule sur une destination pré-remplie.
   void _resetDestinationField() {
@@ -248,12 +259,19 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      widget.isFromOnboarding ? 'Où tu pars ?' : 'Où veux-tu aller ?',
+                      'Où veux-tu voyager ?',
                       style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                     ),
                     const SizedBox(height: 6),
-                    Text('Choisis une destination, ou laisse-toi inspirer.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                    // Sous-titre transitoire commit 1 : indique l'intention sans
+                    // mentir sur l'état actuel (dates encore obligatoires).
+                    // Sera remplacé en commit 2 par "Tu peux préciser les dates
+                    // et les voyageurs plus tard." quand ce sera techniquement
+                    // vrai.
+                    Text('Indique une destination, choisis tes dates et c\'est parti.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
                     const SizedBox(height: 14),
+                    Text('Destination *', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+                    const SizedBox(height: 8),
                     // Autocomplete élargi : accepte villes, pays, régions, lieux.
                     // Le `kind` détecté nourrit le bandeau d'info pays/région
                     // ci-dessous. La Key change quand on reset programmatiquement
@@ -264,7 +282,7 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
                       key: ValueKey('onboarding-dest-$_destFieldVersion'),
                       initialValue: _typedDestination,
                       acceptAnyDestination: true,
-                      hintText: 'Pays, ville, région... (ex: Nancy, Maroc, Bali)',
+                      hintText: 'Ville, pays ou région… Ex. Nice, Maroc, Bali',
                       onChanged: (v) {
                         // Suit la saisie en temps réel pour que `_canSave`
                         // fonctionne sans clic de suggestion. Reset le `kind`
@@ -322,6 +340,28 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
                         ),
                       ),
                     ],
+                    const SizedBox(height: 12),
+
+                    // Inspire-moi remonté juste sous la destination : c'est une
+                    // alternative au remplissage du champ, pas une feature de fin
+                    // d'écran. La proximité visuelle clarifie la logique
+                    // "saisis OU laisse-toi guider".
+                    Row(
+                      children: [
+                        Text('Tu ne sais pas où partir ?', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                        const SizedBox(width: 8),
+                        TextButton(
+                          onPressed: _loading ? null : _inspireMe,
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.accent,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: const Text('✨ Inspire-moi', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 16),
 
                     Text('PÉRIODE DU VOYAGE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
@@ -354,19 +394,32 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('VOYAGEURS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
-                        Text('${_travelers.length} ${_travelers.length > 1 ? 'personnes' : 'personne'}', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                        Text('VOYAGEURS — OPTIONNEL', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+                        if (_travelers.isNotEmpty)
+                          Text('${_travelers.length} ${_travelers.length > 1 ? 'personnes' : 'personne'}', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                       ],
                     ),
                     const SizedBox(height: 8),
-                    ..._travelers.asMap().entries.map((e) => _TravelerTile(
-                      traveler: e.value,
-                      onRemove: () => setState(() => _travelers.removeAt(e.key)),
-                    )),
+                    // Si la liste est vide, on montre le défaut implicite "1 adulte"
+                    // sans créer de Traveler stocké. Le voyage se créera avec une
+                    // liste de voyageurs vide — interprétée comme "1 adulte par
+                    // défaut" partout dans l'app. Le user peut modifier via le
+                    // bouton ci-dessous.
+                    if (_travelers.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Text('1 adulte par défaut', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                      )
+                    else
+                      ..._travelers.asMap().entries.map((e) => _TravelerTile(
+                        traveler: e.value,
+                        onRemove: () => setState(() => _travelers.removeAt(e.key)),
+                      )),
+                    const SizedBox(height: 6),
                     OutlinedButton.icon(
                       onPressed: _addTraveler,
                       icon: const Icon(Icons.person_add_alt_1, size: 18),
-                      label: const Text('Ajouter un voyageur'),
+                      label: const Text('Modifier les voyageurs'),
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size(double.infinity, 44),
                         foregroundColor: AppColors.primary,
@@ -376,12 +429,14 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
                     ),
                     const SizedBox(height: 20),
 
-                    Text('PARFAITES POUR VOTRE PROFIL', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+                    Text('IDÉES ADAPTÉES À TON PROFIL', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
                     const SizedBox(height: 10),
                     ...List.generate(_destinations.length, (i) {
                       final d = _destinations[i];
                       return _DestCard(
-                        flag: d.$1, name: d.$2, meta: d.$3, match: d.$4, colors: d.$5,
+                        flag: d.$1, name: d.$2, meta: d.$3,
+                        matchLabel: _matchLabel(d.$4),
+                        colors: d.$5,
                         selected: _selectedIndex == i,
                         onTap: () => setState(() {
                           _selectedIndex = i;
@@ -389,16 +444,7 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
                         }),
                       );
                     }),
-                    const SizedBox(height: 12),
-                    OutlinedButton(
-                      onPressed: _loading ? null : _inspireMe,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.accent,
-                        side: BorderSide(color: AppColors.accent),
-                      ),
-                      child: const Text('🎲 Inspire-moi'),
-                    ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 16),
                     ElevatedButton(
                       onPressed: _canSave ? _save : null,
                       child: _loading
@@ -525,13 +571,12 @@ class _DateField extends StatelessWidget {
 }
 
 class _DestCard extends StatelessWidget {
-  final String flag, name, meta;
-  final int match;
+  final String flag, name, meta, matchLabel;
   final List<Color> colors;
   final bool selected;
   final VoidCallback onTap;
 
-  const _DestCard({required this.flag, required this.name, required this.meta, required this.match, required this.colors, required this.selected, required this.onTap});
+  const _DestCard({required this.flag, required this.name, required this.meta, required this.matchLabel, required this.colors, required this.selected, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -545,34 +590,53 @@ class _DestCard extends StatelessWidget {
           border: Border.all(color: selected ? AppColors.primary : AppColors.border, width: selected ? 1.5 : 1),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Container(
-              width: 50, height: 50,
-              decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), gradient: LinearGradient(colors: colors)),
-              child: Center(child: Text(flag, style: const TextStyle(fontSize: 24))),
-            ),
-            const SizedBox(width: 12),
-            Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            Row(
               children: [
-                Text(name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-                const SizedBox(height: 2),
-                Text(meta, style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                Container(
+                  width: 50, height: 50,
+                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), gradient: LinearGradient(colors: colors)),
+                  child: Center(child: Text(flag, style: const TextStyle(fontSize: 24))),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                    const SizedBox(height: 2),
+                    Text(meta, style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                  ],
+                )),
+                // Badge humain remplace le score % (cf. _matchLabel) :
+                // évite la fausse précision algorithmique d'un % alors que la
+                // donnée est hardcodée. Trois paliers lisibles pour un signal
+                // ressenti, pas calculé.
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(color: AppColors.success, borderRadius: BorderRadius.circular(10)),
+                  child: Text(matchLabel, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
+                ),
               ],
-            )),
-            if (selected)
-              Container(
-                width: 24, height: 24,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: AppColors.primary),
-                child: const Icon(Icons.check, size: 14, color: Colors.white),
-              )
-            else
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: AppColors.success, borderRadius: BorderRadius.circular(10)),
-                child: Text('$match%', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+            ),
+            const SizedBox(height: 10),
+            // CTA explicite "Choisir / Choisie" : la card reste tappable mais
+            // le bouton matérialise l'action attendue. Devient "Choisie ✓"
+            // quand sélectionnée pour éviter de retaper et perdre la sélection.
+            SizedBox(
+              height: 32,
+              child: OutlinedButton(
+                onPressed: onTap,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: selected ? AppColors.primary : AppColors.textPrimary,
+                  side: BorderSide(color: selected ? AppColors.primary : AppColors.border),
+                  padding: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                child: Text(selected ? 'Choisie ✓' : 'Choisir', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
               ),
+            ),
           ],
         ),
       ),
