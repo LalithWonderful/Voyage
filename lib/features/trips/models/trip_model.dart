@@ -225,6 +225,15 @@ class Trip {
   /// exactes.
   final String? targetPeriod;
 
+  /// Budget par personne en euros (null = pas de budget renseigné). Sert au
+  /// filtre de faisabilité à la création + comparaison wallet en cours de
+  /// voyage. Stocké TTC vol+séjour si `budgetIncludesFlight` est true.
+  final num? budgetPerPersonEur;
+
+  /// True (default) : le budget couvre vol AR + séjour. False : vol payé
+  /// séparément (logique d'estimations légèrement différente).
+  final bool? budgetIncludesFlight;
+
   const Trip({
     required this.id,
     required this.userId,
@@ -249,6 +258,8 @@ class Trip {
     this.selectedRegionRadiusKm,
     this.periodMode,
     this.targetPeriod,
+    this.budgetPerPersonEur,
+    this.budgetIncludesFlight,
   });
 
   /// True quand le voyage a des dates réelles choisies par l'utilisateur.
@@ -361,6 +372,8 @@ class Trip {
     int? selectedRegionRadiusKm,
     String? periodMode,
     String? targetPeriod,
+    num? budgetPerPersonEur,
+    bool? budgetIncludesFlight,
   }) {
     return Trip(
       id: id ?? this.id,
@@ -386,6 +399,8 @@ class Trip {
       selectedRegionRadiusKm: selectedRegionRadiusKm ?? this.selectedRegionRadiusKm,
       periodMode: periodMode ?? this.periodMode,
       targetPeriod: targetPeriod ?? this.targetPeriod,
+      budgetPerPersonEur: budgetPerPersonEur ?? this.budgetPerPersonEur,
+      budgetIncludesFlight: budgetIncludesFlight ?? this.budgetIncludesFlight,
     );
   }
 
@@ -419,5 +434,7 @@ class Trip {
     selectedRegionRadiusKm: (json['selected_region_radius_km'] as num?)?.toInt(),
     periodMode: json['period_mode'] as String?,
     targetPeriod: json['target_period'] as String?,
+    budgetPerPersonEur: json['budget_per_person_eur'] as num?,
+    budgetIncludesFlight: json['budget_includes_flight'] as bool?,
   );
 }

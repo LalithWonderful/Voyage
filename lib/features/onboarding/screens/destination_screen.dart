@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:voyage/core/theme/app_theme.dart';
 import 'package:voyage/core/widgets/city_autocomplete_field.dart';
 import 'package:voyage/features/auth/providers/auth_provider.dart';
+import 'package:voyage/features/planning/data/destination_baseline_costs.dart';
 import 'package:voyage/features/planning/data/destination_seasonality.dart';
 import 'package:voyage/features/planning/providers/planning_provider.dart';
 import 'package:voyage/features/planning/widgets/seasonality_sheet.dart';
@@ -71,6 +72,15 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
   /// quand `_typedDestination` change). Null si pas de match → la CTA
   /// "Me conseiller" est cachée.
   DestinationSeasonality? _seasonalityMatch;
+  /// Section budget dépliée ou non. Repliée par défaut pour ne pas charger
+  /// l'écran — l'user qui veut donner un budget clique pour déplier.
+  bool _budgetExpanded = false;
+  /// Budget par personne saisi (en euros). Null si non renseigné.
+  int? _budgetPerPersonEur;
+  /// True (default) : le budget couvre vol + séjour. False : vol séparé.
+  bool _budgetIncludesFlight = true;
+  /// Controller du champ budget (pour pouvoir reset programmatiquement).
+  final TextEditingController _budgetCtrl = TextEditingController();
   bool _loading = false;
   int? _selectedIndex;
   final List<Traveler> _travelers = [];
@@ -350,6 +360,8 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
         'end_date': period.end.toIso8601String().split('T').first,
         'period_mode': period.mode,
         if (period.target != null) 'target_period': period.target,
+        if (_budgetPerPersonEur != null) 'budget_per_person_eur': _budgetPerPersonEur,
+        if (_budgetPerPersonEur != null) 'budget_includes_flight': _budgetIncludesFlight,
         'cover_emoji': _chosenEmoji,
         'status': 'upcoming',
         'travelers': _travelers.map((t) => t.toJson()).toList(),
@@ -416,6 +428,193 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
 
   String _formatDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+
+  @override
+  void dispose() {
+    _budgetCtrl.dispose();
+    super.dispose();
+  }
+
+  /// Durée en jours utilisée pour les estimations budget. En mode 'exact'
+  /// avec dates choisies, on utilise la vraie durée. Sinon (mois cible /
+  /// unspecified / recommended), on prend 7 jours par défaut — fenêtre
+  /// type explorée par l'IA.
+  int _estimatedDays() {
+    if (_periodMode == 'exact' && _startDate != null && _endDate != null) {
+      return _endDate!.difference(_startDate!).inDays + 1;
+    }
+    return 7;
+  }
+
+  /// Section budget repliable. Repliée par défaut pour ne pas charger
+  /// l'écran. Quand dépliée + budget saisi + destination dans la table
+  /// baseline_costs, affiche un hint de faisabilité.
+  Widget _buildBudgetSection() {
+    final dest = _chosenDestination ?? '';
+    final homeAirport = ref.watch(userProfileProvider).valueOrNull?['home_airport_iata'] as String?;
+    final feasibility = (_budgetPerPersonEur != null && dest.isNotEmpty)
+        ? estimateFeasibility(
+            destinationText: dest,
+            budgetEur: _budgetPerPersonEur!,
+            days: _estimatedDays(),
+            homeAirport: homeAirport,
+          )
+        : null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header repliable cliquable
+        GestureDetector(
+          onTap: () => setState(() => _budgetExpanded = !_budgetExpanded),
+          child: Row(
+            children: [
+              Text('BUDGET — OPTIONNEL', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+              const SizedBox(width: 6),
+              Icon(
+                _budgetExpanded ? Icons.expand_less : Icons.expand_more,
+                size: 16,
+                color: AppColors.textSecondary,
+              ),
+              const Spacer(),
+              if (_budgetPerPersonEur != null && !_budgetExpanded)
+                Text('${_budgetPerPersonEur!} € / pers.', style: TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
+        if (_budgetExpanded) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _budgetCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    hintText: '600',
+                    suffixText: '€ / pers.',
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onChanged: (v) {
+                    setState(() {
+                      _budgetPerPersonEur = int.tryParse(v.trim());
+                    });
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Checkbox(
+                value: _budgetIncludesFlight,
+                onChanged: (v) => setState(() => _budgetIncludesFlight = v ?? true),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+              const SizedBox(width: 4),
+              Text('Trajet inclus', style: TextStyle(fontSize: 12, color: AppColors.textPrimary)),
+            ],
+          ),
+          if (feasibility != null) ...[
+            const SizedBox(height: 10),
+            _buildFeasibilityHint(feasibility, homeAirport),
+          ],
+        ],
+      ],
+    );
+  }
+
+  /// Hint visuel sur la faisabilité du budget vs la destination choisie.
+  /// Vert si fits + budget confortable, ambre si tight, rouge si dépasse.
+  Widget _buildFeasibilityHint(
+    ({DestinationBaselineCost cost, int adjustedFlight, int minTotal, int avgTotal, bool fits, bool tightFit}) f,
+    String? homeAirport,
+  ) {
+    final color = !f.fits
+        ? AppColors.error
+        : f.tightFit
+            ? AppColors.accent
+            : AppColors.success;
+    final emoji = !f.fits ? '⚠️' : f.tightFit ? '🟡' : '✅';
+    final days = _estimatedDays();
+
+    String message;
+    List<DestinationBaselineCost> alternatives = [];
+    if (!f.fits) {
+      message = '${f.cost.displayName} dépasse ton budget — il faudrait au moins ${f.minTotal} € pour $days jours (vol ~${f.adjustedFlight} € + ${f.cost.dailyBudgetEur} €/jour).';
+      alternatives = findAlternativesWithinBudget(
+        budgetEur: _budgetPerPersonEur!,
+        days: days,
+        homeAirport: homeAirport,
+        excludeKeywords: f.cost.matchKeywords,
+        limit: 4,
+      );
+    } else if (f.tightFit) {
+      message = 'Faisable mais serré pour ${f.cost.displayName} — minimum ~${f.minTotal} €, plus confortable autour de ${f.avgTotal} €.';
+    } else {
+      message = '${f.cost.displayName} confortablement dans ton budget — minimum ~${f.minTotal} € pour $days jours, marge OK.';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 14)),
+              const SizedBox(width: 8),
+              Expanded(child: Text(message, style: TextStyle(fontSize: 12, color: AppColors.textPrimary, height: 1.4))),
+            ],
+          ),
+          if (alternatives.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              'À ce budget, tu peux viser :',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: alternatives.map((alt) => GestureDetector(
+                onTap: () {
+                  // Pré-remplit la destination avec l'alternative cliquée.
+                  setState(() {
+                    _typedDestination = alt.displayName;
+                    _selectedPlaceId = null;
+                    _destinationKind = 'unknown';
+                    _selectedIndex = null;
+                    _destFieldVersion++;
+                    _refreshSeasonalityMatch();
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.4)),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(alt.displayName, style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w600)),
+                ),
+              )).toList(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -742,6 +941,9 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
                     ),
+                    const SizedBox(height: 20),
+
+                    _buildBudgetSection(),
                     const SizedBox(height: 20),
 
                     Text('IDÉES ADAPTÉES À TON PROFIL', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),

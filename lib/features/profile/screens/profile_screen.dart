@@ -56,6 +56,7 @@ class ProfileScreen extends ConsumerWidget {
     final travelerType = profile?['traveler_type'] as String?;
     final typeEmoji = _typeEmojis[travelerType] ?? '🧭';
     final transportMode = profile?['favorite_transport_mode'] as String?;
+    final homeAirportIata = (profile?['home_airport_iata'] as String?) ?? 'CDG';
     final themeMode = (profile?['theme_mode'] as String?) ?? 'system';
     final notificationsEnabled = (profile?['notifications_enabled'] as bool?) ?? true;
     final interests = interestsAsync.valueOrNull ?? const <String>[];
@@ -115,6 +116,11 @@ class ProfileScreen extends ConsumerWidget {
               context, '🚕', 'Mode de transport favori',
               transportMode == null ? 'Non défini' : _transportLabel(transportMode),
               onTap: () => _pickTransport(context, ref, transportMode),
+            ),
+            _tile(
+              context, '✈️', 'Aéroport de départ',
+              homeAirportIata,
+              onTap: () => _pickHomeAirport(context, ref, homeAirportIata),
             ),
             _tile(
               context, '🎨', 'Thème',
@@ -304,6 +310,50 @@ class ProfileScreen extends ConsumerWidget {
     );
     if (picked != null && picked != current) {
       await _updateProfile(context, ref, {'favorite_transport_mode': picked});
+    }
+  }
+
+  /// Saisie libre du code IATA (3 lettres). Pas de picker exhaustif — on
+  /// laisse l'user taper son aéroport, c'est plus rapide et la table
+  /// `airport_city_overrides.dart` couvre 366 codes pour la résolution
+  /// downstream. Sert au calcul d'estimations vol depuis cet aéroport.
+  Future<void> _pickHomeAirport(BuildContext context, WidgetRef ref, String current) async {
+    final picked = await showDialog<String>(
+      context: context,
+      builder: (dialogCtx) {
+        final ctrl = TextEditingController(text: current);
+        return AlertDialog(
+          title: const Text('Aéroport de départ'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: ctrl,
+                decoration: const InputDecoration(
+                  labelText: 'Code IATA',
+                  hintText: 'CDG, NCE, MRS, LYS…',
+                  helperText: '3 lettres, en majuscules.',
+                ),
+                textCapitalization: TextCapitalization.characters,
+                maxLength: 3,
+                autofocus: true,
+                onSubmitted: (v) => Navigator.of(dialogCtx).pop(v.trim().toUpperCase()),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(dialogCtx).pop(), child: const Text('Annuler')),
+            ElevatedButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(ctrl.text.trim().toUpperCase()),
+              child: const Text('Enregistrer'),
+            ),
+          ],
+        );
+      },
+    );
+    if (picked != null && picked.length == 3 && picked != current) {
+      await _updateProfile(context, ref, {'home_airport_iata': picked});
     }
   }
 
