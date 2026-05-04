@@ -106,9 +106,21 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
   /// Recalcule le match de saisonnalité pour le texte courant. Appelé à
   /// chaque keystroke + à chaque sélection de suggestion. La CTA "Me
   /// conseiller" est visible si et seulement si ce champ est non-null.
+  ///
+  /// Important : si on était en mode 'recommended' et que la destination
+  /// pointe désormais vers une autre entrée seasonality, la recommandation
+  /// devient obsolète (ex: user a accepté "Décembre 2026" pour les
+  /// Maldives, puis change pour Koh Samui où décembre est à éviter). On
+  /// reset alors vers 'exact' pour que la CTA réapparaisse et que l'user
+  /// puisse re-demander conseil pour la nouvelle destination.
   void _refreshSeasonalityMatch() {
     final txt = _chosenDestination ?? '';
-    _seasonalityMatch = txt.isEmpty ? null : findSeasonalityFor(txt);
+    final newMatch = txt.isEmpty ? null : findSeasonalityFor(txt);
+    if (_periodMode == 'recommended' && !identical(newMatch, _seasonalityMatch)) {
+      _periodMode = 'exact';
+      _targetPeriod = null;
+    }
+    _seasonalityMatch = newMatch;
   }
 
   /// Ouvre la sheet de saisonnalité. Si l'utilisateur valide la
