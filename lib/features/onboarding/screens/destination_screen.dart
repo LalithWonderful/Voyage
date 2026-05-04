@@ -5,7 +5,9 @@ import 'package:go_router/go_router.dart';
 import 'package:voyage/core/theme/app_theme.dart';
 import 'package:voyage/core/widgets/city_autocomplete_field.dart';
 import 'package:voyage/features/auth/providers/auth_provider.dart';
+import 'package:voyage/features/planning/data/destination_seasonality.dart';
 import 'package:voyage/features/planning/providers/planning_provider.dart';
+import 'package:voyage/features/planning/widgets/seasonality_sheet.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
 
@@ -58,9 +60,17 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
   /// - `'month'` : il indique un mois cible — on synthétisera des dates
   ///   (1er du mois → +6 jours) à la création pour rester compatible
   ///   avec le pipeline planning/IA, mais l'affichage utilisera le mois.
+  /// - `'recommended'` : l'utilisateur a accepté une période recommandée
+  ///   par Lunao via la sheet de saisonnalité. Stocké distinctement de
+  ///   'month' pour différencier l'affichage ("Recommandé : Mai 2026" vs
+  ///   "Plutôt en mai 2026" — le 1er signale que le choix vient de Lunao).
   String _periodMode = 'exact';
-  /// Mois cible quand `_periodMode == 'month'`. Format YYYY-MM.
+  /// Mois cible quand `_periodMode == 'month'` ou `'recommended'`. Format YYYY-MM.
   String? _targetPeriod;
+  /// Entrée de saisonnalité matchant la destination courante (recalculée
+  /// quand `_typedDestination` change). Null si pas de match → la CTA
+  /// "Me conseiller" est cachée.
+  DestinationSeasonality? _seasonalityMatch;
   bool _loading = false;
   int? _selectedIndex;
   final List<Traveler> _travelers = [];
@@ -90,6 +100,38 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
     _destinationKind = 'unknown';
     _selectedPlaceId = null;
     _destFieldVersion++;
+    _seasonalityMatch = null;
+  }
+
+  /// Recalcule le match de saisonnalité pour le texte courant. Appelé à
+  /// chaque keystroke + à chaque sélection de suggestion. La CTA "Me
+  /// conseiller" est visible si et seulement si ce champ est non-null.
+  void _refreshSeasonalityMatch() {
+    final txt = _chosenDestination ?? '';
+    _seasonalityMatch = txt.isEmpty ? null : findSeasonalityFor(txt);
+  }
+
+  /// Ouvre la sheet de saisonnalité. Si l'utilisateur valide la
+  /// recommandation, on bascule en mode `'recommended'` avec le mois
+  /// suggéré. S'il choisit "Voir un autre mois" (pop sans value), on
+  /// bascule en mode `'month'` avec son picker classique.
+  Future<void> _openSeasonalitySheet() async {
+    final match = _seasonalityMatch;
+    if (match == null) return;
+    final choice = await showSeasonalitySheet(context, seasonality: match);
+    if (!mounted) return;
+    if (choice != null) {
+      setState(() {
+        _periodMode = 'recommended';
+        _targetPeriod = choice.targetPeriod;
+      });
+      return;
+    }
+    // L'utilisateur a fermé sans choisir la reco. S'il a cliqué "Voir un
+    // autre mois", on bascule en mode 'month' et on ouvre directement le
+    // picker classique pour ne pas le laisser sur un état vide.
+    setState(() => _periodMode = 'month');
+    await _pickTargetMonth();
   }
 
   Future<void> _addTraveler() async {
@@ -147,13 +189,14 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
   /// Création débloquée dès que la destination est renseignée. Les dates et
   /// les voyageurs sont optionnels :
   /// - mode 'exact' : si l'user a saisi 2 dates, on les utilise ; sinon on
-  ///   bascule sur un mois cible synthétique (mois courant) à la création.
-  /// - mode 'month' : besoin uniquement de `_targetPeriod`.
+  ///   bascule sur 'unspecified' à la création.
+  /// - mode 'month' : besoin de `_targetPeriod`.
+  /// - mode 'recommended' : besoin de `_targetPeriod` (rempli par la sheet).
   bool get _canSave {
     if (_loading || _chosenDestination == null) return false;
-    if (_periodMode == 'month') return _targetPeriod != null;
-    // En mode 'exact', on autorise la création même sans dates : elles seront
-    // traitées comme un mois cible (mois courant) lors du save.
+    if (_periodMode == 'month' || _periodMode == 'recommended') {
+      return _targetPeriod != null;
+    }
     return true;
   }
 
@@ -224,31 +267,24 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
 
   /// Résout les dates effectives à enregistrer en BDD selon le mode courant.
   /// Retourne (start, end, periodMode, targetPeriod) :
-  /// - mode 'exact' avec dates renseignées → dates réelles, periodMode='exact'
-  /// - mode 'exact' sans dates → bascule en 'unspecified' avec mois courant
-  ///   comme fenêtre exploratoire pour le pipeline IA. **Important** :
-  ///   l'affichage côté UI ne montrera PAS ce mois (cf. `hasUnspecifiedPeriod`)
-  ///   car l'utilisateur ne l'a pas choisi.
-  /// - mode 'month' avec mois choisi → 1er du mois cible → +6 jours, mode='month'
-  /// - mode 'month' sans mois choisi → traité comme 'unspecified' (cas peu
-  ///   probable car _canSave bloque, mais filet de sécurité)
+  /// - mode 'exact' avec dates renseignées → dates réelles
+  /// - mode 'month' avec mois choisi → 1er → +6 jours, mode='month'
+  /// - mode 'recommended' avec mois choisi via la sheet → 1er → +6 jours,
+  ///   mode='recommended' (l'UI affichera "Recommandé : Mai 2026" pour
+  ///   distinguer d'un choix manuel)
+  /// - aucun mois choisi → 'unspecified' avec mois courant (UI cachera le mois)
   ({DateTime start, DateTime end, String mode, String? target}) _resolvePeriod() {
     if (_periodMode == 'exact' && _startDate != null && _endDate != null) {
       return (start: _startDate!, end: _endDate!, mode: 'exact', target: null);
     }
-    // Cas mois cible explicite
-    if (_periodMode == 'month' && _targetPeriod != null) {
+    if ((_periodMode == 'month' || _periodMode == 'recommended') && _targetPeriod != null) {
       final parts = _targetPeriod!.split('-');
       final year = int.parse(parts[0]);
       final month = int.parse(parts[1]);
       final start = DateTime(year, month, 1);
       final end = start.add(const Duration(days: 6));
-      return (start: start, end: end, mode: 'month', target: _targetPeriod);
+      return (start: start, end: end, mode: _periodMode, target: _targetPeriod);
     }
-    // Aucune période choisie : on synthétise une fenêtre exploratoire (mois
-    // courant) pour le pipeline IA, mais on signale 'unspecified' pour que
-    // l'UI affiche "Dates à préciser" et pas le mois courant comme s'il
-    // avait été choisi par l'utilisateur.
     final now = DateTime.now();
     final raw = '${now.year}-${now.month.toString().padLeft(2, '0')}';
     final start = DateTime(now.year, now.month, 1);
@@ -423,6 +459,7 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
                           if (v.trim().isNotEmpty && _selectedIndex != null) {
                             _selectedIndex = null;
                           }
+                          _refreshSeasonalityMatch();
                         });
                       },
                       onSelectedDetailed: (city, _, placeId, kind) {
@@ -431,6 +468,7 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
                           _destinationKind = kind;
                           _selectedPlaceId = placeId;
                           _selectedIndex = null;
+                          _refreshSeasonalityMatch();
                         });
                       },
                     ),
@@ -486,28 +524,79 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
 
                     Text('QUAND VEUX-TU PARTIR ? — OPTIONNEL', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
                     const SizedBox(height: 8),
-                    // Toggle 2 modes — "exact" : 2 date pickers ; "month" :
-                    // un mini-picker mois (12 mois glissants). En mode 'month'
-                    // les dates sont synthétisées à la création (1er du mois →
-                    // +6 jours), invisibles à l'user mais exploitables par les
-                    // pipelines downstream (planning, IA, wallet).
-                    Row(
-                      children: [
-                        Expanded(child: _ModeToggle(
-                          label: 'Dates exactes',
-                          selected: _periodMode == 'exact',
-                          onTap: () => setState(() => _periodMode = 'exact'),
-                        )),
-                        const SizedBox(width: 8),
-                        Expanded(child: _ModeToggle(
-                          label: 'Plutôt en…',
-                          selected: _periodMode == 'month',
-                          onTap: () => setState(() => _periodMode = 'month'),
-                        )),
-                      ],
-                    ),
+                    // Mode 'recommended' : la période est issue d'une
+                    // recommandation Lunao (sheet de saisonnalité). On affiche
+                    // un banner distinctif (pas le toggle) pour bien indiquer
+                    // que ce mois vient de Lunao, pas du user. Click "Modifier"
+                    // → on revient sur le toggle classique.
+                    if (_periodMode == 'recommended' && _targetPeriod != null) ...[
+                      Container(
+                        padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+                        decoration: BoxDecoration(
+                          color: AppColors.accent.withValues(alpha: 0.12),
+                          border: Border.all(color: AppColors.accent.withValues(alpha: 0.5), width: 1.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            const Text('💡', style: TextStyle(fontSize: 20)),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Période conseillée',
+                                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.accent, letterSpacing: 0.5),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    _formatTargetPeriod(_targetPeriod) ?? '',
+                                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () => setState(() {
+                                _periodMode = 'exact';
+                                _targetPeriod = null;
+                              }),
+                              style: TextButton.styleFrom(
+                                foregroundColor: AppColors.textSecondary,
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              child: const Text('Modifier', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ] else ...[
+                      // Toggle 2 modes — "exact" : 2 date pickers ; "month" :
+                      // un mini-picker mois (12 mois glissants).
+                      Row(
+                        children: [
+                          Expanded(child: _ModeToggle(
+                            label: 'Dates exactes',
+                            selected: _periodMode == 'exact',
+                            onTap: () => setState(() => _periodMode = 'exact'),
+                          )),
+                          const SizedBox(width: 8),
+                          Expanded(child: _ModeToggle(
+                            label: 'Plutôt en…',
+                            selected: _periodMode == 'month',
+                            onTap: () => setState(() => _periodMode = 'month'),
+                          )),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 10),
-                    if (_periodMode == 'exact') ...[
+                    if (_periodMode == 'recommended') ...[
+                      // Banner déjà affiché ci-dessus — rien d'autre dans cette branche.
+                    ] else if (_periodMode == 'exact') ...[
                       Row(
                         children: [
                           Expanded(child: _DateField(
@@ -559,6 +648,45 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
                                 ),
                               ),
                               Icon(Icons.chevron_right, size: 18, color: AppColors.textSecondary),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                    // CTA "Me conseiller" : visible uniquement si la destination
+                    // courante a une entrée dans la table de saisonnalité ET
+                    // qu'on n'est pas déjà en mode 'recommended' (sinon on a
+                    // déjà le banner). Pas un toggle 3e mode → c'est un raccourci
+                    // qui ouvre la sheet et fait basculer en 'recommended'.
+                    if (_seasonalityMatch != null && _periodMode != 'recommended') ...[
+                      const SizedBox(height: 10),
+                      GestureDetector(
+                        onTap: _openSeasonalitySheet,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: AppColors.accent.withValues(alpha: 0.08),
+                            border: Border.all(color: AppColors.accent.withValues(alpha: 0.35)),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            children: [
+                              const Text('💡', style: TextStyle(fontSize: 16)),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('Tu ne sais pas quand partir ?', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                                    const SizedBox(height: 1),
+                                    Text(
+                                      'Me conseiller pour ${_seasonalityMatch!.displayName}',
+                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.accent),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(Icons.chevron_right, size: 18, color: AppColors.accent),
                             ],
                           ),
                         ),
@@ -616,6 +744,7 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
                         onTap: () => setState(() {
                           _selectedIndex = i;
                           _resetDestinationField();
+                          _refreshSeasonalityMatch();
                         }),
                       );
                     }),

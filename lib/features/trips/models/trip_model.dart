@@ -271,6 +271,12 @@ class Trip {
   /// l'utilisateur ne l'a pas choisi → ne pas le lui afficher).
   bool get hasUnspecifiedPeriod => periodMode == 'unspecified';
 
+  /// True quand la période vient d'une recommandation Lunao (saisonnalité)
+  /// acceptée par l'utilisateur via la sheet. À distinguer de 'month' (mois
+  /// choisi librement) : l'UI affiche "Recommandé : Mai 2026" pour bien
+  /// signaler l'origine du choix.
+  bool get hasRecommendedPeriod => periodMode == 'recommended';
+
   /// Libellé humain du mois cible ("Septembre 2026") dérivé de `targetPeriod`
   /// au format YYYY-MM. Null si dates exactes ou format invalide.
   String? get targetPeriodLabel {

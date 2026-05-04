@@ -321,6 +321,11 @@ class _TripCard extends ConsumerWidget {
     // Période non spécifiée par l'utilisateur : ne pas afficher le mois
     // synthétique stocké en BDD (l'utilisateur ne l'a pas choisi).
     if (trip.hasUnspecifiedPeriod) return 'Dates à préciser';
+    // Recommandation Lunao : préfixe "Recommandé" pour bien indiquer que ce
+    // mois vient de l'app, pas du choix utilisateur.
+    if (trip.hasRecommendedPeriod) {
+      return 'Recommandé : ${trip.targetPeriodLabel ?? 'Mois à venir'}';
+    }
     // Mois cible explicite : affiche le mois ciblé, pas un compte à rebours
     // précis (dates synthétiques).
     if (!trip.hasExactDates) {
@@ -386,16 +391,20 @@ class _TripCard extends ConsumerWidget {
                   Row(
                     children: [
                       // Pour les voyages sans dates exactes, on n'affiche
-                      // pas la durée synthétique en jours (trompeur). Si le
-                      // mois est explicitement choisi, on l'affiche ; sinon
-                      // on dit "Dates à préciser" — la fenêtre synthétique
-                      // (mois courant +6 jours) reste invisible.
+                      // pas la durée synthétique en jours (trompeur). On
+                      // distingue :
+                      // - 'unspecified' : "Dates à préciser"
+                      // - 'recommended' : "💡 Recommandé : Mai 2026" (préfixe
+                      //   pour signaler que la période vient de Lunao)
+                      // - 'month' : "🗓️ Mai 2026" (choix utilisateur)
                       Text(
                         trip.hasUnspecifiedPeriod
                             ? '🗓️ Dates à préciser'
-                            : trip.hasExactDates
-                                ? '📅 ${trip.durationDays} jours'
-                                : '🗓️ ${trip.targetPeriodLabel ?? 'Dates à préciser'}',
+                            : trip.hasRecommendedPeriod
+                                ? '💡 Recommandé : ${trip.targetPeriodLabel ?? 'Mois à venir'}'
+                                : trip.hasExactDates
+                                    ? '📅 ${trip.durationDays} jours'
+                                    : '🗓️ ${trip.targetPeriodLabel ?? 'Dates à préciser'}',
                         style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
                       ),
                       if (budgetLabel != null) ...[

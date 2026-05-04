@@ -266,11 +266,13 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
   }
 
   String _formatRange() {
-    // Période non spécifiée : ne pas révéler le mois synthétique.
-    if (trip.hasUnspecifiedPeriod) {
-      return 'Dates à préciser';
+    if (trip.hasUnspecifiedPeriod) return 'Dates à préciser';
+    // Recommandation Lunao : préfixe "Recommandé" pour distinguer du choix
+    // utilisateur libre. Cf. `feedback` review commit 3.
+    if (trip.hasRecommendedPeriod) {
+      return 'Recommandé : ${trip.targetPeriodLabel ?? "période à définir"}';
     }
-    // Mois cible explicite : affiche le mois choisi.
+    // Mois cible choisi librement par l'utilisateur.
     if (!trip.hasExactDates) {
       return 'Plutôt en ${trip.targetPeriodLabel ?? "période à définir"}';
     }
@@ -285,8 +287,9 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
 
   /// Sous-titre court pour le header : "21 jours · 11–31 mai 2026".
   String _headerSubtitle() {
-    if (trip.hasUnspecifiedPeriod) {
-      return 'Dates à préciser';
+    if (trip.hasUnspecifiedPeriod) return 'Dates à préciser';
+    if (trip.hasRecommendedPeriod) {
+      return 'Recommandé : ${trip.targetPeriodLabel ?? "période à définir"}';
     }
     if (!trip.hasExactDates) {
       return 'Plutôt en ${trip.targetPeriodLabel ?? "période à définir"}';
