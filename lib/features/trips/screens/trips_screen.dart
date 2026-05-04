@@ -318,6 +318,11 @@ class _TripCard extends ConsumerWidget {
   const _TripCard({required this.trip, required this.onTap});
 
   String _countdown() {
+    // Voyages "mois cible" : on n'affiche pas un compte à rebours précis
+    // (les dates sont synthétiques, ça serait trompeur). Affiche le mois ciblé.
+    if (!trip.hasExactDates) {
+      return trip.targetPeriodLabel ?? 'Dates à venir';
+    }
     final now = DateTime.now();
     final diff = trip.startDate.difference(now).inDays;
     if (diff < 0) return 'Passé';
@@ -377,7 +382,17 @@ class _TripCard extends ConsumerWidget {
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      Text('📅 ${trip.durationDays} jours', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                      // Pour les voyages "mois cible", on n'affiche pas la
+                      // durée synthétique en jours (info trompeuse car
+                      // l'utilisateur n'a pas choisi de durée). On indique le
+                      // mois et c'est l'edit sheet qui permettra de basculer
+                      // en dates exactes plus tard.
+                      Text(
+                        trip.hasExactDates
+                            ? '📅 ${trip.durationDays} jours'
+                            : '🗓️ ${trip.targetPeriodLabel ?? 'Dates à venir'}',
+                        style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                      ),
                       if (budgetLabel != null) ...[
                         Text(' · ', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                         Text('💰 $budgetLabel', style: TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w600)),

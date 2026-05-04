@@ -53,6 +53,14 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
   int _destFieldVersion = 0;
   DateTime? _startDate;
   DateTime? _endDate;
+  /// Mode de période choisi par l'utilisateur :
+  /// - `'exact'` : il sélectionne 2 dates précises (UI date pickers).
+  /// - `'month'` : il indique un mois cible — on synthétisera des dates
+  ///   (1er du mois → +6 jours) à la création pour rester compatible
+  ///   avec le pipeline planning/IA, mais l'affichage utilisera le mois.
+  String _periodMode = 'exact';
+  /// Mois cible quand `_periodMode == 'month'`. Format YYYY-MM.
+  String? _targetPeriod;
   bool _loading = false;
   int? _selectedIndex;
   final List<Traveler> _travelers = [];
@@ -136,8 +144,105 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
   bool get _showCountryHint =>
       _destinationKind == 'country' || _destinationKind == 'region';
 
-  bool get _canSave =>
-      _chosenDestination != null && _startDate != null && _endDate != null && !_loading;
+  /// Création débloquée dès que la destination est renseignée. Les dates et
+  /// les voyageurs sont optionnels :
+  /// - mode 'exact' : si l'user a saisi 2 dates, on les utilise ; sinon on
+  ///   bascule sur un mois cible synthétique (mois courant) à la création.
+  /// - mode 'month' : besoin uniquement de `_targetPeriod`.
+  bool get _canSave {
+    if (_loading || _chosenDestination == null) return false;
+    if (_periodMode == 'month') return _targetPeriod != null;
+    // En mode 'exact', on autorise la création même sans dates : elles seront
+    // traitées comme un mois cible (mois courant) lors du save.
+    return true;
+  }
+
+  /// Libellé humain du mois cible courant ("Septembre 2026"), ou null si pas
+  /// défini. Dérivé localement (mêmes règles que `Trip.targetPeriodLabel`).
+  String? _formatTargetPeriod(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    final parts = raw.split('-');
+    if (parts.length != 2) return null;
+    final year = int.tryParse(parts[0]);
+    final month = int.tryParse(parts[1]);
+    if (year == null || month == null || month < 1 || month > 12) return null;
+    const months = [
+      'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+      'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
+    ];
+    final name = months[month - 1];
+    return '${name[0].toUpperCase()}${name.substring(1)} $year';
+  }
+
+  /// Mini-picker mois (12 mois glissants à partir du mois courant) en bottom
+  /// sheet. Choix volontairement simple — pour V1 on couvre 12 mois, ce qui
+  /// suffit à la quasi-totalité des cas (planification > 12 mois = rare en
+  /// app voyage grand public).
+  Future<void> _pickTargetMonth() async {
+    final now = DateTime.now();
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppColors.background,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (sheetCtx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Quel mois te tente ?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: List.generate(12, (i) {
+                    final m = DateTime(now.year, now.month + i, 1);
+                    final raw = '${m.year}-${m.month.toString().padLeft(2, '0')}';
+                    final label = _formatTargetPeriod(raw)!;
+                    return OutlinedButton(
+                      onPressed: () => Navigator.of(sheetCtx).pop(raw),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: BorderSide(color: AppColors.border),
+                      ),
+                      child: Text(label, style: const TextStyle(fontSize: 12)),
+                    );
+                  }),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() => _targetPeriod = picked);
+    }
+  }
+
+  /// Résout les dates effectives à enregistrer en BDD selon le mode courant.
+  /// Retourne (start, end, periodMode, targetPeriod) :
+  /// - mode 'exact' avec dates renseignées → dates réelles, periodMode='exact'
+  /// - mode 'exact' sans dates → bascule en 'month' avec mois courant comme
+  ///   cible (l'user a cliqué "Créer" sans rien renseigner sur les dates).
+  /// - mode 'month' → 1er du mois cible → +6 jours, periodMode='month'
+  ({DateTime start, DateTime end, String mode, String? target}) _resolvePeriod() {
+    if (_periodMode == 'exact' && _startDate != null && _endDate != null) {
+      return (start: _startDate!, end: _endDate!, mode: 'exact', target: null);
+    }
+    final raw = _targetPeriod ?? () {
+      final now = DateTime.now();
+      return '${now.year}-${now.month.toString().padLeft(2, '0')}';
+    }();
+    final parts = raw.split('-');
+    final year = int.parse(parts[0]);
+    final month = int.parse(parts[1]);
+    final start = DateTime(year, month, 1);
+    final end = start.add(const Duration(days: 6));
+    return (start: start, end: end, mode: 'month', target: raw);
+  }
 
   Future<void> _save() async {
     if (!_canSave) return;
@@ -167,16 +272,24 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
       // ces logs permettent de comprendre quel placeId Google a été
       // sélectionné (souvent une erreur user qui a cliqué sur "Chichester"
       // au lieu de "Chine" dans la liste autocomplete).
+      // Résout les dates et le mode de période. Quand l'user n'a renseigné
+      // ni dates ni mois cible, on tombe sur "mois courant" en mode 'month' :
+      // ça donne au pipeline IA/planning une fenêtre exploratoire utilisable
+      // sans demander davantage à l'utilisateur.
+      final period = _resolvePeriod();
       debugPrint(
         '[destination-create] destination="$_chosenDestination" kind=$_destinationKind '
-        'placeId=$_selectedPlaceId country=$countryCode',
+        'placeId=$_selectedPlaceId country=$countryCode '
+        'periodMode=${period.mode} target=${period.target}',
       );
       final inserted = await client.from('trips').insert({
         'user_id': userId,
         'title': _chosenDestination!,
         'destination': _chosenDestination!,
-        'start_date': _startDate!.toIso8601String().split('T').first,
-        'end_date': _endDate!.toIso8601String().split('T').first,
+        'start_date': period.start.toIso8601String().split('T').first,
+        'end_date': period.end.toIso8601String().split('T').first,
+        'period_mode': period.mode,
+        if (period.target != null) 'target_period': period.target,
         'cover_emoji': _chosenEmoji,
         'status': 'upcoming',
         'travelers': _travelers.map((t) => t.toJson()).toList(),
@@ -263,12 +376,7 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
                       style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                     ),
                     const SizedBox(height: 6),
-                    // Sous-titre transitoire commit 1 : indique l'intention sans
-                    // mentir sur l'état actuel (dates encore obligatoires).
-                    // Sera remplacé en commit 2 par "Tu peux préciser les dates
-                    // et les voyageurs plus tard." quand ce sera techniquement
-                    // vrai.
-                    Text('Indique une destination, choisis tes dates et c\'est parti.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                    Text('Indique une destination. Tu peux préciser les dates et les voyageurs plus tard.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
                     const SizedBox(height: 14),
                     Text('Destination *', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
                     const SizedBox(height: 8),
@@ -364,31 +472,86 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    Text('PÉRIODE DU VOYAGE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+                    Text('QUAND VEUX-TU PARTIR ? — OPTIONNEL', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
                     const SizedBox(height: 8),
+                    // Toggle 2 modes — "exact" : 2 date pickers ; "month" :
+                    // un mini-picker mois (12 mois glissants). En mode 'month'
+                    // les dates sont synthétisées à la création (1er du mois →
+                    // +6 jours), invisibles à l'user mais exploitables par les
+                    // pipelines downstream (planning, IA, wallet).
                     Row(
                       children: [
-                        Expanded(child: _DateField(
-                          label: 'Départ',
-                          value: _startDate != null ? _formatDate(_startDate!) : null,
-                          onTap: () => _pickDate(isStart: true),
+                        Expanded(child: _ModeToggle(
+                          label: 'Dates exactes',
+                          selected: _periodMode == 'exact',
+                          onTap: () => setState(() => _periodMode = 'exact'),
                         )),
-                        const SizedBox(width: 10),
-                        Expanded(child: _DateField(
-                          label: 'Retour',
-                          value: _endDate != null ? _formatDate(_endDate!) : null,
-                          onTap: () => _pickDate(isStart: false),
+                        const SizedBox(width: 8),
+                        Expanded(child: _ModeToggle(
+                          label: 'Plutôt en…',
+                          selected: _periodMode == 'month',
+                          onTap: () => setState(() => _periodMode = 'month'),
                         )),
                       ],
                     ),
-                    if (_startDate != null && _endDate != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Text(
-                          '${_endDate!.difference(_startDate!).inDays + 1} jours',
-                          style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w600),
+                    const SizedBox(height: 10),
+                    if (_periodMode == 'exact') ...[
+                      Row(
+                        children: [
+                          Expanded(child: _DateField(
+                            label: 'Départ',
+                            value: _startDate != null ? _formatDate(_startDate!) : null,
+                            onTap: () => _pickDate(isStart: true),
+                          )),
+                          const SizedBox(width: 10),
+                          Expanded(child: _DateField(
+                            label: 'Retour',
+                            value: _endDate != null ? _formatDate(_endDate!) : null,
+                            onTap: () => _pickDate(isStart: false),
+                          )),
+                        ],
+                      ),
+                      if (_startDate != null && _endDate != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(
+                            '${_endDate!.difference(_startDate!).inDays + 1} jours',
+                            style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                    ] else ...[
+                      GestureDetector(
+                        onTap: _pickTargetMonth,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            border: Border.all(
+                              color: _targetPeriod != null ? AppColors.primary : AppColors.border,
+                              width: _targetPeriod != null ? 1.5 : 1,
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.calendar_month_outlined, size: 18, color: AppColors.textSecondary),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  _formatTargetPeriod(_targetPeriod) ?? 'Choisir un mois',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: _targetPeriod != null ? AppColors.textPrimary : AppColors.textSecondary,
+                                  ),
+                                ),
+                              ),
+                              Icon(Icons.chevron_right, size: 18, color: AppColors.textSecondary),
+                            ],
+                          ),
                         ),
                       ),
+                    ],
                     const SizedBox(height: 20),
 
                     Row(
@@ -531,6 +694,44 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
             child: Text('Annuler', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Bouton de bascule entre les 2 modes de période (Dates exactes / Plutôt en…).
+/// Style segment-control compact, l'état actif a fond primary léger + bord
+/// primary 1.5px.
+class _ModeToggle extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ModeToggle({required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 38,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primaryLight : AppColors.surface,
+          border: Border.all(
+            color: selected ? AppColors.primary : AppColors.border,
+            width: selected ? 1.5 : 1,
+          ),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: selected ? AppColors.primary : AppColors.textSecondary,
+          ),
+        ),
       ),
     );
   }

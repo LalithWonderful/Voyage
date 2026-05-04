@@ -209,6 +209,22 @@ class Trip {
   /// `country_regions.recommended_radius_km` au moment du choix.
   final int? selectedRegionRadiusKm;
 
+  /// Mode de période choisi par l'utilisateur à la création :
+  /// - `'exact'` (ou null pour les voyages legacy) : startDate/endDate sont
+  ///   les vraies dates choisies. Affichage "du 12 au 18 juin".
+  /// - `'month'` : l'utilisateur a indiqué un mois cible sans dates précises.
+  ///   startDate/endDate sont synthétisées (1er du mois → +6 jours) pour
+  ///   rester exploitables par planning/IA/wallet, mais l'affichage doit
+  ///   utiliser `targetPeriod` ("Plutôt en septembre 2026").
+  /// - `'recommended'` (commit 3) : période suggérée par l'app sur la base
+  ///   de la destination (saison sèche, festival, etc.).
+  final String? periodMode;
+
+  /// Mois cible au format `YYYY-MM` (ex: '2026-09'). Renseigné quand
+  /// `periodMode` ∈ {'month', 'recommended'}. Null pour les voyages à dates
+  /// exactes.
+  final String? targetPeriod;
+
   const Trip({
     required this.id,
     required this.userId,
@@ -231,7 +247,33 @@ class Trip {
     this.selectedRegionId,
     this.selectedRegionName,
     this.selectedRegionRadiusKm,
+    this.periodMode,
+    this.targetPeriod,
   });
+
+  /// True quand le voyage a des dates réelles choisies par l'utilisateur.
+  /// False quand il est en mode "mois cible" ou "saison conseillée" : dans
+  /// ce cas startDate/endDate sont synthétiques et l'affichage doit privilégier
+  /// `targetPeriodLabel` plutôt que les dates exactes.
+  bool get hasExactDates => (periodMode ?? 'exact') == 'exact';
+
+  /// Libellé humain du mois cible ("Septembre 2026") dérivé de `targetPeriod`
+  /// au format YYYY-MM. Null si dates exactes ou format invalide.
+  String? get targetPeriodLabel {
+    final raw = targetPeriod;
+    if (raw == null || raw.isEmpty) return null;
+    final parts = raw.split('-');
+    if (parts.length != 2) return null;
+    final year = int.tryParse(parts[0]);
+    final month = int.tryParse(parts[1]);
+    if (year == null || month == null || month < 1 || month > 12) return null;
+    const months = [
+      'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+      'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
+    ];
+    final name = months[month - 1];
+    return '${name[0].toUpperCase()}${name.substring(1)} $year';
+  }
 
   /// Date de début (incluse) calculée pour un segment selon son ordre dans la liste.
   /// Égale à `startDate` + cumul des jours des segments précédents.
@@ -297,6 +339,8 @@ class Trip {
     int? selectedRegionId,
     String? selectedRegionName,
     int? selectedRegionRadiusKm,
+    String? periodMode,
+    String? targetPeriod,
   }) {
     return Trip(
       id: id ?? this.id,
@@ -320,6 +364,8 @@ class Trip {
       selectedRegionId: selectedRegionId ?? this.selectedRegionId,
       selectedRegionName: selectedRegionName ?? this.selectedRegionName,
       selectedRegionRadiusKm: selectedRegionRadiusKm ?? this.selectedRegionRadiusKm,
+      periodMode: periodMode ?? this.periodMode,
+      targetPeriod: targetPeriod ?? this.targetPeriod,
     );
   }
 
@@ -351,5 +397,7 @@ class Trip {
     selectedRegionId: (json['selected_region_id'] as num?)?.toInt(),
     selectedRegionName: json['selected_region_name'] as String?,
     selectedRegionRadiusKm: (json['selected_region_radius_km'] as num?)?.toInt(),
+    periodMode: json['period_mode'] as String?,
+    targetPeriod: json['target_period'] as String?,
   );
 }

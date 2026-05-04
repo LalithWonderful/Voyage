@@ -266,6 +266,11 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
   }
 
   String _formatRange() {
+    // Voyages "mois cible" : dates synthétiques, on affiche le mois et un
+    // CTA implicite "préciser les dates" sera géré par l'edit sheet.
+    if (!trip.hasExactDates) {
+      return 'Plutôt en ${trip.targetPeriodLabel ?? "période à définir"} • dates à préciser';
+    }
     final s = trip.startDate;
     final e = trip.endDate;
     final sameMonth = s.month == e.month && s.year == e.year;
@@ -277,6 +282,9 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
 
   /// Sous-titre court pour le header : "21 jours · 11–31 mai 2026".
   String _headerSubtitle() {
+    if (!trip.hasExactDates) {
+      return 'Plutôt en ${trip.targetPeriodLabel ?? "période à définir"}';
+    }
     final s = trip.startDate;
     final e = trip.endDate;
     final sameMonth = s.month == e.month && s.year == e.year;

@@ -228,6 +228,12 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
         'destination': dest,
         'start_date': _start.toIso8601String().split('T').first,
         'end_date': _end.toIso8601String().split('T').first,
+        // Toute édition explicite dans cette sheet matérialise un choix de
+        // dates précises. Force `period_mode='exact'` et nettoie
+        // `target_period` pour garder la BDD cohérente — sinon un voyage créé
+        // en mode "mois cible" garderait ce mode malgré des dates custom.
+        'period_mode': 'exact',
+        'target_period': null,
         'cover_emoji': _emoji,
         'travelers': _travelers.map((t) => t.toJson()).toList(),
         'traveler_type': _travelerType,
