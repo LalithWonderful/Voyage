@@ -222,6 +222,33 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
     return true;
   }
 
+  /// Forme courte avec article pour la CTA conseil ("le Brésil", "la
+  /// Thaïlande", "l'Italie", "les États-Unis", "Bali"). Extrait le root
+  /// avant "—", "/" ou "(" puis applique l'article selon une table
+  /// hardcodée (genre/pluriel/voyelle initiale). Retourne le root sans
+  /// article si non listé (ex: "Bali") — préserve la grammaire FR.
+  String _shortNameForCta(String displayName) {
+    final root = displayName.split(RegExp(r'[—/(]'))[0].trim();
+    const masculin = {
+      'Brésil', 'Japon', 'Maroc', 'Vietnam', 'Cambodge', 'Portugal',
+      'Mexique', 'Pérou', 'Sri Lanka',
+    };
+    const feminin = {
+      'Thaïlande', 'Grèce', 'Croatie', 'Turquie', 'Tunisie', 'Pologne',
+      'Hongrie', 'République tchèque', 'Réunion',
+    };
+    const pluriel = {'États-Unis', 'Canaries', 'Maldives'};
+    const voyelle = {
+      'Égypte', 'Italie', 'Espagne', 'Inde', 'Australie', 'Islande',
+      'Indonésie',
+    };
+    if (pluriel.contains(root)) return 'les $root';
+    if (voyelle.contains(root)) return "l'$root";
+    if (feminin.contains(root)) return 'la $root';
+    if (masculin.contains(root)) return 'le $root';
+    return root;
+  }
+
   /// Libellé humain du mois cible courant ("Septembre 2026"), ou null si pas
   /// défini. Dérivé localement (mêmes règles que `Trip.targetPeriodLabel`).
   String? _formatTargetPeriod(String? raw) {
@@ -469,7 +496,7 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
           onTap: () => setState(() => _budgetExpanded = !_budgetExpanded),
           child: Row(
             children: [
-              Text('BUDGET — OPTIONNEL', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+              Text('Budget — optionnel', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
               const SizedBox(width: 6),
               Icon(
                 _budgetExpanded ? Icons.expand_less : Icons.expand_more,
@@ -637,7 +664,7 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
                     const SizedBox(height: 6),
                     Text('Indique une destination. Tu peux préciser les dates et les voyageurs plus tard.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
                     const SizedBox(height: 14),
-                    Text('Destination *', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+                    Text('Destination *', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
                     const SizedBox(height: 8),
                     // Autocomplete élargi : accepte villes, pays, régions, lieux.
                     // Le `kind` détecté nourrit le bandeau d'info pays/région
@@ -700,9 +727,9 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
                             Expanded(
                               child: Text(
                                 _destinationKind == 'country'
-                                    ? 'Tu pars dans tout un pays — on te demandera tes premières villes après création.'
-                                    : 'Tu pars dans une région — on te demandera tes premières villes après création.',
-                                style: TextStyle(fontSize: 11, color: AppColors.textPrimary, height: 1.4),
+                                    ? 'Tu as choisi un pays. Lunao te proposera des villes après la création.'
+                                    : 'Tu as choisi une région. Lunao te proposera des villes après la création.',
+                                style: TextStyle(fontSize: 12, color: AppColors.textPrimary, height: 1.4),
                               ),
                             ),
                           ],
@@ -713,27 +740,43 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
 
                     // Inspire-moi remonté juste sous la destination : c'est une
                     // alternative au remplissage du champ, pas une feature de fin
-                    // d'écran. La proximité visuelle clarifie la logique
-                    // "saisis OU laisse-toi guider".
-                    Row(
-                      children: [
-                        Text('Tu ne sais pas où partir ?', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                        const SizedBox(width: 8),
-                        TextButton(
-                          onPressed: _loading ? null : _inspireMe,
-                          style: TextButton.styleFrom(
-                            foregroundColor: AppColors.accent,
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          child: const Text('✨ Inspire-moi', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    // d'écran. Mis en valeur par un Container subtil (même
+                    // poids visuel que la CTA seasonality) — Lalith a noté
+                    // que la version texte précédente passait inaperçue.
+                    GestureDetector(
+                      onTap: _loading ? null : _inspireMe,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AppColors.accent.withValues(alpha: 0.08),
+                          border: Border.all(color: AppColors.accent.withValues(alpha: 0.35)),
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                      ],
+                        child: Row(
+                          children: [
+                            const Text('✨', style: TextStyle(fontSize: 16)),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Tu ne sais pas où partir ?', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                                  const SizedBox(height: 1),
+                                  Text(
+                                    'Inspire-moi',
+                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.accent),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Icon(Icons.chevron_right, size: 18, color: AppColors.accent),
+                          ],
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 16),
 
-                    Text('QUAND VEUX-TU PARTIR ? — OPTIONNEL', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+                    Text('Quand veux-tu partir ? — optionnel', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
                     const SizedBox(height: 8),
                     // Mode 'recommended' : la période est issue d'une
                     // recommandation Lunao (sheet de saisonnalité). On affiche
@@ -868,47 +911,67 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
                     // courante a une entrée dans la table de saisonnalité ET
                     // qu'on n'est pas déjà en mode 'recommended' (sinon on a
                     // déjà le banner). Pas un toggle 3e mode → c'est un raccourci
-                    // qui ouvre la sheet et fait basculer en 'recommended'.
+                    // qui ouvre la sheet.
+                    //
+                    // Wording contextuel :
+                    // - Si aucun mois choisi : "Me conseiller la meilleure
+                    //   période pour le X" (suggestion proactive)
+                    // - Si mois choisi (mode 'month') : "Vérifier si juin est
+                    //   une bonne période pour le X" (vérification d'un choix
+                    //   existant)
                     if (_seasonalityMatch != null && _periodMode != 'recommended') ...[
                       const SizedBox(height: 10),
-                      GestureDetector(
-                        onTap: _openSeasonalitySheet,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: AppColors.accent.withValues(alpha: 0.08),
-                            border: Border.all(color: AppColors.accent.withValues(alpha: 0.35)),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Row(
-                            children: [
-                              const Text('💡', style: TextStyle(fontSize: 16)),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('Tu ne sais pas quand partir ?', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                                    const SizedBox(height: 1),
-                                    Text(
-                                      'Me conseiller pour ${_seasonalityMatch!.displayName}',
-                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.accent),
-                                    ),
-                                  ],
+                      Builder(builder: (_) {
+                        final shortName = _shortNameForCta(_seasonalityMatch!.displayName);
+                        final hasMonthChoice = _periodMode == 'month' && _targetPeriod != null;
+                        final monthLabel = hasMonthChoice
+                            ? _formatTargetPeriod(_targetPeriod)?.split(' ').first.toLowerCase()
+                            : null;
+                        final hint = hasMonthChoice && monthLabel != null
+                            ? 'Tu hésites sur ce mois ?'
+                            : 'Tu ne sais pas quand partir ?';
+                        final action = hasMonthChoice && monthLabel != null
+                            ? 'Vérifier si $monthLabel est une bonne période pour $shortName'
+                            : 'Me conseiller la meilleure période pour $shortName';
+                        return GestureDetector(
+                          onTap: _openSeasonalitySheet,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: AppColors.accent.withValues(alpha: 0.08),
+                              border: Border.all(color: AppColors.accent.withValues(alpha: 0.35)),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              children: [
+                                const Text('💡', style: TextStyle(fontSize: 16)),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(hint, style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                                      const SizedBox(height: 1),
+                                      Text(
+                                        action,
+                                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.accent),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                              Icon(Icons.chevron_right, size: 18, color: AppColors.accent),
-                            ],
+                                Icon(Icons.chevron_right, size: 18, color: AppColors.accent),
+                              ],
+                            ),
                           ),
-                        ),
-                      ),
+                        );
+                      }),
                     ],
                     const SizedBox(height: 20),
 
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('VOYAGEURS — OPTIONNEL', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+                        Text('Voyageurs — optionnel', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
                         if (_travelers.isNotEmpty)
                           Text('${_travelers.length} ${_travelers.length > 1 ? 'personnes' : 'personne'}', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                       ],
@@ -946,7 +1009,7 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
                     _buildBudgetSection(),
                     const SizedBox(height: 20),
 
-                    Text('IDÉES ADAPTÉES À TON PROFIL', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+                    Text('Idées adaptées à ton profil', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
                     const SizedBox(height: 10),
                     ...List.generate(_destinations.length, (i) {
                       final d = _destinations[i];
