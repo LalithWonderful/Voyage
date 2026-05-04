@@ -225,23 +225,35 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
   /// Résout les dates effectives à enregistrer en BDD selon le mode courant.
   /// Retourne (start, end, periodMode, targetPeriod) :
   /// - mode 'exact' avec dates renseignées → dates réelles, periodMode='exact'
-  /// - mode 'exact' sans dates → bascule en 'month' avec mois courant comme
-  ///   cible (l'user a cliqué "Créer" sans rien renseigner sur les dates).
-  /// - mode 'month' → 1er du mois cible → +6 jours, periodMode='month'
+  /// - mode 'exact' sans dates → bascule en 'unspecified' avec mois courant
+  ///   comme fenêtre exploratoire pour le pipeline IA. **Important** :
+  ///   l'affichage côté UI ne montrera PAS ce mois (cf. `hasUnspecifiedPeriod`)
+  ///   car l'utilisateur ne l'a pas choisi.
+  /// - mode 'month' avec mois choisi → 1er du mois cible → +6 jours, mode='month'
+  /// - mode 'month' sans mois choisi → traité comme 'unspecified' (cas peu
+  ///   probable car _canSave bloque, mais filet de sécurité)
   ({DateTime start, DateTime end, String mode, String? target}) _resolvePeriod() {
     if (_periodMode == 'exact' && _startDate != null && _endDate != null) {
       return (start: _startDate!, end: _endDate!, mode: 'exact', target: null);
     }
-    final raw = _targetPeriod ?? () {
-      final now = DateTime.now();
-      return '${now.year}-${now.month.toString().padLeft(2, '0')}';
-    }();
-    final parts = raw.split('-');
-    final year = int.parse(parts[0]);
-    final month = int.parse(parts[1]);
-    final start = DateTime(year, month, 1);
+    // Cas mois cible explicite
+    if (_periodMode == 'month' && _targetPeriod != null) {
+      final parts = _targetPeriod!.split('-');
+      final year = int.parse(parts[0]);
+      final month = int.parse(parts[1]);
+      final start = DateTime(year, month, 1);
+      final end = start.add(const Duration(days: 6));
+      return (start: start, end: end, mode: 'month', target: _targetPeriod);
+    }
+    // Aucune période choisie : on synthétise une fenêtre exploratoire (mois
+    // courant) pour le pipeline IA, mais on signale 'unspecified' pour que
+    // l'UI affiche "Dates à préciser" et pas le mois courant comme s'il
+    // avait été choisi par l'utilisateur.
+    final now = DateTime.now();
+    final raw = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+    final start = DateTime(now.year, now.month, 1);
     final end = start.add(const Duration(days: 6));
-    return (start: start, end: end, mode: 'month', target: raw);
+    return (start: start, end: end, mode: 'unspecified', target: raw);
   }
 
   Future<void> _save() async {

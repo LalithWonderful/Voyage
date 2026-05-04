@@ -252,10 +252,24 @@ class Trip {
   });
 
   /// True quand le voyage a des dates réelles choisies par l'utilisateur.
-  /// False quand il est en mode "mois cible" ou "saison conseillée" : dans
-  /// ce cas startDate/endDate sont synthétiques et l'affichage doit privilégier
-  /// `targetPeriodLabel` plutôt que les dates exactes.
-  bool get hasExactDates => (periodMode ?? 'exact') == 'exact';
+  /// False quand il est en mode "mois cible", "saison conseillée" ou "non
+  /// spécifié" : dans ce cas startDate/endDate sont synthétiques et
+  /// l'affichage doit privilégier `targetPeriodLabel` (ou "Dates à préciser"
+  /// pour 'unspecified') plutôt que les dates exactes. Tolère aussi les
+  /// valeurs inconnues (= traitées comme exactes par défaut, plus
+  /// conservateur que de masquer les dates).
+  bool get hasExactDates {
+    final mode = periodMode;
+    if (mode == null) return true;
+    return !{'month', 'unspecified', 'recommended'}.contains(mode);
+  }
+
+  /// True quand l'utilisateur a explicitement laissé sa période vide.
+  /// Différent de 'month' (mois choisi) — dans ce cas l'affichage doit
+  /// montrer "Dates à préciser" plutôt qu'un mois (le mois courant est
+  /// stocké en BDD comme fenêtre exploratoire pour le pipeline IA, mais
+  /// l'utilisateur ne l'a pas choisi → ne pas le lui afficher).
+  bool get hasUnspecifiedPeriod => periodMode == 'unspecified';
 
   /// Libellé humain du mois cible ("Septembre 2026") dérivé de `targetPeriod`
   /// au format YYYY-MM. Null si dates exactes ou format invalide.

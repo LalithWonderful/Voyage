@@ -753,11 +753,14 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
       final newCi = newCiStr != null ? DateTime.tryParse(newCiStr) : null;
       final newCo = newCoStr != null ? DateTime.tryParse(newCoStr) : null;
 
-      // 1) Cohérence avec les dates du voyage
-      if (newCi != null || newCo != null) {
+      // 1) Cohérence avec les dates du voyage. Skippé pour les voyages sans
+      // dates exactes (mois cible, période non spécifiée, saison conseillée) :
+      // les bornes start/end stockées sont synthétiques, comparer un check-in
+      // contre elles donnerait un warning trompeur.
+      if ((newCi != null || newCo != null)) {
         final trip = await ref.read(tripByIdProvider(_tripId!).future);
         if (!mounted) return;
-        if (trip != null) {
+        if (trip != null && trip.hasExactDates) {
           final tripStart = DateTime(trip.startDate.year, trip.startDate.month, trip.startDate.day);
           final tripEnd = DateTime(trip.endDate.year, trip.endDate.month, trip.endDate.day);
           String fmt(DateTime d) => '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}';

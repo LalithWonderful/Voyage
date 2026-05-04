@@ -48,7 +48,9 @@ class TransportDocWarnings extends StatelessWidget {
     final toGeocodingFailed = m['to_geocoding_failed'] == true;
 
     bool dateOutOfRange = false;
-    if (!missingDate && trip != null) {
+    // Skippé pour les voyages sans dates exactes (mois cible / unspecified /
+    // recommended) : les bornes sont synthétiques, le warning serait trompeur.
+    if (!missingDate && trip != null && trip!.hasExactDates) {
       final docDate = DateTime.tryParse(m['date'] as String);
       if (docDate != null) {
         final docDay = DateTime(docDate.year, docDate.month, docDate.day);
