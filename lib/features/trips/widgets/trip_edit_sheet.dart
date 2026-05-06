@@ -1205,10 +1205,6 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
               ],
             ),
           ],
-          const SizedBox(height: 14),
-          Container(height: 1, color: AppColors.border),
-          const SizedBox(height: 12),
-          _buildHomeAirportRow(),
         ],
       ),
     );
@@ -1347,7 +1343,7 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Aller à la destination',
+          Text('Rejoindre la destination',
               style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -1364,8 +1360,24 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
               ('🚌', 'Bus', 'bus'),
             ].map(_arrivalChip).toList(),
           ),
+          if (_arrivalTransportMode == null) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Lunao comparera temps, budget et confort.',
+              style: TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                  fontStyle: FontStyle.italic),
+            ),
+          ],
+          // Aéroport : pertinent uniquement si l'utilisateur ne s'est pas
+          // verrouillé sur train/voiture/bus.
+          if (_arrivalShowsAirport()) ...[
+            const SizedBox(height: 12),
+            _buildHomeAirportRow(),
+          ],
           const SizedBox(height: 14),
-          Text('Sur place',
+          Text('Déplacements sur place',
               style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -1380,14 +1392,42 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
               ('🚶', 'Marche', 'walk'),
               ('🚕', 'Taxi / VTC', 'taxi'),
               ('🚗', 'Voiture', 'car'),
-              ('🛵', 'Scooter', 'scooter'),
               ('💎', 'Le plus confortable', 'comfort'),
               ('💰', 'Le moins cher', 'budget'),
             ].map(_localChip).toList(),
           ),
+          if (_localTransportMode == null) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Lunao choisira selon le contexte.',
+              style: TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                  fontStyle: FontStyle.italic),
+            ),
+          ] else if (_localTransportMode == 'public_transport') ...[
+            const SizedBox(height: 6),
+            Text(
+              'Lunao les privilégiera quand c\'est pratique. Pour les '
+              'longs trajets entre étapes, il pourra proposer un autre mode.',
+              style: TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                  fontStyle: FontStyle.italic,
+                  height: 1.4),
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  /// L'aéroport est affiché dans la card transport seulement quand le mode
+  /// "Rejoindre" peut impliquer l'avion (best ou flight). Pour train/voiture/
+  /// bus, on cache pour ne pas pousser une info non pertinente.
+  bool _arrivalShowsAirport() {
+    final mode = _arrivalTransportMode;
+    return mode == null || mode == 'best' || mode == 'flight';
   }
 
   Widget _arrivalChip((String, String, String?) opt) {

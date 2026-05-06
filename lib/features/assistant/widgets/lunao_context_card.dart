@@ -167,7 +167,7 @@ class _LunaoContextCardState extends ConsumerState<LunaoContextCard> {
         const SizedBox(height: 10),
         _section(
           'Départ & transport',
-          'Aller : ${advice.arrivalLabel}\nSur place : ${advice.localLabel}',
+          'Rejoindre : ${advice.arrivalLabel}\nSur place : ${advice.localLabel}',
         ),
         const SizedBox(height: 10),
         _section('Préférences du voyage', preferencesLine),
