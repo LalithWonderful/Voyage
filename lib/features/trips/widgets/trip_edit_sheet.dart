@@ -7,9 +7,11 @@ import 'package:voyage/core/theme/app_theme.dart';
 import 'package:voyage/core/widgets/city_autocomplete_field.dart';
 import 'package:voyage/features/auth/providers/auth_provider.dart';
 import 'package:voyage/features/planning/providers/planning_provider.dart';
+import 'package:voyage/features/planning/services/airport_city_overrides.dart';
 import 'package:voyage/features/regions/services/country_regions_repository.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
+import 'package:voyage/features/trips/widgets/airport_picker_dialog.dart';
 import 'package:voyage/features/trips/widgets/regional_loop_sheet.dart';
 
 const _coverEmojis = ['✈️', '🏝️', '🏔️', '🏙️', '🏞️', '🌴', '🛶', '🚐', '🎡', '🎿', '🗺️', '🌍'];
@@ -91,6 +93,16 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
   String? _destinationCountryCode;
   /// Clé du card "ÉTAPES DU VOYAGE" pour auto-scroll quand le bandeau apparaît.
   final GlobalKey _segmentsCardKey = GlobalKey();
+  /// Budget par personne (en euros). Null = pas renseigné. Non bloquant
+  /// pour la sauvegarde — Lunao s'en passe si absent.
+  int? _budgetPerPersonEur;
+  /// True (default) : le budget couvre vol + séjour. False : vol séparé.
+  bool _budgetIncludesFlight = true;
+  /// Controller du champ budget (pour pouvoir reset programmatiquement).
+  final TextEditingController _budgetCtrl = TextEditingController();
+  /// Override aéroport de départ pour CE voyage (code IATA 3 lettres).
+  /// Null = on utilise celui du profil (fallback côté Lunao). Non bloquant.
+  String? _homeAirportIata;
 
   @override
   void initState() {
@@ -106,6 +118,10 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
     _segments = [...widget.trip.itinerarySegments];
     _enforceSingleSegmentRule();
     _planningMode = widget.trip.planningMode;
+    _budgetPerPersonEur = widget.trip.budgetPerPersonEur?.toInt();
+    _budgetIncludesFlight = widget.trip.budgetIncludesFlight ?? true;
+    _budgetCtrl.text = _budgetPerPersonEur?.toString() ?? '';
+    _homeAirportIata = widget.trip.homeAirportIata;
     // Re-détecte le kind de la destination au boot pour les voyages existants
     // créés avant Niveau 2 (où kind='unknown' n'a jamais été stocké). 1 appel
     // autocomplete par ouverture du sheet, acceptable. Si le réseau échoue,
@@ -162,6 +178,7 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
   void dispose() {
     _titleCtrl.dispose();
     _destCtrl.dispose();
+    _budgetCtrl.dispose();
     super.dispose();
   }
 
@@ -240,6 +257,12 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
         'interests': _interests.toList(),
         'itinerary_segments': _segments.isEmpty ? null : _segments.map((s) => s.toJson()).toList(),
         'planning_mode': _planningMode?.dbValue,
+        // Budget : non bloquant. null = utilisateur ne souhaite pas en
+        // renseigner. Le toggle "vol inclus" n'a de sens qu'avec un budget.
+        'budget_per_person_eur': _budgetPerPersonEur,
+        'budget_includes_flight': _budgetPerPersonEur != null ? _budgetIncludesFlight : null,
+        // Override aéroport ce voyage. Null = utiliser celui du profil.
+        'home_airport_iata': _homeAirportIata,
       }).eq('id', widget.trip.id);
       ref.invalidate(tripsProvider);
       ref.invalidate(tripByIdProvider(widget.trip.id));
@@ -811,6 +834,7 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
 
                     _buildStyleCard(),
                     _buildInterestsCard(),
+                    _buildBudgetCard(),
                     _buildPlanningModeCard(),
 
                     const SizedBox(height: 6),
@@ -1075,6 +1099,204 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
           );
         }).toList(),
       ),
+    );
+  }
+
+  /// Récupère l'aéroport effectif pour CE voyage : override du voyage si
+  /// défini, sinon celui du profil, sinon CDG par défaut.
+  String _effectiveHomeAirport() {
+    if (_homeAirportIata != null && _homeAirportIata!.isNotEmpty) {
+      return _homeAirportIata!;
+    }
+    final profile = ref.watch(userProfileProvider).valueOrNull;
+    return (profile?['home_airport_iata'] as String?) ?? 'CDG';
+  }
+
+  /// Ouvre le picker d'aéroport (autocomplete ville+IATA).
+  /// Retourne le code IATA sélectionné, ou null si annulé.
+  Future<String?> _pickAirportIata({required String initial}) {
+    return AirportPickerDialog.show(
+      context,
+      initial: initial,
+      title: 'Aéroport pour ce voyage',
+    );
+  }
+
+  /// Card "Budget par personne" — optionnelle, non bloquante. Si renseignée,
+  /// Lunao s'en sert pour ses estimations dans l'écran Assistant + le hint
+  /// de faisabilité du destination_screen à la création.
+  Widget _buildBudgetCard() {
+    return _formCard(
+      title: 'BUDGET PAR PERSONNE',
+      trailing: _budgetPerPersonEur != null
+          ? TextButton(
+              onPressed: () {
+                setState(() {
+                  _budgetPerPersonEur = null;
+                  _budgetCtrl.clear();
+                });
+              },
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text('Réinitialiser',
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w600)),
+            )
+          : null,
+      hint: _budgetPerPersonEur == null
+          ? "Optionnel — Lunao s'en servira pour personnaliser ses conseils budget."
+          : "Estimation indicative, hors dépenses personnelles.",
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _budgetCtrl,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              hintText: 'Ex. 600',
+              suffixText: '€ / pers.',
+              isDense: true,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            onChanged: (v) {
+              setState(() {
+                final parsed = int.tryParse(v.trim());
+                _budgetPerPersonEur = (parsed != null && parsed > 0) ? parsed : null;
+              });
+            },
+          ),
+          if (_budgetPerPersonEur != null) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Checkbox(
+                  value: _budgetIncludesFlight,
+                  onChanged: (v) =>
+                      setState(() => _budgetIncludesFlight = v ?? true),
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    'Vol aller-retour inclus dans ce budget',
+                    style: TextStyle(
+                        fontSize: 12, color: AppColors.textPrimary),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 14),
+          Container(height: 1, color: AppColors.border),
+          const SizedBox(height: 12),
+          _buildHomeAirportRow(),
+        ],
+      ),
+    );
+  }
+
+  /// Ligne "Aéroport de départ" dans la card budget. Distingue clairement le
+  /// fallback profil (NULL côté DB) de l'override par voyage. Affiche la
+  /// ville (et nom propre quand dispo) à côté du code IATA pour que
+  /// l'utilisateur reconnaisse l'aéroport sans connaître les codes par cœur.
+  Widget _buildHomeAirportRow() {
+    final isOverride = _homeAirportIata != null && _homeAirportIata!.isNotEmpty;
+    final code = _effectiveHomeAirport();
+    final lookup = lookupAirport(code);
+    final airportLabel = lookup == null
+        ? null
+        : (lookup.name != null && lookup.name!.isNotEmpty
+            ? '${lookup.city} ${lookup.name}'
+            : lookup.city);
+    final originLabel = isOverride
+        ? 'Spécifique à ce voyage'
+        : 'Depuis ton profil';
+    final subtitle = airportLabel != null
+        ? '$airportLabel · $originLabel'
+        : originLabel;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text('✈️ Aéroport de départ',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary)),
+            const Spacer(),
+            Text(code,
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary)),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: TextStyle(
+              fontSize: 11,
+              color: AppColors.textSecondary,
+              fontStyle: FontStyle.italic),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            TextButton.icon(
+              onPressed: () async {
+                final picked = await _pickAirportIata(initial: code);
+                if (picked == null) return;
+                if (picked.length != 3 ||
+                    !RegExp(r'^[A-Z]{3}$').hasMatch(picked)) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Code IATA invalide (3 lettres maj).')),
+                    );
+                  }
+                  return;
+                }
+                setState(() => _homeAirportIata = picked);
+              },
+              icon: const Icon(Icons.edit, size: 14),
+              label: Text(
+                isOverride ? 'Modifier' : 'Modifier pour ce voyage',
+                style: const TextStyle(fontSize: 12),
+              ),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                foregroundColor: AppColors.primary,
+              ),
+            ),
+            if (isOverride) ...[
+              const SizedBox(width: 4),
+              TextButton(
+                onPressed: () => setState(() => _homeAirportIata = null),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  foregroundColor: AppColors.textSecondary,
+                ),
+                child: const Text("Utiliser l'aéroport du profil",
+                    style: TextStyle(fontSize: 12)),
+              ),
+            ],
+          ],
+        ),
+      ],
     );
   }
 

@@ -18,11 +18,17 @@ import 'dart:math';
 class _AirportInfo {
   final String iata;
   final String city;
+  /// Nom propre de l'aéroport (sans la ville). Optionnel — quand présent,
+  /// on l'affiche côté UX sous la forme "{city} {name} — {iata}"
+  /// (ex: "Paris Charles de Gaulle — CDG"). Sinon fallback "{city} — {iata}".
+  /// À enrichir au fil de l'eau pour les aéroports les plus utilisés.
+  final String? name;
   final double lat;
   final double lng;
   const _AirportInfo({
     required this.iata,
     required this.city,
+    this.name,
     required this.lat,
     required this.lng,
   });
@@ -30,15 +36,16 @@ class _AirportInfo {
 
 const _airports = <_AirportInfo>[
   // === FRANCE métropole ===
-  _AirportInfo(iata: 'CDG', city: 'Paris', lat: 49.0097, lng: 2.5479),
-  _AirportInfo(iata: 'ORY', city: 'Paris', lat: 48.7233, lng: 2.3794),
-  _AirportInfo(iata: 'BVA', city: 'Paris', lat: 49.4544, lng: 2.1128),
-  _AirportInfo(iata: 'NCE', city: 'Nice', lat: 43.6584, lng: 7.2159),
-  _AirportInfo(iata: 'LYS', city: 'Lyon', lat: 45.7256, lng: 5.0811),
-  _AirportInfo(iata: 'MRS', city: 'Marseille', lat: 43.4393, lng: 5.2214),
-  _AirportInfo(iata: 'TLS', city: 'Toulouse', lat: 43.6291, lng: 1.3638),
-  _AirportInfo(iata: 'BOD', city: 'Bordeaux', lat: 44.8283, lng: -0.7156),
-  _AirportInfo(iata: 'NTE', city: 'Nantes', lat: 47.1532, lng: -1.6107),
+  // (name renseigné pour les principaux — fallback "{city} — {iata}" sinon)
+  _AirportInfo(iata: 'CDG', city: 'Paris', name: 'Charles de Gaulle', lat: 49.0097, lng: 2.5479),
+  _AirportInfo(iata: 'ORY', city: 'Paris', name: 'Orly', lat: 48.7233, lng: 2.3794),
+  _AirportInfo(iata: 'BVA', city: 'Paris', name: 'Beauvais', lat: 49.4544, lng: 2.1128),
+  _AirportInfo(iata: 'NCE', city: 'Nice', name: "Côte d'Azur", lat: 43.6584, lng: 7.2159),
+  _AirportInfo(iata: 'LYS', city: 'Lyon', name: 'Saint-Exupéry', lat: 45.7256, lng: 5.0811),
+  _AirportInfo(iata: 'MRS', city: 'Marseille', name: 'Provence', lat: 43.4393, lng: 5.2214),
+  _AirportInfo(iata: 'TLS', city: 'Toulouse', name: 'Blagnac', lat: 43.6291, lng: 1.3638),
+  _AirportInfo(iata: 'BOD', city: 'Bordeaux', name: 'Mérignac', lat: 44.8283, lng: -0.7156),
+  _AirportInfo(iata: 'NTE', city: 'Nantes', name: 'Atlantique', lat: 47.1532, lng: -1.6107),
   _AirportInfo(iata: 'MPL', city: 'Montpellier', lat: 43.5762, lng: 3.9630),
   _AirportInfo(iata: 'SXB', city: 'Strasbourg', lat: 48.5383, lng: 7.6280),
   _AirportInfo(iata: 'LIL', city: 'Lille', lat: 50.5614, lng: 3.0894),
@@ -60,11 +67,11 @@ const _airports = <_AirportInfo>[
   _AirportInfo(iata: 'SXM', city: 'Saint-Martin', lat: 18.0410, lng: -63.1109),
 
   // === EUROPE — Royaume-Uni & Irlande ===
-  _AirportInfo(iata: 'LHR', city: 'Londres', lat: 51.4700, lng: -0.4543),
-  _AirportInfo(iata: 'LGW', city: 'Londres', lat: 51.1537, lng: -0.1821),
-  _AirportInfo(iata: 'STN', city: 'Londres', lat: 51.8849, lng: 0.2350),
-  _AirportInfo(iata: 'LTN', city: 'Londres', lat: 51.8747, lng: -0.3683),
-  _AirportInfo(iata: 'LCY', city: 'Londres', lat: 51.5053, lng: 0.0553),
+  _AirportInfo(iata: 'LHR', city: 'Londres', name: 'Heathrow', lat: 51.4700, lng: -0.4543),
+  _AirportInfo(iata: 'LGW', city: 'Londres', name: 'Gatwick', lat: 51.1537, lng: -0.1821),
+  _AirportInfo(iata: 'STN', city: 'Londres', name: 'Stansted', lat: 51.8849, lng: 0.2350),
+  _AirportInfo(iata: 'LTN', city: 'Londres', name: 'Luton', lat: 51.8747, lng: -0.3683),
+  _AirportInfo(iata: 'LCY', city: 'Londres', name: 'City', lat: 51.5053, lng: 0.0553),
   _AirportInfo(iata: 'MAN', city: 'Manchester', lat: 53.3537, lng: -2.2750),
   _AirportInfo(iata: 'EDI', city: 'Édimbourg', lat: 55.9500, lng: -3.3725),
   _AirportInfo(iata: 'BHX', city: 'Birmingham', lat: 52.4539, lng: -1.7480),
@@ -75,13 +82,13 @@ const _airports = <_AirportInfo>[
   _AirportInfo(iata: 'SNN', city: 'Shannon', lat: 52.7019, lng: -8.9248),
 
   // === EUROPE — Benelux & Allemagne & Suisse & Autriche ===
-  _AirportInfo(iata: 'AMS', city: 'Amsterdam', lat: 52.3105, lng: 4.7683),
+  _AirportInfo(iata: 'AMS', city: 'Amsterdam', name: 'Schiphol', lat: 52.3105, lng: 4.7683),
   _AirportInfo(iata: 'RTM', city: 'Rotterdam', lat: 51.9569, lng: 4.4372),
   _AirportInfo(iata: 'EIN', city: 'Eindhoven', lat: 51.4500, lng: 5.3747),
   _AirportInfo(iata: 'BRU', city: 'Bruxelles', lat: 50.9014, lng: 4.4844),
   _AirportInfo(iata: 'CRL', city: 'Bruxelles', lat: 50.4592, lng: 4.4538),
   _AirportInfo(iata: 'LUX', city: 'Luxembourg', lat: 49.6233, lng: 6.2044),
-  _AirportInfo(iata: 'FRA', city: 'Francfort', lat: 50.0379, lng: 8.5622),
+  _AirportInfo(iata: 'FRA', city: 'Francfort', name: 'Main', lat: 50.0379, lng: 8.5622),
   _AirportInfo(iata: 'MUC', city: 'Munich', lat: 48.3538, lng: 11.7861),
   _AirportInfo(iata: 'TXL', city: 'Berlin', lat: 52.5597, lng: 13.2877),
   _AirportInfo(iata: 'BER', city: 'Berlin', lat: 52.3667, lng: 13.5033),
@@ -89,6 +96,7 @@ const _airports = <_AirportInfo>[
   _AirportInfo(iata: 'DUS', city: 'Düsseldorf', lat: 51.2895, lng: 6.7668),
   _AirportInfo(iata: 'CGN', city: 'Cologne', lat: 50.8659, lng: 7.1427),
   _AirportInfo(iata: 'STR', city: 'Stuttgart', lat: 48.6900, lng: 9.2219),
+  _AirportInfo(iata: 'SCN', city: 'Sarrebruck', lat: 49.2146, lng: 7.1095),
   _AirportInfo(iata: 'NUE', city: 'Nuremberg', lat: 49.4986, lng: 11.0781),
   _AirportInfo(iata: 'ZRH', city: 'Zurich', lat: 47.4647, lng: 8.5492),
   _AirportInfo(iata: 'GVA', city: 'Genève', lat: 46.2381, lng: 6.1090),
@@ -99,7 +107,7 @@ const _airports = <_AirportInfo>[
   _AirportInfo(iata: 'INN', city: 'Innsbruck', lat: 47.2602, lng: 11.3438),
 
   // === EUROPE — Italie ===
-  _AirportInfo(iata: 'FCO', city: 'Rome', lat: 41.8003, lng: 12.2389),
+  _AirportInfo(iata: 'FCO', city: 'Rome', name: 'Fiumicino', lat: 41.8003, lng: 12.2389),
   _AirportInfo(iata: 'CIA', city: 'Rome', lat: 41.7994, lng: 12.5949),
   _AirportInfo(iata: 'LIN', city: 'Milan', lat: 45.4451, lng: 9.2767),
   _AirportInfo(iata: 'MXP', city: 'Milan', lat: 45.6306, lng: 8.7281),
@@ -119,8 +127,8 @@ const _airports = <_AirportInfo>[
   _AirportInfo(iata: 'BRI', city: 'Bari', lat: 41.1389, lng: 16.7606),
 
   // === EUROPE — Espagne & Portugal ===
-  _AirportInfo(iata: 'BCN', city: 'Barcelone', lat: 41.2974, lng: 2.0833),
-  _AirportInfo(iata: 'MAD', city: 'Madrid', lat: 40.4719, lng: -3.5626),
+  _AirportInfo(iata: 'BCN', city: 'Barcelone', name: 'El Prat', lat: 41.2974, lng: 2.0833),
+  _AirportInfo(iata: 'MAD', city: 'Madrid', name: 'Barajas', lat: 40.4719, lng: -3.5626),
   _AirportInfo(iata: 'PMI', city: 'Palma', lat: 39.5517, lng: 2.7388),
   _AirportInfo(iata: 'AGP', city: 'Malaga', lat: 36.6749, lng: -4.4991),
   _AirportInfo(iata: 'IBZ', city: 'Ibiza', lat: 38.8729, lng: 1.3731),
@@ -189,7 +197,7 @@ const _airports = <_AirportInfo>[
   _AirportInfo(iata: 'TRD', city: 'Trondheim', lat: 63.4578, lng: 10.9242),
 
   // === EUROPE — Méditerranée orientale ===
-  _AirportInfo(iata: 'IST', city: 'Istanbul', lat: 41.2753, lng: 28.7519),
+  _AirportInfo(iata: 'IST', city: 'Istanbul', name: 'Havalimanı', lat: 41.2753, lng: 28.7519),
   _AirportInfo(iata: 'SAW', city: 'Istanbul', lat: 40.8986, lng: 29.3092),
   _AirportInfo(iata: 'AYT', city: 'Antalya', lat: 36.8987, lng: 30.8005),
   _AirportInfo(iata: 'BJV', city: 'Bodrum', lat: 37.2506, lng: 27.6643),
@@ -200,7 +208,7 @@ const _airports = <_AirportInfo>[
   _AirportInfo(iata: 'PFO', city: 'Paphos', lat: 34.7180, lng: 32.4857),
 
   // === MOYEN-ORIENT ===
-  _AirportInfo(iata: 'DXB', city: 'Dubaï', lat: 25.2532, lng: 55.3657),
+  _AirportInfo(iata: 'DXB', city: 'Dubaï', name: 'International', lat: 25.2532, lng: 55.3657),
   _AirportInfo(iata: 'DWC', city: 'Dubaï', lat: 24.8964, lng: 55.1614),
   _AirportInfo(iata: 'AUH', city: 'Abu Dhabi', lat: 24.4330, lng: 54.6511),
   _AirportInfo(iata: 'SHJ', city: 'Sharjah', lat: 25.3286, lng: 55.5172),
@@ -216,8 +224,8 @@ const _airports = <_AirportInfo>[
   _AirportInfo(iata: 'IKA', city: 'Téhéran', lat: 35.4161, lng: 51.1522),
 
   // === ASIE — Japon ===
-  _AirportInfo(iata: 'HND', city: 'Tokyo', lat: 35.5494, lng: 139.7798),
-  _AirportInfo(iata: 'NRT', city: 'Tokyo', lat: 35.7720, lng: 140.3929),
+  _AirportInfo(iata: 'HND', city: 'Tokyo', name: 'Haneda', lat: 35.5494, lng: 139.7798),
+  _AirportInfo(iata: 'NRT', city: 'Tokyo', name: 'Narita', lat: 35.7720, lng: 140.3929),
   _AirportInfo(iata: 'KIX', city: 'Osaka', lat: 34.4347, lng: 135.2440),
   _AirportInfo(iata: 'ITM', city: 'Osaka', lat: 34.7855, lng: 135.4382),
   _AirportInfo(iata: 'NGO', city: 'Nagoya', lat: 34.8584, lng: 136.8054),
@@ -249,13 +257,13 @@ const _airports = <_AirportInfo>[
   _AirportInfo(iata: 'CJU', city: 'Jeju', lat: 33.5113, lng: 126.4930),
 
   // === ASIE — Sud-Est ===
-  _AirportInfo(iata: 'BKK', city: 'Bangkok', lat: 13.6900, lng: 100.7501),
+  _AirportInfo(iata: 'BKK', city: 'Bangkok', name: 'Suvarnabhumi', lat: 13.6900, lng: 100.7501),
   _AirportInfo(iata: 'DMK', city: 'Bangkok', lat: 13.9126, lng: 100.6068),
   _AirportInfo(iata: 'CNX', city: 'Chiang Mai', lat: 18.7669, lng: 98.9626),
   _AirportInfo(iata: 'HKT', city: 'Phuket', lat: 8.1132, lng: 98.3169),
   _AirportInfo(iata: 'KBV', city: 'Krabi', lat: 8.0991, lng: 98.9881),
   _AirportInfo(iata: 'USM', city: 'Koh Samui', lat: 9.5477, lng: 100.0623),
-  _AirportInfo(iata: 'SIN', city: 'Singapour', lat: 1.3644, lng: 103.9915),
+  _AirportInfo(iata: 'SIN', city: 'Singapour', name: 'Changi', lat: 1.3644, lng: 103.9915),
   _AirportInfo(iata: 'KUL', city: 'Kuala Lumpur', lat: 2.7456, lng: 101.7099),
   _AirportInfo(iata: 'PEN', city: 'Penang', lat: 5.2971, lng: 100.2769),
   _AirportInfo(iata: 'LGK', city: 'Langkawi', lat: 6.3299, lng: 99.7287),
@@ -300,10 +308,10 @@ const _airports = <_AirportInfo>[
   _AirportInfo(iata: 'KHI', city: 'Karachi', lat: 24.9008, lng: 67.1608),
 
   // === AMÉRIQUES — USA ===
-  _AirportInfo(iata: 'JFK', city: 'New York', lat: 40.6413, lng: -73.7781),
+  _AirportInfo(iata: 'JFK', city: 'New York', name: 'John F. Kennedy', lat: 40.6413, lng: -73.7781),
   _AirportInfo(iata: 'LGA', city: 'New York', lat: 40.7769, lng: -73.8740),
-  _AirportInfo(iata: 'EWR', city: 'Newark', lat: 40.6895, lng: -74.1745),
-  _AirportInfo(iata: 'LAX', city: 'Los Angeles', lat: 33.9416, lng: -118.4085),
+  _AirportInfo(iata: 'EWR', city: 'Newark', name: 'Liberty', lat: 40.6895, lng: -74.1745),
+  _AirportInfo(iata: 'LAX', city: 'Los Angeles', name: 'International', lat: 33.9416, lng: -118.4085),
   _AirportInfo(iata: 'SFO', city: 'San Francisco', lat: 37.6213, lng: -122.3790),
   _AirportInfo(iata: 'SAN', city: 'San Diego', lat: 32.7338, lng: -117.1933),
   _AirportInfo(iata: 'LAS', city: 'Las Vegas', lat: 36.0840, lng: -115.1537),
@@ -451,6 +459,76 @@ String? overrideCityForAirportLatLng(double? lat, double? lng) {
     }
   }
   return null;
+}
+
+/// Résultat d'une recherche d'aéroport : code IATA + ville + nom propre
+/// optionnel. Format d'affichage recommandé : `displayLabel` ci-dessous.
+typedef AirportSuggestion = ({String iata, String city, String? name});
+
+/// Format d'affichage humain pour une suggestion. Exemples :
+/// - "Paris Charles de Gaulle — CDG" (si name présent)
+/// - "Manchester — MAN" (fallback si name absent)
+String formatAirportLabel(AirportSuggestion s) {
+  if (s.name != null && s.name!.isNotEmpty) {
+    return '${s.city} ${s.name} — ${s.iata}';
+  }
+  return '${s.city} — ${s.iata}';
+}
+
+/// Recherche d'aéroports pour autocomplete UI : matche le code IATA exact,
+/// puis IATA en préfixe, puis nom de ville OU nom propre de l'aéroport
+/// (case+accent-insensible). Retourne au plus [limit] résultats.
+///
+/// L'ordre privilégie l'usage typique : "CDG" → CDG d'abord ; "Nice" → NCE ;
+/// "Charles" → CDG (via le name) ; "Heathrow" → LHR (via le name).
+List<AirportSuggestion> searchAirports(String query, {int limit = 8}) {
+  final q = _normalizeAirportSearch(query);
+  if (q.isEmpty) return const [];
+
+  final iataExact = <_AirportInfo>[];
+  final iataPrefix = <_AirportInfo>[];
+  final textMatch = <_AirportInfo>[];
+  for (final a in _airports) {
+    final iata = a.iata.toLowerCase();
+    final city = _normalizeAirportSearch(a.city);
+    final name = a.name == null ? '' : _normalizeAirportSearch(a.name!);
+    if (iata == q) {
+      iataExact.add(a);
+    } else if (iata.startsWith(q)) {
+      iataPrefix.add(a);
+    } else if (city.contains(q) || (name.isNotEmpty && name.contains(q))) {
+      textMatch.add(a);
+    }
+  }
+  textMatch.sort((a, b) => a.city.compareTo(b.city));
+  final all = <_AirportInfo>[...iataExact, ...iataPrefix, ...textMatch];
+  return all
+      .take(limit)
+      .map((a) => (iata: a.iata, city: a.city, name: a.name))
+      .toList();
+}
+
+/// Lookup direct par code IATA. Retourne null si l'aéroport n'est pas dans
+/// la table — l'UI doit alors afficher le code seul (fallback).
+AirportSuggestion? lookupAirport(String iata) {
+  final code = iata.trim().toUpperCase();
+  if (code.length != 3) return null;
+  for (final a in _airports) {
+    if (a.iata == code) return (iata: a.iata, city: a.city, name: a.name);
+  }
+  return null;
+}
+
+String _normalizeAirportSearch(String s) {
+  return s
+      .toLowerCase()
+      .trim()
+      .replaceAll(RegExp(r'[éèêë]'), 'e')
+      .replaceAll(RegExp(r'[àâä]'), 'a')
+      .replaceAll(RegExp(r'[ïî]'), 'i')
+      .replaceAll(RegExp(r'[ôö]'), 'o')
+      .replaceAll(RegExp(r'[ûü]'), 'u')
+      .replaceAll('ç', 'c');
 }
 
 double _haversineKm(double lat1, double lng1, double lat2, double lng2) {

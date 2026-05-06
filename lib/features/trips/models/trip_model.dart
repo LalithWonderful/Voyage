@@ -234,6 +234,12 @@ class Trip {
   /// séparément (logique d'estimations légèrement différente).
   final bool? budgetIncludesFlight;
 
+  /// Override de l'aéroport de départ pour ce voyage (code IATA 3 lettres).
+  /// Null = utiliser celui du profil (`user_profiles.home_airport_iata`).
+  /// Permet de partir ponctuellement d'un aéroport différent (NCE en été,
+  /// BRU pour un voyage frontalier...) sans modifier le default profil.
+  final String? homeAirportIata;
+
   const Trip({
     required this.id,
     required this.userId,
@@ -260,6 +266,7 @@ class Trip {
     this.targetPeriod,
     this.budgetPerPersonEur,
     this.budgetIncludesFlight,
+    this.homeAirportIata,
   });
 
   /// True quand le voyage a des dates réelles choisies par l'utilisateur.
@@ -374,6 +381,7 @@ class Trip {
     String? targetPeriod,
     num? budgetPerPersonEur,
     bool? budgetIncludesFlight,
+    String? homeAirportIata,
   }) {
     return Trip(
       id: id ?? this.id,
@@ -401,6 +409,7 @@ class Trip {
       targetPeriod: targetPeriod ?? this.targetPeriod,
       budgetPerPersonEur: budgetPerPersonEur ?? this.budgetPerPersonEur,
       budgetIncludesFlight: budgetIncludesFlight ?? this.budgetIncludesFlight,
+      homeAirportIata: homeAirportIata ?? this.homeAirportIata,
     );
   }
 
@@ -436,5 +445,6 @@ class Trip {
     targetPeriod: json['target_period'] as String?,
     budgetPerPersonEur: json['budget_per_person_eur'] as num?,
     budgetIncludesFlight: json['budget_includes_flight'] as bool?,
+    homeAirportIata: json['home_airport_iata'] as String?,
   );
 }
