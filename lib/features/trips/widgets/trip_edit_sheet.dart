@@ -1338,7 +1338,7 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
             )
           : null,
       hint: hasOverride
-          ? 'Lunao adaptera ses recommandations à ces préférences.'
+          ? "Lunao s'en servira pour proposer les trajets les plus adaptés."
           : "Optionnel — Lunao utilisera tes préférences globales du profil.",
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
