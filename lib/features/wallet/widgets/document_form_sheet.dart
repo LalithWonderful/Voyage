@@ -9,6 +9,7 @@ import 'package:voyage/features/auth/providers/auth_provider.dart';
 import 'package:voyage/features/planning/providers/planning_provider.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
+import 'package:voyage/features/trips/widgets/detected_segments_sheet.dart';
 import 'package:voyage/features/wallet/models/document_model.dart';
 import 'package:voyage/features/wallet/providers/wallet_provider.dart';
 import 'package:voyage/features/wallet/widgets/overlap_nights_sheet.dart';
@@ -24,7 +25,9 @@ Future<void> openDocumentFormSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: AppColors.background,
-    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
     builder: (_) => _DocumentFormSheet(
       existing: existing,
       initialTripId: initialTripId,
@@ -37,7 +40,11 @@ class _DocumentFormSheet extends ConsumerStatefulWidget {
   final TripDocument? existing;
   final String? initialTripId;
   final String? initialCategory;
-  const _DocumentFormSheet({this.existing, this.initialTripId, this.initialCategory});
+  const _DocumentFormSheet({
+    this.existing,
+    this.initialTripId,
+    this.initialCategory,
+  });
 
   @override
   ConsumerState<_DocumentFormSheet> createState() => _DocumentFormSheetState();
@@ -64,7 +71,10 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
   @override
   void initState() {
     super.initState();
-    _category = widget.existing?.category ?? widget.initialCategory ?? DocumentCategory.hotel;
+    _category =
+        widget.existing?.category ??
+        widget.initialCategory ??
+        DocumentCategory.hotel;
     _tripId = widget.existing?.tripId ?? widget.initialTripId;
     _nameCtrl.text = widget.existing?.name ?? '';
     _hydrateFromMetadata(widget.existing?.metadata ?? const {});
@@ -88,7 +98,11 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
           _FieldSpec('address', 'Adresse', _FieldType.multiline),
           _FieldSpec('check_in', 'Check-in', _FieldType.date),
           _FieldSpec('check_out', 'Check-out', _FieldType.date),
-          _FieldSpec('reservation_number', 'N° de réservation', _FieldType.text),
+          _FieldSpec(
+            'reservation_number',
+            'N° de réservation',
+            _FieldType.text,
+          ),
         ];
       case DocumentCategory.flight:
         return const [
@@ -100,7 +114,11 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
           _FieldSpec('departure_time', 'Heure de départ', _FieldType.time),
           _FieldSpec('arrival_time', 'Heure d\'arrivée', _FieldType.time),
           _FieldSpec('seat', 'Siège', _FieldType.text),
-          _FieldSpec('reservation_number', 'N° de réservation', _FieldType.text),
+          _FieldSpec(
+            'reservation_number',
+            'N° de réservation',
+            _FieldType.text,
+          ),
         ];
       case DocumentCategory.train:
         return const [
@@ -114,7 +132,11 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
           _FieldSpec('car', 'Voiture', _FieldType.text),
           _FieldSpec('seat', 'Place', _FieldType.text),
           _FieldSpec('class', 'Classe', _FieldType.text),
-          _FieldSpec('reservation_number', 'N° de réservation', _FieldType.text),
+          _FieldSpec(
+            'reservation_number',
+            'N° de réservation',
+            _FieldType.text,
+          ),
         ];
       case DocumentCategory.carRental:
         return const [
@@ -126,7 +148,11 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
           _FieldSpec('return_location', 'Retour', _FieldType.text),
           _FieldSpec('return_date', 'Date retour', _FieldType.date),
           _FieldSpec('return_time', 'Heure retour', _FieldType.time),
-          _FieldSpec('reservation_number', 'N° de réservation', _FieldType.text),
+          _FieldSpec(
+            'reservation_number',
+            'N° de réservation',
+            _FieldType.text,
+          ),
         ];
       case DocumentCategory.ticket:
         return const [
@@ -145,7 +171,8 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
     }
   }
 
-  TextEditingController _ctrl(String key) => _textCtrls.putIfAbsent(key, () => TextEditingController());
+  TextEditingController _ctrl(String key) =>
+      _textCtrls.putIfAbsent(key, () => TextEditingController());
 
   void _hydrateFromMetadata(Map<String, dynamic> m) {
     _dates.clear();
@@ -193,17 +220,26 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
     }
     final picked = await showTimePicker(context: context, initialTime: initial);
     if (picked != null) {
-      _ctrl(key).text = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+      _ctrl(key).text =
+          '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
       setState(() {});
     }
   }
 
   Future<void> _pickImageAndExtract(ImageSource source) async {
     final picker = ImagePicker();
-    final picked = await picker.pickImage(source: source, imageQuality: 85, maxWidth: 2200);
+    final picked = await picker.pickImage(
+      source: source,
+      imageQuality: 85,
+      maxWidth: 2200,
+    );
     if (picked == null) return;
     final bytes = await picked.readAsBytes();
-    final mimeType = picked.mimeType ?? (picked.path.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg');
+    final mimeType =
+        picked.mimeType ??
+        (picked.path.toLowerCase().endsWith('.png')
+            ? 'image/png'
+            : 'image/jpeg');
 
     setState(() => _extracting = true);
     try {
@@ -218,7 +254,10 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Extraction impossible : $e'), backgroundColor: AppColors.error),
+          SnackBar(
+            content: Text('Extraction impossible : $e'),
+            backgroundColor: AppColors.error,
+          ),
         );
       }
     } finally {
@@ -253,7 +292,8 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
   Future<void> _applyExtracted(Map<String, dynamic> extracted) async {
     final newCategory = (extracted['category'] as String?) ?? _category;
     final name = (extracted['name'] as String?) ?? '';
-    final metadata = (extracted['metadata'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final metadata =
+        (extracted['metadata'] as Map?)?.cast<String, dynamic>() ?? const {};
 
     // Auto-détection du voyage : cherche un voyage actif (non terminé)
     // dont les dates couvrent la date principale extraite du document.
@@ -267,10 +307,19 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
           final todayStart = DateTime(today.year, today.month, today.day);
           final docDay = DateTime(docDate.year, docDate.month, docDate.day);
           final matches = trips.where((t) {
-            final startDay = DateTime(t.startDate.year, t.startDate.month, t.startDate.day);
-            final endDay = DateTime(t.endDate.year, t.endDate.month, t.endDate.day);
+            final startDay = DateTime(
+              t.startDate.year,
+              t.startDate.month,
+              t.startDate.day,
+            );
+            final endDay = DateTime(
+              t.endDate.year,
+              t.endDate.month,
+              t.endDate.day,
+            );
             final isActive = !endDay.isBefore(todayStart);
-            final inRange = !docDay.isBefore(startDay) && !docDay.isAfter(endDay);
+            final inRange =
+                !docDay.isBefore(startDay) && !docDay.isAfter(endDay);
             return isActive && inRange;
           }).toList();
           developer.log(
@@ -316,7 +365,8 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
     // `place_lookup_cache` → un user qui chercherait le même aéroport plus
     // tard manuellement repaierait Place Details. Ici on harmonise les deux
     // modes : Gemini extraction = même bénéfice cache que pick manuel.
-    if (newCategory == DocumentCategory.flight || newCategory == DocumentCategory.train) {
+    if (newCategory == DocumentCategory.flight ||
+        newCategory == DocumentCategory.train) {
       // Fire-and-forget : pas d'await pour ne pas bloquer l'UX. Si l'user
       // édite/save avant que le lookup résolve, le save retombe en chemin 3.
       // ignore: unawaited_futures
@@ -329,7 +379,9 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
   /// modifié le champ entre-temps, on persiste le placeId trouvé pour que le
   /// save bénéficie du cache. Silencieux : aucun feedback UI, aucun blocage.
   Future<void> _autoResolveTransportPlaceIds() async {
-    final type = _category == DocumentCategory.flight ? 'airport' : 'train_station';
+    final type = _category == DocumentCategory.flight
+        ? 'airport'
+        : 'train_station';
     final placesService = ref.read(placesServiceProvider);
     for (final fieldKey in const ['from', 'to']) {
       final value = _ctrl(fieldKey).text.trim();
@@ -358,7 +410,10 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
           _ctrl(fieldKey).text = picked.mainText;
         });
       } catch (e) {
-        developer.log('[gemini-extract] auto-resolve $fieldKey failed: $e', name: 'wallet');
+        developer.log(
+          '[gemini-extract] auto-resolve $fieldKey failed: $e',
+          name: 'wallet',
+        );
       }
     }
   }
@@ -375,7 +430,10 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
   }
 
   /// Retourne la date "principale" d'un document selon sa catégorie.
-  DateTime? _extractPrimaryDate(String category, Map<String, dynamic> metadata) {
+  DateTime? _extractPrimaryDate(
+    String category,
+    Map<String, dynamic> metadata,
+  ) {
     String? dateStr;
     switch (category) {
       case DocumentCategory.hotel:
@@ -405,13 +463,17 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
               maxLines: 10,
               minLines: 6,
               decoration: const InputDecoration(
-                hintText: 'Colle ici le mail (Booking, Airbnb, SNCF, compagnie aérienne, billetterie...)',
+                hintText:
+                    'Colle ici le mail (Booking, Airbnb, SNCF, compagnie aérienne, billetterie...)',
                 border: OutlineInputBorder(),
               ),
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Annuler'),
+            ),
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
               child: const Text('Extraire'),
@@ -425,13 +487,19 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
     setState(() => _extracting = true);
     try {
       final service = ref.read(aiSuggestionsServiceProvider);
-      final extracted = await service.extractDocumentFromText(text, hintCategory: widget.existing != null ? _category : null);
+      final extracted = await service.extractDocumentFromText(
+        text,
+        hintCategory: widget.existing != null ? _category : null,
+      );
       if (!mounted) return;
       _applyExtracted(extracted);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Extraction impossible : $e'), backgroundColor: AppColors.error),
+          SnackBar(
+            content: Text('Extraction impossible : $e'),
+            backgroundColor: AppColors.error,
+          ),
         );
       }
     } finally {
@@ -517,19 +585,34 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
     // Chemin 1 : placeId fraîchement posé par autocomplete OU déjà en metadata
     // (édition sans changement). Sécurise les coords par le cache partagé.
     final pickedPlaceId = _placeIds[fieldKey];
-    final existingPlaceId = pickedPlaceId ?? (widget.existing?.metadata[placeIdKey] as String?);
+    final existingPlaceId =
+        pickedPlaceId ?? (widget.existing?.metadata[placeIdKey] as String?);
     if (existingPlaceId != null && existingPlaceId.isNotEmpty) {
-      final oldVal = ((widget.existing?.metadata[fieldKey]) as String?)?.trim() ?? '';
-      final hadCoords = widget.existing?.metadata[latKey] != null &&
+      final oldVal =
+          ((widget.existing?.metadata[fieldKey]) as String?)?.trim() ?? '';
+      final hadCoords =
+          widget.existing?.metadata[latKey] != null &&
           widget.existing?.metadata[lngKey] != null;
       // Si le user a édité (pas de pick frais) ET le name n'a pas changé ET
       // les coords sont là, on saute le cache aussi (économie max). On
       // restaure aussi country_code et city si déjà en metadata, et on
       // skip uniquement si on a déjà toutes les infos sinon le re-fetch
       // enrichit l'entrée legacy.
-      final hadCountry = ((widget.existing?.metadata[countryKey] as String?)?.trim().isNotEmpty) ?? false;
-      final hadCity = ((widget.existing?.metadata[cityKey] as String?)?.trim().isNotEmpty) ?? false;
-      if (pickedPlaceId == null && newVal == oldVal && hadCoords && hadCountry && hadCity) {
+      final hadCountry =
+          ((widget.existing?.metadata[countryKey] as String?)
+              ?.trim()
+              .isNotEmpty) ??
+          false;
+      final hadCity =
+          ((widget.existing?.metadata[cityKey] as String?)
+              ?.trim()
+              .isNotEmpty) ??
+          false;
+      if (pickedPlaceId == null &&
+          newVal == oldVal &&
+          hadCoords &&
+          hadCountry &&
+          hadCity) {
         meta[placeIdKey] = existingPlaceId;
         meta[latKey] = widget.existing!.metadata[latKey];
         meta[lngKey] = widget.existing!.metadata[lngKey];
@@ -576,16 +659,33 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
     // — l'user ré-édite + save sans intention de modifier, donc rien
     // n'apparaîtrait. Coût : 1 appel Geocoding (~$0.005) le 1er save d'un
     // doc legacy, gratuit ensuite.
-    final oldVal = ((widget.existing?.metadata[fieldKey]) as String?)?.trim() ?? '';
-    final hadCoords = widget.existing?.metadata[latKey] != null &&
+    final oldVal =
+        ((widget.existing?.metadata[fieldKey]) as String?)?.trim() ?? '';
+    final hadCoords =
+        widget.existing?.metadata[latKey] != null &&
         widget.existing?.metadata[lngKey] != null;
-    final hadCountry = ((widget.existing?.metadata[countryKey] as String?)?.trim().isNotEmpty) ?? false;
-    final hadCity = ((widget.existing?.metadata[cityKey] as String?)?.trim().isNotEmpty) ?? false;
+    final hadCountry =
+        ((widget.existing?.metadata[countryKey] as String?)
+            ?.trim()
+            .isNotEmpty) ??
+        false;
+    final hadCity =
+        ((widget.existing?.metadata[cityKey] as String?)?.trim().isNotEmpty) ??
+        false;
     if (newVal == oldVal && hadCoords && hadCountry && hadCity) {
       return;
     }
     // Skip le préfixe si l'utilisateur a déjà tapé un mot équivalent (FR/EN/ES).
-    const equivalents = ['airport', 'aéroport', 'aeroport', 'gare', 'station', 'estación', 'estacion', 'bahnhof'];
+    const equivalents = [
+      'airport',
+      'aéroport',
+      'aeroport',
+      'gare',
+      'station',
+      'estación',
+      'estacion',
+      'bahnhof',
+    ];
     final lower = newVal.toLowerCase();
     final alreadyTyped = equivalents.any(lower.contains);
     final query = alreadyTyped ? newVal : '$prefix$newVal';
@@ -639,11 +739,21 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
 
     var name = _nameCtrl.text.trim();
     if (name.isEmpty) return;
-    name = name.replaceFirst(RegExp(r'^(vol|train|flight)\s+', caseSensitive: false), '');
+    name = name.replaceFirst(
+      RegExp(r'^(vol|train|flight)\s+', caseSensitive: false),
+      '',
+    );
 
     // Heuristique 1 : séparateur explicite.
-    final separator = RegExp(r'\s+(→|->|—|–|_|to|vers|vs|-)\s+', caseSensitive: false);
-    final parts = name.split(separator).map((p) => p.trim()).where((p) => p.isNotEmpty).toList();
+    final separator = RegExp(
+      r'\s+(→|->|—|–|_|to|vers|vs|-)\s+',
+      caseSensitive: false,
+    );
+    final parts = name
+        .split(separator)
+        .map((p) => p.trim())
+        .where((p) => p.isNotEmpty)
+        .toList();
     if (parts.length >= 2) {
       if (!hasFrom) meta['from'] = parts.first;
       if (!hasTo) meta['to'] = parts.last;
@@ -653,7 +763,9 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
     // Heuristique 2 : 2 codes IATA exacts (3 lettres MAJUSCULES). Très
     // spécifique, donc faible risque de faux positif. Si 0, 1 ou >2 matches,
     // on n'infère rien (ambigu).
-    final iata = RegExp(r'\b[A-Z]{3}\b').allMatches(name).map((m) => m.group(0)!).toList();
+    final iata = RegExp(
+      r'\b[A-Z]{3}\b',
+    ).allMatches(name).map((m) => m.group(0)!).toList();
     if (iata.length == 2) {
       if (!hasFrom) meta['from'] = iata[0];
       if (!hasTo) meta['to'] = iata[1];
@@ -696,7 +808,8 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
     }
     final oldAddress =
         ((widget.existing?.metadata['address']) as String?)?.trim() ?? '';
-    final hadCoords = widget.existing?.metadata['latitude'] != null &&
+    final hadCoords =
+        widget.existing?.metadata['latitude'] != null &&
         widget.existing?.metadata['longitude'] != null;
     if (newAddress == oldAddress && hadCoords) {
       return;
@@ -732,9 +845,9 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
 
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Le nom est requis.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Le nom est requis.')));
       return;
     }
 
@@ -761,13 +874,24 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
         final trip = await ref.read(tripByIdProvider(_tripId!).future);
         if (!mounted) return;
         if (trip != null && trip.hasExactDates) {
-          final tripStart = DateTime(trip.startDate.year, trip.startDate.month, trip.startDate.day);
-          final tripEnd = DateTime(trip.endDate.year, trip.endDate.month, trip.endDate.day);
-          String fmt(DateTime d) => '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}';
+          final tripStart = DateTime(
+            trip.startDate.year,
+            trip.startDate.month,
+            trip.startDate.day,
+          );
+          final tripEnd = DateTime(
+            trip.endDate.year,
+            trip.endDate.month,
+            trip.endDate.day,
+          );
+          String fmt(DateTime d) =>
+              '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}';
           if (newCi != null && newCi.isBefore(tripStart)) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('⚠️ Check-in (${fmt(newCi)}) avant le début du voyage (${fmt(tripStart)}).'),
+                content: Text(
+                  '⚠️ Check-in (${fmt(newCi)}) avant le début du voyage (${fmt(tripStart)}).',
+                ),
                 backgroundColor: AppColors.error,
               ),
             );
@@ -776,7 +900,9 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
           if (newCo != null && newCo.isAfter(tripEnd)) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('⚠️ Check-out (${fmt(newCo)}) après la fin du voyage (${fmt(tripEnd)}).'),
+                content: Text(
+                  '⚠️ Check-out (${fmt(newCo)}) après la fin du voyage (${fmt(tripEnd)}).',
+                ),
                 backgroundColor: AppColors.error,
               ),
             );
@@ -791,8 +917,12 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
         if (!mounted) return;
         for (final h in hotels) {
           if (widget.existing != null && h.id == widget.existing!.id) continue;
-          final otherCi = DateTime.tryParse(h.metadata['check_in'] as String? ?? '');
-          final otherCo = DateTime.tryParse(h.metadata['check_out'] as String? ?? '');
+          final otherCi = DateTime.tryParse(
+            h.metadata['check_in'] as String? ?? '',
+          );
+          final otherCo = DateTime.tryParse(
+            h.metadata['check_out'] as String? ?? '',
+          );
           if (otherCi == null || otherCo == null) continue;
           // Overlap = intersection non vide en ouverture stricte sur les
           // bornes : [newCi, newCo) ∩ [otherCi, otherCo) ≠ ∅. Avec cette
@@ -831,7 +961,8 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
       // s'affiche dans la card du wallet (TransportDocWarnings — qui couvre
       // aussi date manquante / date hors plage / horaires manquants, donc pas
       // besoin d'un toast supplémentaire au save).
-      if (_category == DocumentCategory.flight || _category == DocumentCategory.train) {
+      if (_category == DocumentCategory.flight ||
+          _category == DocumentCategory.train) {
         // Auto pré-remplissage from/to depuis le name si l'user n'a pas rempli
         // les champs (cas Lalith : "Vol Bangkok _ Chiang Mai" tapé en NOM mais
         // champs from/to vides). Évite le fallback "1 seule activité legacy"
@@ -858,11 +989,16 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
             .eq('id', widget.existing!.id)
             .select();
         if ((updateRes as List).isEmpty) {
-          throw Exception('Aucune ligne mise à jour. Vérifie les policies RLS UPDATE sur trip_documents (auth.uid() = user_id).');
+          throw Exception(
+            'Aucune ligne mise à jour. Vérifie les policies RLS UPDATE sur trip_documents (auth.uid() = user_id).',
+          );
         }
         savedId = widget.existing!.id;
       } else {
-        final inserted = await client.from('trip_documents').insert(payload).select();
+        final inserted = await client
+            .from('trip_documents')
+            .insert(payload)
+            .select();
         if ((inserted as List).isEmpty) {
           throw Exception('Aucun document inséré (vérifie les policies RLS).');
         }
@@ -879,7 +1015,9 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
       // On ne pose la question QUE pour les nuits non encore résolues (pas déjà confirmées
       // dans `metadata.sleep_nights` d'un des hôtels impliqués) — évite de re-demander
       // à chaque édition minime du doc (adresse, numéro de résa...).
-      if (_category == DocumentCategory.hotel && _tripId != null && savedId != null) {
+      if (_category == DocumentCategory.hotel &&
+          _tripId != null &&
+          savedId != null) {
         final hotels = await ref.read(tripHotelsProvider(_tripId!).future);
         if (!mounted) return;
         final savedHotel = hotels.where((h) => h.id == savedId).firstOrNull;
@@ -889,11 +1027,14 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
           final unresolved = overlap.where((night) {
             final iso = isoDay(night);
             final candidates = hotelsSleepingOnNight(hotels, night);
-            return !candidates.any((h) => confirmedSleepNights(h).contains(iso));
+            return !candidates.any(
+              (h) => confirmedSleepNights(h).contains(iso),
+            );
           }).toList();
           if (unresolved.isNotEmpty) {
             await openOverlapNightsSheet(
-              context, ref,
+              context,
+              ref,
               tripId: _tripId!,
               overlapNights: unresolved,
               allHotels: hotels,
@@ -902,20 +1043,46 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
         }
       }
 
-      // Auto-création d'étapes du voyage à partir des docs Vol/Train.
-      // Conservatif : on n'ajoute que les villes manquantes dans
-      // `itinerary_segments`, on ne touche jamais aux étapes existantes.
-      // Filtré par destination_country_code (cf. TripSegmentSyncService).
+      // V2 (2026-05-07) : découverte sans auto-insertion.
+      // On cherche les villes candidates dans les vols/trains, et si on en
+      // trouve, on ouvre une sheet de validation. L'utilisateur curate :
+      // les hallucinations d'extraction Gemini ne polluent plus le circuit.
+      // Cf. TripSegmentSyncService + DetectedSegmentsSheet.
       List<TripSegment> addedSegments = const [];
+      String? tripDestination;
       if (_tripId != null &&
-          (_category == DocumentCategory.flight || _category == DocumentCategory.train)) {
+          (_category == DocumentCategory.flight ||
+              _category == DocumentCategory.train)) {
         try {
-          addedSegments = await ref
-              .read(tripSegmentSyncServiceProvider)
-              .syncFromTransportDocs(_tripId!);
-          if (addedSegments.isNotEmpty) {
-            ref.invalidate(tripByIdProvider(_tripId!));
-            ref.invalidate(tripsProvider);
+          final syncService = ref.read(tripSegmentSyncServiceProvider);
+          final candidates = await syncService
+              .findCandidatesFromTransportDocs(_tripId!);
+          if (!mounted) return;
+          if (candidates.isNotEmpty) {
+            // Récupère le nom de destination pour le titre de la sheet.
+            final tripRow = await ref
+                .read(supabaseProvider)
+                .from('trips')
+                .select('destination')
+                .eq('id', _tripId!)
+                .maybeSingle();
+            tripDestination =
+                (tripRow?['destination'] as String?) ?? 'ce voyage';
+            if (!mounted) return;
+            final selected = await DetectedSegmentsSheet.show(
+              context,
+              candidates: candidates,
+              tripDestination: tripDestination,
+            );
+            if (!mounted) return;
+            if (selected.isNotEmpty) {
+              addedSegments =
+                  await syncService.applyCandidates(_tripId!, selected);
+              if (addedSegments.isNotEmpty) {
+                ref.invalidate(tripByIdProvider(_tripId!));
+                ref.invalidate(tripsProvider);
+              }
+            }
           }
         } catch (e) {
           debugPrint('[trip-segment-sync] failed: $e');
@@ -939,7 +1106,10 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur : $e'), backgroundColor: AppColors.error),
+          SnackBar(
+            content: Text('Erreur : $e'),
+            backgroundColor: AppColors.error,
+          ),
         );
       }
     } finally {
@@ -955,7 +1125,10 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
         title: const Text('Supprimer ce document ?'),
         content: Text(widget.existing!.name),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: AppColors.error),
@@ -966,7 +1139,11 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
     );
     if (confirmed != true) return;
     try {
-      await ref.read(supabaseProvider).from('trip_documents').delete().eq('id', widget.existing!.id);
+      await ref
+          .read(supabaseProvider)
+          .from('trip_documents')
+          .delete()
+          .eq('id', widget.existing!.id);
       ref.invalidate(documentsProvider);
       if (widget.existing!.tripId != null) {
         ref.invalidate(tripDocumentsProvider(widget.existing!.tripId!));
@@ -976,7 +1153,10 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur : $e'), backgroundColor: AppColors.error),
+          SnackBar(
+            content: Text('Erreur : $e'),
+            backgroundColor: AppColors.error,
+          ),
         );
       }
     }
@@ -989,13 +1169,22 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
   Widget build(BuildContext context) {
     final tripsAsync = ref.watch(tripsProvider);
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: SizedBox(
         height: MediaQuery.of(context).size.height * 0.9,
         child: Column(
           children: [
             const SizedBox(height: 10),
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2))),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
             const SizedBox(height: 12),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -1005,9 +1194,24 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(widget.existing == null ? 'Ajouter un document' : 'Modifier le document', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                        Text(
+                          widget.existing == null
+                              ? 'Ajouter un document'
+                              : 'Modifier le document',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
                         const SizedBox(height: 2),
-                        Text('Saisie manuelle ou extraction depuis un email.', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                        Text(
+                          'Saisie manuelle ou extraction depuis un email.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -1033,7 +1237,12 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
                 children: [
                   Text(
                     'Pré-remplir automatiquement avec Gemini',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.3),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                      letterSpacing: 0.3,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Row(
@@ -1047,7 +1256,9 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
                             minimumSize: const Size(0, 44),
                             foregroundColor: AppColors.accent,
                             side: BorderSide(color: AppColors.accent),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                           ),
                         ),
                       ),
@@ -1061,7 +1272,9 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
                             minimumSize: const Size(0, 44),
                             foregroundColor: AppColors.accent,
                             side: BorderSide(color: AppColors.accent),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                           ),
                         ),
                       ),
@@ -1072,9 +1285,19 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        SizedBox(height: 14, width: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+                        SizedBox(
+                          height: 14,
+                          width: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
                         SizedBox(width: 8),
-                        Text('Extraction en cours...', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                        Text(
+                          'Extraction en cours...',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
                       ],
                     ),
                   ],
@@ -1089,7 +1312,15 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Sélecteur de catégorie
-                    Text('TYPE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+                    Text(
+                      'TYPE',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     SizedBox(
                       height: 92,
@@ -1111,21 +1342,46 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
                     const SizedBox(height: 16),
 
                     // Rattachement à un voyage
-                    Text('RATTACHÉ À UN VOYAGE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+                    Text(
+                      'RATTACHÉ À UN VOYAGE',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     tripsAsync.when(
-                      loading: () => const SizedBox(height: 40, child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
-                      error: (_, __) => Text('Erreur de chargement des voyages', style: TextStyle(fontSize: 12, color: AppColors.error)),
+                      loading: () => const SizedBox(
+                        height: 40,
+                        child: Center(
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                      error: (_, _) => Text(
+                        'Erreur de chargement des voyages',
+                        style: TextStyle(fontSize: 12, color: AppColors.error),
+                      ),
                       data: (trips) => DropdownButtonFormField<String?>(
-                        value: _tripId,
+                        initialValue: _tripId,
                         isExpanded: true,
                         decoration: const InputDecoration(
                           hintText: 'Aucun (document général)',
                         ),
                         items: [
-                          const DropdownMenuItem<String?>(value: null, child: Text('Aucun (document général)')),
+                          const DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text('Aucun (document général)'),
+                          ),
                           for (final t in trips)
-                            DropdownMenuItem<String?>(value: t.id, child: Text('${t.coverEmoji} ${t.title}', overflow: TextOverflow.ellipsis)),
+                            DropdownMenuItem<String?>(
+                              value: t.id,
+                              child: Text(
+                                '${t.coverEmoji} ${t.title}',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
                         ],
                         onChanged: (v) => setState(() => _tripId = v),
                       ),
@@ -1133,17 +1389,35 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
                     const SizedBox(height: 16),
 
                     // Nom
-                    Text('NOM *', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+                    Text(
+                      'NOM *',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
                     const SizedBox(height: 6),
                     TextField(
                       controller: _nameCtrl,
-                      decoration: InputDecoration(hintText: _hintForCategory(_category)),
+                      decoration: InputDecoration(
+                        hintText: _hintForCategory(_category),
+                      ),
                     ),
                     const SizedBox(height: 16),
 
                     // Champs dynamiques
                     for (final spec in _fields) ...[
-                      Text(spec.label.toUpperCase(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+                      Text(
+                        spec.label.toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondary,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
                       const SizedBox(height: 6),
                       _buildField(spec),
                       const SizedBox(height: 14),
@@ -1154,13 +1428,23 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
             ),
             Container(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-              decoration: BoxDecoration(color: AppColors.surface, border: Border(top: BorderSide(color: AppColors.border))),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                border: Border(top: BorderSide(color: AppColors.border)),
+              ),
               child: SafeArea(
                 top: false,
                 child: ElevatedButton(
                   onPressed: _saving ? null : _save,
                   child: _saving
-                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
                       : const Text('Enregistrer'),
                 ),
               ),
@@ -1177,7 +1461,8 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
     // ("bkkooo") et fournit directement un placeId pour résolution coords
     // précise via le cache partagé.
     if ((spec.key == 'from' || spec.key == 'to') &&
-        (_category == DocumentCategory.flight || _category == DocumentCategory.train)) {
+        (_category == DocumentCategory.flight ||
+            _category == DocumentCategory.train)) {
       final type = _category == DocumentCategory.flight
           ? TransportPlaceType.airport
           : TransportPlaceType.trainStation;
@@ -1185,7 +1470,8 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
         key: ValueKey('${spec.key}_$_category'),
         type: type,
         initialValue: _ctrl(spec.key).text,
-        labelText: null, // le label est rendu au-dessus par le parent (cohérence)
+        labelText:
+            null, // le label est rendu au-dessus par le parent (cohérence)
         hintText: type == TransportPlaceType.airport
             ? 'Ex : Bangkok, BKK, Charles de Gaulle…'
             : 'Ex : Lyon Part-Dieu, Bangkok Hua Lamphong…',
@@ -1214,14 +1500,29 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
             decoration: BoxDecoration(
               color: AppColors.surface,
-              border: Border.all(color: d != null ? AppColors.primary : AppColors.border, width: d != null ? 1.5 : 1),
+              border: Border.all(
+                color: d != null ? AppColors.primary : AppColors.border,
+                width: d != null ? 1.5 : 1,
+              ),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Row(
               children: [
-                Icon(Icons.calendar_today, size: 16, color: AppColors.textSecondary),
+                Icon(
+                  Icons.calendar_today,
+                  size: 16,
+                  color: AppColors.textSecondary,
+                ),
                 const SizedBox(width: 8),
-                Text(d != null ? _fmtDate(d) : 'JJ/MM/AAAA', style: TextStyle(fontSize: 13, color: d != null ? AppColors.textPrimary : AppColors.textSecondary)),
+                Text(
+                  d != null ? _fmtDate(d) : 'JJ/MM/AAAA',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: d != null
+                        ? AppColors.textPrimary
+                        : AppColors.textSecondary,
+                  ),
+                ),
               ],
             ),
           ),
@@ -1231,29 +1532,32 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
           controller: _ctrl(spec.key),
           readOnly: true,
           onTap: () => _pickTime(spec.key),
-          decoration: const InputDecoration(hintText: 'HH:MM', suffixIcon: Icon(Icons.access_time, size: 18)),
+          decoration: const InputDecoration(
+            hintText: 'HH:MM',
+            suffixIcon: Icon(Icons.access_time, size: 18),
+          ),
         );
       case _FieldType.multiline:
-        return TextField(
-          controller: _ctrl(spec.key),
-          minLines: 1,
-          maxLines: 3,
-        );
+        return TextField(controller: _ctrl(spec.key), minLines: 1, maxLines: 3);
       case _FieldType.text:
-        return TextField(
-          controller: _ctrl(spec.key),
-        );
+        return TextField(controller: _ctrl(spec.key));
     }
   }
 
   String _hintForCategory(String c) {
     switch (c) {
-      case DocumentCategory.hotel: return 'Ex : Hôtel Memmo Alfama';
-      case DocumentCategory.flight: return 'Ex : Vol Paris → Lisbonne';
-      case DocumentCategory.train: return 'Ex : TGV Paris → Marseille';
-      case DocumentCategory.carRental: return 'Ex : Location Hertz Lisbonne';
-      case DocumentCategory.ticket: return 'Ex : Concert Radiohead';
-      default: return 'Nom du document';
+      case DocumentCategory.hotel:
+        return 'Ex : Hôtel Memmo Alfama';
+      case DocumentCategory.flight:
+        return 'Ex : Vol Paris → Lisbonne';
+      case DocumentCategory.train:
+        return 'Ex : TGV Paris → Marseille';
+      case DocumentCategory.carRental:
+        return 'Ex : Location Hertz Lisbonne';
+      case DocumentCategory.ticket:
+        return 'Ex : Concert Radiohead';
+      default:
+        return 'Nom du document';
     }
   }
 }
@@ -1262,7 +1566,11 @@ class _CategoryChip extends StatelessWidget {
   final String category;
   final bool selected;
   final VoidCallback onTap;
-  const _CategoryChip({required this.category, required this.selected, required this.onTap});
+  const _CategoryChip({
+    required this.category,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1273,7 +1581,10 @@ class _CategoryChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
         decoration: BoxDecoration(
           color: selected ? AppColors.primaryLight : AppColors.surface,
-          border: Border.all(color: selected ? AppColors.primary : AppColors.border, width: selected ? 1.5 : 1),
+          border: Border.all(
+            color: selected ? AppColors.primary : AppColors.border,
+            width: selected ? 1.5 : 1,
+          ),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
@@ -1284,7 +1595,11 @@ class _CategoryChip extends StatelessWidget {
             Text(
               categoryLabel(category),
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 10, fontWeight: selected ? FontWeight.w700 : FontWeight.w500, color: selected ? AppColors.primary : AppColors.textPrimary),
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: selected ? AppColors.primary : AppColors.textPrimary,
+              ),
             ),
           ],
         ),
