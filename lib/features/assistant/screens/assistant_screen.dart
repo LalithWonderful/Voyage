@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:voyage/core/theme/app_theme.dart';
 import 'package:voyage/features/assistant/providers/assistant_provider.dart';
+import 'package:voyage/features/assistant/widgets/lunao_context_card.dart';
 import 'package:voyage/features/assistant/widgets/trip_context_chip.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
 
@@ -121,10 +122,12 @@ class _AssistantScreenState extends ConsumerState<AssistantScreen> {
             ),
           ),
           Container(color: AppColors.border, height: 1),
+          const SizedBox(height: 12),
+          const LunaoContextCard(),
           Expanded(
             child: ListView(
               controller: _scrollController,
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
               children: [
                 _BotMsg(_greeting()),
                 for (final m in state.messages)

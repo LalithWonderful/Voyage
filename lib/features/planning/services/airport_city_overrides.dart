@@ -519,6 +519,46 @@ AirportSuggestion? lookupAirport(String iata) {
   return null;
 }
 
+/// Coordonnées GPS d'un aéroport par son code IATA. Utilisé pour estimer
+/// la distance entre origine et destination dans l'assistant transport.
+({double lat, double lng})? coordsForAirport(String iata) {
+  final code = iata.trim().toUpperCase();
+  if (code.length != 3) return null;
+  for (final a in _airports) {
+    if (a.iata == code) return (lat: a.lat, lng: a.lng);
+  }
+  return null;
+}
+
+/// Coordonnées approximatives d'une ville à partir du nom. Cherche dans la
+/// table d'aéroports une ville normalisée qui matche (case+accent insensible).
+/// Approximation : on prend le 1er aéroport rencontré pour cette ville. Pour
+/// les villes sans aéroport notable (ex: Metz), retourne null — le caller
+/// doit prévoir un fallback.
+({double lat, double lng})? coordsForCity(String city) {
+  final norm = _normalizeAirportSearch(city);
+  if (norm.isEmpty) return null;
+  for (final a in _airports) {
+    if (_normalizeAirportSearch(a.city) == norm) {
+      return (lat: a.lat, lng: a.lng);
+    }
+  }
+  // Fallback : match partiel (city contient ou est contenue) — utile pour les
+  // destinations avec qualifieurs ("Marrakech, Maroc", "Paris (France)").
+  for (final a in _airports) {
+    final acity = _normalizeAirportSearch(a.city);
+    if (norm.contains(acity) || acity.contains(norm)) {
+      return (lat: a.lat, lng: a.lng);
+    }
+  }
+  return null;
+}
+
+/// Distance haversine en km entre 2 points GPS. Public pour les services
+/// transport/budget qui ont besoin d'estimer rapidement les distances.
+double haversineKm(double lat1, double lng1, double lat2, double lng2) =>
+    _haversineKm(lat1, lng1, lat2, lng2);
+
 String _normalizeAirportSearch(String s) {
   return s
       .toLowerCase()

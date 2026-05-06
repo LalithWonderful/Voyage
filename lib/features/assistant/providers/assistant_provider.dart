@@ -4,6 +4,7 @@ import 'package:voyage/features/assistant/models/assistant_message.dart';
 import 'package:voyage/features/assistant/services/assistant_budget_estimator.dart';
 import 'package:voyage/features/assistant/services/assistant_intent_detector.dart';
 import 'package:voyage/features/assistant/services/assistant_service.dart';
+import 'package:voyage/features/assistant/services/assistant_transport_advisor.dart';
 import 'package:voyage/features/auth/providers/auth_provider.dart';
 import 'package:voyage/features/planning/models/trip_activity_model.dart';
 import 'package:voyage/features/planning/providers/planning_provider.dart';
@@ -112,10 +113,22 @@ class AssistantConversationNotifier
           ? const <TripActivity>[]
           : await _ref.read(tripActivitiesProvider(trip.id).future);
 
+      // Bloc CONTEXTE TRANSPORT : toujours injecté quand un voyage est
+      // sélectionné — évite que Gemini conseille un vol pour Metz.
+      final transportBlock = trip == null
+          ? null
+          : AssistantTransportAdvisor()
+              .compute(
+                trip: trip,
+                userHomeAirportFromProfile:
+                    profile?['home_airport_iata'] as String?,
+              )
+              .toPromptBlock();
+
       // Détection d'intent + estimateurs déterministes Lunao avant Gemini.
       // Si un estimateur produit un résultat, on injecte le bloc DATA dans
       // le prompt — Gemini reformule sans inventer de chiffres.
-      String? extraContext;
+      String? extraContext = transportBlock;
       final intent = AssistantIntentDetector.detect(trimmed);
       if (intent == AssistantIntent.budget && trip != null) {
         // Override par voyage si défini, sinon fallback profil.
@@ -128,7 +141,11 @@ class AssistantConversationNotifier
           homeAirport: homeAirport,
         );
         if (estimate != null) {
-          extraContext = estimate.toPromptBlock();
+          // On concatène : transport (toujours) + budget (si dispo)
+          extraContext = [
+            ?transportBlock,
+            estimate.toPromptBlock(),
+          ].join('\n');
           debugPrint('[assistant] intent=budget, estimate injected '
               '(${estimate.totalMinPerPerson}-${estimate.totalAvgPerPerson} '
               '€/pers via ${estimate.baselineName}, '
