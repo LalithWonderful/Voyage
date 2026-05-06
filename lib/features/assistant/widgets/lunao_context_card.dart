@@ -152,6 +152,10 @@ class _LunaoContextCardState extends ConsumerState<LunaoContextCard> {
       trip: trip,
       userHomeAirportFromProfile:
           profile?['home_airport_iata'] as String?,
+      userArrivalPreferenceFromProfile:
+          profile?['preferred_arrival_transport_mode'] as String?,
+      userLocalPreferenceFromProfile:
+          profile?['preferred_local_transport_mode'] as String?,
     );
     final preferencesLine = _formatPreferencesLine(trip, profile);
     final tripInterests =
@@ -161,7 +165,10 @@ class _LunaoContextCardState extends ConsumerState<LunaoContextCard> {
       children: [
         _section('Voyage', voyageLine),
         const SizedBox(height: 10),
-        _section('Départ & transport', advice.label),
+        _section(
+          'Départ & transport',
+          'Aller : ${advice.arrivalLabel}\nSur place : ${advice.localLabel}',
+        ),
         const SizedBox(height: 10),
         _section('Préférences du voyage', preferencesLine),
         const SizedBox(height: 10),

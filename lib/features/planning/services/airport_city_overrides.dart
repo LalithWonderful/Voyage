@@ -389,7 +389,7 @@ const _airports = <_AirportInfo>[
 
   // === AFRIQUE — Maghreb ===
   _AirportInfo(iata: 'CMN', city: 'Casablanca', lat: 33.3675, lng: -7.5898),
-  _AirportInfo(iata: 'RAK', city: 'Marrakech', lat: 31.6069, lng: -8.0363),
+  _AirportInfo(iata: 'RAK', city: 'Marrakech', name: 'Menara', lat: 31.6069, lng: -8.0363),
   _AirportInfo(iata: 'AGA', city: 'Agadir', lat: 30.3811, lng: -9.5462),
   _AirportInfo(iata: 'FEZ', city: 'Fès', lat: 33.9273, lng: -4.9779),
   _AirportInfo(iata: 'TNG', city: 'Tanger', lat: 35.7269, lng: -5.9168),
@@ -558,6 +558,33 @@ AirportSuggestion? lookupAirport(String iata) {
 /// transport/budget qui ont besoin d'estimer rapidement les distances.
 double haversineKm(double lat1, double lng1, double lat2, double lng2) =>
     _haversineKm(lat1, lng1, lat2, lng2);
+
+/// Infère l'aéroport principal probable pour une ville donnée. Cherche
+/// dans la table une entrée dont le nom de ville matche (case+accent
+/// insensible). Si plusieurs aéroports pour la même ville (CDG/ORY pour
+/// Paris, HND/NRT pour Tokyo), retourne le 1er — l'ordre dans `_airports`
+/// privilégie l'aéroport principal pour les hubs ambigus.
+///
+/// Utilisé par l'assistant pour déduire "tu arrives sans doute à RAK"
+/// quand le voyageur n'a pas encore enregistré son vol.
+AirportSuggestion? inferAirportForCity(String city) {
+  final norm = _normalizeAirportSearch(city);
+  if (norm.isEmpty) return null;
+  for (final a in _airports) {
+    if (_normalizeAirportSearch(a.city) == norm) {
+      return (iata: a.iata, city: a.city, name: a.name);
+    }
+  }
+  // Fallback : match partiel (ville contenue dans le nom déclaré, ou
+  // l'inverse). Évite de manquer "Marrakech, Maroc" → "Marrakech".
+  for (final a in _airports) {
+    final acity = _normalizeAirportSearch(a.city);
+    if (norm.contains(acity) || acity.contains(norm)) {
+      return (iata: a.iata, city: a.city, name: a.name);
+    }
+  }
+  return null;
+}
 
 String _normalizeAirportSearch(String s) {
   return s

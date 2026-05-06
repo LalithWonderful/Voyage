@@ -240,6 +240,18 @@ class Trip {
   /// BRU pour un voyage frontalier...) sans modifier le default profil.
   final String? homeAirportIata;
 
+  /// Mode de transport préféré pour rejoindre la destination depuis chez
+  /// soi. Null = fallback sur le profil global. Valeurs autorisées :
+  /// 'best' | 'flight' | 'train' | 'car' | 'bus'.
+  final String? arrivalTransportMode;
+
+  /// Mode de transport préféré pour les déplacements sur place. Null =
+  /// fallback sur le profil global. Valeurs autorisées : 'best' |
+  /// 'public_transport' | 'walk' | 'taxi' | 'car' | 'scooter' | 'comfort'
+  /// | 'budget'. Cette préférence ne s'applique PAS aux longues distances
+  /// inter-étapes (Bangkok → Krabi), qui restent décidées par Lunao.
+  final String? localTransportMode;
+
   const Trip({
     required this.id,
     required this.userId,
@@ -267,6 +279,8 @@ class Trip {
     this.budgetPerPersonEur,
     this.budgetIncludesFlight,
     this.homeAirportIata,
+    this.arrivalTransportMode,
+    this.localTransportMode,
   });
 
   /// True quand le voyage a des dates réelles choisies par l'utilisateur.
@@ -382,6 +396,8 @@ class Trip {
     num? budgetPerPersonEur,
     bool? budgetIncludesFlight,
     String? homeAirportIata,
+    String? arrivalTransportMode,
+    String? localTransportMode,
   }) {
     return Trip(
       id: id ?? this.id,
@@ -410,6 +426,8 @@ class Trip {
       budgetPerPersonEur: budgetPerPersonEur ?? this.budgetPerPersonEur,
       budgetIncludesFlight: budgetIncludesFlight ?? this.budgetIncludesFlight,
       homeAirportIata: homeAirportIata ?? this.homeAirportIata,
+      arrivalTransportMode: arrivalTransportMode ?? this.arrivalTransportMode,
+      localTransportMode: localTransportMode ?? this.localTransportMode,
     );
   }
 
@@ -446,5 +464,7 @@ class Trip {
     budgetPerPersonEur: json['budget_per_person_eur'] as num?,
     budgetIncludesFlight: json['budget_includes_flight'] as bool?,
     homeAirportIata: json['home_airport_iata'] as String?,
+    arrivalTransportMode: json['arrival_transport_mode'] as String?,
+    localTransportMode: json['local_transport_mode'] as String?,
   );
 }

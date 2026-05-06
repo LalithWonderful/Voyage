@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:voyage/features/assistant/models/assistant_message.dart';
+import 'package:voyage/features/assistant/services/assistant_arrival_context_builder.dart';
 import 'package:voyage/features/assistant/services/assistant_budget_estimator.dart';
 import 'package:voyage/features/assistant/services/assistant_intent_detector.dart';
 import 'package:voyage/features/assistant/services/assistant_service.dart';
@@ -10,6 +11,7 @@ import 'package:voyage/features/planning/models/trip_activity_model.dart';
 import 'package:voyage/features/planning/providers/planning_provider.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
+import 'package:voyage/features/wallet/providers/wallet_provider.dart';
 
 final assistantServiceProvider = Provider<AssistantService>((ref) {
   return AssistantService();
@@ -113,8 +115,14 @@ class AssistantConversationNotifier
           ? const <TripActivity>[]
           : await _ref.read(tripActivitiesProvider(trip.id).future);
 
+      // Documents du voyage (vols, hôtels…) pour la déduction d'arrivée
+      final documents = trip == null
+          ? const []
+          : await _ref.read(tripDocumentsProvider(trip.id).future);
+
       // Bloc CONTEXTE TRANSPORT : toujours injecté quand un voyage est
-      // sélectionné — évite que Gemini conseille un vol pour Metz.
+      // sélectionné — évite que Gemini conseille un vol pour Metz, et
+      // applique correctement les préférences arrival vs local.
       final transportBlock = trip == null
           ? null
           : AssistantTransportAdvisor()
@@ -122,13 +130,30 @@ class AssistantConversationNotifier
                 trip: trip,
                 userHomeAirportFromProfile:
                     profile?['home_airport_iata'] as String?,
+                userArrivalPreferenceFromProfile:
+                    profile?['preferred_arrival_transport_mode'] as String?,
+                userLocalPreferenceFromProfile:
+                    profile?['preferred_local_transport_mode'] as String?,
               )
+              .toPromptBlock();
+
+      // Bloc CONTEXTE ARRIVÉE : déduit l'aéroport pour empêcher Gemini de
+      // demander "tu arrives à quel aéroport ?". Cascade vol wallet →
+      // hébergement → première étape → fallback.
+      final arrivalBlock = trip == null
+          ? null
+          : AssistantArrivalContextBuilder()
+              .build(trip: trip, tripDocuments: documents.cast())
               .toPromptBlock();
 
       // Détection d'intent + estimateurs déterministes Lunao avant Gemini.
       // Si un estimateur produit un résultat, on injecte le bloc DATA dans
       // le prompt — Gemini reformule sans inventer de chiffres.
-      String? extraContext = transportBlock;
+      String? extraContext = [
+        ?transportBlock,
+        ?arrivalBlock,
+      ].join('\n').trim();
+      if (extraContext.isEmpty) extraContext = null;
       final intent = AssistantIntentDetector.detect(trimmed);
       if (intent == AssistantIntent.budget && trip != null) {
         // Override par voyage si défini, sinon fallback profil.
@@ -144,6 +169,7 @@ class AssistantConversationNotifier
           // On concatène : transport (toujours) + budget (si dispo)
           extraContext = [
             ?transportBlock,
+            ?arrivalBlock,
             estimate.toPromptBlock(),
           ].join('\n');
           debugPrint('[assistant] intent=budget, estimate injected '

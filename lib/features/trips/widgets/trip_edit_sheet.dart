@@ -103,6 +103,10 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
   /// Override aéroport de départ pour CE voyage (code IATA 3 lettres).
   /// Null = on utilise celui du profil (fallback côté Lunao). Non bloquant.
   String? _homeAirportIata;
+  /// Override mode arrival (best/flight/train/car/bus). Null = profil.
+  String? _arrivalTransportMode;
+  /// Override mode local (best/public_transport/walk/taxi/...). Null = profil.
+  String? _localTransportMode;
 
   @override
   void initState() {
@@ -122,6 +126,8 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
     _budgetIncludesFlight = widget.trip.budgetIncludesFlight ?? true;
     _budgetCtrl.text = _budgetPerPersonEur?.toString() ?? '';
     _homeAirportIata = widget.trip.homeAirportIata;
+    _arrivalTransportMode = widget.trip.arrivalTransportMode;
+    _localTransportMode = widget.trip.localTransportMode;
     // Re-détecte le kind de la destination au boot pour les voyages existants
     // créés avant Niveau 2 (où kind='unknown' n'a jamais été stocké). 1 appel
     // autocomplete par ouverture du sheet, acceptable. Si le réseau échoue,
@@ -263,6 +269,9 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
         'budget_includes_flight': _budgetPerPersonEur != null ? _budgetIncludesFlight : null,
         // Override aéroport ce voyage. Null = utiliser celui du profil.
         'home_airport_iata': _homeAirportIata,
+        // Préférences transport. Null = utiliser celles du profil.
+        'arrival_transport_mode': _arrivalTransportMode,
+        'local_transport_mode': _localTransportMode,
       }).eq('id', widget.trip.id);
       ref.invalidate(tripsProvider);
       ref.invalidate(tripByIdProvider(widget.trip.id));
@@ -835,6 +844,7 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
                     _buildStyleCard(),
                     _buildInterestsCard(),
                     _buildBudgetCard(),
+                    _buildTransportCard(),
                     _buildPlanningModeCard(),
 
                     const SizedBox(height: 6),
@@ -1297,6 +1307,130 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
           ],
         ),
       ],
+    );
+  }
+
+  /// Card "Préférences transport" — 2 niveaux distincts :
+  /// 1. "Aller à la destination" (best/flight/train/car/bus) — pour le grand
+  ///    trajet domicile → destination
+  /// 2. "Sur place" (best/public_transport/walk/taxi/car/scooter/comfort/budget)
+  ///    — pour les déplacements de proximité
+  /// Important : la préférence locale ne s'applique pas aux longues distances
+  /// inter-étapes (Bangkok → Krabi reste un vol même si l'utilisateur préfère
+  /// les transports en commun à Bangkok).
+  Widget _buildTransportCard() {
+    final hasOverride =
+        _arrivalTransportMode != null || _localTransportMode != null;
+    return _formCard(
+      title: 'PRÉFÉRENCES TRANSPORT',
+      trailing: hasOverride
+          ? TextButton(
+              onPressed: () => setState(() {
+                _arrivalTransportMode = null;
+                _localTransportMode = null;
+              }),
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text('Réinitialiser',
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w600)),
+            )
+          : null,
+      hint: hasOverride
+          ? 'Lunao adaptera ses recommandations à ces préférences.'
+          : "Optionnel — Lunao utilisera tes préférences globales du profil.",
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Aller à la destination',
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary)),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: const [
+              ('🤖', 'Meilleur compromis', null),
+              ('✈️', 'Avion', 'flight'),
+              ('🚆', 'Train', 'train'),
+              ('🚗', 'Voiture', 'car'),
+              ('🚌', 'Bus', 'bus'),
+            ].map(_arrivalChip).toList(),
+          ),
+          const SizedBox(height: 14),
+          Text('Sur place',
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary)),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: const [
+              ('🤖', 'Meilleur compromis', null),
+              ('🚇', 'Transports en commun', 'public_transport'),
+              ('🚶', 'Marche', 'walk'),
+              ('🚕', 'Taxi / VTC', 'taxi'),
+              ('🚗', 'Voiture', 'car'),
+              ('🛵', 'Scooter', 'scooter'),
+              ('💎', 'Le plus confortable', 'comfort'),
+              ('💰', 'Le moins cher', 'budget'),
+            ].map(_localChip).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _arrivalChip((String, String, String?) opt) {
+    final sel = _arrivalTransportMode == opt.$3;
+    return GestureDetector(
+      onTap: () => setState(() => _arrivalTransportMode = opt.$3),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: sel ? AppColors.primary : AppColors.primaryLight,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          '${opt.$1} ${opt.$2}',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: sel ? Colors.white : AppColors.primary,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _localChip((String, String, String?) opt) {
+    final sel = _localTransportMode == opt.$3;
+    return GestureDetector(
+      onTap: () => setState(() => _localTransportMode = opt.$3),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: sel ? AppColors.primary : AppColors.primaryLight,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          '${opt.$1} ${opt.$2}',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: sel ? Colors.white : AppColors.primary,
+          ),
+        ),
+      ),
     );
   }
 
