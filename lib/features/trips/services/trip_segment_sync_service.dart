@@ -1,44 +1,45 @@
-import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:voyage/features/planning/services/airport_city_overrides.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
+import 'package:voyage/features/trips/services/flight_timeline_builder.dart';
 import 'package:voyage/features/wallet/models/document_model.dart';
 
-/// Synchronise les étapes d'un voyage à partir de ses docs Vol/Train.
+/// Synchronise les étapes d'un voyage à partir de la chronologie des vols.
 ///
-/// V2 (2026-05-07) : la découverte est séparée de l'insertion. La méthode
-/// publique [findCandidatesFromTransportDocs] retourne les villes candidates
-/// SANS les insérer — l'UI ouvre une sheet de validation. La méthode
-/// [applyCandidates] insère uniquement les villes que l'utilisateur a cochées.
-/// La méthode legacy [syncFromTransportDocs] (auto-insert) est conservée
-/// pour compat mais ne devrait plus être appelée.
+/// V3 (2026-05-08) : refonte complète. Avant, on cherchait juste à ajouter
+/// les villes manquantes en respectant les segments existants — mauvaise
+/// idée quand un segment auto-seedé "Bangkok 47 jours" couvre la durée
+/// totale d'un voyage qui contient en réalité un circuit. La logique V3 :
 ///
-/// Logique de découverte :
-/// - Lit les docs Vol/Train du voyage, triés par date.
-/// - Pour chaque endpoint (`from`/`to`), produit un candidat.
-/// - **Filtre pays adaptatif** :
-///   - `destination_kind = 'city'` → filtre strict (mêmes pays que la destination)
-///   - `destination_kind = 'country'`/`'region'` → pas de filtre pays
-///     (un voyage "Thaïlande" peut inclure des extensions Vietnam/Tokyo)
-///   - destination_kind absent → fallback strict pays (sécurité)
-/// - Suggestion par défaut (`suggestedByDefault`) : true si même pays que la
-///   destination (haute confiance), false sinon — l'UI coche en conséquence.
-/// - Dédoublonne avec les segments existants (city normalisé OU haversine
-///   < 30 km).
+/// 1. **Calcule** la timeline réelle depuis les vols
+///    (cf. [buildTripStayTimelineFromFlightDocuments]).
+/// 2. **Compare** à l'état actuel (segments existants), produit un
+///    [TripTimelineDiff] avec added/updated/removed/preservedManual/warnings.
+/// 3. **Applique** seulement après validation utilisateur.
+///
+/// Règles de merge :
+/// - Si un segment existant a la MÊME ville qu'un séjour de la timeline ET
+///   sa durée est compatible (= durée du voyage entier ou similaire à la
+///   durée déduite), on le considère "auto-seedé" et on le remplace.
+/// - Si un segment existant a une ville qui n'apparaît dans AUCUN vol, on
+///   le PRÉSERVE (étape manuelle de l'utilisateur).
+/// - Les nouveaux séjours déduits sont ajoutés.
 class TripSegmentSyncService {
   final SupabaseClient _client;
 
   TripSegmentSyncService(this._client);
 
-  /// Découverte sans insertion : retourne la liste des villes candidates
-  /// trouvées dans les docs Vol/Train du voyage. L'UI peut ensuite proposer
-  /// une sheet de validation à l'utilisateur.
-  Future<List<SegmentCandidate>> findCandidatesFromTransportDocs(
-    String tripId,
-  ) async {
+  /// Calcule un diff prévisualisable entre l'état actuel des segments du
+  /// voyage et la timeline déduite de ses vols. Ne modifie rien.
+  /// Retourne null si le voyage est introuvable.
+  Future<TripTimelineDiff?> findTimelineDiff({
+    required String tripId,
+    String? userHomeAirportFromProfile,
+  }) async {
     final tripRow =
         await _client.from('trips').select().eq('id', tripId).maybeSingle();
-    if (tripRow == null) return const [];
+    if (tripRow == null) return null;
     final trip = Trip.fromJson(tripRow);
 
     final docsRows = await _client
@@ -49,337 +50,237 @@ class TripSegmentSyncService {
     final docs = (docsRows as List)
         .map((d) => TripDocument.fromJson(d as Map<String, dynamic>))
         .toList();
-    if (docs.isEmpty) return const [];
 
-    // Tri par date.
-    final sortedDocs = docs.where((d) {
-      final raw = d.metadata['date'] as String?;
-      return raw != null && raw.isNotEmpty && DateTime.tryParse(raw) != null;
-    }).toList()
-      ..sort((a, b) {
-        final ad = DateTime.parse(a.metadata['date'] as String);
-        final bd = DateTime.parse(b.metadata['date'] as String);
-        return ad.compareTo(bd);
-      });
-    if (sortedDocs.isEmpty) return const [];
+    // Résout la home base : aéroport override voyage, sinon profil, sinon CDG.
+    final homeIata = trip.homeAirportIata ??
+        userHomeAirportFromProfile ??
+        'CDG';
+    final homeLookup = lookupAirport(homeIata);
+    final homeCity = homeLookup?.city;
 
-    final tripCountry = trip.destinationCountryCode?.trim().toLowerCase();
-    final hasTripCountry = tripCountry != null && tripCountry.isNotEmpty;
-    // V2 : assouplit le filtre pour les voyages multi-pays explicites.
-    // 'country' / 'region' : un voyage "Thaïlande" peut inclure une extension
-    // Vietnam, Tokyo, etc. — on ne filtre pas. 'city' : on garde strict.
-    final filterByCountry = trip.destinationKind == 'city' || trip.destinationKind == null;
+    final timeline = buildTripStayTimelineFromFlightDocuments(
+      docs: docs,
+      tripEndDate: trip.endDate,
+      homeAirportCity: homeCity,
+    );
 
-    // 1. Extraction brute des candidats.
-    final raw = <_RawCandidate>[];
-    for (final doc in sortedDocs) {
-      final docDate = DateTime.parse(doc.metadata['date'] as String);
-      _appendRaw(
-        meta: doc.metadata,
-        prefix: 'from',
-        date: docDate,
-        docName: doc.name,
-        out: raw,
-      );
-      _appendRaw(
-        meta: doc.metadata,
-        prefix: 'to',
-        date: docDate,
-        docName: doc.name,
-        out: raw,
-      );
-    }
-    if (raw.isEmpty) return const [];
-
-    // 2. Dédoublonne avec les segments existants + entre candidats. Pour
-    // chaque ville on garde la PREMIÈRE occurrence (atDate la plus tôt).
-    final existing = trip.itinerarySegments;
-    final seenNorms = <String>{};
-    final candidates = <SegmentCandidate>[];
-    for (final c in raw) {
-      final norm = _normalize(c.city);
-      if (seenNorms.contains(norm)) continue;
-      if (_existsInSegments(existing, c)) continue;
-
-      // Filtrage pays (uniquement pour kind=city).
-      if (filterByCountry && hasTripCountry) {
-        if (c.countryCode == null || c.countryCode!.toLowerCase() != tripCountry) {
-          continue;
-        }
-      }
-
-      // Suggestion par défaut : cochée si même pays (haute confiance), sinon
-      // décochée (l'utilisateur valide explicitement les extensions).
-      final sameCountry = hasTripCountry &&
-          c.countryCode != null &&
-          c.countryCode!.toLowerCase() == tripCountry;
-      final suggested = !hasTripCountry || sameCountry;
-
-      candidates.add(SegmentCandidate(
-        city: c.city,
-        country: _countryNameFromCode(c.countryCode),
-        countryCode: c.countryCode,
-        latitude: c.lat,
-        longitude: c.lng,
-        atDate: c.atDate,
-        sourceDocName: c.docName,
-        suggestedByDefault: suggested,
-      ));
-      seenNorms.add(norm);
-    }
-    return candidates;
+    return _computeDiff(trip: trip, timeline: timeline);
   }
 
-  /// Applique les candidats sélectionnés par l'utilisateur : calcule les
-  /// jours, insère chacun à sa position chronologique, persiste.
-  /// Retourne la liste des nouvelles étapes effectivement insérées.
-  Future<List<TripSegment>> applyCandidates(
-    String tripId,
-    List<SegmentCandidate> selected,
-  ) async {
-    if (selected.isEmpty) return const [];
-
-    final tripRow =
-        await _client.from('trips').select().eq('id', tripId).maybeSingle();
-    if (tripRow == null) return const [];
-    final trip = Trip.fromJson(tripRow);
-
-    // Re-fetch les docs pour calculer correctement les `days`.
-    final docsRows = await _client
-        .from('trip_documents')
-        .select()
-        .eq('trip_id', tripId)
-        .inFilter('category', [DocumentCategory.flight, DocumentCategory.train]);
-    final docs = (docsRows as List)
-        .map((d) => TripDocument.fromJson(d as Map<String, dynamic>))
-        .toList();
-    final sortedDocs = docs.where((d) {
-      final raw = d.metadata['date'] as String?;
-      return raw != null && raw.isNotEmpty && DateTime.tryParse(raw) != null;
-    }).toList()
-      ..sort((a, b) {
-        final ad = DateTime.parse(a.metadata['date'] as String);
-        final bd = DateTime.parse(b.metadata['date'] as String);
-        return ad.compareTo(bd);
-      });
-
-    // Calcul des `days` + construction des nouveaux segments.
-    final newSegments = <TripSegment>[];
-    final positions = <DateTime>[];
-    for (final c in selected) {
-      final days = _computeDays(c, sortedDocs, trip);
-      newSegments.add(TripSegment(
-        city: c.city,
-        days: days,
-        country: c.country ?? trip.destinationCountryName,
-        latitude: c.latitude,
-        longitude: c.longitude,
-      ));
-      positions.add(c.atDate);
-    }
-
-    // Insertion chronologique (existants + nouveaux triés par date).
-    final positioned = <_Positioned>[];
-    final existing = trip.itinerarySegments;
-    for (var i = 0; i < existing.length; i++) {
-      positioned.add(_Positioned(
-        segment: existing[i],
-        date: trip.segmentStart(i),
-      ));
-    }
-    for (var i = 0; i < newSegments.length; i++) {
-      positioned.add(_Positioned(
-        segment: newSegments[i],
-        date: positions[i],
-      ));
-    }
-    positioned.sort((a, b) => a.date.compareTo(b.date));
-    final mergedSegments = positioned.map((p) => p.segment).toList();
-
+  /// Applique un diff précédemment calculé : remplace les segments du voyage
+  /// par la liste fusionnée. Idempotent.
+  Future<void> applyTimelineDiff({
+    required String tripId,
+    required TripTimelineDiff diff,
+  }) async {
+    if (diff.isEmpty) return;
+    final segments = diff.mergedSegments;
     try {
       await _client.from('trips').update({
-        'itinerary_segments':
-            mergedSegments.map((s) => s.toJson()).toList(),
+        'itinerary_segments': segments.map((s) => s.toJson()).toList(),
       }).eq('id', tripId);
-      debugPrint('[trip-segment-sync] +${newSegments.length} étape(s) '
-          'ajoutée(s) au voyage $tripId : '
-          '${newSegments.map((s) => s.city).join(', ')}');
+      debugPrint('[trip-segment-sync] timeline appliquée — '
+          '+${diff.added.length} ajout, ${diff.updated.length} maj, '
+          '${diff.removed.length} retrait, '
+          '${diff.preservedManual.length} étape(s) manuelle(s) préservée(s)');
     } catch (e) {
       debugPrint('[trip-segment-sync] update error : $e');
-      return const [];
     }
-    return newSegments;
   }
 
-  /// Legacy : auto-insertion sans validation user. Conservée pour compat
-  /// mais ne devrait plus être appelée — préférer le couple
-  /// findCandidatesFromTransportDocs + applyCandidates.
-  @Deprecated('Use findCandidatesFromTransportDocs + applyCandidates instead')
-  Future<List<TripSegment>> syncFromTransportDocs(String tripId) async {
-    final candidates = await findCandidatesFromTransportDocs(tripId);
-    final autoSelected =
-        candidates.where((c) => c.suggestedByDefault).toList();
-    if (autoSelected.isEmpty) return const [];
-    return applyCandidates(tripId, autoSelected);
-  }
+  // ─── compute diff ──────────────────────────────────────────────────────
 
-  // ─── helpers privés ────────────────────────────────────────────────────
-
-  void _appendRaw({
-    required Map<String, dynamic> meta,
-    required String prefix,
-    required DateTime date,
-    required String docName,
-    required List<_RawCandidate> out,
+  TripTimelineDiff _computeDiff({
+    required Trip trip,
+    required List<FlightStayCandidate> timeline,
   }) {
-    final city = (meta['${prefix}_city'] as String?)?.trim();
-    if (city == null || city.isEmpty) return;
-    final country = (meta['${prefix}_country_code'] as String?)?.trim();
-    final lat = (meta['${prefix}_latitude'] as num?)?.toDouble();
-    final lng = (meta['${prefix}_longitude'] as num?)?.toDouble();
-    out.add(_RawCandidate(
-      city: city,
-      countryCode: country?.toLowerCase(),
-      lat: lat,
-      lng: lng,
-      atDate: date,
-      docName: docName,
-    ));
-  }
+    final existing = trip.itinerarySegments;
 
-  String _normalize(String s) =>
-      s.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
+    // Set des villes mentionnées dans les vols (pour distinguer manuel vs
+    // auto-seed). On garde aussi `from_city` pour la détection : une étape
+    // manuelle "Ayutthaya" ajoutée à la main n'apparaît dans AUCUN to_city
+    // ni from_city des docs Vol/Train du voyage. À l'inverse, "Bangkok"
+    // apparaît dans plusieurs vols → l'étape Bangkok est "présente dans
+    // les vols" et donc remplaçable.
+    final flightCities = <String>{};
+    for (final s in timeline) {
+      flightCities.add(_normalize(s.city));
+    }
 
-  bool _existsInSegments(List<TripSegment> segments, _RawCandidate c) {
-    final norm = _normalize(c.city);
-    for (final s in segments) {
-      if (_normalize(s.city) == norm) return true;
-      if (c.lat != null &&
-          c.lng != null &&
-          s.latitude != null &&
-          s.longitude != null) {
-        if (_haversineKm(c.lat!, c.lng!, s.latitude!, s.longitude!) < 30) {
-          return true;
-        }
+    // Étapes manuelles : ville absente de tous les séjours déduits → on
+    // les préserve telles quelles, à leur position courante.
+    final preservedManual = <TripSegment>[];
+    final removed = <TripSegment>[];
+    for (final seg in existing) {
+      final norm = _normalize(seg.city);
+      if (flightCities.contains(norm)) {
+        // Cette étape sera remplacée par les séjours déduits → "removed"
+        // au sens "supprimé tel quel" mais probablement re-créé via le
+        // diff updated/added (la fusion finale gère).
+        removed.add(seg);
+      } else {
+        preservedManual.add(seg);
       }
     }
-    return false;
-  }
 
-  int _computeDays(
-    SegmentCandidate c,
-    List<TripDocument> sortedDocs,
-    Trip trip,
-  ) {
-    final norm = _normalize(c.city);
-    DateTime? departureDate;
-    for (final doc in sortedDocs) {
-      final fromCity = (doc.metadata['from_city'] as String?)?.trim() ?? '';
-      if (fromCity.isEmpty) continue;
-      if (_normalize(fromCity) != norm) continue;
-      final raw = doc.metadata['date'] as String?;
-      if (raw == null) continue;
-      final d = DateTime.tryParse(raw);
-      if (d == null) continue;
-      if (d.isAfter(c.atDate)) {
-        departureDate = d;
-        break;
+    // Convertit chaque séjour déduit en TripSegment.
+    final addedSegments = <TripSegment>[];
+    for (final s in timeline) {
+      addedSegments.add(TripSegment(
+        city: s.city,
+        days: s.days,
+        country: s.country ?? trip.destinationCountryName,
+        latitude: s.latitude,
+        longitude: s.longitude,
+      ));
+    }
+
+    // Distingue "added" (nouvelle ville) vs "updated" (ville déjà présente
+    // mais avec une durée différente).
+    final added = <TripSegment>[];
+    final updated = <UpdatedSegment>[];
+    final existingByNormCity = <String, TripSegment>{};
+    for (final s in existing) {
+      existingByNormCity.putIfAbsent(_normalize(s.city), () => s);
+    }
+    for (final s in addedSegments) {
+      final norm = _normalize(s.city);
+      final prev = existingByNormCity[norm];
+      if (prev == null) {
+        added.add(s);
+      } else {
+        updated.add(UpdatedSegment(
+          before: prev,
+          after: s,
+        ));
       }
     }
-    final endRef = departureDate ?? trip.endDate;
-    final endDay = DateTime(endRef.year, endRef.month, endRef.day);
-    final startDay = DateTime(c.atDate.year, c.atDate.month, c.atDate.day);
-    final diff = endDay.difference(startDay).inDays;
-    return diff.clamp(1, trip.durationDays);
+
+    // Warnings : 2 séjours dans la même ville (split), couverture partielle...
+    final warnings = <String>[];
+    final cityCounts = <String, int>{};
+    for (final s in addedSegments) {
+      final n = _normalize(s.city);
+      cityCounts[n] = (cityCounts[n] ?? 0) + 1;
+    }
+    cityCounts.forEach((city, count) {
+      if (count > 1) {
+        final original = addedSegments
+            .firstWhere((s) => _normalize(s.city) == city)
+            .city;
+        warnings.add(
+          '$original sera automatiquement séparé en $count séjours, '
+          'car $count passages ont été détectés dans tes vols.',
+        );
+      }
+    });
+
+    final totalDays = addedSegments.fold<int>(0, (acc, s) => acc + s.days) +
+        preservedManual.fold<int>(0, (acc, s) => acc + s.days);
+    if (totalDays > trip.durationDays) {
+      warnings.add(
+        'La durée totale des étapes ($totalDays jours) dépasse '
+        'la durée du voyage (${trip.durationDays} jours).',
+      );
+    }
+
+    // Construction de la liste finale fusionnée. Stratégie simple :
+    // - les séjours déduits viennent en premier dans l'ordre chronologique
+    //   (la timeline est déjà triée par date d'arrivée)
+    // - les étapes manuelles préservées viennent ensuite
+    // L'utilisateur peut toujours réorganiser à la main dans la sheet.
+    final mergedSegments = <TripSegment>[
+      ...addedSegments,
+      ...preservedManual,
+    ];
+
+    return TripTimelineDiff(
+      added: added,
+      updated: updated,
+      removed: removed,
+      preservedManual: preservedManual,
+      warnings: warnings,
+      timeline: timeline,
+      mergedSegments: mergedSegments,
+      tripDestination: trip.destination,
+      tripDurationDays: trip.durationDays,
+    );
   }
 
-  /// Mapping minimaliste code → nom pays pour affichage UX. Couvre les
-  /// principaux pays de l'audience FR + destinations populaires. Fallback
-  /// = code uppercased (ex: "VN" si pas mappé).
-  String? _countryNameFromCode(String? code) {
-    if (code == null || code.isEmpty) return null;
-    const map = {
-      'fr': 'France', 'be': 'Belgique', 'ch': 'Suisse', 'lu': 'Luxembourg',
-      'it': 'Italie', 'es': 'Espagne', 'de': 'Allemagne', 'gb': 'Royaume-Uni',
-      'nl': 'Pays-Bas', 'at': 'Autriche', 'pt': 'Portugal', 'ie': 'Irlande',
-      'gr': 'Grèce', 'hr': 'Croatie', 'cz': 'République tchèque',
-      'pl': 'Pologne', 'hu': 'Hongrie', 'tr': 'Turquie',
-      'ma': 'Maroc', 'tn': 'Tunisie', 'dz': 'Algérie', 'eg': 'Égypte',
-      'sn': 'Sénégal', 'za': 'Afrique du Sud', 'ke': 'Kenya',
-      'th': 'Thaïlande', 'vn': 'Vietnam', 'kh': 'Cambodge', 'la': 'Laos',
-      'mm': 'Birmanie', 'sg': 'Singapour', 'my': 'Malaisie', 'id': 'Indonésie',
-      'ph': 'Philippines', 'jp': 'Japon', 'kr': 'Corée du Sud', 'cn': 'Chine',
-      'in': 'Inde', 'ae': 'Émirats arabes unis', 'sa': 'Arabie saoudite',
-      'us': 'États-Unis', 'ca': 'Canada', 'mx': 'Mexique',
-      'br': 'Brésil', 'ar': 'Argentine', 'cl': 'Chili', 'pe': 'Pérou',
-      'au': 'Australie', 'nz': 'Nouvelle-Zélande',
-    };
-    return map[code.toLowerCase()] ?? code.toUpperCase();
-  }
-
-  double _haversineKm(double lat1, double lng1, double lat2, double lng2) {
-    const earthKm = 6371.0;
-    double toRad(double deg) => deg * (pi / 180);
-    final dLat = toRad(lat2 - lat1);
-    final dLng = toRad(lng2 - lng1);
-    final a = sin(dLat / 2) * sin(dLat / 2) +
-        cos(toRad(lat1)) * cos(toRad(lat2)) *
-            sin(dLng / 2) * sin(dLng / 2);
-    final c = 2 * atan2(sqrt(a), sqrt(1 - a));
-    return earthKm * c;
+  static String _normalize(String s) {
+    return s
+        .toLowerCase()
+        .trim()
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .replaceAll(RegExp(r'[éèêë]'), 'e')
+        .replaceAll(RegExp(r'[àâä]'), 'a')
+        .replaceAll(RegExp(r'[ïî]'), 'i')
+        .replaceAll(RegExp(r'[ôö]'), 'o')
+        .replaceAll(RegExp(r'[ûü]'), 'u')
+        .replaceAll('ç', 'c');
   }
 }
 
-/// Candidat d'étape proposé à l'utilisateur dans la sheet de validation.
-class SegmentCandidate {
-  final String city;
-  /// Nom pays humain (ex: "Vietnam") pour affichage UX. Null si non mappé.
-  final String? country;
-  /// Code ISO 2 lettres (ex: "vn"). Sert au filtrage/affichage drapeau.
-  final String? countryCode;
-  final double? latitude;
-  final double? longitude;
-  /// Date à laquelle le voyageur arrive dans cette ville (vol vers, ou
-  /// départ depuis). Sert au tri chronologique et au calcul des jours.
-  final DateTime atDate;
-  /// Nom du doc qui a fait remonter cette ville (ex: "VN1236 Vietnam Airlines").
-  /// Affiché en sous-titre dans la sheet pour aider l'utilisateur à recouper.
-  final String sourceDocName;
-  /// True = à cocher par défaut (même pays que la destination, haute
-  /// confiance). False = à laisser décoché (extension hors pays principal).
-  final bool suggestedByDefault;
+/// Diff prévisualisable entre l'état actuel des segments d'un voyage et la
+/// timeline déduite des vols.
+class TripTimelineDiff {
+  /// Séjours déduits qui ne sont pas dans les segments actuels (nouvelle
+  /// ville).
+  final List<TripSegment> added;
 
-  const SegmentCandidate({
-    required this.city,
-    required this.country,
-    required this.countryCode,
-    required this.latitude,
-    required this.longitude,
-    required this.atDate,
-    required this.sourceDocName,
-    required this.suggestedByDefault,
+  /// Segments existants dont la ville est aussi dans la timeline mais avec
+  /// une durée différente — ils seront remplacés.
+  final List<UpdatedSegment> updated;
+
+  /// Segments existants dont la ville apparaît dans les vols et qui seront
+  /// remplacés par les séjours déduits (potentiellement plusieurs séjours
+  /// pour la même ville si elle est visitée plusieurs fois).
+  final List<TripSegment> removed;
+
+  /// Étapes existantes qui n'apparaissent dans AUCUN vol — préservées
+  /// telles quelles (ce sont des étapes manuelles de l'utilisateur).
+  final List<TripSegment> preservedManual;
+
+  /// Messages informatifs pour l'utilisateur ("Bangkok sera découpé en 2
+  /// séjours", "Durée totale dépasse le voyage"...).
+  final List<String> warnings;
+
+  /// Timeline brute issue du builder (séjours avec startDate/endDate).
+  /// Utile pour l'affichage UX des dates dans la sheet preview.
+  final List<FlightStayCandidate> timeline;
+
+  /// Liste finale des segments du voyage si le diff est appliqué.
+  final List<TripSegment> mergedSegments;
+
+  /// Destination du voyage (pour le titre de la sheet).
+  final String tripDestination;
+
+  /// Durée totale du voyage (pour les warnings).
+  final int tripDurationDays;
+
+  const TripTimelineDiff({
+    required this.added,
+    required this.updated,
+    required this.removed,
+    required this.preservedManual,
+    required this.warnings,
+    required this.timeline,
+    required this.mergedSegments,
+    required this.tripDestination,
+    required this.tripDurationDays,
   });
+
+  /// True si le diff ne propose aucun changement (rien à appliquer).
+  bool get isEmpty =>
+      added.isEmpty && updated.isEmpty && removed.isEmpty;
+
+  /// True s'il y a quelque chose à montrer à l'utilisateur.
+  bool get hasChanges => !isEmpty;
 }
 
-class _RawCandidate {
-  final String city;
-  final String? countryCode;
-  final double? lat;
-  final double? lng;
-  final DateTime atDate;
-  final String docName;
-  _RawCandidate({
-    required this.city,
-    required this.countryCode,
-    required this.lat,
-    required this.lng,
-    required this.atDate,
-    required this.docName,
-  });
-}
-
-class _Positioned {
-  final TripSegment segment;
-  final DateTime date;
-  _Positioned({required this.segment, required this.date});
+/// Représente un segment dont la durée change (même ville, autre nb de jours).
+class UpdatedSegment {
+  final TripSegment before;
+  final TripSegment after;
+  UpdatedSegment({required this.before, required this.after});
 }

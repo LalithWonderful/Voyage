@@ -315,6 +315,33 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
   /// Total des jours déjà placés dans les étapes — pour comparer avec la durée du voyage.
   int get _totalSegmentDays => _segments.fold(0, (s, seg) => s + seg.days);
 
+  /// Construit le texte de bilan affiché sous la liste des étapes. Logique :
+  /// - couvre exactement → message "✓ X jours placés"
+  /// - dépasse → warning "⚠ ..."
+  /// - manque ≤ 2 jours ET le voyage a des étapes auto-déduites des vols
+  ///   (≥ 2 segments) → message neutre "X jours en transit (vols aller/retour)"
+  ///   pour ne pas culpabiliser l'utilisateur sur un écart naturel.
+  /// - manque davantage → message classique "X / Y jours placés · N restant".
+  String _bilanText() {
+    final placed = _totalSegmentDays;
+    final total = _tripDays;
+    if (placed == total) {
+      return '✓ $placed jour${placed > 1 ? 's' : ''} placé${placed > 1 ? 's' : ''} · couvre tout le voyage';
+    }
+    if (placed > total) {
+      return '⚠ $placed jours placés dépasse les $total jours du voyage';
+    }
+    final missing = total - placed;
+    final isTransitGap = missing <= 2 && _segments.length >= 2;
+    if (isTransitGap) {
+      return '$placed / $total jours placés · $missing jour${missing > 1 ? 's' : ''} en transit (vols aller/retour)';
+    }
+    final dest = _destCtrl.text.trim().isEmpty
+        ? 'destination'
+        : _destCtrl.text.trim();
+    return '$placed / $total jours placés · $missing restant${missing > 1 ? 's' : ''} (utilisera "$dest")';
+  }
+
   /// Quand le voyage a exactement une étape, sa durée est forcée à couvrir tout
   /// le voyage. Sémantique : "1 ville unique = elle dure tout le voyage", sinon
   /// on tomberait sur l'incohérence "13/21 jours placés (utilisera destination)".
@@ -1740,19 +1767,21 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
               );
             },
           ),
-          // Bilan : total des jours placés vs durée du voyage
+          // Bilan : total des jours placés vs durée du voyage. Le delta
+          // ≤ 2 jours correspond généralement aux jours de transit (vol
+          // aller/retour) et ne doit pas être présenté comme "manquant".
           Padding(
             padding: const EdgeInsets.only(bottom: 6, top: 2),
             child: Text(
-              _totalSegmentDays == _tripDays
-                  ? '✓ $_totalSegmentDays jour${_totalSegmentDays > 1 ? 's' : ''} placé${_totalSegmentDays > 1 ? 's' : ''} · couvre tout le voyage'
-                  : _totalSegmentDays < _tripDays
-                      ? '$_totalSegmentDays / $_tripDays jour${_tripDays > 1 ? 's' : ''} placés · ${_tripDays - _totalSegmentDays} restant${(_tripDays - _totalSegmentDays) > 1 ? 's' : ''} (utilisera "${_destCtrl.text.trim().isEmpty ? 'destination' : _destCtrl.text.trim()}")'
-                      : '⚠ $_totalSegmentDays jours placés dépasse les $_tripDays jours du voyage',
+              _bilanText(),
               style: TextStyle(
                 fontSize: 11,
-                color: _totalSegmentDays > _tripDays ? AppColors.error : AppColors.textSecondary,
-                fontWeight: _totalSegmentDays == _tripDays ? FontWeight.w600 : FontWeight.normal,
+                color: _totalSegmentDays > _tripDays
+                    ? AppColors.error
+                    : AppColors.textSecondary,
+                fontWeight: _totalSegmentDays == _tripDays
+                    ? FontWeight.w600
+                    : FontWeight.normal,
               ),
             ),
           ),

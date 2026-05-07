@@ -7,7 +7,6 @@ import 'package:voyage/core/theme/app_theme.dart';
 import 'package:voyage/core/widgets/transport_autocomplete_field.dart';
 import 'package:voyage/features/auth/providers/auth_provider.dart';
 import 'package:voyage/features/planning/providers/planning_provider.dart';
-import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
 import 'package:voyage/features/trips/widgets/detected_segments_sheet.dart';
 import 'package:voyage/features/wallet/models/document_model.dart';
@@ -1043,45 +1042,38 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
         }
       }
 
-      // V2 (2026-05-07) : découverte sans auto-insertion.
-      // On cherche les villes candidates dans les vols/trains, et si on en
-      // trouve, on ouvre une sheet de validation. L'utilisateur curate :
-      // les hallucinations d'extraction Gemini ne polluent plus le circuit.
-      // Cf. TripSegmentSyncService + DetectedSegmentsSheet.
-      List<TripSegment> addedSegments = const [];
-      String? tripDestination;
+      // V3 (2026-05-08) : timeline complète depuis les vols + diff preview.
+      // Au save d'un doc Vol/Train, on calcule la timeline réelle et on
+      // ouvre une sheet de preview du diff (added/updated/removed/warnings).
+      // L'utilisateur valide → applyTimelineDiff. Sinon il modifie à la main.
+      // Évite : Bangkok=47j auto-seedé qui reste, Luxembourg=ville home
+      // ajoutée comme étape, hallucinations d'extraction Gemini.
+      bool appliedTimeline = false;
       if (_tripId != null &&
           (_category == DocumentCategory.flight ||
               _category == DocumentCategory.train)) {
         try {
           final syncService = ref.read(tripSegmentSyncServiceProvider);
-          final candidates = await syncService
-              .findCandidatesFromTransportDocs(_tripId!);
+          final profile = await ref.read(userProfileProvider.future);
           if (!mounted) return;
-          if (candidates.isNotEmpty) {
-            // Récupère le nom de destination pour le titre de la sheet.
-            final tripRow = await ref
-                .read(supabaseProvider)
-                .from('trips')
-                .select('destination')
-                .eq('id', _tripId!)
-                .maybeSingle();
-            tripDestination =
-                (tripRow?['destination'] as String?) ?? 'ce voyage';
+          final diff = await syncService.findTimelineDiff(
+            tripId: _tripId!,
+            userHomeAirportFromProfile:
+                profile?['home_airport_iata'] as String?,
+          );
+          if (!mounted) return;
+          if (diff != null && diff.hasChanges) {
+            final apply =
+                await DetectedSegmentsSheet.show(context, diff: diff);
             if (!mounted) return;
-            final selected = await DetectedSegmentsSheet.show(
-              context,
-              candidates: candidates,
-              tripDestination: tripDestination,
-            );
-            if (!mounted) return;
-            if (selected.isNotEmpty) {
-              addedSegments =
-                  await syncService.applyCandidates(_tripId!, selected);
-              if (addedSegments.isNotEmpty) {
-                ref.invalidate(tripByIdProvider(_tripId!));
-                ref.invalidate(tripsProvider);
-              }
+            if (apply) {
+              await syncService.applyTimelineDiff(
+                tripId: _tripId!,
+                diff: diff,
+              );
+              ref.invalidate(tripByIdProvider(_tripId!));
+              ref.invalidate(tripsProvider);
+              appliedTimeline = true;
             }
           }
         } catch (e) {
@@ -1091,13 +1083,11 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
       }
 
       if (mounted) {
-        if (addedSegments.isNotEmpty) {
-          final cities = addedSegments.map((s) => s.city).join(', ');
-          final s = addedSegments.length > 1 ? 's' : '';
+        if (appliedTimeline) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('✨ Étape$s ajoutée$s à ton voyage : $cities'),
-              duration: const Duration(seconds: 6),
+            const SnackBar(
+              content: Text('✨ Étapes mises à jour selon tes vols.'),
+              duration: Duration(seconds: 4),
             ),
           );
         }

@@ -1,86 +1,54 @@
 import 'package:flutter/material.dart';
 import 'package:voyage/core/theme/app_theme.dart';
+import 'package:voyage/features/trips/models/trip_model.dart';
+import 'package:voyage/features/trips/services/flight_timeline_builder.dart';
 import 'package:voyage/features/trips/services/trip_segment_sync_service.dart';
 
-/// Sheet de validation des étapes détectées dans les vols/trains du wallet.
-/// Affichée après le save d'un doc Vol/Train quand le service a trouvé au
-/// moins un candidat (ville pas encore dans `itinerary_segments`).
+/// Sheet de PREVIEW de la timeline déduite des vols.
+/// Affichée après le save d'un doc Vol/Train (ou via "Synchroniser depuis
+/// mes vols") quand le diff a des changements à proposer.
 ///
-/// L'utilisateur coche les villes qu'il veut ajouter au circuit. Les villes
-/// du même pays que la destination sont cochées par défaut (haute confiance) ;
-/// les extensions hors pays sont décochées par défaut. L'utilisateur curate
-/// pour éviter d'auto-ajouter une éventuelle hallucination d'extraction.
-class DetectedSegmentsSheet extends StatefulWidget {
-  final List<SegmentCandidate> candidates;
-  final String tripDestination;
+/// Format : timeline verticale avec dots + connecteurs, badge durée
+/// proéminent, hiérarchie ville/dates/source claire. Ton humain : on parle
+/// de "Lunao a détecté tes étapes", pas de "candidats" / "segmentation".
+class DetectedSegmentsSheet extends StatelessWidget {
+  final TripTimelineDiff diff;
 
-  const DetectedSegmentsSheet({
-    super.key,
-    required this.candidates,
-    required this.tripDestination,
-  });
+  const DetectedSegmentsSheet({super.key, required this.diff});
 
-  /// Helper pour ouvrir la sheet. Retourne la liste des candidats sélectionnés
-  /// (vide si l'utilisateur a annulé).
-  static Future<List<SegmentCandidate>> show(
+  /// Helper pour ouvrir la sheet. Retourne true si l'utilisateur a appliqué.
+  static Future<bool> show(
     BuildContext context, {
-    required List<SegmentCandidate> candidates,
-    required String tripDestination,
+    required TripTimelineDiff diff,
   }) async {
-    final result = await showModalBottomSheet<List<SegmentCandidate>>(
+    final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => DetectedSegmentsSheet(
-        candidates: candidates,
-        tripDestination: tripDestination,
+      // Plafonne la hauteur à 90% pour que le contenu reste scrollable
+      // tout en gardant les boutons en bas visibles.
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.9,
       ),
+      builder: (_) => DetectedSegmentsSheet(diff: diff),
     );
-    return result ?? const [];
+    return result ?? false;
   }
 
-  @override
-  State<DetectedSegmentsSheet> createState() => _DetectedSegmentsSheetState();
-}
-
-class _DetectedSegmentsSheetState extends State<DetectedSegmentsSheet> {
-  late final Map<int, bool> _checked;
-
-  @override
-  void initState() {
-    super.initState();
-    _checked = {
-      for (var i = 0; i < widget.candidates.length; i++)
-        i: widget.candidates[i].suggestedByDefault,
-    };
-  }
-
-  int get _selectedCount => _checked.values.where((v) => v).length;
-
-  void _toggleAll(bool checkAll) {
-    setState(() {
-      for (final k in _checked.keys) {
-        _checked[k] = checkAll;
-      }
-    });
-  }
-
-  List<SegmentCandidate> _selectedCandidates() {
-    final out = <SegmentCandidate>[];
-    for (var i = 0; i < widget.candidates.length; i++) {
-      if (_checked[i] == true) out.add(widget.candidates[i]);
-    }
-    // Tri par date pour respecter la chronologie du voyage.
-    out.sort((a, b) => a.atDate.compareTo(b.atDate));
-    return out;
+  /// Résumé dynamique sous l'intro : "5 étapes détectées automatiquement
+  /// depuis tes billets." (singulier/pluriel adaptés).
+  String _summaryText(int count) {
+    final etapeWord = count > 1 ? 'étapes détectées' : 'étape détectée';
+    final billetWord = count > 1 ? 'tes billets' : 'ton billet';
+    return '$count $etapeWord automatiquement depuis $billetWord';
   }
 
   @override
   Widget build(BuildContext context) {
-    final allChecked = _checked.values.every((v) => v);
+    final timeline = diff.timeline;
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.only(
@@ -99,13 +67,14 @@ class _DetectedSegmentsSheetState extends State<DetectedSegmentsSheet> {
               ),
             ),
             const SizedBox(height: 16),
+            // ─── En-tête ──────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    "✨ Étapes détectées dans tes vols",
+                    "✨ Lunao a détecté tes étapes",
                     style: TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.bold,
@@ -114,91 +83,132 @@ class _DetectedSegmentsSheetState extends State<DetectedSegmentsSheet> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    "Coche les villes que tu veux ajouter au circuit "
-                    "${widget.tripDestination}. Tu peux toujours en ajouter "
-                    "d'autres manuellement plus tard.",
+                    "Voici l'itinéraire reconstruit à partir de tes billets. "
+                    "Vérifie avant d'appliquer.",
                     style: TextStyle(
                       fontSize: 12.5,
                       color: AppColors.textSecondary,
                       height: 1.4,
                     ),
                   ),
+                  if (timeline.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryLight,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        _summaryText(timeline.length),
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primaryDark,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
             const SizedBox(height: 12),
-            // Toggle "tout cocher / tout décocher"
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: () => _toggleAll(!allChecked),
-                  icon: Icon(
-                    allChecked ? Icons.check_box : Icons.check_box_outline_blank,
-                    size: 16,
-                  ),
-                  label: Text(
-                    allChecked ? 'Tout décocher' : 'Tout cocher',
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  style: TextButton.styleFrom(
-                    foregroundColor: AppColors.primary,
-                    minimumSize: Size.zero,
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                ),
-              ),
-            ),
             Container(height: 1, color: AppColors.border),
-            // Liste des candidats
+            // ─── Contenu scrollable ───────────────────────────────────
             Flexible(
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: widget.candidates.length,
-                itemBuilder: (ctx, i) {
-                  final c = widget.candidates[i];
-                  final isChecked = _checked[i] ?? false;
-                  return _CandidateRow(
-                    candidate: c,
-                    checked: isChecked,
-                    onChanged: (v) => setState(() => _checked[i] = v ?? false),
-                  );
-                },
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                children: [
+                  // Timeline verticale
+                  if (timeline.isNotEmpty)
+                    for (var i = 0; i < timeline.length; i++)
+                      _TimelineStop(
+                        stay: timeline[i],
+                        isLast: i == timeline.length - 1,
+                      ),
+
+                  // Cas vide
+                  if (timeline.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Text(
+                        "Aucun séjour n'a pu être déduit de tes vols. "
+                        "Tu peux ajouter des étapes manuellement.",
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: AppColors.textSecondary,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+
+                  // Étapes manuelles préservées
+                  if (diff.preservedManual.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    _SectionLabel(
+                      label: 'Étapes manuelles conservées',
+                      tone: _SectionTone.neutral,
+                    ),
+                    const SizedBox(height: 6),
+                    for (final m in diff.preservedManual)
+                      _ManualPreservedRow(segment: m),
+                  ],
+
+                  // Bloc "À noter"
+                  if (diff.warnings.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    _NoteBlock(messages: diff.warnings),
+                  ],
+                ],
               ),
             ),
+            // ─── Boutons toujours visibles ────────────────────────────
             Container(height: 1, color: AppColors.border),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
               child: Row(
                 children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Annuler'),
+                  // Secondaire : discret mais pas désactivé. Texte assez
+                  // contrasté pour l'action, pas de fond pour ne pas
+                  // concurrencer le CTA principal.
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    style: TextButton.styleFrom(
+                      foregroundColor:
+                          AppColors.textPrimary.withValues(alpha: 0.75),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text(
+                      'Garder mes étapes',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
+                  // Principal : CTA fort, prend l'espace restant.
                   Expanded(
-                    flex: 2,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),
                         ),
                       ),
-                      onPressed: _selectedCount == 0
+                      onPressed: timeline.isEmpty
                           ? null
-                          : () => Navigator.of(context).pop(_selectedCandidates()),
-                      child: Text(
-                        _selectedCount == 0
-                            ? 'Aucune sélection'
-                            : 'Ajouter $_selectedCount étape${_selectedCount > 1 ? 's' : ''}',
-                        style: const TextStyle(
+                          : () => Navigator.of(context).pop(true),
+                      child: const Text(
+                        'Mettre à jour mon voyage',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                         ),
@@ -215,102 +225,294 @@ class _DetectedSegmentsSheetState extends State<DetectedSegmentsSheet> {
   }
 }
 
-class _CandidateRow extends StatelessWidget {
-  final SegmentCandidate candidate;
-  final bool checked;
-  final ValueChanged<bool?> onChanged;
+// ─── Sub-widgets ─────────────────────────────────────────────────────────
 
-  const _CandidateRow({
-    required this.candidate,
-    required this.checked,
-    required this.onChanged,
-  });
+/// Étape de la timeline : dot bleu à gauche + connecteur vertical (sauf
+/// dernière étape) + card de contenu à droite.
+class _TimelineStop extends StatelessWidget {
+  final FlightStayCandidate stay;
+  final bool isLast;
+
+  const _TimelineStop({required this.stay, required this.isLast});
 
   @override
   Widget build(BuildContext context) {
-    final country = candidate.country ?? candidate.countryCode?.toUpperCase();
-    final dateLabel = _fmtDate(candidate.atDate);
-    return InkWell(
-      onTap: () => onChanged(!checked),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        child: Row(
-          children: [
-            Checkbox(
-              value: checked,
-              onChanged: onChanged,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              visualDensity: VisualDensity.compact,
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Colonne dot + ligne verticale. Ligne fine + teinte bleutée
+          // discrète pour s'harmoniser avec les dots et donner un effet
+          // de "fil conducteur" plutôt qu'un séparateur brut.
+          SizedBox(
+            width: 20,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Container(
+                    width: 9,
+                    height: 9,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.85),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+                if (!isLast)
+                  Expanded(
+                    child: Container(
+                      width: 1.5,
+                      color: AppColors.primary.withValues(alpha: 0.18),
+                      margin: const EdgeInsets.only(top: 3),
+                    ),
+                  ),
+              ],
             ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        candidate.city,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      if (country != null) ...[
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: candidate.suggestedByDefault
-                                ? AppColors.primaryLight
-                                : AppColors.accentLight.withValues(alpha: 0.5),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            country,
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: candidate.suggestedByDefault
-                                  ? AppColors.primaryDark
-                                  : AppColors.textSecondary,
+          ),
+          const SizedBox(width: 10),
+          // Card contenu : radius plus généreux, ombre micro-soft, bordure
+          // adoucie pour un rendu premium sobre.
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: isLast ? 0 : 8),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  border: Border.all(
+                    color: AppColors.border.withValues(alpha: 0.7),
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Ligne 1 : ville + pays + badge durée
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: RichText(
+                            text: TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: stay.city,
+                                  style: TextStyle(
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                                if (stay.country != null)
+                                  TextSpan(
+                                    text: '  ·  ${stay.country}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
                         ),
+                        const SizedBox(width: 8),
+                        _DurationPill(days: stay.days),
                       ],
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '$dateLabel · ${candidate.sourceDocName}',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textSecondary,
                     ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (!candidate.suggestedByDefault) ...[
+                    const SizedBox(height: 4),
+                    // Ligne 2 : dates
+                    Row(
+                      children: [
+                        Icon(Icons.calendar_today,
+                            size: 11, color: AppColors.textSecondary),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Du ${_fmt(stay.startDate)} au ${_fmt(stay.endDate)}',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 2),
-                    Text(
-                      'Hors pays principal — extension du circuit',
-                      style: TextStyle(
-                        fontSize: 10.5,
-                        color: AppColors.accent,
-                        fontStyle: FontStyle.italic,
-                      ),
+                    // Ligne 3 : source
+                    Row(
+                      children: [
+                        Icon(Icons.flight,
+                            size: 11, color: AppColors.textSecondary),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            'Depuis : ${stay.sourceDocName}',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              color: AppColors.textSecondary,
+                              fontStyle: FontStyle.italic,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
-                ],
+                ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  static String _fmtDate(DateTime d) =>
-      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}';
+  static String _fmt(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+}
+
+/// Pill arrondi mettant en avant la durée du séjour. Léger contraste avec
+/// border subtile pour un rendu premium sans aplat brut.
+class _DurationPill extends StatelessWidget {
+  final int days;
+  const _DurationPill({required this.days});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppColors.primaryLight,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: 0.18),
+          width: 1,
+        ),
+      ),
+      child: Text(
+        '$days jour${days > 1 ? 's' : ''}',
+        style: TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+          color: AppColors.primaryDark,
+          letterSpacing: 0.1,
+        ),
+      ),
+    );
+  }
+}
+
+enum _SectionTone { neutral, primary }
+
+class _SectionLabel extends StatelessWidget {
+  final String label;
+  final _SectionTone tone;
+  const _SectionLabel({required this.label, this.tone = _SectionTone.primary});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = tone == _SectionTone.primary
+        ? AppColors.primary
+        : AppColors.textSecondary;
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, top: 8),
+      child: Text(
+        label.toUpperCase(),
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: color,
+          letterSpacing: 0.5,
+        ),
+      ),
+    );
+  }
+}
+
+/// Affichage d'une étape manuelle préservée — elle reste telle quelle dans
+/// le voyage parce que sa ville n'est jamais apparue dans les vols.
+class _ManualPreservedRow extends StatelessWidget {
+  final TripSegment segment;
+  const _ManualPreservedRow({required this.segment});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(Icons.bookmark_outline,
+              size: 16, color: AppColors.textSecondary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '${segment.city} · ${segment.days} jour${segment.days > 1 ? 's' : ''}',
+              style: TextStyle(
+                fontSize: 13,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Bloc d'information rassurant en bas de la sheet ("Bangkok sera séparé
+/// en 2 séjours, car deux passages ont été détectés dans tes vols.").
+class _NoteBlock extends StatelessWidget {
+  final List<String> messages;
+  const _NoteBlock({required this.messages});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.accentLight.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.lightbulb_outline,
+                  size: 16, color: AppColors.accent),
+              const SizedBox(width: 6),
+              Text(
+                'À NOTER',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.accent,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          for (final m in messages) ...[
+            const SizedBox(height: 2),
+            Text(
+              m,
+              style: TextStyle(
+                fontSize: 12.5,
+                color: AppColors.textPrimary,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }
