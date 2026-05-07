@@ -134,8 +134,13 @@ const travelerPlacesProfiles = <String, TravelerPlacesProfile>{
     rule: 'éviter low-cost et lieux trop touristiques',
   ),
   'Meilleur prix': TravelerPlacesProfile(
-    additionalTypes: ['bakery', 'meal_takeaway', 'supermarket'],
-    additionalTextQueries: ['cheap eats', 'free activities', 'budget restaurant', 'pique-nique'],
+    additionalTypes: ['bakery', 'meal_takeaway'],
+    // Pas d'additionalTextQueries : les queries "cheap eats", "free activities",
+    // "budget restaurant" se mergeaient sur TOUS les intérêts (Wellness,
+    // Événements...) et ramenaient des restos hors-sujet (logs Lalith
+    // 2026-05-08). Le `maxPriceLevel: 1` suffit à pousser low-cost. Pour les
+    // queries "free activities" / "budget", l'intérêt **Bons plans** les
+    // couvre déjà en français (`pas cher`, `gratuit`, `entrée libre`).
     minRating: 4.0,
     maxPriceLevel: 1,
     searchRadiusMeters: 1500, // walk volontiers
@@ -145,7 +150,11 @@ const travelerPlacesProfiles = <String, TravelerPlacesProfile>{
   ),
   'Backpack': TravelerPlacesProfile(
     additionalTypes: ['lodging', 'meal_takeaway', 'laundry'],
-    additionalTextQueries: ['hostel', 'street food', 'free walking tour', 'local bar'],
+    // Garde "street food" (vrai signal expérience). Retiré "hostel" /
+    // "free walking tour" / "local bar" qui sont trop génériques et
+    // polluent les autres intérêts. Les hostels sont déjà couverts via
+    // `lodging` dans additionalTypes.
+    additionalTextQueries: ['street food'],
     minRating: 4.0,
     maxPriceLevel: 2,
     searchRadiusMeters: 1500, // marche volontiers

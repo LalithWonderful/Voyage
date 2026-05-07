@@ -11,6 +11,84 @@ import 'package:voyage/features/planning/services/traveler_to_places_mapping.dar
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/wallet/models/document_model.dart';
 
+/// Champs UX/profil **pas encore exploités** par le pipeline de suggestion
+/// (audit Niveau A 2026-05-08, à creuser plus tard) :
+/// - **Pondération des intérêts** : tous traités à poids égal aujourd'hui.
+///   Sera ajouté avec une UI "jusqu'à 3 intérêts favoris".
+/// - **Âge des voyageurs** (`trip.travelers.age`) : seul `hasKids` (any < 13)
+///   est exploité dans le prompt Gemini. Pas de différenciation senior /
+///   jeune adulte / etc. dans le scoring.
+/// - **Nombre de voyageurs** : non exploité (resto pour 2 vs 5 = même reco).
+/// - **Distinction couple/famille/solo/amis** : passe seulement par
+///   `trip.travelerType`, pas par la composition réelle.
+/// - **`trip.budgetIncludesFlight`** : Assistant Lunao uniquement.
+/// - **`user_profiles.preferred_*_transport_mode`** : pas branché ici.
+///   L'override voyage `trip.localTransportMode` est consommé, pas le profil
+///   global. À ajouter en V2 quand UI profil sera livrée.
+/// - **`trip.targetPeriod`/`periodMode`** : affichage uniquement, pas exploité
+///   pour différencier saison touristique/basse dans le scoring.
+
+/// Cap maximum de `priceLevel` Places (échelle 0-4) en fonction du budget
+/// par personne déclaré sur le voyage. Logique prudente : on évince
+/// uniquement les lieux dont le priceLevel est manifestement incohérent
+/// avec le budget. Les lieux sans priceLevel (Google le manque souvent)
+/// sont toujours conservés.
+///
+/// Seuils (validés Lalith 2026-05-08) :
+/// - < 50 €/jour     → cap 2 (économique : street food, casual)
+/// - 50-120 €/jour   → cap 3 (standard : bistrots, restos corrects)
+/// - > 120 €/jour    → pas de cap (autorise priceLevel 4)
+///
+/// Retourne null si pas de budget ou durée invalide → comportement actuel
+/// (cap géré exclusivement par le profil voyageur).
+int? priceLevelCapForBudget({
+  required num? budgetPerPersonEur,
+  required int durationDays,
+}) {
+  if (budgetPerPersonEur == null || durationDays <= 0) return null;
+  final perDay = budgetPerPersonEur / durationDays;
+  if (perDay < 50) return 2;
+  if (perDay < 120) return 3;
+  return null;
+}
+
+/// Multiplicateur appliqué à `maxConsecutiveDistanceMeters` selon le mode
+/// de déplacement local choisi par l'utilisateur. Permet de resserrer le
+/// clustering si l'utilisateur préfère marcher, ou de l'élargir s'il
+/// préfère taxi/voiture (validé Lalith 2026-05-08).
+///
+/// Si null ou 'best' → 1.0 (comportement actuel basé sur le profil voyageur).
+double transportDistanceFactor(String? localTransportMode) {
+  switch (localTransportMode) {
+    case 'walk':
+      return 0.7;
+    case 'public_transport':
+      return 1.0;
+    case 'taxi':
+      return 1.5;
+    case 'car':
+      return 1.3;
+    case 'scooter':
+      return 1.2;
+    default:
+      // 'best', null, 'comfort', 'budget' → conservatif, pas de modif.
+      return 1.0;
+  }
+}
+
+/// Distance maximum effective entre 2 activités successives, en croisant
+/// le profil voyageur (base) et la préférence de transport local de
+/// l'utilisateur (multiplicateur). Fallback : 1500m si aucun profil.
+int effectiveMaxConsecutiveDistance({
+  required TravelerPlacesProfile? travelerProfile,
+  required String? localTransportMode,
+  int fallback = 1500,
+}) {
+  final base = travelerProfile?.maxConsecutiveDistanceMeters ?? fallback;
+  final factor = transportDistanceFactor(localTransportMode);
+  return (base * factor).round();
+}
+
 /// Stopwords FR/EN à ignorer quand on tokenise une query pour le check de
 /// matching. Tout mot ≤4 chars OU dans cette liste est considéré comme
 /// non-significatif (articles, prépositions, auxiliaires) et ne participe pas
@@ -51,6 +129,45 @@ List<String> _significantWords(String s) {
       .toList(growable: false);
 }
 
+/// Mots qui décrivent une **catégorie sémantique** plutôt qu'un nom propre.
+/// Si tous les mots significatifs d'une query sont dans cet ensemble, on
+/// considère la query comme générique et on désactive le hard filter
+/// `_filterByQueryNameMatch` (les Places ne s'appellent jamais "Cheap Eats"
+/// ou "Free Activities" — l'API Google Places les retourne par sémantique
+/// d'établissement, pas par nom).
+///
+/// Cas concrets observés (logs Lalith 2026-05-08) :
+/// - "cheap eats" / "budget restaurant" / "pique-nique" → restos locaux
+///   sans ces mots dans le nom (Restaurant Sayef, Khmissa, ...)
+/// - "free activities" → Place Moulay Hassan, Port Sqala, ...
+/// - "fine dining" / "rooftop bar" → restos haut-de-gamme
+/// - "viewpoint" / "scenic stop" → points de vue
+/// - "hostel" / "coworking" / "guided tour" → catégories métier
+const Set<String> _genericCategoricalQueryWords = <String>{
+  // Budget/prix
+  'cheap', 'eats', 'budget', 'free', 'pique', 'nique', 'lowcost',
+  'economique', 'gratuit', 'pascher',
+  // Catégorie générique
+  'activities', 'activity', 'restaurant', 'food', 'tour', 'tours',
+  'hostel', 'hotel', 'cafe', 'bar', 'walking', 'guided',
+  // Style culinaire/expérience
+  'fine', 'dining', 'street', 'local', 'rooftop', 'romantic', 'sunset',
+  'cozy', 'quiet', 'wellness', 'lively', 'photo', 'spot', 'spots',
+  'night', 'market', 'hall', 'business', 'lunch', 'breakfast', 'dinner',
+  // Travel
+  'viewpoint', 'scenic', 'roadside', 'diner', 'coworking',
+  'boutique', 'michelin', 'luxury', 'spa',
+};
+
+/// True si la query est composée UNIQUEMENT de mots dans
+/// [_genericCategoricalQueryWords]. Dans ce cas le filtre name-match est
+/// trop strict et rejette des candidats valides — on retombe en mode
+/// "garde tout, scoring départage".
+bool _isGenericCategoricalQuery(List<String> queryWords) {
+  if (queryWords.isEmpty) return true;
+  return queryWords.every(_genericCategoricalQueryWords.contains);
+}
+
 /// Filtre B + Logging C combinés pour les résultats d'un searchText.
 /// - B : si la query a au moins 1 mot signif, exiger qu'au moins 1 de ces mots
 ///   soit dans le name du Place (substring match). Sinon → reject + log.
@@ -73,13 +190,18 @@ List<NearbyCandidate> _filterByQueryNameMatch(
     'results=${results.length}',
   );
   final queryWords = _significantWords(textQuery);
-  if (queryWords.isEmpty) {
-    // Query trop générique pour filtrer (ex: "outlet"). On log juste les
-    // résultats pour visibilité mais on ne rejette rien.
+  // Query générique (catégorielle) : aucun nom propre dedans, juste des
+  // mots qui décrivent une catégorie ("cheap eats", "free activities",
+  // "fine dining"...). Le name-match strict rejetterait quasi tout, alors
+  // qu'on s'appuie sur la sémantique d'établissement de Google Places.
+  // → On garde tous les résultats, le scoring départage en aval.
+  // Idem si queryWords vide (query trop courte/non analysable).
+  if (queryWords.isEmpty || _isGenericCategoricalQuery(queryWords)) {
+    final reason = queryWords.isEmpty ? 'générique' : 'catégorielle';
     for (final c in results) {
       final primaryType = c.types.isNotEmpty ? c.types.first : '?';
       debugPrint(
-        '[places_first_match] interest=$interest q="$textQuery" (générique) '
+        '[places_first_match] interest=$interest q="$textQuery" ($reason) '
         '→ "${c.name}" type=$primaryType addr="${c.address}" '
         '@${c.latitude.toStringAsFixed(4)},${c.longitude.toStringAsFixed(4)}',
       );
@@ -173,8 +295,12 @@ const Set<String> _excludedPlaceTypes = <String>{
 /// blacklisté. Ex: l'Hôtel de Ville de Bruxelles est `local_government_office`
 /// (admin) + `historical_landmark` (touristique reconnu) → on garde.
 const Set<String> _touristicSignals = <String>{
-  'tourist_attraction', 'historical_landmark', 'historical_place',
-  'museum', 'art_gallery', 'monument',
+  'tourist_attraction',
+  'historical_landmark',
+  'historical_place',
+  'museum',
+  'art_gallery',
+  'monument',
 };
 
 /// Types pour lesquels le rejet est **HARD** sur le primary : aucun signal
@@ -189,6 +315,14 @@ const Set<String> _hardExcludedPrimaryTypes = <String>{
   'spa_and_beauty', 'tanning_studio', 'piercing_shop',
   // Sports / stades
   'stadium', 'sports_complex', 'sports_club',
+  // Hébergements en primary : un hostel/hotel ne doit pas être proposé
+  // comme activité touristique, même s'il a un type secondaire `art_gallery`
+  // ou `tourist_attraction`. Cas observé Lalith 2026-05-08 : "Chill Art
+  // Hostel" pické à 16:30 alors que c'est un lieu de séjour. Les cas
+  // particuliers (hostel-café, hostel-art space) sont reportés en V2.
+  'hostel', 'lodging', 'hotel', 'motel', 'guest_house',
+  'extended_stay_hotel', 'bed_and_breakfast', 'private_guest_room',
+  'campground', 'rv_park', 'resort_hotel',
 };
 
 /// Types pour lesquels le rejet est **HARD sur N'IMPORTE QUEL type** (primary
@@ -197,9 +331,13 @@ const Set<String> _hardExcludedPrimaryTypes = <String>{
 /// Cosmic Park `amusement_center` primary + `karaoke` secondaire, Sport
 /// Bowling Epinal `bowling_alley` primary + `karaoke` secondaire).
 const Set<String> _hardExcludedAnyTypes = <String>{
-  'body_art_service', 'tattoo', 'tattoo_parlor',
+  'body_art_service',
+  'tattoo',
+  'tattoo_parlor',
   'karaoke',
-  'adult_entertainment', 'sex_shop', 'strip_club',
+  'adult_entertainment',
+  'sex_shop',
+  'strip_club',
 };
 
 /// Vrai si le lieu doit être exclu de la pool. 3 niveaux :
@@ -224,17 +362,67 @@ const Set<String> _blacklistedPlaceIds = <String>{
 /// Mots-clés "espace vert" qui suggèrent un parc/jardin dans le name.
 /// Utilisés pour l'heuristique de cohérence name vs primary type.
 const Set<String> _greenspaceNameKeywords = <String>{
-  'parc', 'park', 'jardin', 'garden', 'square',
+  'parc',
+  'park',
+  'jardin',
+  'garden',
+  'square',
 };
 
 /// Primary types compatibles avec un nom contenant "parc/park/jardin/garden".
 /// Si le name suggère un espace vert mais que le primary est hors de cette
 /// liste, c'est probablement un mismatch data Google.
 const Set<String> _greenspacePrimaryTypes = <String>{
-  'park', 'city_park', 'national_park', 'state_park', 'garden',
-  'botanical_garden', 'plaza', 'wildlife_park', 'amusement_park',
-  'tourist_attraction', 'point_of_interest', 'natural_feature',
+  'park',
+  'city_park',
+  'national_park',
+  'state_park',
+  'garden',
+  'botanical_garden',
+  'plaza',
+  'wildlife_park',
+  'amusement_park',
+  'tourist_attraction',
+  'point_of_interest',
+  'natural_feature',
 };
+
+/// Mots dans le nom qui signalent une excursion organisée (typiquement une
+/// agence touristique avec un point d'embarquement). Ces "lieux" sont en
+/// fait des journées entières hors de la ville — ils ne doivent pas être
+/// insérés dans un créneau local court (ex: 16:30 à Marrakech alors que
+/// "Setti Fadma Ourika Valley & 7 Cascades" implique 6-8h aller-retour).
+///
+/// Bug observé Lalith 2026-05-08 : Setti Fadma planifié à 16:30 entre 2
+/// activités du centre-ville Marrakech.
+const Set<String> _excursionNameKeywords = <String>{
+  'valley', 'vallée',
+  'cascades', 'waterfall', 'cascade',
+  'desert tour', 'sahara', 'sahara tour', 'merzouga', 'erg chebbi',
+  'day trip', 'daytrip', 'day-trip',
+  'excursion', 'guided tour', 'shore excursion',
+  'atlas mountains', 'atlas tour', 'haut atlas',
+  '4x4 tour', 'quad tour', 'quad bike',
+  'road trip',
+};
+
+/// Vrai si le candidat ressemble à une excursion organisée (journée entière
+/// hors ville). Détecté via :
+/// - primary ou secondary type = `tour_agency`
+/// - ou nom contenant un mot signal (cf. [_excursionNameKeywords])
+///
+/// Les excursions ne sont pas des visites locales — on les exclut du
+/// planning automatique. À traiter plus tard via un mode "excursion
+/// demi-journée/journée" dédié.
+bool _isExcursionLike(NearbyCandidate c) {
+  if (c.types.contains('tour_agency')) return true;
+  final nameNorm = _normalizeForMatch(c.name);
+  for (final kw in _excursionNameKeywords) {
+    final kwNorm = _normalizeForMatch(kw);
+    if (nameNorm.contains(kwNorm)) return true;
+  }
+  return false;
+}
 
 bool _isExcludedPlace(NearbyCandidate c) {
   if (c.types.isEmpty) return false;
@@ -242,6 +430,18 @@ bool _isExcludedPlace(NearbyCandidate c) {
   if (c.types.any(_hardExcludedAnyTypes.contains)) return true;
   final primary = c.types.first;
   if (_hardExcludedPrimaryTypes.contains(primary)) return true;
+  // Excursions organisées : exclues du planning local. Le primary peut
+  // être `tourist_attraction` (signal touristique fort), donc on filtre
+  // AVANT de checker `_excludedPlaceTypes` pour ne pas être sauvé par
+  // ce signal.
+  if (_isExcursionLike(c)) {
+    debugPrint(
+      '[places_first_excluded] excursion détectée : "${c.name}" '
+      'types=${c.types.take(3).join(",")} placeId=${c.placeId} — '
+      'exclu du planning local (à traiter en mode excursion future)',
+    );
+    return true;
+  }
   if (_excludedPlaceTypes.contains(primary)) {
     return !c.types.any(_touristicSignals.contains);
   }
@@ -251,8 +451,9 @@ bool _isExcludedPlace(NearbyCandidate c) {
   // la garde tolérante via `_greenspacePrimaryTypes` qui inclut tourist_attraction
   // et point_of_interest pour ne pas rejeter des cas légitimes.
   final nameNorm = _normalizeForMatch(c.name);
-  final hasGreenspaceWord = _greenspaceNameKeywords.any((kw) =>
-      RegExp('\\b$kw\\b').hasMatch(nameNorm));
+  final hasGreenspaceWord = _greenspaceNameKeywords.any(
+    (kw) => RegExp('\\b$kw\\b').hasMatch(nameNorm),
+  );
   if (hasGreenspaceWord && !_greenspacePrimaryTypes.contains(primary)) {
     debugPrint(
       '[places_first_excluded] mismatch name/primary : "${c.name}" '
@@ -273,6 +474,7 @@ bool _isExcludedPlace(NearbyCandidate c) {
 class DayCandidates {
   final DateTime day;
   final DayCenter center;
+
   /// Clé = libellé d'intérêt voyageur ("Culture", "Gastronomie", ...).
   /// Valeur = candidats Places retenus pour cet intérêt après filtres.
   final Map<String, List<NearbyCandidate>> byInterest;
@@ -286,8 +488,13 @@ class DayCandidates {
   /// Tous les candidats du jour, dédupliqués par place_id, conservant pour
   /// chaque candidat la liste des intérêts qui l'ont matché (utile pour le
   /// prompt Gemini : "ce lieu peut servir Gastronomie ET Bons plans").
-  Map<String, ({NearbyCandidate candidate, List<String> matchedInterests})> get allUnique {
-    final out = <String, ({NearbyCandidate candidate, List<String> matchedInterests})>{};
+  Map<String, ({NearbyCandidate candidate, List<String> matchedInterests})>
+  get allUnique {
+    final out =
+        <
+          String,
+          ({NearbyCandidate candidate, List<String> matchedInterests})
+        >{};
     byInterest.forEach((interest, list) {
       for (final c in list) {
         final existing = out[c.placeId];
@@ -304,7 +511,8 @@ class DayCandidates {
     return out;
   }
 
-  int get totalCandidates => byInterest.values.fold(0, (sum, list) => sum + list.length);
+  int get totalCandidates =>
+      byInterest.values.fold(0, (sum, list) => sum + list.length);
   int get uniqueCandidates => allUnique.length;
 }
 
@@ -332,9 +540,11 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
   required List<TripDocument> hotels,
   required GeocodingService geocoder,
   required PlacesNearbyService nearbyService,
+
   /// Si null, on prend `trip.interests`. Sinon on override (utile pour les
   /// tests ciblés ou un Suggérer "Restaurants uniquement").
   List<String>? interestsOverride,
+
   /// Langue dans laquelle Places doit retourner les noms (BCP-47 : "fr",
   /// "en"...). Critique pour les destinations non-anglophones (Maroc → noms
   /// en arabe sinon). Default null = langue Places par défaut.
@@ -355,13 +565,18 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
   //    `transitRadius` (zone accessible en transport public/taxi). Lieux dans
   //    walkRadius restent dans la pool — on AJOUTE seulement les supplémentaires.
   // 3. Sans transit défini, comportement classique : un seul radius.
-  final walkRadius = travelerProfile?.searchRadiusMeters ?? defaultSearchRadiusMeters;
+  final walkRadius =
+      travelerProfile?.searchRadiusMeters ?? defaultSearchRadiusMeters;
   final transitRadius = travelerProfile?.transitRadiusMeters;
   final minPoolCascade = travelerProfile?.minPoolForCascade ?? 0;
 
   // Itère sur les jours du voyage (inclus startDate, inclus endDate).
   final days = <DateTime>[];
-  final start = DateTime(trip.startDate.year, trip.startDate.month, trip.startDate.day);
+  final start = DateTime(
+    trip.startDate.year,
+    trip.startDate.month,
+    trip.startDate.day,
+  );
   final end = DateTime(trip.endDate.year, trip.endDate.month, trip.endDate.day);
   for (var d = start; !d.isAfter(end); d = d.add(const Duration(days: 1))) {
     days.add(d);
@@ -384,7 +599,8 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
     for (final interest in interests) {
       final query = interestPlacesQueries[interest];
       if (query == null) continue;
-      if (travelerProfile != null && travelerProfile.excludedInterests.contains(interest)) {
+      if (travelerProfile != null &&
+          travelerProfile.excludedInterests.contains(interest)) {
         continue;
       }
       final mergedTypes = <String>{
@@ -406,13 +622,15 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
       );
       final calls = <Future<List<NearbyCandidate>>>[];
       if (mergedTypes.isNotEmpty) {
-        calls.add(nearbyService.searchNearby(
-          latitude: center.latitude,
-          longitude: center.longitude,
-          includedTypes: mergedTypes,
-          radius: radius,
-          languageCode: languageCode,
-        ));
+        calls.add(
+          nearbyService.searchNearby(
+            latitude: center.latitude,
+            longitude: center.longitude,
+            includedTypes: mergedTypes,
+            radius: radius,
+            languageCode: languageCode,
+          ),
+        );
       }
       // Pour chaque searchText, on filtre à la source : si la query a au moins
       // 1 mot signif (>4 chars hors stopwords) ET aucun de ces mots n'est dans
@@ -423,13 +641,19 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
       // dans ce cas le name matche, le bug est côté Google) : pour ces cas le
       // logging C ci-dessous donne la visibilité pour blacklister manuellement.
       for (final tq in mergedTextQueries) {
-        calls.add(nearbyService.searchText(
-          textQuery: tq,
-          latitude: center.latitude,
-          longitude: center.longitude,
-          radius: radius,
-          languageCode: languageCode,
-        ).then((results) => _filterByQueryNameMatch(results, tq, interest)));
+        calls.add(
+          nearbyService
+              .searchText(
+                textQuery: tq,
+                latitude: center.latitude,
+                longitude: center.longitude,
+                radius: radius,
+                languageCode: languageCode,
+              )
+              .then(
+                (results) => _filterByQueryNameMatch(results, tq, interest),
+              ),
+        );
       }
       final fetched = await Future.wait(calls);
       final merged = <String, NearbyCandidate>{};
@@ -452,56 +676,61 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
 
   // Traitement parallèle par jour. Le cache places_search dédoublonne les
   // appels redondants quand plusieurs jours partagent le même centre.
-  final results = await Future.wait(days.map((day) async {
-    final center = await centerForDay(
-      trip: trip,
-      day: day,
-      hotels: hotels,
-      geocoder: geocoder,
-    );
-    if (center == null) {
-      debugPrint(
-        'Jour ${_iso(day)} : centre non géocodable, skip',
-        );
-      return null;
-    }
-
-    // 1. Récolte walking (zone de marche prioritaire)
-    final byInterest = await collectByInterest(center, walkRadius);
-
-    // 2. Cascade transit TOUJOURS appliquée (Lalith 26/04) : sans ça, des
-    // attractions majeures comme Musée de l'Image Épinal (~1km du centre) ou
-    // Imagerie d'Épinal (~2km) sont absentes de la pool. Les lieux walking
-    // restent prioritaires via le scoring distance ; transit ne fait
-    // qu'enrichir avec des candidats plus distants (utiles si profil sans
-    // contrainte stricte ou si pool walking pauvre culturellement).
-    if (transitRadius != null) {
-      final walkUniqueCount = byInterest.values
-          .expand((l) => l)
-          .map((c) => c.placeId)
-          .toSet()
-          .length;
-      final byInterestTransit = await collectByInterest(center, transitRadius);
-      for (final entry in byInterestTransit.entries) {
-        final walkList = byInterest[entry.key] ?? const <NearbyCandidate>[];
-        final walkIds = walkList.map((c) => c.placeId).toSet();
-        final added = entry.value.where((c) => !walkIds.contains(c.placeId)).toList();
-        if (added.isNotEmpty) {
-          byInterest[entry.key] = [...walkList, ...added];
-        }
-      }
-      final totalAfter = byInterest.values
-          .expand((l) => l)
-          .map((c) => c.placeId)
-          .toSet()
-          .length;
-      debugPrint(
-        '[places_first] ${_iso(day)} : walk=$walkUniqueCount → +${totalAfter - walkUniqueCount} via transit (${transitRadius}m)',
+  final results = await Future.wait(
+    days.map((day) async {
+      final center = await centerForDay(
+        trip: trip,
+        day: day,
+        hotels: hotels,
+        geocoder: geocoder,
       );
-    }
+      if (center == null) {
+        debugPrint('Jour ${_iso(day)} : centre non géocodable, skip');
+        return null;
+      }
 
-    return DayCandidates(day: day, center: center, byInterest: byInterest);
-  }));
+      // 1. Récolte walking (zone de marche prioritaire)
+      final byInterest = await collectByInterest(center, walkRadius);
+
+      // 2. Cascade transit TOUJOURS appliquée (Lalith 26/04) : sans ça, des
+      // attractions majeures comme Musée de l'Image Épinal (~1km du centre) ou
+      // Imagerie d'Épinal (~2km) sont absentes de la pool. Les lieux walking
+      // restent prioritaires via le scoring distance ; transit ne fait
+      // qu'enrichir avec des candidats plus distants (utiles si profil sans
+      // contrainte stricte ou si pool walking pauvre culturellement).
+      if (transitRadius != null) {
+        final walkUniqueCount = byInterest.values
+            .expand((l) => l)
+            .map((c) => c.placeId)
+            .toSet()
+            .length;
+        final byInterestTransit = await collectByInterest(
+          center,
+          transitRadius,
+        );
+        for (final entry in byInterestTransit.entries) {
+          final walkList = byInterest[entry.key] ?? const <NearbyCandidate>[];
+          final walkIds = walkList.map((c) => c.placeId).toSet();
+          final added = entry.value
+              .where((c) => !walkIds.contains(c.placeId))
+              .toList();
+          if (added.isNotEmpty) {
+            byInterest[entry.key] = [...walkList, ...added];
+          }
+        }
+        final totalAfter = byInterest.values
+            .expand((l) => l)
+            .map((c) => c.placeId)
+            .toSet()
+            .length;
+        debugPrint(
+          '[places_first] ${_iso(day)} : walk=$walkUniqueCount → +${totalAfter - walkUniqueCount} via transit (${transitRadius}m)',
+        );
+      }
+
+      return DayCandidates(day: day, center: center, byInterest: byInterest);
+    }),
+  );
 
   final pool = results.whereType<DayCandidates>().toList();
   final totalUnique = pool.fold<int>(0, (sum, d) => sum + d.uniqueCandidates);
@@ -520,10 +749,15 @@ String _iso(DateTime d) => d.toIso8601String().split('T').first;
 class PlacesPromptInput {
   final DayCenter center;
   final List<DateTime> days;
+
   /// Pool de candidats agrégés sur tous les jours du groupe (en mono-ville la
   /// pool est identique tous les jours, donc fusionner ne change rien). Indexé
   /// par place_id, conserve la liste des intérêts qui matchent chaque candidat.
-  final Map<String, ({NearbyCandidate candidate, List<String> matchedInterests})> pool;
+  final Map<
+    String,
+    ({NearbyCandidate candidate, List<String> matchedInterests})
+  >
+  pool;
 
   const PlacesPromptInput({
     required this.center,
@@ -539,10 +773,23 @@ class PlacesPromptInput {
 /// (Nancy/Épinal) → 2 groupes. Économise les calls Gemini : 1 prompt par
 /// groupe au lieu de 1 par jour.
 List<PlacesPromptInput> groupDaysByCenter(List<DayCandidates> dayPool) {
-  final groups = <String, ({DayCenter center, List<DateTime> days, Map<String, ({NearbyCandidate candidate, List<String> matchedInterests})> pool})>{};
+  final groups =
+      <
+        String,
+        ({
+          DayCenter center,
+          List<DateTime> days,
+          Map<
+            String,
+            ({NearbyCandidate candidate, List<String> matchedInterests})
+          >
+          pool,
+        })
+      >{};
 
   for (final day in dayPool) {
-    final key = '${day.center.latitude.toStringAsFixed(3)},${day.center.longitude.toStringAsFixed(3)}';
+    final key =
+        '${day.center.latitude.toStringAsFixed(3)},${day.center.longitude.toStringAsFixed(3)}';
     final dayUnique = day.allUnique;
     final existing = groups[key];
     if (existing == null) {
@@ -560,14 +807,22 @@ List<PlacesPromptInput> groupDaysByCenter(List<DayCandidates> dayPool) {
         if (ex == null) {
           existing.pool[placeId] = entry;
         } else {
-          final mergedInterests = {...ex.matchedInterests, ...entry.matchedInterests}.toList();
-          existing.pool[placeId] = (candidate: ex.candidate, matchedInterests: mergedInterests);
+          final mergedInterests = {
+            ...ex.matchedInterests,
+            ...entry.matchedInterests,
+          }.toList();
+          existing.pool[placeId] = (
+            candidate: ex.candidate,
+            matchedInterests: mergedInterests,
+          );
         }
       });
     }
   }
   return groups.values
-      .map((g) => PlacesPromptInput(center: g.center, days: g.days, pool: g.pool))
+      .map(
+        (g) => PlacesPromptInput(center: g.center, days: g.days, pool: g.pool),
+      )
       .toList();
 }
 
@@ -672,7 +927,10 @@ List<List<int>> _kMeansClusters({
 /// Distance au carré en mètres² entre 2 points lat/lng (approximation France
 /// métropolitaine). Utilisée par K-means — racine carrée inutile pour
 /// comparaison de distances.
-double _distSqMeters(({double lat, double lng}) a, ({double lat, double lng}) b) {
+double _distSqMeters(
+  ({double lat, double lng}) a,
+  ({double lat, double lng}) b,
+) {
   final dLatM = (a.lat - b.lat) * 111000.0;
   final dLngM = (a.lng - b.lng) * 73000.0;
   return dLatM * dLatM + dLngM * dLngM;
@@ -736,7 +994,10 @@ List<PlacesPromptInput> _splitGroupByQuartier(
   if (k < 2) return [group];
 
   final points = entries
-      .map((e) => (lat: e.value.candidate.latitude, lng: e.value.candidate.longitude))
+      .map(
+        (e) =>
+            (lat: e.value.candidate.latitude, lng: e.value.candidate.longitude),
+      )
       .toList();
   final clusterIndices = _kMeansClusters(points: points, k: k);
   if (clusterIndices.length < 2) return [group];
@@ -779,7 +1040,13 @@ List<PlacesPromptInput> _splitGroupByQuartier(
       if (indices.length >= minPool) break;
     }
     final clusterPool = Map.fromEntries(indices.map((i) => entries[i]));
-    return [PlacesPromptInput(center: group.center, days: group.days, pool: clusterPool)];
+    return [
+      PlacesPromptInput(
+        center: group.center,
+        days: group.days,
+        pool: clusterPool,
+      ),
+    ];
   }
 
   // ─── Cas multi-jours : fusionne les petits clusters puis round-robin ──
@@ -806,11 +1073,13 @@ List<PlacesPromptInput> _splitGroupByQuartier(
     final clusterPool = Map.fromEntries(
       mergedClusters[entry.key].map((i) => entries[i]),
     );
-    result.add(PlacesPromptInput(
-      center: group.center,
-      days: entry.value,
-      pool: clusterPool,
-    ));
+    result.add(
+      PlacesPromptInput(
+        center: group.center,
+        days: entry.value,
+        pool: clusterPool,
+      ),
+    );
   }
   return result;
 }
@@ -822,7 +1091,13 @@ List<PlacesPromptInput> _splitGroupByQuartier(
 /// possibles).
 List<List<int>> _mergeSmallClusters({
   required List<List<int>> clusterIndices,
-  required List<MapEntry<String, ({NearbyCandidate candidate, List<String> matchedInterests})>> entries,
+  required List<
+    MapEntry<
+      String,
+      ({NearbyCandidate candidate, List<String> matchedInterests})
+    >
+  >
+  entries,
   required int minPool,
 }) {
   final clusters = clusterIndices.map((c) => List<int>.from(c)).toList();
@@ -916,10 +1191,17 @@ Future<NearbyCandidate?> _findBestRestoNear({
   required List<String> tripInterests,
   Set<String> excludeTitlesNorm = const {},
   Set<String> excludePrimaryTypes = const {},
+
   /// Titres déjà utilisés sur le voyage : pénalisés fortement dans le score
   /// (-50 par usage) pour favoriser la variété SANS être bloqués dur. Si
   /// la pool est petite, ils peuvent quand même remonter.
   Map<String, int> softExcludeTitlesUseCount = const {},
+
+  /// Cap maximum de `priceLevel` Places dérivé du budget par personne du
+  /// voyage (cf. `priceLevelCapForBudget`). Si défini, restreint le
+  /// `maxPrice` effectif au minimum entre celui du profil voyageur et ce
+  /// cap. Lieux sans priceLevel toujours conservés.
+  int? budgetPriceCap,
 }) async {
   // Cascade distance pour restos : si rien à `radius`, on étend à 2× puis 4×.
   // Évite J1 sans repas quand le top resto est à 250m mais radius = 240m (cas
@@ -958,7 +1240,16 @@ Future<NearbyCandidate?> _findBestRestoNear({
   final profileMinPrice = travelerProfile?.minPriceLevel;
   // Boost minPriceLevel à 2 si Gastronomie (sauf si profil vise déjà le
   // bon marché : Backpack/Meilleur prix avec maxPriceLevel ≤ 1).
-  final maxPrice = travelerProfile?.maxPriceLevel;
+  // maxPrice : croise le profil voyageur ET le cap budget user — on prend
+  // le minimum (le plus restrictif des deux) si les 2 sont définis.
+  final profileMaxPrice = travelerProfile?.maxPriceLevel;
+  final maxPrice = (profileMaxPrice == null)
+      ? budgetPriceCap
+      : (budgetPriceCap == null
+          ? profileMaxPrice
+          : (profileMaxPrice < budgetPriceCap
+              ? profileMaxPrice
+              : budgetPriceCap));
   final minPrice = hasGastronomieInterest && (maxPrice == null || maxPrice >= 2)
       ? math.max(profileMinPrice ?? 2, 2)
       : profileMinPrice;
@@ -1019,6 +1310,7 @@ Future<NearbyCandidate?> _findBestRestoNear({
     final softPenalty = softUseCount * 50.0;
     return base - softPenalty;
   }
+
   filtered.sort((a, b) => score(b).compareTo(score(a)));
   return filtered.first;
 }
@@ -1073,9 +1365,20 @@ List<ActivitySuggestion> selectVisitsDeterministic({
 }) {
   final maxPerDay = travelerProfile?.maxActivitiesPerDay ?? 4;
   final slots = _visitSlotsForCount(maxPerDay);
-  // Distance max entre 2 activités successives. Si profil sans contrainte
-  // explicite, on prend une valeur large (1500m) pour ne pas trop filtrer.
-  final maxConsec = travelerProfile?.maxConsecutiveDistanceMeters ?? 1500;
+  // Distance max entre 2 activités successives. Croise profil voyageur ET
+  // préférence transport local de l'utilisateur (walk → ×0.7, taxi → ×1.5,
+  // etc.). Si profil sans contrainte explicite, fallback 1500m.
+  final maxConsec = effectiveMaxConsecutiveDistance(
+    travelerProfile: travelerProfile,
+    localTransportMode: trip.localTransportMode,
+  );
+  // Cap priceLevel calculé depuis le budget par personne. Évince les lieux
+  // dont le priceLevel Places est manifestement incompatible. Lieux sans
+  // priceLevel (souvent absent côté Google) toujours conservés.
+  final budgetPriceCap = priceLevelCapForBudget(
+    budgetPerPersonEur: trip.budgetPerPersonEur,
+    durationDays: trip.durationDays,
+  );
   final tripInterests = (trip.interests ?? const <String>[]).toSet();
 
   String norm(String s) => s.toLowerCase().trim();
@@ -1116,6 +1419,13 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           final c = e.value.candidate;
           if (!_isAppropriateForTime(c, slot)) return false;
           if (_isMealPrimaryType(c)) return false;
+          // Cap budget : lieu trop cher par rapport au budget user.
+          // Garde les lieux sans priceLevel (Google le manque souvent).
+          if (budgetPriceCap != null &&
+              c.priceLevel != null &&
+              c.priceLevel! > budgetPriceCap) {
+            return false;
+          }
           final n = norm(c.name);
           if (existingTitlesNormalized.contains(n)) return false;
           // Rejet "nom = ville segment" : élimine les pages touristiques
@@ -1133,11 +1443,13 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           // (Muséum-Aquarium qualité 37 + bonus +6 vs alternatives <25 →
           // toujours repris en J6 après J1). Lalith 26/04 : iconic = 1×/voyage.
           final reviewN = c.userRatingCount ?? 0;
-          final isIconicMuseum = reviewN >= 200 &&
+          final isIconicMuseum =
+              reviewN >= 200 &&
               (c.types.contains('museum') ||
                   c.types.contains('art_museum') ||
                   c.types.contains('art_gallery'));
-          final isIconicTourist = reviewN >= 500 &&
+          final isIconicTourist =
+              reviewN >= 500 &&
               (c.types.contains('tourist_attraction') ||
                   c.types.contains('historical_landmark') ||
                   c.types.contains('monument') ||
@@ -1155,25 +1467,48 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           var rejectCity = 0, rejectDay = 0, rejectReuse = 0, rejectIconic = 0;
           for (final e in entries) {
             final c = e.value.candidate;
-            if (!_isAppropriateForTime(c, slot)) { rejectTime++; continue; }
-            if (_isMealPrimaryType(c)) { rejectMeal++; continue; }
+            if (!_isAppropriateForTime(c, slot)) {
+              rejectTime++;
+              continue;
+            }
+            if (_isMealPrimaryType(c)) {
+              rejectMeal++;
+              continue;
+            }
             final n = norm(c.name);
-            if (existingTitlesNormalized.contains(n)) { rejectExisting++; continue; }
-            if (cityNamesNorm.contains(n)) { rejectCity++; continue; }
-            if (usedThisDay.contains(n)) { rejectDay++; continue; }
-            if ((useCountThisCluster[n] ?? 0) >= maxReusePerCluster) { rejectReuse++; continue; }
+            if (existingTitlesNormalized.contains(n)) {
+              rejectExisting++;
+              continue;
+            }
+            if (cityNamesNorm.contains(n)) {
+              rejectCity++;
+              continue;
+            }
+            if (usedThisDay.contains(n)) {
+              rejectDay++;
+              continue;
+            }
+            if ((useCountThisCluster[n] ?? 0) >= maxReusePerCluster) {
+              rejectReuse++;
+              continue;
+            }
             final reviewN = c.userRatingCount ?? 0;
-            final isIconicMuseum = reviewN >= 200 &&
+            final isIconicMuseum =
+                reviewN >= 200 &&
                 (c.types.contains('museum') ||
                     c.types.contains('art_museum') ||
                     c.types.contains('art_gallery'));
-            final isIconicTourist = reviewN >= 500 &&
+            final isIconicTourist =
+                reviewN >= 500 &&
                 (c.types.contains('tourist_attraction') ||
                     c.types.contains('historical_landmark') ||
                     c.types.contains('monument') ||
                     c.types.contains('landmark'));
             if ((isIconicMuseum || isIconicTourist) &&
-                (useCountAcrossTrip[n] ?? 0) >= 1) { rejectIconic++; continue; }
+                (useCountAcrossTrip[n] ?? 0) >= 1) {
+              rejectIconic++;
+              continue;
+            }
           }
           debugPrint(
             '[places_first] ⚠️ ${day.toIso8601String().split("T").first} slot $slot : 0 candidat sur ${entries.length} '
@@ -1196,7 +1531,13 @@ List<ActivitySuggestion> selectVisitsDeterministic({
         // → J1=J3, J7=J8 vu en test. Avec un malus -30 pour chaque utilisation
         // déjà faite, le 2e usage d'un lieu chute en dessous des autres top
         // qui sont eux à useCount=0. Force la variation jour-à-jour naturelle.
-        double score(MapEntry<String, ({NearbyCandidate candidate, List<String> matchedInterests})> e) {
+        double score(
+          MapEntry<
+            String,
+            ({NearbyCandidate candidate, List<String> matchedInterests})
+          >
+          e,
+        ) {
           final c = e.value.candidate;
           final r = c.rating ?? 0;
           final reviews = c.userRatingCount ?? 0;
@@ -1204,10 +1545,12 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           final matchSet = e.value.matchedInterests.toSet();
           final intersectionCount = matchSet.intersection(tripInterests).length;
           final interestBonus = intersectionCount * 3.0;
-          final d = math.sqrt(_distSqMeters(
-            (lat: c.latitude, lng: c.longitude),
-            (lat: anchorLat, lng: anchorLng),
-          ));
+          final d = math.sqrt(
+            _distSqMeters(
+              (lat: c.latitude, lng: c.longitude),
+              (lat: anchorLat, lng: anchorLng),
+            ),
+          );
           // Distance penalty renforcée (×8 au lieu de ×5) — décourage les
           // transitions longues qui forcent taxi/voiture pour Senior.
           final distancePenalty = (d / maxConsec) * 8.0;
@@ -1221,16 +1564,19 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           // laisse la place aux nouveaux lieux.
           final diversityPenalty = clusterUseCount * 30.0 + tripUseCount * 50.0;
           // Bonus musée iconique : museum/art_museum/art_gallery + ≥200 avis.
-          final hasMuseumType = c.types.contains('museum') ||
+          final hasMuseumType =
+              c.types.contains('museum') ||
               c.types.contains('art_museum') ||
               c.types.contains('art_gallery');
           final reviewCount = c.userRatingCount ?? 0;
-          final iconicMuseumBonus =
-              (hasMuseumType && reviewCount >= 200) ? 10.0 : 0.0;
+          final iconicMuseumBonus = (hasMuseumType && reviewCount >= 200)
+              ? 10.0
+              : 0.0;
           // Bonus monument touristique populaire : tourist_attraction,
           // historical_landmark ou monument avec ≥500 avis. Couvre Place
           // Stanislas (36899 avis), Bahia Palace, Brasserie Excelsior, etc.
-          final hasIconicTouristType = c.types.contains('tourist_attraction') ||
+          final hasIconicTouristType =
+              c.types.contains('tourist_attraction') ||
               c.types.contains('historical_landmark') ||
               c.types.contains('monument') ||
               c.types.contains('landmark');
@@ -1243,26 +1589,47 @@ List<ActivitySuggestion> selectVisitsDeterministic({
               distancePenalty -
               diversityPenalty;
         }
+
         candidates.sort((a, b) => score(b).compareTo(score(a)));
         final pick = candidates.first.value.candidate;
         final matched = candidates.first.value.matchedInterests;
         final pickName = norm(pick.name);
 
-        // Construction de l'activité
-        final tag = _tagFromPrimaryType(pick.types.isNotEmpty ? pick.types.first : '');
+        // Construction de l'activité.
+        // Le `tag` (affiché à l'user) est dérivé du primary Place type, pas
+        // de l'intérêt matché — pour éviter "Pâtisserie Driss [Shopping]
+        // Matche 'Culture'" (incohérent). Le tag reflète CE QU'EST le lieu,
+        // l'intérêt matché reflète POURQUOI on l'a remonté.
+        final tag = _tagFromPrimaryType(
+          pick.types.isNotEmpty ? pick.types.first : '',
+        );
         // Durée selon type : musée 90, monument 60, parc 60, par défaut 75.
-        final duration = _defaultDurationForType(pick.types.isNotEmpty ? pick.types.first : '');
-        final dM = math.sqrt(_distSqMeters(
-          (lat: pick.latitude, lng: pick.longitude),
-          (lat: anchorLat, lng: anchorLng),
-        )).round();
+        final duration = _defaultDurationForType(
+          pick.types.isNotEmpty ? pick.types.first : '',
+        );
+        final dM = math
+            .sqrt(
+              _distSqMeters(
+                (lat: pick.latitude, lng: pick.longitude),
+                (lat: anchorLat, lng: anchorLng),
+              ),
+            )
+            .round();
         final priceLabel = _priceLabelFromLevel(pick.priceLevel);
         // match_reason par template — pas Gemini. Format : intérêt matché +
         // qualité + distance depuis l'activité précédente.
+        // On ne mentionne l'intérêt matché que s'il est COHÉRENT avec le tag
+        // (ex: tag=Wellness + Matche 'Wellness' OK ; tag=Shopping + Matche
+        // 'Culture' incohérent, on omet). Évite les "Pâtisserie [Shopping]
+        // Matche 'Culture'" surprenants pour l'user.
         final reasonParts = <String>[];
         final matchedTrip = matched.toSet().intersection(tripInterests);
-        if (matchedTrip.isNotEmpty) {
-          reasonParts.add("Matche '${matchedTrip.first}'");
+        final coherentInterest = matchedTrip.firstWhere(
+          (i) => _isInterestCoherentWithTag(i, tag),
+          orElse: () => '',
+        );
+        if (coherentInterest.isNotEmpty) {
+          reasonParts.add("Matche '$coherentInterest'");
         }
         reasonParts.add('★${pick.rating} (${pick.userRatingCount ?? 0} avis)');
         if (lastActivity != null) {
@@ -1275,10 +1642,10 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           final distLabel = ratio <= 1.0
               ? '${dM}m'
               : ratio <= 1.5
-                  ? '${dM}m (un peu loin)'
-                  : ratio <= 2.5
-                      ? '🚌 ${dM}m · transport public conseillé'
-                      : '🚕 ${dM}m · taxi/voiture conseillé';
+              ? '${dM}m (un peu loin)'
+              : ratio <= 2.5
+              ? '🚌 ${dM}m · transport public conseillé'
+              : '🚕 ${dM}m · taxi/voiture conseillé';
           reasonParts.add('$distLabel depuis "${lastActivity.title}"');
         }
         // Log diagnostique de chaque pick final : permet d'identifier les Places
@@ -1292,19 +1659,22 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           'addr="${pick.address}" types=[${pick.types.take(3).join(",")}] '
           '@${pick.latitude.toStringAsFixed(4)},${pick.longitude.toStringAsFixed(4)}',
         );
-        out.add(ActivitySuggestion(
-          dayDate: day,
-          startTime: slot,
-          title: pick.name,
-          detail: pick.address,
-          tag: tag,
-          durationMinutes: duration,
-          priceEstimate: priceLabel,
-          matchReason: reasonParts.join(' · '),
-          latitude: pick.latitude,
-          longitude: pick.longitude,
-        ));
-        useCountThisCluster[pickName] = (useCountThisCluster[pickName] ?? 0) + 1;
+        out.add(
+          ActivitySuggestion(
+            dayDate: day,
+            startTime: slot,
+            title: pick.name,
+            detail: pick.address,
+            tag: tag,
+            durationMinutes: duration,
+            priceEstimate: priceLabel,
+            matchReason: reasonParts.join(' · '),
+            latitude: pick.latitude,
+            longitude: pick.longitude,
+          ),
+        );
+        useCountThisCluster[pickName] =
+            (useCountThisCluster[pickName] ?? 0) + 1;
         useCountAcrossTrip[pickName] = (useCountAcrossTrip[pickName] ?? 0) + 1;
         usedThisDay.add(pickName);
         lastActivity = out.last;
@@ -1323,28 +1693,42 @@ int _defaultDurationForType(String primaryType) {
   if (primaryType.contains('museum') ||
       primaryType == 'art_gallery' ||
       primaryType == 'aquarium' ||
-      primaryType == 'zoo') return 90;
-  if (primaryType.contains('park') ||
-      primaryType == 'botanical_garden') return 60;
+      primaryType == 'zoo') {
+    return 90;
+  }
+  if (primaryType.contains('park') || primaryType == 'botanical_garden') {
+    return 60;
+  }
   if (primaryType == 'church' ||
       primaryType == 'place_of_worship' ||
-      primaryType == 'mosque') return 45;
-  if (primaryType == 'shopping_mall' || primaryType.contains('store')) return 60;
+      primaryType == 'mosque') {
+    return 45;
+  }
+  if (primaryType == 'shopping_mall' || primaryType.contains('store'))
+    return 60;
   if (primaryType == 'spa' || primaryType == 'beauty_salon') return 90;
   if (primaryType == 'historical_landmark' ||
       primaryType == 'monument' ||
-      primaryType == 'tourist_attraction') return 60;
+      primaryType == 'tourist_attraction') {
+    return 60;
+  }
   return 75;
 }
 
 String? _priceLabelFromLevel(int? level) {
   switch (level) {
-    case 0: return 'Gratuit';
-    case 1: return '~10€';
-    case 2: return '~20€';
-    case 3: return '~40€';
-    case 4: return '~70€';
-    default: return null;
+    case 0:
+      return 'Gratuit';
+    case 1:
+      return '~10€';
+    case 2:
+      return '~20€';
+    case 3:
+      return '~40€';
+    case 4:
+      return '~70€';
+    default:
+      return null;
   }
 }
 
@@ -1372,6 +1756,13 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
   required TravelerPlacesProfile? travelerProfile,
   required List<String> tripInterests,
   required String? languageCode,
+  /// Mode de déplacement local préféré (`walk`/`taxi`/...) pour ajuster le
+  /// rayon de recherche resto. Null = comportement actuel (basé profil).
+  String? localTransportMode,
+  /// Cap maximum de `priceLevel` Places dérivé du budget par personne du
+  /// voyage. Évince les restos manifestement trop chers. Lieux sans
+  /// priceLevel toujours conservés.
+  int? budgetPriceCap,
 }) async {
   // Group activities par jour (peut être vide si Gemini a sauté un jour)
   final byDay = <String, List<ActivitySuggestion>>{};
@@ -1386,7 +1777,11 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
     centersByDay[d.day.toIso8601String().split('T').first] = d.center;
   }
 
-  final maxConsec = travelerProfile?.maxConsecutiveDistanceMeters ?? 800;
+  final maxConsec = effectiveMaxConsecutiveDistance(
+    travelerProfile: travelerProfile,
+    localTransportMode: localTransportMode,
+    fallback: 800,
+  );
   final mealRadius = (maxConsec * 0.8).round().clamp(150, 600);
 
   double? hourFloat(String hhmm) {
@@ -1402,12 +1797,18 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
 
   String? priceFromLevel(int? level) {
     switch (level) {
-      case 0: return 'Gratuit';
-      case 1: return '~10€';
-      case 2: return '~20€';
-      case 3: return '~40€';
-      case 4: return '~70€';
-      default: return null;
+      case 0:
+        return 'Gratuit';
+      case 1:
+        return '~10€';
+      case 2:
+        return '~20€';
+      case 3:
+        return '~40€';
+      case 4:
+        return '~70€';
+      default:
+        return null;
     }
   }
 
@@ -1432,7 +1833,8 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
   for (final dayCenter in pool) {
     final dayKey = dayCenter.day.toIso8601String().split('T').first;
     final list = byDay[dayKey] ?? const <ActivitySuggestion>[];
-    final sortedList = [...list]..sort((a, b) => a.startTime.compareTo(b.startTime));
+    final sortedList = [...list]
+      ..sort((a, b) => a.startTime.compareTo(b.startTime));
     final excludeTitles = <String>{
       ...sortedList.map((a) => norm(a.title)),
       // Restos déjà utilisés ≥ maxRestoUsesAcrossTrip sur le voyage : exclus.
@@ -1452,7 +1854,8 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
       lunchAnchorActivity = a;
     }
     final lunchLat = lunchAnchorActivity?.latitude ?? dayCenter.center.latitude;
-    final lunchLng = lunchAnchorActivity?.longitude ?? dayCenter.center.longitude;
+    final lunchLng =
+        lunchAnchorActivity?.longitude ?? dayCenter.center.longitude;
     final lunchAnchorLabel = lunchAnchorActivity?.title ?? 'centre du jour';
 
     // Cuisines déjà utilisées sur le voyage — exclues en première passe pour
@@ -1471,6 +1874,7 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
       excludeTitlesNorm: excludeTitles,
       excludePrimaryTypes: cuisinesUsedTrip,
       softExcludeTitlesUseCount: restoUseCount,
+      budgetPriceCap: budgetPriceCap,
     );
     // Fallback : si exclusion cuisines a vidé la pool, retry sans.
     lunch ??= await _findBestRestoNear(
@@ -1483,29 +1887,39 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
       tripInterests: tripInterests,
       excludeTitlesNorm: excludeTitles,
       softExcludeTitlesUseCount: restoUseCount,
+      budgetPriceCap: budgetPriceCap,
     );
 
     String? lunchPrimaryType;
     if (lunch != null) {
       lunchPrimaryType = lunch.types.isNotEmpty ? lunch.types.first : null;
-      final dM = distMeters(lunchLat, lunchLng, lunch.latitude, lunch.longitude);
-      out.add(ActivitySuggestion(
-        dayDate: dayCenter.day,
-        startTime: '12:30',
-        title: lunch.name,
-        detail: lunch.address,
-        tag: 'Repas',
-        durationMinutes: 75,
-        priceEstimate: priceFromLevel(lunch.priceLevel),
-        matchReason: 'Top noté ★${lunch.rating} (${lunch.userRatingCount ?? 0} avis), à ${dM}m de "$lunchAnchorLabel"',
-        latitude: lunch.latitude,
-        longitude: lunch.longitude,
-      ));
+      final dM = distMeters(
+        lunchLat,
+        lunchLng,
+        lunch.latitude,
+        lunch.longitude,
+      );
+      out.add(
+        ActivitySuggestion(
+          dayDate: dayCenter.day,
+          startTime: '12:30',
+          title: lunch.name,
+          detail: lunch.address,
+          tag: 'Repas',
+          durationMinutes: 75,
+          priceEstimate: priceFromLevel(lunch.priceLevel),
+          matchReason:
+              'Top noté ★${lunch.rating} (${lunch.userRatingCount ?? 0} avis), à ${dM}m de "$lunchAnchorLabel"',
+          latitude: lunch.latitude,
+          longitude: lunch.longitude,
+        ),
+      );
       final lunchKey = norm(lunch.name);
       excludeTitles.add(lunchKey);
       restoUseCount[lunchKey] = (restoUseCount[lunchKey] ?? 0) + 1;
       if (lunchPrimaryType != null) {
-        cuisineUseCount[lunchPrimaryType] = (cuisineUseCount[lunchPrimaryType] ?? 0) + 1;
+        cuisineUseCount[lunchPrimaryType] =
+            (cuisineUseCount[lunchPrimaryType] ?? 0) + 1;
       }
     }
 
@@ -1517,15 +1931,17 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
       if (a.latitude == null || a.longitude == null) continue;
       dinnerAnchorActivity = a;
     }
-    final dinnerLat = dinnerAnchorActivity?.latitude ?? dayCenter.center.latitude;
-    final dinnerLng = dinnerAnchorActivity?.longitude ?? dayCenter.center.longitude;
+    final dinnerLat =
+        dinnerAnchorActivity?.latitude ?? dayCenter.center.latitude;
+    final dinnerLng =
+        dinnerAnchorActivity?.longitude ?? dayCenter.center.longitude;
     final dinnerAnchorLabel = dinnerAnchorActivity?.title ?? 'centre du jour';
 
     // Dîner : on exclut le primary type du déjeuner du jour ET les cuisines
     // déjà utilisées sur le voyage (en passe 1). Fallback si pool vide.
     final cuisinesUsedTripForDinner = <String>{
       ...cuisineUseCount.keys,
-      if (lunchPrimaryType != null) lunchPrimaryType,
+      ?lunchPrimaryType,
     };
 
     var dinner = await _findBestRestoNear(
@@ -1539,6 +1955,7 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
       excludeTitlesNorm: excludeTitles,
       excludePrimaryTypes: cuisinesUsedTripForDinner,
       softExcludeTitlesUseCount: restoUseCount,
+      budgetPriceCap: budgetPriceCap,
     );
     // Fallback 1 : retry sans exclusion cuisines voyage (mais conserve
     // l'exclusion midi du jour pour ne pas servir 2× pareil dans la journée).
@@ -1551,35 +1968,47 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
       travelerProfile: travelerProfile,
       tripInterests: tripInterests,
       excludeTitlesNorm: excludeTitles,
-      excludePrimaryTypes: <String>{
-        if (lunchPrimaryType != null) lunchPrimaryType,
-      },
+      excludePrimaryTypes: <String>{?lunchPrimaryType},
       softExcludeTitlesUseCount: restoUseCount,
+      budgetPriceCap: budgetPriceCap,
     );
 
     if (dinner != null) {
-      final dM = distMeters(dinnerLat, dinnerLng, dinner.latitude, dinner.longitude);
-      final dinnerPrimaryType = dinner.types.isNotEmpty ? dinner.types.first : null;
-      out.add(ActivitySuggestion(
-        dayDate: dayCenter.day,
-        startTime: '19:30',
-        title: dinner.name,
-        detail: dinner.address,
-        tag: 'Repas',
-        durationMinutes: 90,
-        priceEstimate: priceFromLevel(dinner.priceLevel),
-        matchReason: 'Top noté ★${dinner.rating} (${dinner.userRatingCount ?? 0} avis), à ${dM}m de "$dinnerAnchorLabel"',
-        latitude: dinner.latitude,
-        longitude: dinner.longitude,
-      ));
+      final dM = distMeters(
+        dinnerLat,
+        dinnerLng,
+        dinner.latitude,
+        dinner.longitude,
+      );
+      final dinnerPrimaryType = dinner.types.isNotEmpty
+          ? dinner.types.first
+          : null;
+      out.add(
+        ActivitySuggestion(
+          dayDate: dayCenter.day,
+          startTime: '19:30',
+          title: dinner.name,
+          detail: dinner.address,
+          tag: 'Repas',
+          durationMinutes: 90,
+          priceEstimate: priceFromLevel(dinner.priceLevel),
+          matchReason:
+              'Top noté ★${dinner.rating} (${dinner.userRatingCount ?? 0} avis), à ${dM}m de "$dinnerAnchorLabel"',
+          latitude: dinner.latitude,
+          longitude: dinner.longitude,
+        ),
+      );
       final dinnerKey = norm(dinner.name);
       restoUseCount[dinnerKey] = (restoUseCount[dinnerKey] ?? 0) + 1;
       if (dinnerPrimaryType != null) {
-        cuisineUseCount[dinnerPrimaryType] = (cuisineUseCount[dinnerPrimaryType] ?? 0) + 1;
+        cuisineUseCount[dinnerPrimaryType] =
+            (cuisineUseCount[dinnerPrimaryType] ?? 0) + 1;
       }
     }
   }
-  debugPrint('[places_first] Insertion déterministe : ${out.length} repas insérés');
+  debugPrint(
+    '[places_first] Insertion déterministe : ${out.length} repas insérés',
+  );
   return out;
 }
 
@@ -1587,8 +2016,12 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
 /// `maxPoolSize` meilleurs. Sert à borner les tokens envoyés à Gemini quand
 /// la ville est très riche en lieux. 50 est un compromis raisonnable :
 /// largement assez pour 6 jours × 4 créneaux × 3 options diverses.
-List<MapEntry<String, ({NearbyCandidate candidate, List<String> matchedInterests})>> _trimPool(
-  Map<String, ({NearbyCandidate candidate, List<String> matchedInterests})> pool, {
+List<
+  MapEntry<String, ({NearbyCandidate candidate, List<String> matchedInterests})>
+>
+_trimPool(
+  Map<String, ({NearbyCandidate candidate, List<String> matchedInterests})>
+  pool, {
   int maxPoolSize = 50,
 }) {
   final entries = pool.entries.toList();
@@ -1599,7 +2032,8 @@ List<MapEntry<String, ({NearbyCandidate candidate, List<String> matchedInterests
     final cb = b.value.candidate.userRatingCount ?? 0;
     // Score : on multiplie par log(count) pour favoriser les lieux avec un
     // bon rating ET un volume d'avis significatif (vs un 5★ avec 3 avis).
-    double score(double r, int c) => r * (c <= 1 ? 1 : (1 + (c.bitLength.toDouble())));
+    double score(double r, int c) =>
+        r * (c <= 1 ? 1 : (1 + (c.bitLength.toDouble())));
     return score(rb, cb).compareTo(score(ra, ca));
   });
   return entries.take(maxPoolSize).toList();
@@ -1636,8 +2070,8 @@ String buildCoPilotPrompt({
   final profileBlock = travelerProfile == null
       ? ''
       : '\nProfil voyageur "${trip.travelerType}" : ${travelerProfile.rule ?? "—"}'
-          '${travelerProfile.maxActivityMinutes != null ? "\nDurée max par activité : ${travelerProfile.maxActivityMinutes} min." : ""}'
-          '${travelerProfile.maxConsecutiveDistanceMeters != null ? "\nDistance max entre 2 activités du même jour : ${travelerProfile.maxConsecutiveDistanceMeters}m." : ""}';
+            '${travelerProfile.maxActivityMinutes != null ? "\nDurée max par activité : ${travelerProfile.maxActivityMinutes} min." : ""}'
+            '${travelerProfile.maxConsecutiveDistanceMeters != null ? "\nDistance max entre 2 activités du même jour : ${travelerProfile.maxConsecutiveDistanceMeters}m." : ""}';
 
   return '''
 Tu es un expert en voyages. Tu dois SÉLECTIONNER (pas inventer) des activités pour un voyageur, en t'appuyant UNIQUEMENT sur la liste de lieux RÉELS ci-dessous (tous vérifiés sur Google Places).
@@ -1700,14 +2134,16 @@ List<SuggestionGroup> parseCoPilotResponse({
     byRef['P$i'] = entries[i].value.candidate;
   }
   // Validation déterministe du `date` retourné par Gemini (cf. fix D 26/04).
-  final validDayKeys = input.days.map((d) => d.toIso8601String().split('T').first).toSet();
+  final validDayKeys = input.days
+      .map((d) => d.toIso8601String().split('T').first)
+      .toSet();
 
   final cleaned = _stripCodeFences(rawJson).trim();
   dynamic parsed;
   try {
     parsed = jsonDecode(cleaned);
   } catch (e) {
-    debugPrint('parseCoPilotResponse : JSON invalide — $e',);
+    debugPrint('parseCoPilotResponse : JSON invalide — $e');
     return [];
   }
   if (parsed is! Map) return [];
@@ -1740,7 +2176,7 @@ List<SuggestionGroup> parseCoPilotResponse({
         if (ref == null) continue;
         final candidate = byRef[ref];
         if (candidate == null) {
-          debugPrint('Réf inconnue "$ref" dans la réponse Gemini — skip',);
+          debugPrint('Réf inconnue "$ref" dans la réponse Gemini — skip');
           continue;
         }
         // Filtre déterministe horaire/type Places : rejette les aberrations
@@ -1753,27 +2189,33 @@ List<SuggestionGroup> parseCoPilotResponse({
           continue;
         }
         // Tag déduit du primary type Places (heuristique simple, à raffiner)
-        final tag = _tagFromPrimaryType(candidate.types.isNotEmpty ? candidate.types.first : '');
-        options.add(ActivitySuggestion(
-          dayDate: date,
-          startTime: slotStart,
-          title: candidate.name,
-          detail: candidate.address,
-          tag: tag,
-          durationMinutes: (optJson['duration_minutes'] as num?)?.toInt(),
-          priceEstimate: (optJson['price_estimate'] as String?)?.trim(),
-          matchReason: (optJson['match_reason'] as String?)?.trim(),
-          latitude: candidate.latitude,
-          longitude: candidate.longitude,
-        ));
+        final tag = _tagFromPrimaryType(
+          candidate.types.isNotEmpty ? candidate.types.first : '',
+        );
+        options.add(
+          ActivitySuggestion(
+            dayDate: date,
+            startTime: slotStart,
+            title: candidate.name,
+            detail: candidate.address,
+            tag: tag,
+            durationMinutes: (optJson['duration_minutes'] as num?)?.toInt(),
+            priceEstimate: (optJson['price_estimate'] as String?)?.trim(),
+            matchReason: (optJson['match_reason'] as String?)?.trim(),
+            latitude: candidate.latitude,
+            longitude: candidate.longitude,
+          ),
+        );
       }
       if (options.isEmpty) continue;
-      groups.add(SuggestionGroup(
-        dayDate: date,
-        slotLabel: slotLabel,
-        startTime: slotStart,
-        options: options,
-      ));
+      groups.add(
+        SuggestionGroup(
+          dayDate: date,
+          slotLabel: slotLabel,
+          startTime: slotStart,
+          options: options,
+        ),
+      );
     }
   }
   return groups;
@@ -1818,7 +2260,9 @@ String _tagFromPrimaryType(String primaryType) {
       primaryType == 'market') {
     return 'Shopping';
   }
-  if (primaryType == 'spa' || primaryType == 'beauty_salon' || primaryType == 'gym') {
+  if (primaryType == 'spa' ||
+      primaryType == 'beauty_salon' ||
+      primaryType == 'gym') {
     return 'Wellness';
   }
   if (primaryType == 'church' || primaryType == 'place_of_worship') {
@@ -1834,6 +2278,31 @@ String _tagFromPrimaryType(String primaryType) {
     return 'Sport';
   }
   return 'Activité';
+}
+
+/// Cohérence sémantique entre un tag (dérivé du primary type Place) et un
+/// intérêt voyageur (sélectionné par l'user). Sert à filtrer les match_reason
+/// surprenants type "Pâtisserie [Shopping] Matche 'Culture'" en n'affichant
+/// la mention "Matche 'X'" que si X est plausiblement aligné avec le tag.
+///
+/// Tag par défaut "Activité" → on accepte tout (peu de risque de surprise).
+bool _isInterestCoherentWithTag(String interest, String tag) {
+  const coherence = <String, Set<String>>{
+    'Repas': {'Gastronomie', 'Bons plans', 'Hors circuit'},
+    'Culture': {'Culture', 'Spots populaires', 'Hors circuit', 'Événements'},
+    'Nature': {'Nature', 'Plage', 'Sports', 'Hors circuit'},
+    'Nightlife': {'Nightlife', 'Événements'},
+    'Shopping': {'Shopping', 'Bons plans', 'Esthétique'},
+    'Wellness': {'Wellness', 'Esthétique'},
+    'Visite': {
+      'Spots populaires', 'Culture', 'Hors circuit', 'Événements', 'Nature'
+    },
+    'Loisir': {'Spots populaires', 'Sports', 'Événements', 'Nightlife'},
+    'Sport': {'Sports', 'Spots populaires'},
+  };
+  final allowed = coherence[tag];
+  if (allowed == null) return true; // tag générique → on n'exclut rien
+  return allowed.contains(interest);
 }
 
 String _stripCodeFences(String text) {
@@ -1867,9 +2336,9 @@ bool _isAppropriateForTime(NearbyCandidate c, String startTime) {
   // créneau repas (12-15h ou 18:30-23h), on rejette dur. Parade au cas où
   // un tel lieu passe à travers la blacklist (mairie historique, école
   // emblématique) — il peut être visité, jamais mangé.
-  if (c.types.isNotEmpty &&
-      _neverMealPrimaryTypes.contains(c.types.first)) {
-    final isMealHour = (hour >= 11.5 && hour <= 15.0) || (hour >= 18.5 && hour <= 23.0);
+  if (c.types.isNotEmpty && _neverMealPrimaryTypes.contains(c.types.first)) {
+    final isMealHour =
+        (hour >= 11.5 && hour <= 15.0) || (hour >= 18.5 && hour <= 23.0);
     if (isMealHour) return false;
   }
 
@@ -1878,8 +2347,7 @@ bool _isAppropriateForTime(NearbyCandidate c, String startTime) {
   // (un Pub a souvent `restaurant` en secondaire ce qui le ferait passer
   // au créneau déjeuner via le vote). Un bar reste un bar : pas avant 17h.
   // Cf. fix 26/04 Pub Mac Carthy (irish_pub) sélectionné à 14:30.
-  if (c.types.isNotEmpty &&
-      _strictBarPrimaryTypes.contains(c.types.first)) {
+  if (c.types.isNotEmpty && _strictBarPrimaryTypes.contains(c.types.first)) {
     return hour >= 17.0;
   }
 
@@ -1900,15 +2368,50 @@ bool _isAppropriateForTime(NearbyCandidate c, String startTime) {
 /// 2. cibler la recherche post-Gemini quand on insère les repas par scoring
 ///    déterministe (cf. insertDeterministicMeals).
 const Set<String> _mealPlaceTypes = <String>{
-  'restaurant', 'cafe', 'bakery', 'bar', 'pub', 'food_court',
-  'meal_delivery', 'meal_takeaway', 'wine_bar', 'sports_bar',
-  'night_club', 'fine_dining_restaurant', 'fast_food_restaurant',
-  'french_restaurant', 'italian_restaurant', 'japanese_restaurant',
-  'chinese_restaurant', 'thai_restaurant', 'mexican_restaurant',
-  'mediterranean_restaurant', 'pizza_restaurant', 'sushi_restaurant',
-  'vegan_restaurant', 'vegetarian_restaurant', 'seafood_restaurant',
-  'steak_house', 'sandwich_shop', 'breakfast_restaurant',
-  'brunch_restaurant', 'coffee_shop', 'tea_house', 'ice_cream_shop',
+  'restaurant',
+  'cafe',
+  'bakery',
+  'bar',
+  'pub',
+  'food_court',
+  'meal_delivery',
+  'meal_takeaway',
+  'wine_bar',
+  'sports_bar',
+  'night_club',
+  'fine_dining_restaurant',
+  'fast_food_restaurant',
+  'french_restaurant',
+  'italian_restaurant',
+  'japanese_restaurant',
+  'chinese_restaurant',
+  'thai_restaurant',
+  'mexican_restaurant',
+  'mediterranean_restaurant',
+  'pizza_restaurant',
+  'sushi_restaurant',
+  'vegan_restaurant',
+  'vegetarian_restaurant',
+  'seafood_restaurant',
+  'steak_house',
+  'sandwich_shop',
+  'breakfast_restaurant',
+  'brunch_restaurant',
+  'coffee_shop',
+  'tea_house',
+  'ice_cream_shop',
+  // Pâtisseries / boulangeries fines / confiseries : alimentaires, pas
+  // des activités de visite. Leur place est dans les créneaux repas/snack
+  // (insertion déterministe meals), pas dans les slots visite. Évite les
+  // 4-5 pâtisseries en créneaux non-repas observées sur Essaouira (logs
+  // Lalith 2026-05-08).
+  'pastry_shop',
+  'dessert_shop',
+  'cake_shop',
+  'confectionery',
+  'donut_shop',
+  'chocolate_shop',
+  'candy_store',
 };
 
 bool _isMealPrimaryType(NearbyCandidate c) {
@@ -1936,8 +2439,15 @@ bool _isMealPrimaryType(NearbyCandidate c) {
 /// en primary, qui ont souvent `restaurant` ou `food` en secondaire et
 /// passaient via le système de vote (cf. bug 26/04 Pub Mac Carthy à 14:30).
 const Set<String> _strictBarPrimaryTypes = <String>{
-  'bar', 'pub', 'irish_pub', 'sports_bar', 'wine_bar',
-  'cocktail_bar', 'lounge_bar', 'night_club', 'hookah_bar',
+  'bar',
+  'pub',
+  'irish_pub',
+  'sports_bar',
+  'wine_bar',
+  'cocktail_bar',
+  'lounge_bar',
+  'night_club',
+  'hookah_bar',
 };
 
 /// Types administratifs/éducatifs : ne peuvent JAMAIS être un repas.
@@ -2050,9 +2560,11 @@ Future<List<SuggestionGroup>> runCoPilotPlacesFirst({
   required GeocodingService geocoder,
   required PlacesNearbyService nearbyService,
   required AiSuggestionsService aiService,
+
   /// Titres normalisés des activités déjà au planning. Pré-filtre la pool
   /// pour éviter de reproposer ce que le voyageur a déjà coché.
   Set<String> existingTitlesNormalized = const {},
+
   /// Langue Places (BCP-47). Cf. `gatherCandidatesForTrip`.
   String? languageCode,
 }) async {
@@ -2064,17 +2576,22 @@ Future<List<SuggestionGroup>> runCoPilotPlacesFirst({
     languageCode: languageCode,
   );
   if (pool.isEmpty) {
-    debugPrint('[places_first] CoPilot Places-first : pool vide, rien à proposer',);
+    debugPrint(
+      '[places_first] CoPilot Places-first : pool vide, rien à proposer',
+    );
     return [];
   }
 
   // Pré-filtre : retire de chaque DayCandidates les candidats dont le name
   // matche un titre déjà au planning. Évite de reproposer.
   if (existingTitlesNormalized.isNotEmpty) {
-    String norm(String s) => s.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
+    String norm(String s) =>
+        s.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
     for (final day in pool) {
       day.byInterest.forEach((interest, list) {
-        list.removeWhere((c) => existingTitlesNormalized.contains(norm(c.name)));
+        list.removeWhere(
+          (c) => existingTitlesNormalized.contains(norm(c.name)),
+        );
       });
     }
   }
@@ -2093,27 +2610,29 @@ Future<List<SuggestionGroup>> runCoPilotPlacesFirst({
 
   // Appels Gemini en parallèle, un par cluster. Chaque échec individuel
   // ne casse pas les autres (try/catch isolé par cluster).
-  final results = await Future.wait(clusters.map((group) async {
-    final prompt = buildCoPilotPrompt(
-      input: group,
-      trip: trip,
-      travelerProfile: travelerProfile,
-    );
-    try {
-      final raw = await aiService.generateRaw(
-        prompt: prompt,
-        cacheAction: 'places_first_copilot',
-        cacheKey: prompt.hashCode.toString(),
-        temperature: 0.6,
+  final results = await Future.wait(
+    clusters.map((group) async {
+      final prompt = buildCoPilotPrompt(
+        input: group,
+        trip: trip,
+        travelerProfile: travelerProfile,
       );
-      return parseCoPilotResponse(rawJson: raw, input: group);
-    } catch (e) {
-      debugPrint(
-        '[places_first] CoPilot Places-first : Gemini exception sur groupe ${group.center.source} : $e',
+      try {
+        final raw = await aiService.generateRaw(
+          prompt: prompt,
+          cacheAction: 'places_first_copilot',
+          cacheKey: prompt.hashCode.toString(),
+          temperature: 0.6,
         );
-      return <SuggestionGroup>[];
-    }
-  }));
+        return parseCoPilotResponse(rawJson: raw, input: group);
+      } catch (e) {
+        debugPrint(
+          '[places_first] CoPilot Places-first : Gemini exception sur groupe ${group.center.source} : $e',
+        );
+        return <SuggestionGroup>[];
+      }
+    }),
+  );
 
   final merged = results.expand((g) => g).toList();
   debugPrint(
@@ -2155,12 +2674,19 @@ String buildAutoPrompt({
 
   // Distance max activités successives : injectée dans la consigne proximité
   // ci-dessous si le profil voyageur en spécifie une (Senior 300m, Famille
-  // 1000m, etc.). Sinon on impose un cluster ≤500m par défaut.
-  final maxConsecDist = travelerProfile?.maxConsecutiveDistanceMeters;
+  // 1000m, etc.). Le facteur transport local de l'utilisateur (walk → ×0.7,
+  // taxi → ×1.5...) est appliqué pour aligner la consigne avec le scoring
+  // déterministe en aval.
+  final maxConsecDist = travelerProfile?.maxConsecutiveDistanceMeters == null
+      ? null
+      : effectiveMaxConsecutiveDistance(
+          travelerProfile: travelerProfile,
+          localTransportMode: trip.localTransportMode,
+        );
   final profileBlock = travelerProfile == null
       ? ''
       : '\nProfil voyageur "${trip.travelerType}" : ${travelerProfile.rule ?? "—"}'
-          '${travelerProfile.maxActivityMinutes != null ? "\nDurée max par activité : ${travelerProfile.maxActivityMinutes} min." : ""}';
+            '${travelerProfile.maxActivityMinutes != null ? "\nDurée max par activité : ${travelerProfile.maxActivityMinutes} min." : ""}';
 
   // Guidance par catégorie. La pool est déjà filtrée par catégorie au niveau
   // de `runAutoPlacesFirst` (interestsOverride). Les consignes ci-dessous
@@ -2177,7 +2703,8 @@ String buildAutoPrompt({
       : 'MINIMUM 3 activités par jour';
 
   final categoryGuidance = switch (category) {
-    SuggestionCategory.all => '''
+    SuggestionCategory.all =>
+      '''
 🍽️ REPAS : ne propose AUCUN restaurant, café, brasserie, bistrot, bakery, food court ou bar à manger. Le code insère automatiquement déjeuner (12h30) et dîner (19h30) après ta réponse, en sélectionnant le meilleur restaurant proche de tes activités. Tu te concentres uniquement sur les VISITES & ACTIVITÉS.
 
 Pour CHAQUE jour, sélectionne $volumeRangeAll étalées sur la journée :
@@ -2186,13 +2713,15 @@ Pour CHAQUE jour, sélectionne $volumeRangeAll étalées sur la journée :
 - Soirée (21h+) : 0-1 activité (concert, événement, spectacle) — uniquement si profil compatible (pas si enfants)
 
 ⚠️ $volumeMinAll. Varie les types d'activités dans la même journée et les choix entre les jours.''',
-    SuggestionCategory.restaurants => '''
+    SuggestionCategory.restaurants =>
+      '''
 Pour CHAQUE jour, sélectionne 2 à 3 repas étalés :
 - Petit-déjeuner (8h-10h) : optionnel, seulement si la pool contient des cafés/bakeries
 - Déjeuner (12h-13h30) : 1 restaurant
 - Dîner (19h-21h) : 1 restaurant
 Varie le style et la gamme entre les jours. Pas de doublon sur la durée du voyage si possible.''',
-    SuggestionCategory.activities => '''
+    SuggestionCategory.activities =>
+      '''
 Pour CHAQUE jour, sélectionne EXACTEMENT 4 à 6 activités NON ALIMENTAIRES étalées :
 - Matin (9h-12h) : 1-2 activités
 - Après-midi (14h-18h) : 2-3 activités
@@ -2215,6 +2744,41 @@ Pour CHAQUE jour, sélectionne EXACTEMENT 4 à 6 activités NON ALIMENTAIRES ét
 - Chaque lieu du catalogue a ses coordonnées entre parenthèses (lat,lng).
 - Pour CHAQUE jour, ordonne tes activités par cluster géographique cohérent (≤800m entre activités successives idéalement).''';
 
+  // Accommodation : ancrage géographique non contraignant. Mentionné dans le
+  // prompt si présent (cf. brief Lalith 2026-05-08 — ne pas forcer toutes
+  // les activités à proximité, juste éviter les journées dispersées).
+  final accommodationLine = trip.accommodation != null
+      ? '\n- Hébergement : ${trip.accommodation!.name}'
+            '${trip.accommodation!.address != null && trip.accommodation!.address!.isNotEmpty ? " · ${trip.accommodation!.address}" : ""}'
+      : '';
+
+  // Définitions Lunao des intérêts (terminologie produit). Sans ça Gemini
+  // interprète "Hors circuit" / "Bons plans" génériquement et la qualité
+  // de matching baisse. Limite aux intérêts sélectionnés pour économiser
+  // les tokens.
+  final interestList = trip.interests ?? const <String>[];
+  final interestDefinitionsBody = interestList
+      .map((i) => interestExplanations[i] != null
+          ? '- $i : ${interestExplanations[i]}'
+          : '- $i')
+      .join('\n');
+  final interestDefinitions = interestList.isEmpty
+      ? ''
+      : '\n\nDéfinitions Lunao des centres d\'intérêt sélectionnés :\n$interestDefinitionsBody';
+
+  // Étapes existantes : si le voyage a déjà des étapes, c'est un circuit
+  // déjà esquissé. Lunao doit compléter, pas repartir de zéro. Cf. brief
+  // Lalith 2026-05-08.
+  final hasSegments = trip.itinerarySegments.isNotEmpty;
+  final segmentsBlock = hasSegments
+      ? '\n\n📍 ÉTAPES DÉJÀ DÉFINIES POUR CE VOYAGE — contexte fort :\n'
+            '${trip.itinerarySegments.map((s) => "- ${s.city}${s.country != null ? " (${s.country})" : ""} · ${s.days} jour${s.days > 1 ? 's' : ''}").join('\n')}\n'
+            'Ces étapes sont des contraintes : ne repars pas de zéro. '
+            'Privilégie les activités cohérentes géographiquement avec '
+            'l\'étape du jour, et complète/ajuste l\'itinéraire au lieu '
+            'de le reconstruire.'
+      : '';
+
   return '''
 Tu es un expert en voyages. Tu dois SÉLECTIONNER (pas inventer) des activités pour un voyageur, en t'appuyant UNIQUEMENT sur la liste de lieux RÉELS ci-dessous (tous vérifiés sur Google Places).
 
@@ -2229,7 +2793,7 @@ EXCEPTION : si le bâtiment EST un monument touristique reconnu (ex: "Hôtel de 
 Voyage :
 - Destination : ${trip.destination}
 - Voyageurs : $travelers${hasKids ? ' (enfants présents)' : ''}
-- Centres d'intérêt : ${trip.interests?.join(', ') ?? "non précisés"}$profileBlock
+- Centres d'intérêt : ${trip.interests?.join(', ') ?? "non précisés"}$accommodationLine$profileBlock$interestDefinitions$segmentsBlock
 
 Jours à organiser : $dayLines (${input.days.length} jour${input.days.length > 1 ? 's' : ''}).
 
@@ -2274,7 +2838,9 @@ List<ActivitySuggestion> parseAutoResponse({
   // hallucination Gemini sur le `day_date`). Si Gemini retourne un jour hors
   // de la liste fournie en prompt → on rejette plutôt que de mettre une
   // activité Épinal sur un jour Nancy. Cf. bug 26/04 J5.
-  final validDayKeys = input.days.map((d) => d.toIso8601String().split('T').first).toSet();
+  final validDayKeys = input.days
+      .map((d) => d.toIso8601String().split('T').first)
+      .toSet();
 
   final cleaned = _stripCodeFences(rawJson).trim();
   dynamic parsed;
@@ -2317,19 +2883,23 @@ List<ActivitySuggestion> parseAutoResponse({
       );
       continue;
     }
-    final tag = _tagFromPrimaryType(candidate.types.isNotEmpty ? candidate.types.first : '');
-    out.add(ActivitySuggestion(
-      dayDate: date,
-      startTime: startTime,
-      title: candidate.name,
-      detail: candidate.address,
-      tag: tag,
-      durationMinutes: (actJson['duration_minutes'] as num?)?.toInt(),
-      priceEstimate: (actJson['price_estimate'] as String?)?.trim(),
-      matchReason: (actJson['match_reason'] as String?)?.trim(),
-      latitude: candidate.latitude,
-      longitude: candidate.longitude,
-    ));
+    final tag = _tagFromPrimaryType(
+      candidate.types.isNotEmpty ? candidate.types.first : '',
+    );
+    out.add(
+      ActivitySuggestion(
+        dayDate: date,
+        startTime: startTime,
+        title: candidate.name,
+        detail: candidate.address,
+        tag: tag,
+        durationMinutes: (actJson['duration_minutes'] as num?)?.toInt(),
+        priceEstimate: (actJson['price_estimate'] as String?)?.trim(),
+        matchReason: (actJson['match_reason'] as String?)?.trim(),
+        latitude: candidate.latitude,
+        longitude: candidate.longitude,
+      ),
+    );
   }
   return out;
 }
@@ -2364,6 +2934,7 @@ Future<List<ActivitySuggestion>> runAutoPlacesFirst({
   required AiSuggestionsService aiService,
   required SuggestionCategory category,
   Set<String> existingTitlesNormalized = const {},
+
   /// Langue Places (BCP-47). Cf. `gatherCandidatesForTrip`.
   String? languageCode,
 }) async {
@@ -2374,7 +2945,9 @@ Future<List<ActivitySuggestion>> runAutoPlacesFirst({
   } else if (category == SuggestionCategory.activities) {
     interestsOverride = tripInterests.where((i) => i != 'Gastronomie').toList();
     if (interestsOverride.isEmpty) {
-      debugPrint('[places_first] Auto Places-first : intérêts non-repas vides → pool vide');
+      debugPrint(
+        '[places_first] Auto Places-first : intérêts non-repas vides → pool vide',
+      );
       return [];
     }
   }
@@ -2393,10 +2966,13 @@ Future<List<ActivitySuggestion>> runAutoPlacesFirst({
   }
 
   if (existingTitlesNormalized.isNotEmpty) {
-    String norm(String s) => s.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
+    String norm(String s) =>
+        s.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
     for (final day in pool) {
       day.byInterest.forEach((interest, list) {
-        list.removeWhere((c) => existingTitlesNormalized.contains(norm(c.name)));
+        list.removeWhere(
+          (c) => existingTitlesNormalized.contains(norm(c.name)),
+        );
       });
     }
   }
@@ -2416,28 +2992,30 @@ Future<List<ActivitySuggestion>> runAutoPlacesFirst({
     debugPrint(
       '[places_first] Auto Places-first (restos legacy Gemini) : ${groups.length} groupe(s) → ${clusters.length} cluster(s)',
     );
-    final results = await Future.wait(clusters.map((group) async {
-      final prompt = buildAutoPrompt(
-        input: group,
-        trip: trip,
-        travelerProfile: travelerProfile,
-        category: category,
-      );
-      try {
-        final raw = await aiService.generateRaw(
-          prompt: prompt,
-          cacheAction: 'places_first_auto',
-          cacheKey: prompt.hashCode.toString(),
-          temperature: 0.7,
+    final results = await Future.wait(
+      clusters.map((group) async {
+        final prompt = buildAutoPrompt(
+          input: group,
+          trip: trip,
+          travelerProfile: travelerProfile,
+          category: category,
         );
-        return parseAutoResponse(rawJson: raw, input: group);
-      } catch (e) {
-        debugPrint(
-          '[places_first] Auto Places-first restos : Gemini exception ${group.center.source} : $e',
-        );
-        return <ActivitySuggestion>[];
-      }
-    }));
+        try {
+          final raw = await aiService.generateRaw(
+            prompt: prompt,
+            cacheAction: 'places_first_auto',
+            cacheKey: prompt.hashCode.toString(),
+            temperature: 0.7,
+          );
+          return parseAutoResponse(rawJson: raw, input: group);
+        } catch (e) {
+          debugPrint(
+            '[places_first] Auto Places-first restos : Gemini exception ${group.center.source} : $e',
+          );
+          return <ActivitySuggestion>[];
+        }
+      }),
+    );
     return results.expand((s) => s).toList();
   }
 
@@ -2468,6 +3046,10 @@ Future<List<ActivitySuggestion>> runAutoPlacesFirst({
 
   // Insertion déterministe des repas en category=all uniquement.
   if (category == SuggestionCategory.all) {
+    final mealsBudgetCap = priceLevelCapForBudget(
+      budgetPerPersonEur: trip.budgetPerPersonEur,
+      durationDays: trip.durationDays,
+    );
     final meals = await insertDeterministicMeals(
       activities: merged,
       pool: pool,
@@ -2475,6 +3057,8 @@ Future<List<ActivitySuggestion>> runAutoPlacesFirst({
       travelerProfile: travelerProfile,
       tripInterests: tripInterests,
       languageCode: languageCode,
+      localTransportMode: trip.localTransportMode,
+      budgetPriceCap: mealsBudgetCap,
     );
     merged.addAll(meals);
   }

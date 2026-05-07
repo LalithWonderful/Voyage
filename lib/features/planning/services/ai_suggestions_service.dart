@@ -82,7 +82,7 @@ enum SuggestionCategory {
 /// (ex: "lieux Instagrammables" plutôt que "institut de beauté").
 /// Vocabulaire choisi pour coller aux termes qu'on trouve dans les guides de voyage
 /// (Lonely Planet, Routard, Fodor's...) — domaines où Gemini a le plus de contexte.
-const _interestExplanations = <String, String>{
+const interestExplanations = <String, String>{
   'Randonnée': 'sentiers balisés, treks, randonnées pédestres en montagne ou forêt, parcs nationaux, GR, balades nature avec points de vue',
   'Shopping': 'boutiques de créateurs, marchés artisanaux, concept stores, friperies vintage, centres commerciaux, souvenirs authentiques et artisanat local',
   'Nightlife': 'bars à cocktails, clubs, discothèques, rooftops, speakeasies, lounges, concerts tard le soir, DJ sets, pubs locaux',
@@ -126,7 +126,7 @@ const _travelerTypeExplanations = <String, String>{
       ? 'aucun spécifié'
       : interests
           .map((i) {
-            final desc = _interestExplanations[i];
+            final desc = interestExplanations[i];
             return desc != null ? '  • $i → $desc' : '  • $i';
           })
           .join('\n');

@@ -188,10 +188,17 @@ const interestPlacesQueries = <String, InterestPlacesQuery>{
     rule: 'vérifier ouverture aux horaires du créneau et durée compatible',
   ),
   'Plage': InterestPlacesQuery(
-    includedTypes: ['park', 'tourist_attraction'],
+    // Plage doit RESTER limité aux types nautiques. `tourist_attraction`
+    // était trop large : à Marrakech (intérieur des terres) il ramenait
+    // Jemaa el-Fnaa, Bahia Palace, etc. comme "Plage" (logs Lalith
+    // 2026-05-08). Si la ville n'est pas côtière, l'intérêt Plage doit
+    // rester vide pour ce centre — le voyageur comprend qu'il a coché un
+    // intérêt non pertinent pour la destination.
+    includedTypes: ['beach', 'natural_feature', 'water_park'],
     textQueries: ['plage', 'lac', 'bord de mer', 'front de mer'],
     minRating: 4.0,
-    rule: 'vérifier distance réelle au littoral',
+    rule: 'limité aux zones côtières/nautiques. Pour les villes intérieures, '
+        'l\'intérêt reste vide (pas de fallback sur tourist_attraction).',
   ),
   'Sports': InterestPlacesQuery(
     includedTypes: ['gym', 'stadium'],
