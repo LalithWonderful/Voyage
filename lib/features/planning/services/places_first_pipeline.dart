@@ -293,7 +293,7 @@ const Map<String, Set<String>> _premiumQueryCompatibilities =
 /// True si la query du profil voyageur est compatible avec l'intérêt
 /// courant. Si la query n'est dans aucune entrée de la map, on retourne
 /// true (default permissif — couvre les queries sans pollution connue).
-bool _isProfileQueryCompatibleWithInterest(String query, String interest) {
+bool isProfileQueryCompatibleWithInterest(String query, String interest) {
   final norm = _normalizeForMatch(query);
   for (final entry in _premiumQueryCompatibilities.entries) {
     if (norm.contains(entry.key)) {
@@ -764,7 +764,7 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
       final profileQueries = travelerProfile == null
           ? const <String>[]
           : travelerProfile.additionalTextQueries
-              .where((q) => _isProfileQueryCompatibleWithInterest(q, interest))
+              .where((q) => isProfileQueryCompatibleWithInterest(q, interest))
               .toList();
       final mergedTextQueries = <String>[
         ...query.textQueries,
@@ -1340,7 +1340,11 @@ const Set<String> _fastFoodPrimaryTypes = <String>{
 /// - tri final par score qualité (rating × log(userRatingCount))
 ///
 /// Retourne null si aucun candidat ne passe — l'appelant skip le créneau.
-Future<NearbyCandidate?> _findBestRestoNear({
+/// Retourne `(candidate, radiusUsed)` : le rayon effectivement utilisé pour
+/// trouver le candidat permet à l'appelant d'annoter le matchReason ("un peu
+/// plus loin car peu d'options proches" si on a dû élargir au-delà du rayon
+/// initial).
+Future<(NearbyCandidate, int)?> _findBestRestoNear({
   required PlacesNearbyService nearbyService,
   required double latitude,
   required double longitude,
@@ -1362,13 +1366,15 @@ Future<NearbyCandidate?> _findBestRestoNear({
   /// cap. Lieux sans priceLevel toujours conservés.
   int? budgetPriceCap,
 }) async {
-  // Cascade distance pour restos : si rien à `radius`, on étend à 2× puis 4×.
-  // Évite J1 sans repas quand le top resto est à 250m mais radius = 240m (cas
-  // Senior avec maxConsec=300m × 0.8). On garde le radius initial comme cible
-  // mais on autorise plus loin si pool vide.
+  // Cascade distance fixe (Lalith 2026-05-08) : commence au rayon profil
+  // (typiquement 600m, descend à 240m pour Senior à pied), élargit à 1000m
+  // si rien n'est trouvé, puis 1500m max. Au-delà on laisse le slot vide
+  // plutôt que de proposer un mauvais lieu trop loin du centre du jour.
+  // Le rayon retenu est exposé pour annoter le matchReason.
+  final cascade = <int>{radius, 1000, 1500}.toList()..sort();
   List<NearbyCandidate> candidates = const [];
-  for (final mult in const [1.0, 2.0, 4.0]) {
-    final r = (radius * mult).round();
+  int radiusUsed = radius;
+  for (final r in cascade) {
     candidates = await nearbyService.searchNearby(
       latitude: latitude,
       longitude: longitude,
@@ -1377,7 +1383,10 @@ Future<NearbyCandidate?> _findBestRestoNear({
       maxResults: 20,
       languageCode: languageCode,
     );
-    if (candidates.isNotEmpty) break;
+    if (candidates.isNotEmpty) {
+      radiusUsed = r;
+      break;
+    }
   }
 
   // Seuils effectifs : profil voyageur + boost Gastronomie + plancher 4.0
@@ -1471,7 +1480,7 @@ Future<NearbyCandidate?> _findBestRestoNear({
   }
 
   filtered.sort((a, b) => score(b).compareTo(score(a)));
-  return filtered.first;
+  return (filtered.first, radiusUsed);
 }
 
 /// Slots de visite pour la journée selon le volume cible (= maxActivitiesPerDay
@@ -1569,12 +1578,30 @@ List<ActivitySuggestion> selectVisitsDeterministic({
   // lieux communs (Place Stanislas dans cluster hôtel ET cluster segment).
   const maxReusePerCluster = 2;
   final useCountAcrossTrip = <String, int>{};
+
+  // Cap densité Wellness — test Lalith 2026-05-08 (Essaouira) : sans cap,
+  // 4 wellness en 3 jours (Sidi Magdoul + Hammam Kenza puis Spa Cocooning +
+  // Spa Zen) alors que Wellness n'était pas un intérêt fort. Règles :
+  // - Wellness PAS dans tripInterests (cas par défaut) :
+  //   max 1/jour ET max 2/cluster (= segment_city). Hard cap.
+  // - Wellness DANS tripInterests :
+  //   pas de hard cap, mais soft penalty -25 si la demi-journée précédente
+  //   a déjà un wellness pick (évite enchaîner spa matin + spa aprem).
+  final wellnessIsStrongInterest = tripInterests.contains('Wellness');
+  const maxWellnessPerDayLight = 1;
+  const maxWellnessPerClusterLight = 2;
+
   for (final cluster in clusters) {
     final useCountThisCluster = <String, int>{};
     final entries = cluster.pool.entries.toList();
+    var wellnessCountThisCluster = 0;
 
     for (final day in cluster.days) {
       final usedThisDay = <String>{};
+      var wellnessCountThisDay = 0;
+      // Indique si la demi-journée précédente du même jour a déjà un
+      // wellness pick (sert au soft penalty quand Wellness est intérêt fort).
+      var lastHalfDayHadWellness = false;
       ActivitySuggestion? lastActivity;
 
       for (final slot in slots) {
@@ -1633,6 +1660,15 @@ List<ActivitySuggestion> selectVisitsDeterministic({
               (useCountAcrossTrip[n] ?? 0) >= 1) {
             return false;
           }
+          // Cap densité Wellness — uniquement si Wellness n'est PAS un
+          // intérêt explicite du voyageur. Limite max 1 par jour et
+          // max 2 par cluster (≈ segment_city).
+          if (!wellnessIsStrongInterest && _isWellnessPrimaryType(c)) {
+            if (wellnessCountThisDay >= maxWellnessPerDayLight) return false;
+            if (wellnessCountThisCluster >= maxWellnessPerClusterLight) {
+              return false;
+            }
+          }
           return true;
         }).toList();
 
@@ -1640,7 +1676,7 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           // Diagnostic : pourquoi aucun candidat ne passe les filtres durs ?
           var rejectTime = 0, rejectMeal = 0, rejectExisting = 0;
           var rejectCity = 0, rejectDay = 0, rejectReuse = 0, rejectIconic = 0;
-          var rejectDup = 0;
+          var rejectDup = 0, rejectWellness = 0;
           for (final e in entries) {
             final c = e.value.candidate;
             if (!_isAppropriateForTime(c, slot)) {
@@ -1689,10 +1725,17 @@ List<ActivitySuggestion> selectVisitsDeterministic({
               rejectIconic++;
               continue;
             }
+            if (!wellnessIsStrongInterest && _isWellnessPrimaryType(c)) {
+              if (wellnessCountThisDay >= maxWellnessPerDayLight ||
+                  wellnessCountThisCluster >= maxWellnessPerClusterLight) {
+                rejectWellness++;
+                continue;
+              }
+            }
           }
           debugPrint(
             '[places_first] ⚠️ ${day.toIso8601String().split("T").first} slot $slot : 0 candidat sur ${entries.length} '
-            '(rejet horaire=$rejectTime, repas=$rejectMeal, existant=$rejectExisting, ville=$rejectCity, déjà-pris-voyage=$rejectDup, déjà-jour=$rejectDay, sur-utilisé=$rejectReuse, iconic-déjà-vu=$rejectIconic)',
+            '(rejet horaire=$rejectTime, repas=$rejectMeal, existant=$rejectExisting, ville=$rejectCity, déjà-pris-voyage=$rejectDup, déjà-jour=$rejectDay, sur-utilisé=$rejectReuse, iconic-déjà-vu=$rejectIconic, cap-wellness=$rejectWellness)',
           );
           continue;
         }
@@ -1762,12 +1805,23 @@ List<ActivitySuggestion> selectVisitsDeterministic({
               c.types.contains('landmark');
           final iconicTouristBonus =
               (hasIconicTouristType && reviewCount >= 500) ? 6.0 : 0.0;
+          // Soft penalty wellness consécutif (même demi-journée). Actif
+          // uniquement quand Wellness est intérêt fort (sinon le hard cap
+          // ci-dessus a déjà filtré). -25 pousse vers une autre activité
+          // sans bloquer dur si la pool n'a rien d'autre.
+          final wellnessConsecutivePenalty =
+              (wellnessIsStrongInterest &&
+                      lastHalfDayHadWellness &&
+                      _isWellnessPrimaryType(c))
+                  ? 25.0
+                  : 0.0;
           return qualityScore +
               interestBonus +
               iconicMuseumBonus +
               iconicTouristBonus -
               distancePenalty -
-              diversityPenalty;
+              diversityPenalty -
+              wellnessConsecutivePenalty;
         }
 
         candidates.sort((a, b) => score(b).compareTo(score(a)));
@@ -1858,6 +1912,20 @@ List<ActivitySuggestion> selectVisitsDeterministic({
         useCountAcrossTrip[pickName] = (useCountAcrossTrip[pickName] ?? 0) + 1;
         usedThisDay.add(pickName);
         selectedDedupKeys.add(_dedupKeyForCandidate(pick));
+        if (_isWellnessPrimaryType(pick)) {
+          wellnessCountThisDay += 1;
+          wellnessCountThisCluster += 1;
+          // Demi-journée matin = avant 13h, aprem = après. On marque le
+          // flag actif si le pick courant est wellness pour pénaliser le
+          // pick suivant *du même jour* (le flag est reset à chaque jour
+          // via la déclaration `var lastHalfDayHadWellness = false`).
+          lastHalfDayHadWellness = true;
+        } else {
+          // Pick non-wellness : on relâche le flag pour laisser le
+          // prochain wellness éventuel passer sans pénalité dans la
+          // demi-journée suivante.
+          lastHalfDayHadWellness = false;
+        }
         lastActivity = out.last;
       }
     }
@@ -1887,7 +1955,15 @@ int _defaultDurationForType(String primaryType) {
   }
   if (primaryType == 'shopping_mall' || primaryType.contains('store'))
     return 60;
-  if (primaryType == 'spa' || primaryType == 'beauty_salon') return 90;
+  if (primaryType == 'spa' ||
+      primaryType == 'massage_spa' ||
+      primaryType == 'wellness_center' ||
+      primaryType == 'sauna' ||
+      primaryType == 'hammam' ||
+      primaryType == 'thermal_bath' ||
+      primaryType == 'beauty_salon') {
+    return 90;
+  }
   if (primaryType == 'historical_landmark' ||
       primaryType == 'monument' ||
       primaryType == 'tourist_attraction') {
@@ -2073,35 +2149,49 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
 
     String? lunchPrimaryType;
     if (lunch != null) {
-      lunchPrimaryType = lunch.types.isNotEmpty ? lunch.types.first : null;
+      final lunchCandidate = lunch.$1;
+      final lunchRadiusUsed = lunch.$2;
+      lunchPrimaryType = lunchCandidate.types.isNotEmpty
+          ? lunchCandidate.types.first
+          : null;
       final dM = distMeters(
         lunchLat,
         lunchLng,
-        lunch.latitude,
-        lunch.longitude,
+        lunchCandidate.latitude,
+        lunchCandidate.longitude,
       );
+      // Suffixe reason si on a dû élargir au-delà du rayon initial (peu
+      // d'options proches du centre du jour).
+      final widenedSuffix = lunchRadiusUsed > mealRadius
+          ? ' — un peu plus loin car peu d\'options proches'
+          : '';
       out.add(
         ActivitySuggestion(
           dayDate: dayCenter.day,
           startTime: '12:30',
-          title: lunch.name,
-          detail: lunch.address,
+          title: lunchCandidate.name,
+          detail: lunchCandidate.address,
           tag: 'Repas',
           durationMinutes: 75,
-          priceEstimate: priceFromLevel(lunch.priceLevel),
+          priceEstimate: priceFromLevel(lunchCandidate.priceLevel),
           matchReason:
-              'Top noté ★${lunch.rating} (${lunch.userRatingCount ?? 0} avis), à ${dM}m de "$lunchAnchorLabel"',
-          latitude: lunch.latitude,
-          longitude: lunch.longitude,
+              'Top noté ★${lunchCandidate.rating} (${lunchCandidate.userRatingCount ?? 0} avis), à ${dM}m de "$lunchAnchorLabel"$widenedSuffix',
+          latitude: lunchCandidate.latitude,
+          longitude: lunchCandidate.longitude,
         ),
       );
-      final lunchKey = norm(lunch.name);
+      final lunchKey = norm(lunchCandidate.name);
       excludeTitles.add(lunchKey);
       restoUseCount[lunchKey] = (restoUseCount[lunchKey] ?? 0) + 1;
       if (lunchPrimaryType != null) {
         cuisineUseCount[lunchPrimaryType] =
             (cuisineUseCount[lunchPrimaryType] ?? 0) + 1;
       }
+    } else {
+      debugPrint(
+        '[places_first] ⚠️ ${dayCenter.day.toIso8601String().split("T").first} déjeuner : '
+        'aucun resto fiable trouvé jusqu\'à 1500m de "$lunchAnchorLabel" — slot laissé vide',
+      );
     }
 
     // Ancre dîner : aprem (13h-19h) ou centre du jour
@@ -2155,36 +2245,46 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
     );
 
     if (dinner != null) {
+      final dinnerCandidate = dinner.$1;
+      final dinnerRadiusUsed = dinner.$2;
       final dM = distMeters(
         dinnerLat,
         dinnerLng,
-        dinner.latitude,
-        dinner.longitude,
+        dinnerCandidate.latitude,
+        dinnerCandidate.longitude,
       );
-      final dinnerPrimaryType = dinner.types.isNotEmpty
-          ? dinner.types.first
+      final widenedSuffix = dinnerRadiusUsed > mealRadius
+          ? ' — un peu plus loin car peu d\'options proches'
+          : '';
+      final dinnerPrimaryType = dinnerCandidate.types.isNotEmpty
+          ? dinnerCandidate.types.first
           : null;
       out.add(
         ActivitySuggestion(
           dayDate: dayCenter.day,
           startTime: '19:30',
-          title: dinner.name,
-          detail: dinner.address,
+          title: dinnerCandidate.name,
+          detail: dinnerCandidate.address,
           tag: 'Repas',
           durationMinutes: 90,
-          priceEstimate: priceFromLevel(dinner.priceLevel),
+          priceEstimate: priceFromLevel(dinnerCandidate.priceLevel),
           matchReason:
-              'Top noté ★${dinner.rating} (${dinner.userRatingCount ?? 0} avis), à ${dM}m de "$dinnerAnchorLabel"',
-          latitude: dinner.latitude,
-          longitude: dinner.longitude,
+              'Top noté ★${dinnerCandidate.rating} (${dinnerCandidate.userRatingCount ?? 0} avis), à ${dM}m de "$dinnerAnchorLabel"$widenedSuffix',
+          latitude: dinnerCandidate.latitude,
+          longitude: dinnerCandidate.longitude,
         ),
       );
-      final dinnerKey = norm(dinner.name);
+      final dinnerKey = norm(dinnerCandidate.name);
       restoUseCount[dinnerKey] = (restoUseCount[dinnerKey] ?? 0) + 1;
       if (dinnerPrimaryType != null) {
         cuisineUseCount[dinnerPrimaryType] =
             (cuisineUseCount[dinnerPrimaryType] ?? 0) + 1;
       }
+    } else {
+      debugPrint(
+        '[places_first] ⚠️ ${dayCenter.day.toIso8601String().split("T").first} dîner : '
+        'aucun resto fiable trouvé jusqu\'à 1500m de "$dinnerAnchorLabel" — slot laissé vide',
+      );
     }
   }
   debugPrint(
@@ -2442,6 +2542,11 @@ String _tagFromPrimaryType(String primaryType) {
     return 'Shopping';
   }
   if (primaryType == 'spa' ||
+      primaryType == 'massage_spa' ||
+      primaryType == 'wellness_center' ||
+      primaryType == 'sauna' ||
+      primaryType == 'hammam' ||
+      primaryType == 'thermal_bath' ||
       primaryType == 'beauty_salon' ||
       primaryType == 'gym') {
     return 'Wellness';
@@ -2615,6 +2720,30 @@ bool _isMealPrimaryType(NearbyCandidate c) {
   return _mealPlaceTypes.contains(primary);
 }
 
+/// Types Places considérés comme "wellness" pour 2 usages :
+/// 1. cap densité dans `selectVisitsDeterministic` (max 1/jour, 2/cluster
+///    si Wellness pas un intérêt fort du voyageur)
+/// 2. tag affiché à l'utilisateur (`_tagFromPrimaryType` → 'Wellness')
+///
+/// `beauty_salon`/`hair_salon`/`nail_salon`/`massage` sont déjà filtrés
+/// en amont par `_hardExcludedPrimaryTypes` (services pratiques, pas
+/// activités touristiques) — pas besoin de les lister ici. `gym` reste
+/// taggé Wellness via le mapping mais n'est pas concerné par le cap
+/// densité (un gym n'est pas un spa).
+const Set<String> _wellnessPrimaryTypes = <String>{
+  'spa',
+  'massage_spa',
+  'wellness_center',
+  'sauna',
+  'hammam',
+  'thermal_bath',
+};
+
+bool _isWellnessPrimaryType(NearbyCandidate c) {
+  if (c.types.isEmpty) return false;
+  return _wellnessPrimaryTypes.contains(c.types.first);
+}
+
 /// Types "bar" qui imposent la règle ≥17h même si types secondaires acceptent
 /// un autre créneau. Couvre les pubs/clubs typés `irish_pub` ou `cocktail_bar`
 /// en primary, qui ont souvent `restaurant` ou `food` en secondaire et
@@ -2707,8 +2836,13 @@ bool? _typeAllowedAtHour(String type, double hour) {
     case 'jewelry_store':
     case 'book_store':
       return hour >= 10.0 && hour <= 20.0;
-    // Spas / beauté : 9h-20h
+    // Spas / beauté / wellness : 9h-20h
     case 'spa':
+    case 'massage_spa':
+    case 'wellness_center':
+    case 'sauna':
+    case 'hammam':
+    case 'thermal_bath':
     case 'beauty_salon':
     case 'hair_salon':
     case 'nail_salon':
