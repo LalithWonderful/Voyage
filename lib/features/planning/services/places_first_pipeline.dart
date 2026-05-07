@@ -52,6 +52,17 @@ int? priceLevelCapForBudget({
   return null;
 }
 
+/// Clé stable pour dédupliquer un candidat dans le sélecteur global. On
+/// privilégie le `placeId` Google (unique et fiable). Fallback prudent :
+/// nom normalisé + coords arrondies à 3 décimales (~111m × 73m en France)
+/// pour les rares cas où placeId est vide.
+String _dedupKeyForCandidate(NearbyCandidate c) {
+  if (c.placeId.isNotEmpty) return 'pid:${c.placeId}';
+  final lat = c.latitude.toStringAsFixed(3);
+  final lng = c.longitude.toStringAsFixed(3);
+  return 'name:${_normalizeForMatch(c.name)}@$lat,$lng';
+}
+
 /// Multiplicateur appliqué à `maxConsecutiveDistanceMeters` selon le mode
 /// de déplacement local choisi par l'utilisateur. Permet de resserrer le
 /// clustering si l'utilisateur préfère marcher, ou de l'élargir s'il
@@ -1395,6 +1406,15 @@ List<ActivitySuggestion> selectVisitsDeterministic({
 
   final out = <ActivitySuggestion>[];
 
+  // Set de clés de dédup global au voyage : un même lieu (placeId, ou
+  // fallback name+coords arrondies) ne peut apparaître qu'une seule fois
+  // dans tout l'itinéraire. Évite les doublons entre clusters non
+  // connectés par le `useCountThisCluster` (cas observé Lalith
+  // 2026-05-08 : Plage d'Essaouira / Hammam Kenza / Sidi Magdoul Hammam
+  // pickés à la fois le 15/05 et le 17/05 dans le même cluster mais
+  // qui s'évite via cluster — et pareil entre 2 clusters Essaouira).
+  final selectedDedupKeys = <String>{};
+
   // 3 niveaux de cap : par jour (max 1×, strict), par cluster (max 2×),
   // ET par voyage (compteur global pour pénaliser dans le scoring).
   // Le compteur global évite J6 = J1/J3 quand 2 clusters proches ont des
@@ -1432,6 +1452,13 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           // génériques qui ont le nom de la ville (ex: "Épinal" tagué
           // tourist_attraction).
           if (cityNamesNorm.contains(n)) return false;
+          // Cap dur global : un même lieu ne peut apparaître qu'une seule
+          // fois dans tout le voyage. Évite "Plage d'Essaouira" pickée le
+          // 15/05 ET le 17/05 (cas observé Lalith 2026-05-08). Clé =
+          // placeId si présent, sinon fallback name+coords arrondies.
+          if (selectedDedupKeys.contains(_dedupKeyForCandidate(c))) {
+            return false;
+          }
           // Cap par jour : interdiction stricte de prendre le même lieu 2 fois
           // sur la même journée. Évite Bergeret Building 10:00 ET 14:30.
           if (usedThisDay.contains(n)) return false;
@@ -1465,6 +1492,7 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           // Diagnostic : pourquoi aucun candidat ne passe les filtres durs ?
           var rejectTime = 0, rejectMeal = 0, rejectExisting = 0;
           var rejectCity = 0, rejectDay = 0, rejectReuse = 0, rejectIconic = 0;
+          var rejectDup = 0;
           for (final e in entries) {
             final c = e.value.candidate;
             if (!_isAppropriateForTime(c, slot)) {
@@ -1482,6 +1510,10 @@ List<ActivitySuggestion> selectVisitsDeterministic({
             }
             if (cityNamesNorm.contains(n)) {
               rejectCity++;
+              continue;
+            }
+            if (selectedDedupKeys.contains(_dedupKeyForCandidate(c))) {
+              rejectDup++;
               continue;
             }
             if (usedThisDay.contains(n)) {
@@ -1512,7 +1544,7 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           }
           debugPrint(
             '[places_first] ⚠️ ${day.toIso8601String().split("T").first} slot $slot : 0 candidat sur ${entries.length} '
-            '(rejet horaire=$rejectTime, repas=$rejectMeal, existant=$rejectExisting, ville=$rejectCity, déjà-jour=$rejectDay, sur-utilisé=$rejectReuse, iconic-déjà-vu=$rejectIconic)',
+            '(rejet horaire=$rejectTime, repas=$rejectMeal, existant=$rejectExisting, ville=$rejectCity, déjà-pris-voyage=$rejectDup, déjà-jour=$rejectDay, sur-utilisé=$rejectReuse, iconic-déjà-vu=$rejectIconic)',
           );
           continue;
         }
@@ -1677,6 +1709,7 @@ List<ActivitySuggestion> selectVisitsDeterministic({
             (useCountThisCluster[pickName] ?? 0) + 1;
         useCountAcrossTrip[pickName] = (useCountAcrossTrip[pickName] ?? 0) + 1;
         usedThisDay.add(pickName);
+        selectedDedupKeys.add(_dedupKeyForCandidate(pick));
         lastActivity = out.last;
       }
     }
