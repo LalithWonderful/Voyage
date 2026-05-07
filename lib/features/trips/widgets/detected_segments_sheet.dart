@@ -3,6 +3,7 @@ import 'package:voyage/core/theme/app_theme.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/services/flight_timeline_builder.dart';
 import 'package:voyage/features/trips/services/trip_segment_sync_service.dart';
+import 'package:voyage/features/trips/widgets/trip_step_card.dart';
 
 /// Sheet de PREVIEW de la timeline déduite des vols.
 /// Affichée après le save d'un doc Vol/Train (ou via "Synchroniser depuis
@@ -228,7 +229,8 @@ class DetectedSegmentsSheet extends StatelessWidget {
 // ─── Sub-widgets ─────────────────────────────────────────────────────────
 
 /// Étape de la timeline : dot bleu à gauche + connecteur vertical (sauf
-/// dernière étape) + card de contenu à droite.
+/// dernière étape) + [TripStepCard] partagée à droite. La card est un
+/// composant commun avec la sheet d'édition (cohérence visuelle).
 class _TimelineStop extends StatelessWidget {
   final FlightStayCandidate stay;
   final bool isLast;
@@ -272,138 +274,20 @@ class _TimelineStop extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          // Card contenu : radius plus généreux, ombre micro-soft, bordure
-          // adoucie pour un rendu premium sobre.
           Expanded(
             child: Padding(
               padding: EdgeInsets.only(bottom: isLast ? 0 : 8),
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  border: Border.all(
-                    color: AppColors.border.withValues(alpha: 0.7),
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.04),
-                      blurRadius: 4,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Ligne 1 : ville + pays + badge durée
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: RichText(
-                            text: TextSpan(
-                              children: [
-                                TextSpan(
-                                  text: stay.city,
-                                  style: TextStyle(
-                                    fontSize: 14.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                ),
-                                if (stay.country != null)
-                                  TextSpan(
-                                    text: '  ·  ${stay.country}',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: AppColors.textSecondary,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        _DurationPill(days: stay.days),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    // Ligne 2 : dates
-                    Row(
-                      children: [
-                        Icon(Icons.calendar_today,
-                            size: 11, color: AppColors.textSecondary),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Du ${_fmt(stay.startDate)} au ${_fmt(stay.endDate)}',
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    // Ligne 3 : source
-                    Row(
-                      children: [
-                        Icon(Icons.flight,
-                            size: 11, color: AppColors.textSecondary),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            'Depuis : ${stay.sourceDocName}',
-                            style: TextStyle(
-                              fontSize: 10.5,
-                              color: AppColors.textSecondary,
-                              fontStyle: FontStyle.italic,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+              child: TripStepCard(
+                city: stay.city,
+                country: stay.country,
+                days: stay.days,
+                startDate: stay.startDate,
+                endDate: stay.endDate,
+                sourceLabel: stay.sourceDocName,
               ),
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  static String _fmt(DateTime d) =>
-      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
-}
-
-/// Pill arrondi mettant en avant la durée du séjour. Léger contraste avec
-/// border subtile pour un rendu premium sans aplat brut.
-class _DurationPill extends StatelessWidget {
-  final int days;
-  const _DurationPill({required this.days});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
-      decoration: BoxDecoration(
-        color: AppColors.primaryLight,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: AppColors.primary.withValues(alpha: 0.18),
-          width: 1,
-        ),
-      ),
-      child: Text(
-        '$days jour${days > 1 ? 's' : ''}',
-        style: TextStyle(
-          fontSize: 11.5,
-          fontWeight: FontWeight.w700,
-          color: AppColors.primaryDark,
-          letterSpacing: 0.1,
-        ),
       ),
     );
   }

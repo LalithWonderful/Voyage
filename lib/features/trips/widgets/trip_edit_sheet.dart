@@ -13,6 +13,7 @@ import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
 import 'package:voyage/features/trips/widgets/airport_picker_dialog.dart';
 import 'package:voyage/features/trips/widgets/regional_loop_sheet.dart';
+import 'package:voyage/features/trips/widgets/trip_step_card.dart';
 
 const _coverEmojis = ['✈️', '🏝️', '🏔️', '🏙️', '🏞️', '🌴', '🛶', '🚐', '🎡', '🎿', '🗺️', '🌍'];
 
@@ -107,6 +108,16 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
   String? _arrivalTransportMode;
   /// Override mode local (best/public_transport/walk/taxi/...). Null = profil.
   String? _localTransportMode;
+
+  /// État d'expansion de chaque section accordéon. Default : Info + Étapes
+  /// ouverts ; Préférences + Transport fermés. Reset à chaque ouverture
+  /// de la sheet (pas de persistance — V1 simple).
+  final Map<String, bool> _sectionExpanded = {
+    'info': true,
+    'segments': true,
+    'preferences': false,
+    'transport': false,
+  };
 
   @override
   void initState() {
@@ -290,30 +301,113 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
   String _fmtDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
-  /// Calcule les dates effectives d'une étape selon son index dans la liste.
-  /// Renvoie un libellé compact (ex: "du 25 au 28/04" ou "du 28/04 au 02/05").
-  /// Format **"départ exclusif"** : `to` = date à laquelle l'user repart de
-  /// l'étape (= début de l'étape suivante). Cohérent avec le résumé du
-  /// dialog d'ajout d'étape qui dit "Ko Samui sera ajouté du jeu. 2 juillet
-  /// au sam. 4 juillet" pour 2 jours sur place. Le voyageur pense en
-  /// termes "j'arrive le X et je repars le Y" (convention hôtelière).
-  String _fmtSegmentDates(int index) {
+  /// Bornes (start, end) calculées d'un segment selon son index dans la liste.
+  /// `end` est en convention "départ exclusif" : c'est le jour où le voyageur
+  /// repart de cette étape (= début de l'étape suivante).
+  /// Cohérent avec le résumé du dialog d'ajout d'étape qui dit "Ko Samui sera
+  /// ajouté du jeu. 2 juillet au sam. 4 juillet" pour 2 jours sur place. Le
+  /// voyageur pense en termes "j'arrive le X et je repars le Y" (convention
+  /// hôtelière).
+  ({DateTime start, DateTime end}) _segmentDates(int index) {
     var offsetBefore = 0;
     for (var i = 0; i < index; i++) {
       offsetBefore += _segments[i].days;
     }
     final seg = _segments[index];
-    final from = _start.add(Duration(days: offsetBefore));
-    final to = from.add(Duration(days: seg.days));
-    final sameMonth = from.month == to.month && from.year == to.year;
-    if (sameMonth) {
-      return 'du ${from.day} au ${to.day}/${to.month.toString().padLeft(2, '0')}';
-    }
-    return 'du ${_fmtDate(from)} au ${_fmtDate(to)}';
+    final start = _start.add(Duration(days: offsetBefore));
+    final end = start.add(Duration(days: seg.days));
+    return (start: start, end: end);
   }
 
   /// Total des jours déjà placés dans les étapes — pour comparer avec la durée du voyage.
   int get _totalSegmentDays => _segments.fold(0, (s, seg) => s + seg.days);
+
+  // ─── Résumés affichés quand les sections accordéon sont fermées ──────
+
+  /// "Thaïlande · 21/06 → 06/08" (ou "Thaïlande · Mai 2026" si dates synthétiques).
+  String _summaryInfo() {
+    final dest = _destCtrl.text.trim().isEmpty
+        ? 'Destination à choisir'
+        : _destCtrl.text.trim();
+    final dates = '${_fmtDate(_start)} → ${_fmtDate(_end)}';
+    return '$dest · $dates';
+  }
+
+  /// "5 étapes · Bangkok · Phú Quốc · Hanoï +2" (ou "Aucune étape" si vide).
+  String _summarySegments() {
+    if (_segments.isEmpty) return 'Aucune étape pour l\'instant';
+    final cities = _segments.map((s) => s.city).toList();
+    final shown = cities.take(3).join(' · ');
+    final extra = cities.length - 3;
+    final count = '${_segments.length} étape${_segments.length > 1 ? 's' : ''}';
+    return extra > 0 ? '$count · $shown +$extra' : '$count · $shown';
+  }
+
+  /// "Grand luxe · Culture · Gastronomie · Bons plans +8 · 600 €/pers. · Pilote auto"
+  /// (ou "Configuration globale du profil" si rien défini sur ce voyage).
+  String _summaryPreferences() {
+    final parts = <String>[];
+    if (_travelerType != null && _travelerType!.isNotEmpty) {
+      parts.add(_travelerType!);
+    }
+    if (_interests.isNotEmpty) {
+      final list = _interests.toList();
+      final shown = list.take(3).join(' · ');
+      final extra = list.length - 3;
+      parts.add(extra > 0 ? '$shown +$extra' : shown);
+    }
+    if (_budgetPerPersonEur != null) {
+      parts.add('$_budgetPerPersonEur €/pers.');
+    }
+    if (_planningMode != null) {
+      parts.add(_planningMode!.dbValue == 'auto'
+          ? 'Pilote auto'
+          : 'Co-pilote');
+    }
+    if (parts.isEmpty) return 'Configuration globale du profil';
+    return parts.join(' · ');
+  }
+
+  /// Résumé fermé pour la section "Déplacements & transport".
+  /// Format : "Avion · Départ Luxembourg · Transports en commun"
+  /// Affiche le NOM DE VILLE de l'aéroport (pas le code IATA brut), via
+  /// lookupAirport. Fallback "Préférences globales du profil" si aucun
+  /// override voyage.
+  String _summaryTransport() {
+    const arrivalLabels = {
+      'flight': 'Avion',
+      'train': 'Train',
+      'car': 'Voiture',
+      'bus': 'Bus',
+      'best': 'Meilleur compromis',
+    };
+    const localLabels = {
+      'public_transport': 'Transports en commun',
+      'walk': 'Marche',
+      'taxi': 'Taxi/VTC',
+      'car': 'Voiture',
+      'scooter': 'Scooter',
+      'comfort': 'Confort',
+      'budget': 'Économique',
+    };
+
+    final parts = <String>[];
+    if (_arrivalTransportMode != null) {
+      parts.add(arrivalLabels[_arrivalTransportMode!] ??
+          _arrivalTransportMode!);
+    }
+    if (_homeAirportIata != null && _homeAirportIata!.isNotEmpty) {
+      final lookup = lookupAirport(_homeAirportIata!);
+      // Préfère "Départ Luxembourg" plutôt que le code IATA brut "LUX".
+      final cityLabel = lookup?.city ?? _homeAirportIata!;
+      parts.add('Départ $cityLabel');
+    }
+    if (_localTransportMode != null) {
+      parts.add(localLabels[_localTransportMode!] ?? _localTransportMode!);
+    }
+    if (parts.isEmpty) return 'Préférences globales du profil';
+    return parts.join(' · ');
+  }
 
   /// Construit le texte de bilan affiché sous la liste des étapes. Logique :
   /// - couvre exactement → message "✓ X jours placés"
@@ -758,38 +852,58 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ─── Section haut : infos de base (sans card) ─────────────
-                    Text('EMOJI', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _coverEmojis.map((e) {
-                        final sel = _emoji == e;
-                        return GestureDetector(
-                          onTap: () => setState(() => _emoji = e),
-                          child: Container(
-                            width: 42, height: 42,
-                            decoration: BoxDecoration(
-                              color: sel ? AppColors.primaryLight : AppColors.surface,
-                              border: Border.all(color: sel ? AppColors.primary : AppColors.border, width: sel ? 2 : 1),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Center(child: Text(e, style: const TextStyle(fontSize: 22))),
+                    // ─── Section 1 : Informations générales (ouverte par défaut) ─
+                    _TripEditSection(
+                      title: 'Informations générales',
+                      summary: _summaryInfo(),
+                      expanded: _sectionExpanded['info']!,
+                      onToggle: () => setState(() =>
+                          _sectionExpanded['info'] = !_sectionExpanded['info']!),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('EMOJI', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: _coverEmojis.map((e) {
+                              final sel = _emoji == e;
+                              return GestureDetector(
+                                onTap: () => setState(() => _emoji = e),
+                                child: Container(
+                                  width: 42,
+                                  height: 42,
+                                  decoration: BoxDecoration(
+                                    color: sel
+                                        ? AppColors.primaryLight
+                                        : AppColors.surface,
+                                    border: Border.all(
+                                      color: sel
+                                          ? AppColors.primary
+                                          : AppColors.border,
+                                      width: sel ? 2 : 1,
+                                    ),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Center(
+                                    child: Text(e,
+                                        style: const TextStyle(fontSize: 22)),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
                           ),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 16),
-                    Text('TITRE *', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
-                    const SizedBox(height: 6),
-                    TextField(controller: _titleCtrl),
-                    const SizedBox(height: 14),
-                    Text('DESTINATION *', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
-                    const SizedBox(height: 6),
-                    // Autocomplete élargi : accepte aussi pays/région pour
-                    // imposer ensuite le découpage en étapes (cf. _destinationKind).
-                    CityAutocompleteField(
+                          const SizedBox(height: 16),
+                          Text('TITRE *', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+                          const SizedBox(height: 6),
+                          TextField(controller: _titleCtrl),
+                          const SizedBox(height: 14),
+                          Text('DESTINATION *', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+                          const SizedBox(height: 6),
+                          // Autocomplete élargi : accepte aussi pays/région pour
+                          // imposer ensuite le découpage en étapes (cf. _destinationKind).
+                          CityAutocompleteField(
                       key: ValueKey('dest-${widget.trip.id}'),
                       initialValue: _destCtrl.text,
                       acceptAnyDestination: true,
@@ -851,28 +965,60 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
                         }
                       },
                     ),
-                    const SizedBox(height: 14),
+                          const SizedBox(height: 14),
+                          // Dates départ / retour incluses dans Informations générales
+                          Row(
+                            children: [
+                              Expanded(child: _dateField(label: 'Départ', value: _fmtDate(_start), onTap: () => _pickDate(isStart: true))),
+                              const SizedBox(width: 10),
+                              Expanded(child: _dateField(label: 'Retour', value: _fmtDate(_end), onTap: () => _pickDate(isStart: false))),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
 
-                    // ─── Cards de configuration (ordre = chronologie mentale du voyageur :
-                    // où précisément → quand → comment je voyage → comment l'IA m'aide).
+                    // ─── Section 2 : Étapes du voyage (ouverte par défaut) ────
                     // Le bandeau ⚠️ pays/région vit À L'INTÉRIEUR de la card étapes,
                     // pour ne pas dupliquer l'alerte (cf. _buildSegmentsCard).
-                    _buildSegmentsCard(),
-
-                    Row(
-                      children: [
-                        Expanded(child: _dateField(label: 'Départ', value: _fmtDate(_start), onTap: () => _pickDate(isStart: true))),
-                        const SizedBox(width: 10),
-                        Expanded(child: _dateField(label: 'Retour', value: _fmtDate(_end), onTap: () => _pickDate(isStart: false))),
-                      ],
+                    _TripEditSection(
+                      title: 'Étapes du voyage',
+                      summary: _summarySegments(),
+                      expanded: _sectionExpanded['segments']!,
+                      onToggle: () => setState(() => _sectionExpanded['segments'] =
+                          !_sectionExpanded['segments']!),
+                      child: _buildSegmentsCard(),
                     ),
-                    const SizedBox(height: 22),
 
-                    _buildStyleCard(),
-                    _buildInterestsCard(),
-                    _buildBudgetCard(),
-                    _buildTransportCard(),
-                    _buildPlanningModeCard(),
+                    // ─── Section 3 : Préférences du voyage (fermée par défaut) ─
+                    _TripEditSection(
+                      title: 'Préférences du voyage',
+                      summary: _summaryPreferences(),
+                      expanded: _sectionExpanded['preferences']!,
+                      onToggle: () => setState(() => _sectionExpanded['preferences'] =
+                          !_sectionExpanded['preferences']!),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildStyleCard(),
+                          _buildInterestsCard(),
+                          _buildBudgetCard(),
+                          // Mode de planification glissé ici (validé par Lalith) —
+                          // c'est une préférence d'usage Lunao, pas du transport.
+                          _buildPlanningModeCard(),
+                        ],
+                      ),
+                    ),
+
+                    // ─── Section 4 : Déplacements & transport (fermée par défaut) ─
+                    _TripEditSection(
+                      title: 'Déplacements & transport',
+                      summary: _summaryTransport(),
+                      expanded: _sectionExpanded['transport']!,
+                      onToggle: () => setState(() => _sectionExpanded['transport'] =
+                          !_sectionExpanded['transport']!),
+                      child: _buildTransportCard(),
+                    ),
 
                     const SizedBox(height: 6),
                   ],
@@ -1705,64 +1851,31 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
             },
             itemBuilder: (ctx, i) {
               final seg = _segments[i];
+              final dates = _segmentDates(i);
               return Padding(
                 key: ValueKey('seg-$i-${seg.city}-${seg.days}'),
                 padding: const EdgeInsets.only(bottom: 8),
-                child: InkWell(
-                  onTap: () => _openSegmentEditor(existing: seg, index: i),
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: AppColors.background,
-                      border: Border.all(color: AppColors.border),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      children: [
-                        ReorderableDragStartListener(
-                          index: i,
-                          child: Icon(Icons.drag_indicator, size: 18, color: AppColors.textSecondary),
-                        ),
-                        const SizedBox(width: 8),
-                        Icon(Icons.place_outlined, size: 18, color: AppColors.primary),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Flexible(
-                                    child: Text(seg.city, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
-                                  ),
-                                  if (seg.country != null && seg.country!.isNotEmpty) ...[
-                                    const SizedBox(width: 6),
-                                    Text('· ${seg.country}', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                                  ],
-                                ],
-                              ),
-                              Text(
-                                '${seg.days} jour${seg.days > 1 ? 's' : ''} · ${_fmtSegmentDates(i)}',
-                                style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                              ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () => setState(() {
-                            _segments.removeAt(i);
-                            _enforceSingleSegmentRule();
-                          }),
-                          icon: const Icon(Icons.delete_outline, size: 18),
-                          color: AppColors.textSecondary,
-                          tooltip: 'Supprimer cette étape',
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                        ),
-                      ],
+                child: TripStepCard(
+                  city: seg.city,
+                  country: seg.country,
+                  days: seg.days,
+                  startDate: dates.start,
+                  endDate: dates.end,
+                  // Drag handle discret à gauche (priorité visuelle :
+                  // ville > durée > dates > actions, cf. brief Lalith).
+                  leading: ReorderableDragStartListener(
+                    index: i,
+                    child: Icon(
+                      Icons.drag_indicator,
+                      size: 16,
+                      color: AppColors.textSecondary.withValues(alpha: 0.6),
                     ),
                   ),
+                  onTap: () => _openSegmentEditor(existing: seg, index: i),
+                  onDelete: () => setState(() {
+                    _segments.removeAt(i);
+                    _enforceSingleSegmentRule();
+                  }),
                 ),
               );
             },
@@ -2307,5 +2420,117 @@ class _OrderPreviewDialog extends StatelessWidget {
           ),
         ),
     ];
+  }
+}
+
+/// Section accordéon pour l'écran "Modifier le voyage". Affiche un header
+/// cliquable (titre + résumé dynamique + chevron) qui ouvre/ferme le contenu
+/// en animation douce. Les résumés évitent à l'utilisateur d'avoir à ouvrir
+/// chaque section pour voir l'état courant.
+class _TripEditSection extends StatelessWidget {
+  final String title;
+  final String summary;
+  final bool expanded;
+  final VoidCallback onToggle;
+  final Widget child;
+
+  const _TripEditSection({
+    required this.title,
+    required this.summary,
+    required this.expanded,
+    required this.onToggle,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        border: Border.all(
+          color: AppColors.border.withValues(alpha: 0.7),
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header cliquable
+          InkWell(
+            onTap: onToggle,
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textSecondary,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          summary,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: AppColors.textPrimary,
+                            height: 1.35,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  AnimatedRotation(
+                    turns: expanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 180),
+                    child: Icon(
+                      Icons.expand_more,
+                      size: 22,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Contenu animé
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: expanded
+                ? Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          height: 1,
+                          color: AppColors.border.withValues(alpha: 0.5),
+                          margin: const EdgeInsets.only(bottom: 12),
+                        ),
+                        child,
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
+      ),
+    );
   }
 }
