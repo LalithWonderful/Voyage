@@ -226,6 +226,83 @@ Set<String>? _strongTypesForQuery(String textQuery) {
   return null;
 }
 
+/// Map query (mot-clé sémantique) → set d'intérêts pour lesquels cette
+/// query est compatible. Utilisé pour filtrer les `additionalTextQueries`
+/// du profil voyageur (Grand luxe, Couple, Backpack...) AVANT le merge
+/// avec les queries de l'intérêt.
+///
+/// Sans ce filtre, "luxury spa" issue du profil "Grand luxe" se mergeait
+/// avec l'intérêt Événements et ramenait des spas dans la pool événements.
+/// Cas observé Lalith 2026-05-08 (test budget élevé).
+///
+/// Set vide `{}` = query JAMAIS appliquée (ex: "boutique hotel" — un
+/// hôtel n'est pas une activité touristique). Query absente de la map =
+/// permissive (compatible par défaut, comportement actuel).
+const Map<String, Set<String>> _premiumQueryCompatibilities =
+    <String, Set<String>>{
+  // ─── Wellness / Spa ────────────────────────────────────────────────
+  'luxury spa': {'Wellness', 'Esthétique'},
+  'spa': {'Wellness', 'Esthétique'},
+  'wellness': {'Wellness'},
+  'massage': {'Wellness', 'Esthétique'},
+  'hammam': {'Wellness', 'Esthétique'},
+
+  // ─── Gastronomie ──────────────────────────────────────────────────
+  'fine dining': {'Gastronomie', 'Bons plans'},
+  'michelin': {'Gastronomie'},
+  'gourmet restaurant': {'Gastronomie'},
+  'gastronomic': {'Gastronomie'},
+  'romantic restaurant': {'Gastronomie', 'Couple'},
+  'business lunch': {'Gastronomie'},
+  'street food': {'Gastronomie', 'Bons plans', 'Hors circuit'},
+  'food hall': {'Gastronomie', 'Bons plans'},
+  'cozy cafe': {'Gastronomie', 'Hors circuit'},
+  'roadside diner': {'Gastronomie'},
+
+  // ─── Bars / Nightlife ─────────────────────────────────────────────
+  'rooftop bar': {'Nightlife', 'Événements', 'Gastronomie'},
+  'cocktail bar': {'Nightlife', 'Événements'},
+  'lounge bar': {'Nightlife'},
+  'lively bar': {'Nightlife'},
+  'local bar': {'Nightlife'},
+  'hotel bar': {'Nightlife'},
+
+  // ─── Hôtels / hébergement → JAMAIS comme activité ─────────────────
+  'boutique hotel': <String>{},
+  'luxury hotel': <String>{},
+  'hostel': <String>{},
+
+  // ─── Vues / nature ─────────────────────────────────────────────────
+  'viewpoint': {'Nature', 'Spots populaires'},
+  'scenic stop': {'Nature', 'Spots populaires'},
+  'sunset spot': {'Nature', 'Couple', 'Spots populaires'},
+  'quiet park': {'Nature', 'Wellness'},
+  'photo spot': {'Spots populaires', 'Hors circuit'},
+
+  // ─── Culture / visites guidées ────────────────────────────────────
+  'guided tour': {'Culture', 'Spots populaires'},
+  'free walking tour': {'Culture', 'Spots populaires', 'Bons plans'},
+
+  // ─── Marché / shopping nocturne ───────────────────────────────────
+  'night market': {'Spots populaires', 'Shopping', 'Bons plans'},
+
+  // ─── Pro / coworking ──────────────────────────────────────────────
+  'coworking': {'Voyage pro'},
+};
+
+/// True si la query du profil voyageur est compatible avec l'intérêt
+/// courant. Si la query n'est dans aucune entrée de la map, on retourne
+/// true (default permissif — couvre les queries sans pollution connue).
+bool _isProfileQueryCompatibleWithInterest(String query, String interest) {
+  final norm = _normalizeForMatch(query);
+  for (final entry in _premiumQueryCompatibilities.entries) {
+    if (norm.contains(entry.key)) {
+      return entry.value.contains(interest);
+    }
+  }
+  return true;
+}
+
 /// Filtre B + Logging C combinés pour les résultats d'un searchText.
 /// - B : si la query a au moins 1 mot signif, exiger qu'au moins 1 de ces mots
 ///   soit dans le name du Place (substring match). Sinon → reject + log.
@@ -678,9 +755,20 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
         ...query.includedTypes,
         if (travelerProfile != null) ...travelerProfile.additionalTypes,
       }.toList();
+      // Les additionalTextQueries du profil voyageur (Grand luxe → "luxury
+      // spa"/"fine dining"/"Michelin"/"rooftop bar"/"boutique hotel" ;
+      // Couple → "romantic restaurant"/"sunset spot" ; etc.) sont FILTRÉES
+      // par compatibilité avec l'intérêt courant. Évite que "luxury spa"
+      // remonte dans la pool Événements ou que "fine dining" pollue
+      // Wellness (logs Lalith 2026-05-08, test budget élevé).
+      final profileQueries = travelerProfile == null
+          ? const <String>[]
+          : travelerProfile.additionalTextQueries
+              .where((q) => _isProfileQueryCompatibleWithInterest(q, interest))
+              .toList();
       final mergedTextQueries = <String>[
         ...query.textQueries,
-        if (travelerProfile != null) ...travelerProfile.additionalTextQueries,
+        ...profileQueries,
       ];
 
       // Diagnostic : combien de calls par intérêt (Nearby + N × searchText).

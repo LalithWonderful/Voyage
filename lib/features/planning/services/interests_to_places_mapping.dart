@@ -202,6 +202,19 @@ const interestPlacesQueries = <String, InterestPlacesQuery>{
     includedTypes: ['beach', 'water_park'],
     textQueries: ['plage', 'lac', 'bord de mer', 'front de mer'],
     minRating: 4.0,
+    // Test Marrakech 2026-05-06 : avec profil "Grand luxe" + budget élevé, des
+    // queries premium ('luxury spa', 'fine dining', 'boutique hotel') ramenaient
+    // restos/spas/hôtels comme "Plage" (Le Bistro Arabe, PEPE NERO, Céline Spa).
+    // Le filtre de compatibilité query↔intérêt protège côté profil, mais on
+    // double-verrouille ici : Plage rejette explicitement tout primary type
+    // de restauration/wellness/lodging/bar — quel que soit le chemin.
+    excludedPrimaryTypes: [
+      'restaurant', 'cafe', 'bakery', 'meal_takeaway', 'meal_delivery',
+      'food_court', 'fast_food_restaurant',
+      'spa', 'beauty_salon', 'hair_care', 'massage',
+      'lodging', 'hotel', 'hostel', 'guest_house', 'motel', 'resort_hotel',
+      'bar', 'pub', 'night_club', 'lounge_bar', 'cocktail_bar',
+    ],
     rule: 'limité aux zones côtières/nautiques. Pour les villes intérieures, '
         'l\'intérêt reste vide (pas de fallback sur tourist_attraction).',
   ),
