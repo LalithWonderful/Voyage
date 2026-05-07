@@ -199,7 +199,12 @@ const interestPlacesQueries = <String, InterestPlacesQuery>{
     // input par searchNearby (HTTP 400 "Unsupported types: natural_feature").
     // Il reste utile en post-fetch (filtre sur `c.types`) mais on ne le
     // passe plus à l'API.
-    includedTypes: ['beach', 'water_park'],
+    //
+    // `water_park` retiré (Lalith 2026-05-09) : un parc aquatique n'est
+    // PAS une plage. Reste taggué 'Activité' (pratiqué, pas baignade
+    // littorale). Si un voyageur veut un water park, ça remonte via
+    // l'intérêt Activité ou Spots populaires.
+    includedTypes: ['beach'],
     textQueries: ['plage', 'lac', 'bord de mer', 'front de mer'],
     minRating: 4.0,
     // Test Marrakech 2026-05-06 : avec profil "Grand luxe" + budget élevé, des
@@ -229,8 +234,33 @@ const interestPlacesQueries = <String, InterestPlacesQuery>{
     minRating: 4.0,
   ),
   'Événements': InterestPlacesQuery(
-    includedTypes: ['stadium', 'night_club'],
-    textQueries: ['salle de concert', 'théâtre', 'salle de spectacle'],
+    // Lieux de représentation (spectacles, concerts, cinéma, sport pro).
+    // Distincts de "Activité" (à pratiquer). night_club retiré (rentre
+    // dans Nightlife). Stadium/arena/sports_complex restent ici car la
+    // plupart de leur usage = événement à regarder (foot, kick-boxing pro).
+    includedTypes: [
+      'performing_arts_theater',
+      'event_venue',
+      'cultural_center',
+      'convention_center',
+      'movie_theater',
+      'stadium',
+      'arena',
+      'sports_complex',
+    ],
+    textQueries: [
+      'salle de spectacle',
+      'salle de concert',
+      'théâtre',
+      'spectacle',
+      'concert',
+      'live music',
+      'cabaret',
+      'festival',
+      'cinéma',
+      'kick boxing event',
+      'boxing event',
+    ],
     minRating: 4.0,
     excludeFoodPrimaryType: true,
     rule: 'Places valide le venue mais pas l\'événement réel — à compléter post-MVP avec une API événementielle',

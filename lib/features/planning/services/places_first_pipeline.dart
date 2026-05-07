@@ -191,6 +191,7 @@ bool _isGenericCategoricalQuery(List<String> queryWords) {
 /// query "théâtre" matche "theatre"). Permet de couvrir les variations
 /// FR/EN sans dupliquer.
 const Map<String, Set<String>> _queryStrongTypes = <String, Set<String>>{
+  // ─── Spectacles / scènes / concerts / cinéma ─────────────────────
   'salle de spectacle': {
     'performing_arts_theater', 'event_venue', 'cultural_center',
     'live_music_venue', 'movie_theater', 'convention_center',
@@ -212,6 +213,27 @@ const Map<String, Set<String>> _queryStrongTypes = <String, Set<String>>{
   'spectacle': {
     'performing_arts_theater', 'event_venue', 'cultural_center',
     'live_music_venue',
+  },
+  'cabaret': {
+    'performing_arts_theater', 'event_venue', 'cultural_center',
+    'live_music_venue',
+  },
+  'festival': {
+    'event_venue', 'cultural_center', 'performing_arts_theater',
+    'stadium', 'arena',
+  },
+  'live music': {
+    'live_music_venue', 'performing_arts_theater', 'event_venue',
+    'cultural_center',
+  },
+  // ─── Sport-événement (à regarder, pas pratiqué) ──────────────────
+  // Les écoles/salles de pratique remontent via Activité et leur
+  // primaryType (`sports_school`, `gym`, `fitness_center`) — pas ici.
+  'kick boxing event': {
+    'stadium', 'arena', 'event_venue', 'sports_complex',
+  },
+  'boxing event': {
+    'stadium', 'arena', 'event_venue', 'sports_complex',
   },
 };
 
@@ -2715,27 +2737,53 @@ String _tagFromPrimaryType(String primaryType) {
       primaryType == 'market') {
     return 'Shopping';
   }
+  // Wellness — uniquement spas/saunas/hammams. `gym` est passé en
+  // 'Activité' (sport pratiqué) — cf. spec Lalith 2026-05-09 séparation
+  // claire Activité (à pratiquer) vs Événements (à regarder).
   if (primaryType == 'spa' ||
       primaryType == 'massage_spa' ||
       primaryType == 'wellness_center' ||
       primaryType == 'sauna' ||
       primaryType == 'hammam' ||
       primaryType == 'thermal_bath' ||
-      primaryType == 'beauty_salon' ||
-      primaryType == 'gym') {
+      primaryType == 'beauty_salon') {
     return 'Wellness';
   }
   if (primaryType == 'church' || primaryType == 'place_of_worship') {
     return 'Culture';
   }
-  if (primaryType == 'tourist_attraction' || primaryType == 'landmark') {
+  // ─── Événements (lieux de représentation, à regarder) ──────────────
+  // Stadiums/arenas : événements sportifs (NBA, foot, kick-boxing pro).
+  // Theaters/event venues : spectacles. Cinemas : projections.
+  if (primaryType == 'performing_arts_theater' ||
+      primaryType == 'event_venue' ||
+      primaryType == 'cultural_center' ||
+      primaryType == 'convention_center' ||
+      primaryType == 'movie_theater' ||
+      primaryType == 'live_music_venue' ||
+      primaryType == 'stadium' ||
+      primaryType == 'arena' ||
+      primaryType == 'sports_complex') {
+    return 'Événements';
+  }
+  // ─── Activité (à pratiquer/faire) ──────────────────────────────────
+  // Parcs d'attractions, parcs aquatiques, sports actifs (gym, école de
+  // surf, yoga, kitesurf, kick-boxing école), tourist_attraction généraux.
+  // `landmark` reste 'Visite' (monument à voir, pas activité).
+  if (primaryType == 'amusement_park' ||
+      primaryType == 'amusement_center' ||
+      primaryType == 'theme_park' ||
+      primaryType == 'water_park' ||
+      primaryType == 'adventure_sports_center' ||
+      primaryType == 'sports_activity_location' ||
+      primaryType == 'sports_school' ||
+      primaryType == 'fitness_center' ||
+      primaryType == 'gym' ||
+      primaryType == 'tourist_attraction') {
+    return 'Activité';
+  }
+  if (primaryType == 'landmark') {
     return 'Visite';
-  }
-  if (primaryType == 'amusement_park' || primaryType == 'amusement_center') {
-    return 'Loisir';
-  }
-  if (primaryType == 'stadium' || primaryType == 'sports_complex') {
-    return 'Sport';
   }
   return 'Activité';
 }
@@ -2757,6 +2805,20 @@ bool _isInterestCoherentWithTag(String interest, String tag) {
     'Visite': {
       'Spots populaires', 'Culture', 'Hors circuit', 'Événements', 'Nature'
     },
+    // Activité (à pratiquer) — sports actifs, parcs attractions, water_park,
+    // tourist_attraction. Cohérent avec Sports / Loisirs / Spots populaires.
+    'Activité': {
+      'Sports', 'Spots populaires', 'Hors circuit', 'Plage',
+      'Nature', 'Bons plans',
+    },
+    // Événements (à regarder) — théâtre/concert/cinéma/stade/arena. Cohérent
+    // avec Événements / Nightlife / Spots populaires / Culture.
+    'Événements': {
+      'Événements', 'Nightlife', 'Spots populaires', 'Culture',
+    },
+    // Tags hérités — gardés rétrocompat (peuvent encore apparaître si un
+    // code legacy renvoie 'Loisir'/'Sport') mais ne sont plus émis par le
+    // nouveau `_tagFromPrimaryType`.
     'Loisir': {'Spots populaires', 'Sports', 'Événements', 'Nightlife'},
     'Sport': {'Sports', 'Spots populaires'},
   };
