@@ -572,10 +572,75 @@ bool _isExcursionLike(NearbyCandidate c) {
   return false;
 }
 
+/// Noms de Places trop génériques pour être de vrais POIs : Google Places
+/// expose parfois des entrées dont le `displayName` est juste "Ville",
+/// "City", "Medina" — généralement des points administratifs ou des
+/// pages génériques sans intérêt touristique. Test Lalith 2026-05-08
+/// (Senior Essaouira) : pick "Ville" en Culture, douteux.
+///
+/// Match EXACT (après `_normalizeForMatch` qui strip diacritiques + lower-
+/// case). On ne filtre PAS "Médina de Marrakech", "Old City Tour Co",
+/// "Marrakech Medina Tours" — seulement le nom littéral.
+///
+/// Hard reject (toujours filtrés) :
+const Set<String> _genericPlaceNamesHardReject = <String>{
+  'ville',
+  'city',
+  'centre ville',
+  'centre-ville',
+  'downtown',
+  'la ville',
+  'the city',
+};
+
+/// Soft reject — filtrés UNIQUEMENT si le primary type est faible
+/// (tourist_attraction générique, neighborhood…). Si Google les classe
+/// `historical_landmark`/`museum`/`monument`, on les garde car probable
+/// que le Place pointe sur un vrai monument/site historique.
+const Set<String> _genericPlaceNamesSoftReject = <String>{
+  'medina',
+  'old city',
+  'old town',
+  'new city',
+};
+
+/// Types qui sauvent un soft-reject : si le primary est dans cette set,
+/// on garde même quand le name est `medina`/`old city`/etc.
+const Set<String> _strongTypesSavingGenericName = <String>{
+  'historical_landmark',
+  'historical_place',
+  'museum',
+  'art_gallery',
+  'monument',
+};
+
+bool _isGenericPlaceName(NearbyCandidate c) {
+  final norm = _normalizeForMatch(c.name);
+  if (_genericPlaceNamesHardReject.contains(norm)) {
+    debugPrint(
+      '[places_first_excluded] generic_place_name (hard) : "${c.name}" '
+      'placeId=${c.placeId} types=${c.types.take(3).join(",")}',
+    );
+    return true;
+  }
+  if (_genericPlaceNamesSoftReject.contains(norm)) {
+    final primary = c.types.isNotEmpty ? c.types.first : '';
+    if (_strongTypesSavingGenericName.contains(primary)) return false;
+    debugPrint(
+      '[places_first_excluded] generic_place_name (soft) : "${c.name}" '
+      'primary=$primary placeId=${c.placeId} '
+      '— pas de type fort qui le sauve',
+    );
+    return true;
+  }
+  return false;
+}
+
 bool _isExcludedPlace(NearbyCandidate c) {
   if (c.types.isEmpty) return false;
   if (_blacklistedPlaceIds.contains(c.placeId)) return true;
   if (c.types.any(_hardExcludedAnyTypes.contains)) return true;
+  if (_isGenericPlaceName(c)) return true;
   final primary = c.types.first;
   if (_hardExcludedPrimaryTypes.contains(primary)) return true;
   // Excursions organisées : exclues du planning local. Le primary peut
@@ -1365,6 +1430,12 @@ Future<(NearbyCandidate, int)?> _findBestRestoNear({
   /// `maxPrice` effectif au minimum entre celui du profil voyageur et ce
   /// cap. Lieux sans priceLevel toujours conservés.
   int? budgetPriceCap,
+
+  /// Contexte pour les logs de diagnostic quand on retourne null. Caller
+  /// passe typiquement "lunch:2026-05-19@Plage oussane" pour pouvoir
+  /// corréler depuis le harness/run app. Si null, on logue quand même
+  /// le breakdown mais sans étiquette contextuelle.
+  String? logContext,
 }) async {
   // Cascade distance fixe (Lalith 2026-05-08) : commence au rayon profil
   // (typiquement 600m, descend à 240m pour Senior à pied), élargit à 1000m
@@ -1374,7 +1445,9 @@ Future<(NearbyCandidate, int)?> _findBestRestoNear({
   final cascade = <int>{radius, 1000, 1500}.toList()..sort();
   List<NearbyCandidate> candidates = const [];
   int radiusUsed = radius;
+  final radiiTried = <int>[];
   for (final r in cascade) {
+    radiiTried.add(r);
     candidates = await nearbyService.searchNearby(
       latitude: latitude,
       longitude: longitude,
@@ -1387,6 +1460,13 @@ Future<(NearbyCandidate, int)?> _findBestRestoNear({
       radiusUsed = r;
       break;
     }
+  }
+  if (candidates.isEmpty) {
+    debugPrint(
+      '[places_first_skip_meal] ${logContext ?? "(no_context)"} '
+      'reason=no_candidates radii_tried=${radiiTried.join(",")} raw=0',
+    );
+    return null;
   }
 
   // Seuils effectifs : profil voyageur + boost Gastronomie + plancher 4.0
@@ -1437,33 +1517,95 @@ Future<(NearbyCandidate, int)?> _findBestRestoNear({
     r"\b(burger\s*king|mc\s*donald|kfc|subway|quick|domino|pizza\s*hut|speed\s*burger|chin\w*\s*express|chinexpress|wok\s*to\s*walk|nooi|prêt\s*à\s*manger|pret\s*a\s*manger|brioche\s*dor[ée]e|paul|five\s*guys|five\s*tacos|o.?tacos|tacos\s*avenue|pomme\s*de\s*pain|harlem\s*smash|istanbul\s*kebab|kebab|berliner|baguette\s*&\s*baguette)\b",
     caseSensitive: false,
   );
-  final filtered = candidates.where((c) {
-    if (c.rating == null || c.rating! < effectiveMinRating) return false;
-    if ((c.userRatingCount ?? 0) < effectiveMinReviews) return false;
-    if (_isExcludedPlace(c)) return false;
+  // Filtrage + comptage par catégorie de rejet pour diagnostiquer pourquoi
+  // un slot repas peut être skippé (cf. logs `[places_first_skip_meal]`).
+  // Les compteurs sont mutuellement exclusifs : 1 candidat n'est compté
+  // que dans la 1re catégorie qui le rejette.
+  var rejByRating = 0;
+  var rejByReviews = 0;
+  var rejByExcluded = 0;
+  var rejByNotMealPrimary = 0;
+  var rejByFastfoodType = 0;
+  var rejByFastfoodChain = 0;
+  var rejByExcludeTitle = 0;
+  var rejByCuisineExcl = 0;
+  var rejByMinPrice = 0;
+  var rejByMaxPrice = 0;
+  final filtered = <NearbyCandidate>[];
+  for (final c in candidates) {
+    if (c.rating == null || c.rating! < effectiveMinRating) {
+      rejByRating++;
+      continue;
+    }
+    if ((c.userRatingCount ?? 0) < effectiveMinReviews) {
+      rejByReviews++;
+      continue;
+    }
+    if (_isExcludedPlace(c)) {
+      rejByExcluded++;
+      continue;
+    }
     // Strict primary meal : élimine les faux positifs Places (Marché Central
     // tagué `florist` primary mais retourné par searchNearby car `bakery` en
     // secondaire). Un vrai resto a un primary `restaurant`/`cafe`/`bakery`.
-    if (!_isMealPrimaryType(c)) return false;
-    if (c.types.isNotEmpty && _fastFoodPrimaryTypes.contains(c.types.first)) {
-      return false;
+    if (!_isMealPrimaryType(c)) {
+      rejByNotMealPrimary++;
+      continue;
     }
-    if (fastFoodChainRegex.hasMatch(c.name)) return false;
-    if (excludeTitlesNorm.contains(norm(c.name))) return false;
+    if (c.types.isNotEmpty && _fastFoodPrimaryTypes.contains(c.types.first)) {
+      rejByFastfoodType++;
+      continue;
+    }
+    if (fastFoodChainRegex.hasMatch(c.name)) {
+      rejByFastfoodChain++;
+      continue;
+    }
+    if (excludeTitlesNorm.contains(norm(c.name))) {
+      rejByExcludeTitle++;
+      continue;
+    }
     // Diversité : exclut le style cuisine du déjeuner pour ne pas re-proposer
     // le même type au dîner (ex: japanese_restaurant midi → exclut au soir).
     if (c.types.isNotEmpty && excludePrimaryTypes.contains(c.types.first)) {
-      return false;
+      rejByCuisineExcl++;
+      continue;
     }
     if (minPrice != null && c.priceLevel != null && c.priceLevel! < minPrice) {
-      return false;
+      rejByMinPrice++;
+      continue;
     }
     if (maxPrice != null && c.priceLevel != null && c.priceLevel! > maxPrice) {
-      return false;
+      rejByMaxPrice++;
+      continue;
     }
-    return true;
-  }).toList();
-  if (filtered.isEmpty) return null;
+    filtered.add(c);
+  }
+  if (filtered.isEmpty) {
+    final breakdown = <String, int>{
+      'rating': rejByRating,
+      'reviews': rejByReviews,
+      'excluded_type': rejByExcluded,
+      'not_meal_primary': rejByNotMealPrimary,
+      'fastfood_type': rejByFastfoodType,
+      'fastfood_chain': rejByFastfoodChain,
+      'exclude_title_dedup': rejByExcludeTitle,
+      'cuisine_excl_diversity': rejByCuisineExcl,
+      'min_price': rejByMinPrice,
+      'max_price_budget': rejByMaxPrice,
+    };
+    final sorted = breakdown.entries.where((e) => e.value > 0).toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final primaryReason = sorted.isEmpty
+        ? 'all_candidates_rejected'
+        : 'rejected_by_${sorted.first.key}';
+    debugPrint(
+      '[places_first_skip_meal] ${logContext ?? "(no_context)"} '
+      'reason=$primaryReason '
+      'raw=${candidates.length} filtered=0 radius_used=${radiusUsed}m '
+      'breakdown={${sorted.map((e) => "${e.key}:${e.value}").join(",")}}',
+    );
+    return null;
+  }
 
   String norm2(String s) => s.toLowerCase().trim();
   double score(NearbyCandidate c) {
@@ -1733,9 +1875,33 @@ List<ActivitySuggestion> selectVisitsDeterministic({
               }
             }
           }
+          // Identifie la raison principale (= catégorie qui a le compteur le
+          // plus élevé). Sert au debug rapide depuis le harness/logs.
+          final rejects = <String, int>{
+            'no_candidates_in_pool': entries.isEmpty ? 1 : 0,
+            'rejected_by_time': rejectTime,
+            'rejected_by_type_meal': rejectMeal,
+            'rejected_by_existing': rejectExisting,
+            'rejected_by_city_name': rejectCity,
+            'rejected_by_dedup': rejectDup,
+            'rejected_by_day_dup': rejectDay,
+            'rejected_by_reuse_cap': rejectReuse,
+            'rejected_by_iconic_cap': rejectIconic,
+            'rejected_by_interest_cap': rejectWellness,
+          };
+          final sortedRejects = rejects.entries.where((e) => e.value > 0).toList()
+            ..sort((a, b) => b.value.compareTo(a.value));
+          final primaryReason = sortedRejects.isEmpty
+              ? 'unknown'
+              : sortedRejects.first.key;
+          final centerLat = cluster.center.latitude.toStringAsFixed(2);
+          final centerLng = cluster.center.longitude.toStringAsFixed(2);
           debugPrint(
-            '[places_first] ⚠️ ${day.toIso8601String().split("T").first} slot $slot : 0 candidat sur ${entries.length} '
-            '(rejet horaire=$rejectTime, repas=$rejectMeal, existant=$rejectExisting, ville=$rejectCity, déjà-pris-voyage=$rejectDup, déjà-jour=$rejectDay, sur-utilisé=$rejectReuse, iconic-déjà-vu=$rejectIconic, cap-wellness=$rejectWellness)',
+            '[places_first_skip_visit] date=${day.toIso8601String().split("T").first} '
+            'slot=$slot center=${cluster.center.source}@$centerLat,$centerLng '
+            'raw=${entries.length} filtered=0 '
+            'reason=$primaryReason '
+            'breakdown={${sortedRejects.map((e) => "${e.key}:${e.value}").join(",")}}',
           );
           continue;
         }
@@ -2120,6 +2286,8 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
     // Si la pool n'a plus rien après cette exclusion, fallback sans.
     final cuisinesUsedTrip = cuisineUseCount.keys.toSet();
 
+    final lunchCtx =
+        'kind=lunch date=$dayKey anchor="$lunchAnchorLabel"';
     var lunch = await _findBestRestoNear(
       nearbyService: nearbyService,
       latitude: lunchLat,
@@ -2132,6 +2300,7 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
       excludePrimaryTypes: cuisinesUsedTrip,
       softExcludeTitlesUseCount: restoUseCount,
       budgetPriceCap: budgetPriceCap,
+      logContext: '$lunchCtx pass=1_strict_cuisine',
     );
     // Fallback : si exclusion cuisines a vidé la pool, retry sans.
     lunch ??= await _findBestRestoNear(
@@ -2145,6 +2314,7 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
       excludeTitlesNorm: excludeTitles,
       softExcludeTitlesUseCount: restoUseCount,
       budgetPriceCap: budgetPriceCap,
+      logContext: '$lunchCtx pass=2_relaxed_cuisine',
     );
 
     String? lunchPrimaryType;
@@ -2215,6 +2385,8 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
       ?lunchPrimaryType,
     };
 
+    final dinnerCtx =
+        'kind=dinner date=$dayKey anchor="$dinnerAnchorLabel"';
     var dinner = await _findBestRestoNear(
       nearbyService: nearbyService,
       latitude: dinnerLat,
@@ -2227,6 +2399,7 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
       excludePrimaryTypes: cuisinesUsedTripForDinner,
       softExcludeTitlesUseCount: restoUseCount,
       budgetPriceCap: budgetPriceCap,
+      logContext: '$dinnerCtx pass=1_strict_cuisine',
     );
     // Fallback 1 : retry sans exclusion cuisines voyage (mais conserve
     // l'exclusion midi du jour pour ne pas servir 2× pareil dans la journée).
@@ -2242,6 +2415,7 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
       excludePrimaryTypes: <String>{?lunchPrimaryType},
       softExcludeTitlesUseCount: restoUseCount,
       budgetPriceCap: budgetPriceCap,
+      logContext: '$dinnerCtx pass=2_lunch_dup_only',
     );
 
     if (dinner != null) {
