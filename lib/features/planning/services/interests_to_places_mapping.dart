@@ -192,9 +192,14 @@ const interestPlacesQueries = <String, InterestPlacesQuery>{
     // était trop large : à Marrakech (intérieur des terres) il ramenait
     // Jemaa el-Fnaa, Bahia Palace, etc. comme "Plage" (logs Lalith
     // 2026-05-08). Si la ville n'est pas côtière, l'intérêt Plage doit
-    // rester vide pour ce centre — le voyageur comprend qu'il a coché un
-    // intérêt non pertinent pour la destination.
-    includedTypes: ['beach', 'natural_feature', 'water_park'],
+    // rester vide pour ce centre.
+    //
+    // Important : `natural_feature` est UNIQUEMENT un type retourné par
+    // Google Places (sur les beaches notamment), PAS un type accepté en
+    // input par searchNearby (HTTP 400 "Unsupported types: natural_feature").
+    // Il reste utile en post-fetch (filtre sur `c.types`) mais on ne le
+    // passe plus à l'API.
+    includedTypes: ['beach', 'water_park'],
     textQueries: ['plage', 'lac', 'bord de mer', 'front de mer'],
     minRating: 4.0,
     rule: 'limité aux zones côtières/nautiques. Pour les villes intérieures, '

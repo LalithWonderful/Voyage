@@ -134,13 +134,15 @@ const travelerPlacesProfiles = <String, TravelerPlacesProfile>{
     rule: 'éviter low-cost et lieux trop touristiques',
   ),
   'Meilleur prix': TravelerPlacesProfile(
-    additionalTypes: ['bakery', 'meal_takeaway'],
-    // Pas d'additionalTextQueries : les queries "cheap eats", "free activities",
-    // "budget restaurant" se mergeaient sur TOUS les intérêts (Wellness,
-    // Événements...) et ramenaient des restos hors-sujet (logs Lalith
-    // 2026-05-08). Le `maxPriceLevel: 1` suffit à pousser low-cost. Pour les
-    // queries "free activities" / "budget", l'intérêt **Bons plans** les
-    // couvre déjà en français (`pas cher`, `gratuit`, `entrée libre`).
+    // Pas de additionalTypes : les types food (`bakery`, `meal_takeaway`)
+    // se mergeaient sur TOUS les intérêts (Plage, Événements, Wellness…)
+    // et polluaient leurs pools (logs Lalith 2026-05-08 : searchNearby
+    // Plage retournait `bakery, meal_takeaway`). Ces types food sont
+    // déjà couverts par les intérêts Gastronomie/Bons plans/Hors circuit.
+    // Le profil agit via maxPriceLevel: 1 + scoring, pas via injection
+    // de types transversale.
+    additionalTypes: [],
+    // Pas d'additionalTextQueries non plus (raison similaire).
     minRating: 4.0,
     maxPriceLevel: 1,
     searchRadiusMeters: 1500, // walk volontiers
@@ -149,7 +151,11 @@ const travelerPlacesProfiles = <String, TravelerPlacesProfile>{
     rule: 'distance courte pour réduire transports',
   ),
   'Backpack': TravelerPlacesProfile(
-    additionalTypes: ['lodging', 'meal_takeaway', 'laundry'],
+    // Idem : retiré `meal_takeaway` (pollution transversale). Gardé
+    // `lodging` mais en pratique il est filtré côté pipeline par les
+    // _hardExcludedPrimaryTypes (ajout 2026-05-08 — un hostel/hotel
+    // n'est pas une activité). À nettoyer dans une passe future.
+    additionalTypes: ['lodging', 'laundry'],
     // Garde "street food" (vrai signal expérience). Retiré "hostel" /
     // "free walking tour" / "local bar" qui sont trop génériques et
     // polluent les autres intérêts. Les hostels sont déjà couverts via

@@ -179,6 +179,53 @@ bool _isGenericCategoricalQuery(List<String> queryWords) {
   return queryWords.every(_genericCategoricalQueryWords.contains);
 }
 
+/// Pour certaines queries spécifiques, certains types Places sont des
+/// signaux **forts** qui justifient l'acceptation même si le nom du Place
+/// ne contient pas de mot de la query. Évite de rejeter "Royal Theatre"
+/// (`performing_arts_theater`) pour la query "salle de spectacle" sous
+/// prétexte que le mot "salle" n'est pas dans le name (logs Lalith
+/// 2026-05-08).
+///
+/// Match : la clé de map est cherchée par préfixe normalisé dans la query
+/// (ex: query "salle de concert" matche la clé "salle de concert", la
+/// query "théâtre" matche "theatre"). Permet de couvrir les variations
+/// FR/EN sans dupliquer.
+const Map<String, Set<String>> _queryStrongTypes = <String, Set<String>>{
+  'salle de spectacle': {
+    'performing_arts_theater', 'event_venue', 'cultural_center',
+    'live_music_venue', 'movie_theater', 'convention_center',
+  },
+  'salle de concert': {
+    'performing_arts_theater', 'event_venue', 'live_music_venue',
+    'cultural_center', 'movie_theater',
+  },
+  'theatre': {
+    'performing_arts_theater', 'event_venue', 'cultural_center',
+  },
+  'concert': {
+    'performing_arts_theater', 'event_venue', 'live_music_venue',
+    'cultural_center',
+  },
+  'cinema': {
+    'movie_theater',
+  },
+  'spectacle': {
+    'performing_arts_theater', 'event_venue', 'cultural_center',
+    'live_music_venue',
+  },
+};
+
+/// Retourne le set de types forts associés à la query (normalisée), ou
+/// null si la query n'a pas d'override. Le matching se fait par substring
+/// pour couvrir les variations (ex: "théâtre populaire" → matche "theatre").
+Set<String>? _strongTypesForQuery(String textQuery) {
+  final norm = _normalizeForMatch(textQuery);
+  for (final entry in _queryStrongTypes.entries) {
+    if (norm.contains(entry.key)) return entry.value;
+  }
+  return null;
+}
+
 /// Filtre B + Logging C combinés pour les résultats d'un searchText.
 /// - B : si la query a au moins 1 mot signif, exiger qu'au moins 1 de ces mots
 ///   soit dans le name du Place (substring match). Sinon → reject + log.
@@ -219,16 +266,29 @@ List<NearbyCandidate> _filterByQueryNameMatch(
     }
     return results;
   }
+  // Types Places "forts" qui dispensent du name-match pour cette query
+  // (ex: "salle de spectacle" + primary=performing_arts_theater → accepté
+  // même si le nom ne contient pas "salle" ou "spectacle").
+  final strongTypes = _strongTypesForQuery(textQuery);
   final kept = <NearbyCandidate>[];
   for (final c in results) {
     final nameNorm = _normalizeForMatch(c.name);
     final matched = queryWords.any((qw) => nameNorm.contains(qw));
     final primaryType = c.types.isNotEmpty ? c.types.first : '?';
+    final matchedByStrongType =
+        strongTypes != null && strongTypes.contains(primaryType);
     if (matched) {
       kept.add(c);
       debugPrint(
         '[places_first_match] interest=$interest q="$textQuery" ✓ "${c.name}" '
         'type=$primaryType addr="${c.address}" '
+        '@${c.latitude.toStringAsFixed(4)},${c.longitude.toStringAsFixed(4)}',
+      );
+    } else if (matchedByStrongType) {
+      kept.add(c);
+      debugPrint(
+        '[places_first_match] interest=$interest q="$textQuery" ✓ (via type fort '
+        '$primaryType) "${c.name}" addr="${c.address}" '
         '@${c.latitude.toStringAsFixed(4)},${c.longitude.toStringAsFixed(4)}',
       );
     } else {
