@@ -150,7 +150,9 @@ const _subTripSuggestions = <SubTripSuggestion>[
   ),
   SubTripSuggestion(
     anchorCity: 'Hanoï',
-    displayName: 'Baie d\'Ha Long / Lan Ha',
+    // displayName court (titre card + impact text). La ville réelle insérée
+    // côté segment reste "Baie d'Ha Long" pour cohérence géographique.
+    displayName: 'Ha Long / Lan Ha',
     segments: [
       SuggestedSegment(city: 'Baie d\'Ha Long', days: 2, country: 'Vietnam'),
     ],
@@ -162,6 +164,7 @@ const _subTripSuggestions = <SubTripSuggestion>[
     whyText:
         'Croisière 1-2 nuits dans la baie d\'Ha Long ou Lan Ha '
         '(moins fréquentée). À combiner avec Hanoï.',
+    ctaLabel: 'Ajouter Ha Long / Lan Ha',
   ),
 
   // ─── Vietnam — Da Nang gateway ─────────────────────────────────────

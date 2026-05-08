@@ -194,10 +194,11 @@ class _ImproveItinerarySheet extends ConsumerWidget {
 
     return ListView.builder(
       controller: scrollController,
-      // Padding bottom large pour s'assurer que la dernière card ne se
-      // retrouve pas masquée par le footer fixe "Fermer" (icone shadow +
-      // SafeArea sur certains devices).
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
+      // Padding bottom large pour que la dernière card ne soit pas
+      // masquée par le footer fixe "Fermer" (≈ 60px) + SafeArea iOS
+      // (jusqu'à 34px home indicator). 140 garantit ~50px de marge
+      // au repos sur tous devices testés.
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 140),
       itemCount: sectionsWithSuggestions.length,
       itemBuilder: (context, index) {
         final entry = sectionsWithSuggestions[index];
@@ -335,9 +336,13 @@ String _impactText(SubTripSuggestion s) {
         final added = s.segments.map(segPart).join(' + ');
         return 'Impact : ajoute $added depuis ${s.anchorCity}.';
       }
+      // Utilise `displayName` (label court user-facing) plutôt que
+      // `segment.city` (nom géographique réel utilisé en Lot 2 pour
+      // l'insertion). Évite "Baie d'Ha Long" qui doublonne avec le
+      // titre court "Ha Long / Lan Ha" de la card.
       final main = s.segments.first;
       return 'Impact : utilise ${nights(main.days)} du bloc '
-          '${s.anchorCity} pour ajouter ${main.city}.';
+          '${s.anchorCity} pour ajouter ${s.displayName}.';
     case InsertionMode.splitGatewaySequence:
       final added = s.segments.map(segPart).join(' + ');
       // Multi-step gateway sequence (Bangkok → Rayong + Koh Samet) :
