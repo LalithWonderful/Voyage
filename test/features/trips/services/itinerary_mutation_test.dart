@@ -1552,6 +1552,77 @@ void main() {
       );
     });
 
+    test('Phase A — segments insérés portent sourceAnchorCity', () {
+      // Pour APPEND, REPLACE et SPLIT, les segments matérialisés depuis
+      // une suggestion doivent porter `sourceAnchorCity = anchor.city`
+      // pour permettre le drag-lock par fenêtre dans la liste éditable.
+      final segments = [_seg('Hanoï', 4)];
+      // APPEND
+      final appendResult = computeMutation(
+        suggestion: const SubTripSuggestion(
+          anchorCity: 'Hanoï',
+          displayName: 'Trang An',
+          segments: [SuggestedSegment(city: 'Trang An', days: 1)],
+          insertionMode: InsertionMode.dayTrip,
+        ),
+        currentSegments: segments,
+        tripDurationDays: 5,
+      );
+      final appendMutation = (appendResult as MutationOk).mutation;
+      expect(appendMutation.insertedSegments.first.sourceAnchorCity, 'Hanoï');
+
+      // SPLIT
+      final splitResult = computeMutation(
+        suggestion: const SubTripSuggestion(
+          anchorCity: 'Hanoï',
+          displayName: 'Ninh Bình',
+          segments: [SuggestedSegment(city: 'Ninh Bình', days: 3)],
+          insertionMode: InsertionMode.splitGatewaySequence,
+          minAnchorDaysToKeep: 1,
+        ),
+        currentSegments: segments,
+        tripDurationDays: 4,
+      );
+      final splitMutation = (splitResult as MutationOk).mutation;
+      expect(splitMutation.insertedSegments.first.sourceAnchorCity, 'Hanoï');
+
+      // REPLACE
+      final replaceResult = computeMutation(
+        suggestion: const SubTripSuggestion(
+          anchorCity: 'Hanoï',
+          displayName: 'Hội An',
+          segments: [SuggestedSegment(city: 'Hội An', days: 4)],
+          insertionMode: InsertionMode.replaceAnchorGateway,
+        ),
+        currentSegments: segments,
+        tripDurationDays: 4,
+      );
+      final replaceMutation = (replaceResult as MutationOk).mutation;
+      expect(replaceMutation.insertedSegments.first.sourceAnchorCity, 'Hanoï');
+    });
+
+    test('Phase A — TripSegment JSON round-trip preserve sourceAnchorCity',
+        () {
+      const seg = TripSegment(
+        city: 'Ninh Bình',
+        days: 3,
+        country: 'Vietnam',
+        sourceAnchorCity: 'Hanoï',
+      );
+      final json = seg.toJson();
+      expect(json['source_anchor_city'], 'Hanoï');
+      final back = TripSegment.fromJson(json);
+      expect(back.sourceAnchorCity, 'Hanoï');
+      expect(back.city, 'Ninh Bình');
+    });
+
+    test('Phase A — TripSegment legacy JSON (sans source_anchor_city) → '
+        'sourceAnchorCity null', () {
+      final json = {'city': 'Paris', 'days': 3};
+      final seg = TripSegment.fromJson(json);
+      expect(seg.sourceAnchorCity, isNull);
+    });
+
     test('SPLIT avec pinned aval → autorisé (preserve la durée totale, '
         'pas de shift)', () {
       final segments = [

@@ -15,6 +15,22 @@ import 'package:voyage/core/theme/app_theme.dart';
 /// hiérarchie typographique, badge durée pill, ombre micro-soft. Le caller
 /// gère l'environnement (timeline ou liste reordonnable), la card gère le
 /// contenu.
+/// V2 Phase A — niveau de mobilité d'un segment dans la liste éditable.
+/// Détermine l'accent visuel et la présence d'un badge sous la ville.
+enum TripStepLockState {
+  /// Étape libre — pas de doc lié, pas de fenêtre. Drag normal.
+  free,
+
+  /// Étape liée à un document daté (vol/train/ferry/bus/hôtel). Accent
+  /// orange/amber + badge "Document lié" + drag désactivé.
+  docLinked,
+
+  /// Étape créée par une suggestion, limitée à la fenêtre de son
+  /// segment d'ancrage. Accent bleu/violet + badge "Liée à {city}" +
+  /// drag autorisé uniquement à l'intérieur du bloc.
+  windowLinked,
+}
+
 class TripStepCard extends StatelessWidget {
   final String city;
   final String? country;
@@ -42,6 +58,18 @@ class TripStepCard extends StatelessWidget {
   /// Si défini, affiche un bouton suppression discret à droite. Mode editable.
   final VoidCallback? onDelete;
 
+  /// V2 Phase A — niveau de mobilité. Default `free` (compat).
+  final TripStepLockState lockState;
+
+  /// V2 Phase A — pour `windowLinked`, ville d'ancrage à afficher dans
+  /// le badge ("Liée à Hanoï"). Ignoré pour les autres états.
+  final String? windowAnchorCity;
+
+  /// V2 Phase A — pour `windowLinked`, dates de la fenêtre à afficher
+  /// dans le badge ("07/07–11/07"). Ignoré pour les autres états.
+  final DateTime? windowStart;
+  final DateTime? windowEndExclusive;
+
   const TripStepCard({
     super.key,
     required this.city,
@@ -53,16 +81,35 @@ class TripStepCard extends StatelessWidget {
     this.leading,
     this.onTap,
     this.onDelete,
+    this.lockState = TripStepLockState.free,
+    this.windowAnchorCity,
+    this.windowStart,
+    this.windowEndExclusive,
   });
 
   @override
   Widget build(BuildContext context) {
+    // V2 Phase A — accent visuel selon l'état de lock. Discret : bordure
+    // de base inchangée + bordure gauche teintée 3px côté locked.
+    final accentColor = switch (lockState) {
+      TripStepLockState.docLinked => AppColors.accent,
+      TripStepLockState.windowLinked => AppColors.primary,
+      TripStepLockState.free => null,
+    };
     final card = Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        border: Border.all(
-          color: AppColors.border.withValues(alpha: 0.7),
+        border: Border(
+          top: BorderSide(color: AppColors.border.withValues(alpha: 0.7)),
+          right: BorderSide(color: AppColors.border.withValues(alpha: 0.7)),
+          bottom: BorderSide(color: AppColors.border.withValues(alpha: 0.7)),
+          left: BorderSide(
+            color: accentColor != null
+                ? accentColor.withValues(alpha: 0.7)
+                : AppColors.border.withValues(alpha: 0.7),
+            width: accentColor != null ? 3 : 1,
+          ),
         ),
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
@@ -140,6 +187,17 @@ class TripStepCard extends StatelessWidget {
                     ),
                   ],
                 ),
+                // V2 Phase A — badge discret de lock state. Apparaît
+                // uniquement pour docLinked / windowLinked.
+                if (lockState != TripStepLockState.free) ...[
+                  const SizedBox(height: 6),
+                  _LockBadge(
+                    state: lockState,
+                    anchorCity: windowAnchorCity,
+                    windowStart: windowStart,
+                    windowEndExclusive: windowEndExclusive,
+                  ),
+                ],
                 // Ligne 3 (optionnelle) : source détectée
                 if (sourceLabel != null) ...[
                   const SizedBox(height: 2),
@@ -223,5 +281,86 @@ class _DurationPill extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// V2 Phase A — badge discret indiquant l'état de lock d'une étape.
+/// - `docLinked` : icône cadenas + "Document lié" en orange/amber.
+/// - `windowLinked` : icône lien + "Liée à {city} · {start}–{end}" en
+///   bleu primary.
+class _LockBadge extends StatelessWidget {
+  final TripStepLockState state;
+  final String? anchorCity;
+  final DateTime? windowStart;
+  final DateTime? windowEndExclusive;
+
+  const _LockBadge({
+    required this.state,
+    this.anchorCity,
+    this.windowStart,
+    this.windowEndExclusive,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final (icon, label, color, bg) = switch (state) {
+      TripStepLockState.docLinked => (
+          Icons.lock_outline,
+          'Document lié',
+          AppColors.accent,
+          AppColors.accentLight,
+        ),
+      TripStepLockState.windowLinked => (
+          Icons.link_rounded,
+          _windowLabel(),
+          AppColors.primary,
+          AppColors.primaryLight,
+        ),
+      TripStepLockState.free => (
+          Icons.circle_outlined,
+          '',
+          AppColors.textSecondary,
+          AppColors.surface,
+        ),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.35), width: 0.8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w600,
+                color: color,
+                letterSpacing: 0.1,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _windowLabel() {
+    final city = anchorCity?.trim();
+    final s = windowStart;
+    final e = windowEndExclusive;
+    String fmt(DateTime d) =>
+        '${d.day.toString().padLeft(2, '0')}/'
+        '${d.month.toString().padLeft(2, '0')}';
+    final base = (city == null || city.isEmpty) ? 'Liée à une étape' : 'Liée à $city';
+    if (s != null && e != null) return '$base · ${fmt(s)}–${fmt(e)}';
+    return base;
   }
 }

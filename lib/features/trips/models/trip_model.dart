@@ -70,18 +70,29 @@ class TripSegment {
   final double? latitude;
   final double? longitude;
 
+  /// V2 Phase A (Lalith 2026-05-08) — quand un segment est créé par une
+  /// suggestion ("Ninh Bình" inséré dans le bloc Hanoï, "Krabi" dans
+  /// Bangkok…), on stocke ici la ville d'ancrage source. Sert au
+  /// drag-lock par fenêtre : le segment ne peut être réordonné qu'à
+  /// l'intérieur du bloc contigu Anchor + dérivés (Hanoï 1 + Ninh Bình 3).
+  /// Null pour les segments saisis manuellement.
+  final String? sourceAnchorCity;
+
   const TripSegment({
     required this.city,
     required this.days,
     this.country,
     this.latitude,
     this.longitude,
+    this.sourceAnchorCity,
   });
 
   factory TripSegment.fromJson(Map<String, dynamic> json) {
     final country = (json['country'] as String?)?.trim();
     final lat = (json['latitude'] as num?)?.toDouble();
     final lng = (json['longitude'] as num?)?.toDouble();
+    final source = (json['source_anchor_city'] as String?)?.trim();
+    final cleanSource = source == null || source.isEmpty ? null : source;
     // Lecture : on accepte `days` (nouveau) ET `nights` (legacy).
     // À la suite de la migration sémantique nuits→jours, on interprète l'ancien
     // entier `nights` comme un nombre de jours (les valeurs étaient sur la même
@@ -94,6 +105,7 @@ class TripSegment {
         country: country == null || country.isEmpty ? null : country,
         latitude: lat,
         longitude: lng,
+        sourceAnchorCity: cleanSource,
       );
     }
     // Rétrocompat ancien format (from + to)
@@ -109,6 +121,7 @@ class TripSegment {
         country: country == null || country.isEmpty ? null : country,
         latitude: lat,
         longitude: lng,
+        sourceAnchorCity: cleanSource,
       );
     }
     return TripSegment(
@@ -117,6 +130,7 @@ class TripSegment {
       country: country == null || country.isEmpty ? null : country,
       latitude: lat,
       longitude: lng,
+      sourceAnchorCity: cleanSource,
     );
   }
 
@@ -126,6 +140,8 @@ class TripSegment {
     if (country != null && country!.isNotEmpty) 'country': country,
     if (latitude != null) 'latitude': latitude,
     if (longitude != null) 'longitude': longitude,
+    if (sourceAnchorCity != null && sourceAnchorCity!.isNotEmpty)
+      'source_anchor_city': sourceAnchorCity,
   };
 
   TripSegment copyWith({
@@ -134,6 +150,7 @@ class TripSegment {
     String? country,
     double? latitude,
     double? longitude,
+    String? sourceAnchorCity,
   }) =>
       TripSegment(
         city: city ?? this.city,
@@ -141,6 +158,7 @@ class TripSegment {
         country: country ?? this.country,
         latitude: latitude ?? this.latitude,
         longitude: longitude ?? this.longitude,
+        sourceAnchorCity: sourceAnchorCity ?? this.sourceAnchorCity,
       );
 }
 

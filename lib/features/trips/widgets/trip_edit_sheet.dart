@@ -1928,11 +1928,78 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
       const SnackBar(
         content: Text(
           'Cette étape est liée à un document de voyage. '
-          'Modifie le document associé pour changer son ordre ou ses dates.',
+          'Modifie le document associé pour changer ses dates.',
         ),
         duration: Duration(seconds: 4),
       ),
     );
+  }
+
+  /// V2 Phase A window-locked — snackbar affichée quand un reorder
+  /// sortirait du bloc d'origine d'un segment dérivé d'une suggestion
+  /// (ex: Ninh Bình ne peut bouger qu'à l'intérieur du bloc Hanoï).
+  /// Wording validé Lalith 2026-05-08.
+  void _showWindowLockedSnackbar({
+    required String anchorCity,
+    required DateTime windowStart,
+    required DateTime windowEndExclusive,
+  }) {
+    String fmt(DateTime d) =>
+        '${d.day.toString().padLeft(2, '0')}/'
+        '${d.month.toString().padLeft(2, '0')}';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Cette étape doit rester dans la période $anchorCity '
+          'du ${fmt(windowStart)} au ${fmt(windowEndExclusive)}.',
+        ),
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+
+  /// V2 Phase A window-locked — détecte le bloc contigu autour de
+  /// `idx` partageant la même ville d'ancrage. Un bloc est composé :
+  /// - du segment d'ancrage (city == X)
+  /// - + des segments dérivés (sourceAnchorCity == X)
+  ///
+  /// Si `idx` n'est ni dérivé ni l'anchor d'un dérivé adjacent, retourne
+  /// null (segment libre, pas de window-lock).
+  ({int firstIdx, int lastIdx, String anchorCity})? _findBlockRange(
+    List<TripSegment> segments,
+    int idx,
+  ) {
+    final s = segments[idx];
+    String? blockCity = s.sourceAnchorCity;
+    if (blockCity == null) {
+      // Le segment courant n'est pas dérivé. Vérifier s'il est l'anchor
+      // d'un bloc avec dérivés adjacents.
+      final hasDerivedAfter = idx + 1 < segments.length &&
+          segments[idx + 1].sourceAnchorCity == s.city;
+      final hasDerivedBefore =
+          idx - 1 >= 0 && segments[idx - 1].sourceAnchorCity == s.city;
+      if (!hasDerivedAfter && !hasDerivedBefore) return null;
+      blockCity = s.city;
+    }
+    var first = idx;
+    while (first > 0) {
+      final prev = segments[first - 1];
+      if (prev.city == blockCity || prev.sourceAnchorCity == blockCity) {
+        first--;
+      } else {
+        break;
+      }
+    }
+    var last = idx;
+    while (last < segments.length - 1) {
+      final next = segments[last + 1];
+      if (next.city == blockCity || next.sourceAnchorCity == blockCity) {
+        last++;
+      } else {
+        break;
+      }
+    }
+    return (firstIdx: first, lastIdx: last, anchorCity: blockCity);
   }
 
   /// État développé : liste réordonnable + bilan jours + boutons + optimiser.
@@ -1968,12 +2035,29 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
             onReorder: (oldIdx, newIdx) {
               if (newIdx > oldIdx) newIdx--;
               // Garde-fou défensif : le drag handle est déjà absent pour
-              // les locked, mais double-check au cas où.
+              // les fully-locked, mais double-check au cas où.
               if (lockedIndices.contains(oldIdx)) {
                 _showLockedSegmentSnackbar();
                 return;
               }
-              // Empêcher un reorder qui shifterait un segment locked
+              // V2 Phase A window-lock : si le segment dragged appartient
+              // à un bloc dérivé d'une suggestion, le reorder doit rester
+              // à l'intérieur du bloc.
+              final draggedBlock = _findBlockRange(_segments, oldIdx);
+              if (draggedBlock != null) {
+                if (newIdx < draggedBlock.firstIdx ||
+                    newIdx > draggedBlock.lastIdx) {
+                  final winStart = _segmentDates(draggedBlock.firstIdx).start;
+                  final winEnd = _segmentDates(draggedBlock.lastIdx).end;
+                  _showWindowLockedSnackbar(
+                    anchorCity: draggedBlock.anchorCity,
+                    windowStart: winStart,
+                    windowEndExclusive: winEnd,
+                  );
+                  return;
+                }
+              }
+              // Empêcher un reorder qui shifterait un segment fully-locked
               // (drag d'un segment libre par-dessus un locked → le locked
               // change d'index).
               final lo = oldIdx < newIdx ? oldIdx : newIdx;
@@ -1993,6 +2077,24 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
               final seg = _segments[i];
               final dates = _segmentDates(i);
               final isLocked = lockedIndices.contains(i);
+              // V2 Phase A — calcul du lockState pour le badge visuel.
+              final block = isLocked
+                  ? null
+                  : _findBlockRange(_segments, i);
+              final TripStepLockState lockState;
+              String? windowAnchor;
+              DateTime? winStart;
+              DateTime? winEnd;
+              if (isLocked) {
+                lockState = TripStepLockState.docLinked;
+              } else if (block != null) {
+                lockState = TripStepLockState.windowLinked;
+                windowAnchor = block.anchorCity;
+                winStart = _segmentDates(block.firstIdx).start;
+                winEnd = _segmentDates(block.lastIdx).end;
+              } else {
+                lockState = TripStepLockState.free;
+              }
               return Padding(
                 key: ValueKey('seg-$i-${seg.city}-${seg.days}'),
                 padding: const EdgeInsets.only(bottom: 8),
@@ -2002,8 +2104,13 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
                   days: seg.days,
                   startDate: dates.start,
                   endDate: dates.end,
-                  // Locked = icône cadenas + tap snackbar (pas de drag).
-                  // Sinon = drag handle classique. Phase A 2026-05-08.
+                  lockState: lockState,
+                  windowAnchorCity: windowAnchor,
+                  windowStart: winStart,
+                  windowEndExclusive: winEnd,
+                  // docLinked = icône cadenas + tap snackbar (pas de drag).
+                  // windowLinked / free = drag handle classique (la
+                  // contrainte de fenêtre est validée à `onReorder`).
                   leading: isLocked
                       ? GestureDetector(
                           onTap: _showLockedSegmentSnackbar,
@@ -2012,8 +2119,7 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
                             child: Icon(
                               Icons.lock_outline,
                               size: 16,
-                              color: AppColors.textSecondary
-                                  .withValues(alpha: 0.7),
+                              color: AppColors.accent.withValues(alpha: 0.85),
                             ),
                           ),
                         )

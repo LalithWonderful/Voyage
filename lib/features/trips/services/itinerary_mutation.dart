@@ -263,7 +263,8 @@ MutationResult computeMutation({
         anchorIndex: anchorIdx,
         anchorCity: anchor.city,
         mode: suggestion.insertionMode,
-        insertedSegments: _materialize(suggestion),
+        insertedSegments:
+            _materialize(suggestion, sourceAnchorCity: anchor.city),
         newAnchorDays: null, // anchor inchangé
         requiresInsertionDate: requiresDate,
         anchorOccurrence: anchorOccurrence,
@@ -284,12 +285,14 @@ MutationResult computeMutation({
           city: main.city,
           days: anchor.days,
           country: main.country ?? anchor.country,
+          sourceAnchorCity: anchor.city,
         ));
         for (final s in suggestion.segments.skip(1)) {
           inserted.add(TripSegment(
             city: s.city,
             days: s.days,
             country: s.country,
+            sourceAnchorCity: anchor.city,
           ));
         }
       }
@@ -368,7 +371,8 @@ MutationResult computeMutation({
         anchorIndex: anchorIdx,
         anchorCity: anchor.city,
         mode: suggestion.insertionMode,
-        insertedSegments: _materialize(suggestion),
+        insertedSegments:
+            _materialize(suggestion, sourceAnchorCity: anchor.city),
         newAnchorDays: reduced,
         insertionStartDate: insertionStartDate,
         insertionPreDays: insertionPreDays,
@@ -457,12 +461,16 @@ List<TripSegment> applyMutation(
 
 // ─── Helpers internes ─────────────────────────────────────────────────
 
-List<TripSegment> _materialize(SubTripSuggestion suggestion) {
+List<TripSegment> _materialize(
+  SubTripSuggestion suggestion, {
+  String? sourceAnchorCity,
+}) {
   return suggestion.segments
       .map((s) => TripSegment(
             city: s.city,
             days: s.days,
             country: s.country,
+            sourceAnchorCity: sourceAnchorCity,
           ))
       .toList();
 }
