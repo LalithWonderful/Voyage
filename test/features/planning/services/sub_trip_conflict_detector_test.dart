@@ -302,4 +302,80 @@ void main() {
       expect(result.verdict, SuggestionVerdict.block);
     });
   });
+
+  group('hasReliableArrivalAnchor', () {
+    TripDocument flightTo(String city, String? date) => TripDocument(
+          id: 'flt-$city-${date ?? "nodate"}',
+          userId: 'u1',
+          tripId: 't1',
+          category: DocumentCategory.flight,
+          name: 'Vol $city',
+          metadata: {
+            'to_city': city,
+            'date': ?date,
+          },
+          createdAt: DateTime(2026, 1, 1),
+        );
+
+    test('aucun doc → false', () {
+      expect(hasReliableArrivalAnchor('Bangkok', const []), isFalse);
+    });
+
+    test('flight to Bangkok avec date → true', () {
+      expect(
+        hasReliableArrivalAnchor('Bangkok', [flightTo('Bangkok', '2026-06-21')]),
+        isTrue,
+      );
+    });
+
+    test('flight to Bangkok SANS date parseable → false', () {
+      expect(
+        hasReliableArrivalAnchor('Bangkok', [flightTo('Bangkok', null)]),
+        isFalse,
+      );
+    });
+
+    test('flight to autre ville → false (pas un anchor pour Bangkok)', () {
+      expect(
+        hasReliableArrivalAnchor('Bangkok', [flightTo('Phuket', '2026-06-21')]),
+        isFalse,
+      );
+    });
+
+    test('hôtel à Bangkok avec check_in → true (anchor indicatif)', () {
+      expect(
+        hasReliableArrivalAnchor('Bangkok', [
+          _hotel(
+            city: 'Bangkok',
+            checkIn: '2026-06-21',
+            checkOut: '2026-06-23',
+          ),
+        ]),
+        isTrue,
+      );
+    });
+
+    test('match accent-insensible : flight Hanoi vs anchor Hanoï', () {
+      expect(
+        hasReliableArrivalAnchor('Hanoï', [flightTo('Hanoi', '2026-06-21')]),
+        isTrue,
+      );
+    });
+
+    test('train aussi accepté comme anchor', () {
+      final train = TripDocument(
+        id: 'tr1',
+        userId: 'u1',
+        tripId: 't1',
+        category: DocumentCategory.train,
+        name: 'Train Hanoï',
+        metadata: const {
+          'to_city': 'Hanoi',
+          'date': '2026-06-21',
+        },
+        createdAt: DateTime(2026, 1, 1),
+      );
+      expect(hasReliableArrivalAnchor('Hanoï', [train]), isTrue);
+    });
+  });
 }

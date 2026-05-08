@@ -337,6 +337,42 @@ SuggestionPreflight preflightDatePrecise({
   return const SuggestionPreflight(verdict: SuggestionVerdict.allow);
 }
 
+/// Vrai si le voyage a un point d'arrivée daté FIABLE pour `city`.
+/// Sources acceptées (Lalith 2026-05-08, MVP safety rule pour
+/// `splitGatewaySequence`) :
+/// - vol/train/etc. avec `to_city` matchant `city` ET date parseable
+/// - hôtel à `city` avec `check_in` parseable
+///
+/// Sans signal fiable, on ne sait pas QUAND l'utilisateur arrive
+/// vraiment dans la ville-gateway → un SPLIT depuis le début du
+/// segment risque de produire des dates aberrantes (ex: Rayong au
+/// jour J0 du voyage alors que le user vient juste d'atterrir à
+/// Bangkok). Pour le MVP on REFUSE simplement la suggestion plutôt
+/// que de positionner aléatoirement.
+bool hasReliableArrivalAnchor(String city, List<TripDocument> docs) {
+  final norm = _normalize(city);
+  if (norm.isEmpty) return false;
+  for (final d in docs) {
+    // Transport vers la ville → arrival anchor direct.
+    if (d.category == DocumentCategory.flight ||
+        d.category == DocumentCategory.train) {
+      final to = (d.metadata['to_city'] as String?)?.trim();
+      if (to != null && _normalize(to) == norm) {
+        if (_parseDate(d.metadata['date']) != null) return true;
+      }
+    }
+    // Hôtel à la ville → check-in date est un anchor indicatif fiable
+    // (l'utilisateur dort dans la ville, donc y est arrivé au plus
+    // tard à check-in).
+    if (d.category == DocumentCategory.hotel &&
+        _hotelDocMatchesCity(d, city) &&
+        _parseDate(d.metadata['check_in']) != null) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /// Vrai si un doc hôtel matche `city` (réplique stricte de la logique de
 /// `_hasHotelInCity` mais pour 1 doc à la fois — sert au date-precise
 /// detector qui itère sur les docs).

@@ -590,6 +590,20 @@ _ResolvedSuggestion? _resolveSuggestion({
       .any((s) => existingCitiesNorm.contains(_normalizeCityName(s.city)));
   if (anyTargetAlreadyPresent) return null;
 
+  // ─── 0.5 MVP safety guard splitGatewaySequence ─────────────────────
+  // Lalith 2026-05-08 : un SPLIT gateway insère les segments suggérés
+  // au DÉBUT du bloc anchor. Sans date fiable d'arrivée dans la ville
+  // gateway, ça produit des dates aberrantes (ex: Rayong J1 alors que
+  // le user vient juste d'atterrir à Bangkok). On refuse la suggestion
+  // si aucun document transport/hôtel ne donne d'arrival anchor fiable.
+  // (Note : même AVEC un anchor, le positionnement actuel reste naïf
+  // — le user a accepté la limite, V2 affinera la logique de buffer.)
+  if (suggestion.insertionMode == InsertionMode.splitGatewaySequence) {
+    if (!hasReliableArrivalAnchor(suggestion.anchorCity, docs)) {
+      return null;
+    }
+  }
+
   final mutationResult = computeMutation(
     suggestion: suggestion,
     currentSegments: currentSegments,
