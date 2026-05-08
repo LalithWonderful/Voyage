@@ -22,6 +22,7 @@ TripDocument _flight({
   required String fromCity,
   required String toCity,
   required String date,
+  String? arrivalDate,
 }) =>
     TripDocument(
       id: 'flight-$fromCity-$toCity-$date',
@@ -33,6 +34,7 @@ TripDocument _flight({
         'from_city': fromCity,
         'to_city': toCity,
         'date': date,
+        'arrival_date': ?arrivalDate,
       },
       createdAt: DateTime(2026, 1, 1),
     );
@@ -248,14 +250,14 @@ void main() {
       expect(reason, isNotNull);
     });
 
-    test('contrainte 1 — date avant le début du segment → rejet', () {
+    test('contrainte 1 — date avant la disponibilité effective → rejet', () {
       final reason = validateInsertionDate(
         anchorCity: 'Bangkok',
         insertionStartDate: _d(2026, 6, 20),
         insertionDays: 3,
         analysis: basicAnalysis(),
       );
-      expect(reason, contains('avant le début'));
+      expect(reason, contains('pas encore'));
     });
 
     test('contrainte 2 — insertion dépasse la fin du segment → rejet', () {
@@ -466,6 +468,102 @@ void main() {
       expect(dates.length, 9);
       expect(dates.first, _d(2026, 6, 21));
       expect(dates.last, _d(2026, 6, 29));
+    });
+
+    test('cas E2E — vol overnight Lux→BKK avec arrival_date 22/06 → '
+        'borne basse picker = 22/06 (pas 21/06)', () {
+      // Lalith 2026-05-08 (correction transit) : la date de DÉPART du
+      // vol ne rend pas Bangkok disponible. Avec arrival_date renseignée,
+      // la première date d'insertion est l'arrivée réelle.
+      final analysis = analyzePinnedDates(
+        segments: [_seg('Bangkok', 11), _seg('Phú Quốc', 5)],
+        tripStartDate: tripStart,
+        docs: [
+          _flight(
+            fromCity: 'Luxembourg',
+            toCity: 'Bangkok',
+            date: '2026-06-21',
+            arrivalDate: '2026-06-22',
+          ),
+          _flight(fromCity: 'Bangkok', toCity: 'Phú Quốc', date: '2026-07-02'),
+        ],
+      );
+      final bkk = analysis.forCity('Bangkok')!;
+      expect(bkk.startDate, _d(2026, 6, 21));
+      expect(bkk.effectiveStartDate, _d(2026, 6, 22));
+
+      final dates = validInsertionStartDates(
+        anchorCity: 'Bangkok',
+        insertionDays: 3,
+        analysis: analysis,
+      );
+      // start ≥ 22/06 (effective post-arrivée, pas 21/06).
+      // start + 3 ≤ 02/07 → start ≤ 29/06.
+      // → 22, 23, 24, 25, 26, 27, 28, 29 = 8 dates.
+      expect(dates.length, 8);
+      expect(dates.first, _d(2026, 6, 22));
+      expect(dates.last, _d(2026, 6, 29));
+      expect(dates.contains(_d(2026, 6, 21)), isFalse);
+    });
+
+    test('sans arrival_date → fallback sur date (ancien comportement)', () {
+      final analysis = analyzePinnedDates(
+        segments: [_seg('Bangkok', 11)],
+        tripStartDate: tripStart,
+        docs: [
+          _flight(fromCity: 'Luxembourg', toCity: 'Bangkok', date: '2026-06-21'),
+        ],
+      );
+      final bkk = analysis.forCity('Bangkok')!;
+      // arrival = 21/06 ≯ startDate 21/06 → effective = startDate.
+      expect(bkk.effectiveStartDate, _d(2026, 6, 21));
+    });
+
+    test('arrival_date == startDate → effective = startDate '
+        '(pas de décalage)', () {
+      final analysis = analyzePinnedDates(
+        segments: [_seg('Bangkok', 11)],
+        tripStartDate: tripStart,
+        docs: [
+          _flight(
+            fromCity: 'Paris',
+            toCity: 'Bangkok',
+            date: '2026-06-20',
+            arrivalDate: '2026-06-21',
+          ),
+        ],
+      );
+      final bkk = analysis.forCity('Bangkok')!;
+      expect(bkk.effectiveStartDate, _d(2026, 6, 21));
+    });
+
+    test('inférence J+1 depuis arrival_time < departure_time '
+        '(backward-compat docs sans arrival_date explicite)', () {
+      // Doc Lux→BKK legacy : pas d'arrival_date, mais départ 23:30 et
+      // arrivée 12:15. Le helper infère J+1 = 22/06.
+      final analysis = analyzePinnedDates(
+        segments: [_seg('Bangkok', 11)],
+        tripStartDate: tripStart,
+        docs: [
+          TripDocument(
+            id: 'legacy',
+            userId: 'u',
+            tripId: 't',
+            category: DocumentCategory.flight,
+            name: 'Vol Lux→BKK legacy',
+            metadata: const {
+              'from_city': 'Luxembourg',
+              'to_city': 'Bangkok',
+              'date': '2026-06-21',
+              'departure_time': '23:30',
+              'arrival_time': '12:15',
+            },
+            createdAt: DateTime(2026, 1, 1),
+          ),
+        ],
+      );
+      final bkk = analysis.forCity('Bangkok')!;
+      expect(bkk.effectiveStartDate, _d(2026, 6, 22));
     });
   });
 }

@@ -13,6 +13,7 @@ library;
 
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/wallet/models/document_model.dart';
+import 'package:voyage/features/wallet/utils/transport_dates.dart';
 
 class HotelStay {
   /// 1ère nuit dormie (inclusif).
@@ -29,8 +30,22 @@ class SegmentPinnedDates {
   final int segmentIndex;
   final String city;
 
-  /// Première nuit (inclusif).
+  /// Première nuit (inclusif) calculée par cumul depuis `trip.startDate`.
+  /// Représente l'offset théorique du segment dans le voyage. Pour la
+  /// disponibilité réelle de la ville (cas vol overnight Lux→BKK qui
+  /// décolle 21/06 et atterrit 22/06), utiliser `effectiveStartDate`.
   final DateTime startDate;
+
+  /// V2.3 — Première date à laquelle l'utilisateur est RÉELLEMENT à
+  /// `city`. Égale à `startDate` par défaut, mais avancée à la date
+  /// d'arrivée du transport entrant si celui-ci la spécifie
+  /// (`metadata['arrival_date']`, fallback sur `metadata['date']`).
+  ///
+  /// Lalith 2026-05-08 — règle produit : la date de DÉPART d'un
+  /// transport ne rend pas la destination disponible. Seule la date
+  /// d'ARRIVÉE le fait. Pour Lux→BKK qui décolle 21/06 et atterrit
+  /// 22/06, Bangkok n'est pas exploitable le 21/06.
+  final DateTime effectiveStartDate;
 
   /// Lendemain matin du dernier jour à cette ville (exclusif).
   final DateTime endDateExclusive;
@@ -38,14 +53,14 @@ class SegmentPinnedDates {
   /// Durée totale du segment (= jours du `TripSegment`).
   final int days;
 
-  /// Vrai si un transport (vol/train) avec `to_city == segment.city` a sa
-  /// `date == startDate`. L'utilisateur arrive à cette date précise → on
-  /// ne peut pas l'avancer.
+  /// Vrai si un transport (vol/train) entrant a sa date d'arrivée
+  /// (`arrival_date` si présent, sinon `date`) qui matche `startDate`.
+  /// Champ informatif post-refactor 2026-05-08 (les contraintes "≥1
+  /// nuit" ont été retirées) — laissé pour usage futur (UX, debug).
   final bool startPinned;
 
   /// Vrai si un transport (vol/train) avec `from_city == segment.city` a
-  /// sa `date == endDateExclusive`. L'utilisateur part à cette date
-  /// précise → on ne peut pas la décaler.
+  /// sa `date == endDateExclusive`. Champ informatif (idem).
   final bool endPinned;
 
   /// Hébergements rattachés à `city`. Les nuits couvertes ne peuvent pas
@@ -56,6 +71,7 @@ class SegmentPinnedDates {
     required this.segmentIndex,
     required this.city,
     required this.startDate,
+    required this.effectiveStartDate,
     required this.endDateExclusive,
     required this.days,
     required this.startPinned,
@@ -95,6 +111,17 @@ PinnedDatesAnalysis analyzePinnedDates({
     final start = cursor;
     final endExcl = cursor.add(Duration(days: s.days));
 
+    final incomingArrival = _earliestIncomingArrivalAt(
+      docs: docs,
+      city: s.city,
+      windowStart: start,
+      windowEndExcl: endExcl,
+    );
+    final effectiveStart =
+        incomingArrival != null && incomingArrival.isAfter(_dateOnly(start))
+            ? incomingArrival
+            : start;
+
     final startPinned = _hasTransportOn(
       docs: docs,
       cityField: 'to_city',
@@ -113,6 +140,7 @@ PinnedDatesAnalysis analyzePinnedDates({
       segmentIndex: i,
       city: s.city,
       startDate: start,
+      effectiveStartDate: effectiveStart,
       endDateExclusive: endExcl,
       days: s.days,
       startPinned: startPinned,
@@ -139,7 +167,9 @@ List<DateTime> validInsertionStartDates({
   final lastStart = anchor.endDateExclusive.subtract(
     Duration(days: insertionDays),
   );
-  var d = anchor.startDate;
+  // V2.3 — borne basse = effectiveStartDate (post-arrivée), pas startDate
+  // (qui peut tomber en plein transit pour un vol overnight).
+  var d = anchor.effectiveStartDate;
   while (!_dateOnly(d).isAfter(_dateOnly(lastStart))) {
     final reason = validateInsertionDate(
       anchorCity: anchorCity,
@@ -158,16 +188,21 @@ List<DateTime> validInsertionStartDates({
 /// humaine en français prête à afficher.
 ///
 /// Contraintes vérifiées dans l'ordre :
-/// 1. La date est ≥ début du segment ancrage.
+/// 1. La date est ≥ `effectiveStartDate` du segment ancrage (= date
+///    réelle de présence à la ville, post-arrivée transport).
 /// 2. La date + durée est ≤ fin (exclusive) du segment ancrage.
 /// 3. L'insertion ne chevauche aucun hôtel à l'ancrage.
 ///
 /// Lalith 2026-05-08 : ne PAS forcer "≥1 nuit avant/après transport
 /// pinné". Si l'utilisateur n'a pas réservé d'hôtel à l'ancrage et n'a
 /// pas d'autre doc qui ancre la nuit, il est libre de partir le jour
-/// même de l'arrivée (vol matin → drive vers Rayong même soir) ou de
-/// rentrer le jour du départ pinné. Le filtre hôtel (#3) couvre déjà
-/// les nuits réellement réservées à l'ancrage.
+/// même de l'arrivée ou de rentrer le jour du départ pinné. Le filtre
+/// hôtel (#3) couvre déjà les nuits réellement réservées à l'ancrage.
+///
+/// Lalith 2026-05-08 (correction transit) : la date de DÉPART d'un
+/// transport vers la ville ne rend pas la ville disponible — seule la
+/// date d'ARRIVÉE le fait. `effectiveStartDate` capte ça via
+/// `metadata['arrival_date']` (fallback `metadata['date']`).
 String? validateInsertionDate({
   required String anchorCity,
   required DateTime insertionStartDate,
@@ -184,12 +219,13 @@ String? validateInsertionDate({
 
   final insertStart = _dateOnly(insertionStartDate);
   final insertEndExcl = insertStart.add(Duration(days: insertionDays));
-  final anchorStart = _dateOnly(anchor.startDate);
+  final effectiveStart = _dateOnly(anchor.effectiveStartDate);
   final anchorEndExcl = _dateOnly(anchor.endDateExclusive);
 
-  if (insertStart.isBefore(anchorStart)) {
-    return 'L\'insertion ne peut pas commencer avant le début de l\'étape '
-        '$anchorCity (${_fmtDate(anchor.startDate)}).';
+  if (insertStart.isBefore(effectiveStart)) {
+    return 'Tu n\'es pas encore à $anchorCity le '
+        '${_fmtDate(insertionStartDate)} — première date possible : '
+        '${_fmtDate(anchor.effectiveStartDate)}.';
   }
   if (insertEndExcl.isAfter(anchorEndExcl)) {
     return 'L\'insertion dépasse la fin de l\'étape $anchorCity '
@@ -233,6 +269,37 @@ bool _hasTransportOn({
     if (_dateOnly(dt) == target) return true;
   }
   return false;
+}
+
+/// Plus tôt date d'arrivée d'un transport entrant à `city` dans la
+/// fenêtre `[windowStart, windowEndExcl)`. Délègue à
+/// `arrivalDateFromMetadata` (préfère `arrival_date` explicite, sinon
+/// infère via la règle J+1 si `arrival_time < departure_time`).
+DateTime? _earliestIncomingArrivalAt({
+  required List<TripDocument> docs,
+  required String city,
+  required DateTime windowStart,
+  required DateTime windowEndExcl,
+}) {
+  final norm = _normalize(city);
+  if (norm.isEmpty) return null;
+  final wStart = _dateOnly(windowStart);
+  final wEnd = _dateOnly(windowEndExcl);
+  DateTime? earliest;
+  for (final d in docs) {
+    if (d.category != DocumentCategory.flight &&
+        d.category != DocumentCategory.train) {
+      continue;
+    }
+    final to = (d.metadata['to_city'] as String?)?.trim();
+    if (to == null || _normalize(to) != norm) continue;
+    final arrival = arrivalDateFromMetadata(d.metadata);
+    if (arrival == null) continue;
+    final dt = _dateOnly(arrival);
+    if (dt.isBefore(wStart) || !dt.isBefore(wEnd)) continue;
+    if (earliest == null || dt.isBefore(earliest)) earliest = dt;
+  }
+  return earliest;
 }
 
 List<HotelStay> _hotelStaysAtCity({

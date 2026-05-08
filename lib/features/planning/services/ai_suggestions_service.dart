@@ -863,8 +863,9 @@ Champs de "metadata" selon "category" (tous optionnels, mets les strings vides o
   "flight_number" (ex "AF1234")
   "from" (code IATA ou nom aéroport de départ)
   "to" (aéroport d'arrivée)
-  "date" (YYYY-MM-DD)
+  "date" (YYYY-MM-DD, date de DÉPART)
   "departure_time" ("HH:MM")
+  "arrival_date" (YYYY-MM-DD, date d'ARRIVÉE — peut différer de "date" pour les vols overnight long-courriers ; si non explicite mais arrival_time < departure_time, mettre "date" + 1 jour ; sinon = "date")
   "arrival_time" ("HH:MM")
   "seat" (siège)
   "reservation_number"
@@ -874,8 +875,9 @@ Champs de "metadata" selon "category" (tous optionnels, mets les strings vides o
   "train_number"
   "from" (gare de départ)
   "to" (gare d'arrivée)
-  "date"
+  "date" (date de départ)
   "departure_time"
+  "arrival_date" (date d'arrivée — même règle que pour les vols : ≠ "date" pour les trains de nuit)
   "arrival_time"
   "car" (voiture)
   "seat" (place)

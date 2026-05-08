@@ -11,6 +11,7 @@ import 'package:voyage/features/trips/providers/trips_provider.dart';
 import 'package:voyage/features/trips/widgets/detected_segments_sheet.dart';
 import 'package:voyage/features/wallet/models/document_model.dart';
 import 'package:voyage/features/wallet/providers/wallet_provider.dart';
+import 'package:voyage/features/wallet/utils/transport_dates.dart';
 import 'package:voyage/features/wallet/widgets/overlap_nights_sheet.dart';
 
 Future<void> openDocumentFormSheet(
@@ -109,8 +110,9 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
           _FieldSpec('flight_number', 'N° de vol', _FieldType.text),
           _FieldSpec('from', 'Aéroport de départ', _FieldType.text),
           _FieldSpec('to', 'Aéroport d\'arrivée', _FieldType.text),
-          _FieldSpec('date', 'Date', _FieldType.date),
+          _FieldSpec('date', 'Date de départ', _FieldType.date),
           _FieldSpec('departure_time', 'Heure de départ', _FieldType.time),
+          _FieldSpec('arrival_date', 'Date d\'arrivée', _FieldType.date),
           _FieldSpec('arrival_time', 'Heure d\'arrivée', _FieldType.time),
           _FieldSpec('seat', 'Siège', _FieldType.text),
           _FieldSpec(
@@ -125,8 +127,9 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
           _FieldSpec('train_number', 'N° de train', _FieldType.text),
           _FieldSpec('from', 'Gare de départ', _FieldType.text),
           _FieldSpec('to', 'Gare d\'arrivée', _FieldType.text),
-          _FieldSpec('date', 'Date', _FieldType.date),
+          _FieldSpec('date', 'Date de départ', _FieldType.date),
           _FieldSpec('departure_time', 'Heure de départ', _FieldType.time),
+          _FieldSpec('arrival_date', 'Date d\'arrivée', _FieldType.date),
           _FieldSpec('arrival_time', 'Heure d\'arrivée', _FieldType.time),
           _FieldSpec('car', 'Voiture', _FieldType.text),
           _FieldSpec('seat', 'Place', _FieldType.text),
@@ -526,6 +529,23 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
           m[spec.key] = v;
         } else {
           m.remove(spec.key);
+        }
+      }
+    }
+    // V2.3 transport — auto-fill arrival_date si vide (l'utilisateur peut
+    // l'avoir laissé blank pour les vols same-day). Règle : si
+    // arrival_time < departure_time → J+1, sinon = date de départ.
+    if (_category == DocumentCategory.flight ||
+        _category == DocumentCategory.train) {
+      final hasExplicit = (m['arrival_date'] as String?)?.isNotEmpty ?? false;
+      if (!hasExplicit) {
+        final inferred = inferArrivalDate(
+          departureDate: _dates['date'],
+          departureTime: m['departure_time'] as String?,
+          arrivalTime: m['arrival_time'] as String?,
+        );
+        if (inferred != null) {
+          m['arrival_date'] = inferred.toIso8601String().split('T').first;
         }
       }
     }
