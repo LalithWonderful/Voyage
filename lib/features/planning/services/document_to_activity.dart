@@ -1,5 +1,6 @@
 import 'package:voyage/features/planning/models/trip_activity_model.dart';
 import 'package:voyage/features/wallet/models/document_model.dart';
+import 'package:voyage/features/wallet/utils/transport_dates.dart';
 
 /// Préfixe reconnu sur l'id d'une activité virtuelle (synthétisée depuis un document).
 const virtualActivityPrefix = 'doc:';
@@ -300,13 +301,12 @@ List<TripActivity> _splitTransport({
   }
 
   if (hasTo) {
-    // Vol/Train de nuit : si arrival_time < departure_time, on suppose J+1.
-    var arrivalDate = date;
-    final dep = m['departure_time'];
-    final arr = m['arrival_time'];
-    if (dep is String && arr is String && _isTimeBefore(arr, dep)) {
-      arrivalDate = date.add(const Duration(days: 1));
-    }
+    // Date d'arrivée résolue via le helper partagé `transport_dates`
+    // (V2.3 refactor 2026-05-08) : préfère `arrival_date` explicite si
+    // présent, sinon infère J+1 quand `arrival_time < departure_time`
+    // (overnight). Source de vérité unique partagée avec
+    // `pinned_dates.dart` et `flight_timeline_builder.dart`.
+    final arrivalDate = arrivalDateFromMetadata(m) ?? date;
     final detailParts = <String>[];
     if (hasFrom) {
       detailParts.add('$transportLabel depuis $from');
@@ -329,21 +329,6 @@ List<TripActivity> _splitTransport({
   }
 
   return result;
-}
-
-/// Compare deux heures "HH:MM". Retourne true si `a` est strictement avant `b`.
-/// Renvoie false si l'une des deux est mal formée (pas la peine de bouleverser
-/// la date d'arrivée sur des données partielles).
-bool _isTimeBefore(String a, String b) {
-  final ap = a.split(':');
-  final bp = b.split(':');
-  if (ap.length != 2 || bp.length != 2) return false;
-  final ah = int.tryParse(ap[0]);
-  final am = int.tryParse(ap[1]);
-  final bh = int.tryParse(bp[0]);
-  final bm = int.tryParse(bp[1]);
-  if (ah == null || am == null || bh == null || bm == null) return false;
-  return (ah * 60 + am) < (bh * 60 + bm);
 }
 
 String? _flightDetail(Map<String, dynamic> m) {

@@ -1,4 +1,5 @@
 import 'package:voyage/features/wallet/models/document_model.dart';
+import 'package:voyage/features/wallet/utils/transport_dates.dart';
 
 /// Un séjour candidat déduit de la chronologie des vols : "le voyageur dort à
 /// X du jour A au jour B, jusqu'à ce qu'un vol l'emmène ailleurs".
@@ -90,13 +91,12 @@ List<FlightStayCandidate> buildTripStayTimelineFromFlightDocuments({
     final fromCity = (d.metadata['from_city'] as String?)?.trim();
     if (toCity == null || toCity.isEmpty) continue;
     if (fromCity == null || fromCity.isEmpty) continue;
-    // Calcul de la date d'arrivée : si arrival_time < departure_time, le
-    // vol arrive le lendemain (overnight). Sinon même jour.
-    final arrivalDate = _computeArrivalDate(
-      departureDate: date,
-      departureTime: d.metadata['departure_time'] as String?,
-      arrivalTime: d.metadata['arrival_time'] as String?,
-    );
+    // Date d'arrivée résolue via le helper partagé `transport_dates`
+    // (V2.3 refactor 2026-05-08) : préfère `arrival_date` explicite si
+    // présent, sinon infère J+1 si `arrival_time < departure_time`.
+    // Source de vérité unique partagée avec `pinned_dates.dart` et
+    // `document_to_activity.dart`.
+    final arrivalDate = arrivalDateFromMetadata(d.metadata) ?? date;
     flights.add(_Flight(
       docName: d.name,
       date: date,
@@ -247,32 +247,3 @@ class _Flight {
   });
 }
 
-/// Calcule la date locale d'arrivée. Si on a `arrival_time < departure_time`,
-/// c'est un vol overnight → arrivée le lendemain. Sinon arrivée le même jour.
-/// En cas d'horaire absent ou non parsable, fallback sur la date de départ
-/// (comportement prudent : ne décale pas si on ne sait pas).
-DateTime _computeArrivalDate({
-  required DateTime departureDate,
-  String? departureTime,
-  String? arrivalTime,
-}) {
-  if (departureTime == null || arrivalTime == null) return departureDate;
-  final dep = _parseHHMM(departureTime);
-  final arr = _parseHHMM(arrivalTime);
-  if (dep == null || arr == null) return departureDate;
-  if (arr < dep) {
-    return departureDate.add(const Duration(days: 1));
-  }
-  return departureDate;
-}
-
-/// Parse "HH:mm" → minutes depuis minuit. Null si le format ne matche pas.
-int? _parseHHMM(String s) {
-  final parts = s.trim().split(':');
-  if (parts.length < 2) return null;
-  final h = int.tryParse(parts[0]);
-  final m = int.tryParse(parts[1]);
-  if (h == null || m == null) return null;
-  if (h < 0 || h > 23 || m < 0 || m > 59) return null;
-  return h * 60 + m;
-}
