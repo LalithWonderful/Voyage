@@ -12,6 +12,7 @@ import 'package:voyage/features/regions/services/country_regions_repository.dart
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
 import 'package:voyage/features/trips/widgets/airport_picker_dialog.dart';
+import 'package:voyage/features/trips/widgets/improve_itinerary_sheet.dart';
 import 'package:voyage/features/trips/widgets/regional_loop_sheet.dart';
 import 'package:voyage/features/trips/widgets/trip_step_card.dart';
 
@@ -492,11 +493,37 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
   /// besoin d'enlever 1 pour le retour.
   int get _tripDays => _end.difference(_start).inDays + 1;
 
-  /// Ouvre la sheet "Suggérer une boucle régionale" qui appelle Gemini pour
-  /// proposer 3-5 villes autour de la destination principale. Les étapes
-  /// sélectionnées par l'utilisateur sont AJOUTÉES à la liste existante (pas
-  /// de remplacement — l'utilisateur peut toujours supprimer ce qu'il ne veut pas).
+  /// Vrai si le voyage a un itinéraire détaillé (typiquement issu des vols)
+  /// ET qu'au moins une ville a des suggestions dans le catalogue
+  /// `sub_trip_suggestions.dart`. Sert au routing du bouton "Suggérer" :
+  /// flow itinerary-aware vs flow régions classique.
+  bool get _isItineraryAware {
+    final cities = _segments.map((s) => s.city).toList();
+    return isImproveItineraryEligible(cities);
+  }
+
+  /// Ouvre soit la sheet "Améliorer ton itinéraire" (Lot 1, lecture seule)
+  /// si le voyage a déjà des étapes flight-derived couvertes par le
+  /// catalogue, soit la sheet "Suggérer une boucle régionale" classique
+  /// (Gemini + sélecteur de région) sinon.
+  ///
+  /// Sheet régionale : Gemini propose 3-5 villes autour de la destination
+  /// principale. Les étapes sélectionnées sont AJOUTÉES (pas remplacées).
   Future<void> _openRegionalLoop() async {
+    // ─── Routing itinerary-aware (Lot 1, 2026-05-08) ──────────────────
+    // Si le voyage a déjà ≥2 étapes ET qu'on a des suggestions catalogue,
+    // on ouvre la sheet "Améliorer ton itinéraire" (lecture seule en V1,
+    // CTAs stubbés). Lot 2 implémentera les transformations.
+    if (_isItineraryAware) {
+      await openImproveItinerarySheet(
+        context,
+        tripId: widget.trip.id,
+        anchorCities: _segments.map((s) => s.city).toList(),
+      );
+      return;
+    }
+
+    // ─── Flow classique (régions / boucle Gemini) ─────────────────────
     final dest = _destCtrl.text.trim();
     if (dest.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1918,7 +1945,13 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
               child: OutlinedButton.icon(
                 onPressed: _openRegionalLoop,
                 icon: const Text('💡', style: TextStyle(fontSize: 16)),
-                label: const Text('Suggérer'),
+                // Label conditionnel : si le voyage a un itinéraire
+                // détaillé (typiquement détecté depuis les vols) couvert
+                // par le catalogue, on parle d'affinage. Sinon, "Suggérer"
+                // générique (boucle régionale Gemini).
+                label: Text(
+                  _isItineraryAware ? 'Affiner les étapes' : 'Suggérer',
+                ),
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size(0, 44),
                   foregroundColor: AppColors.accent,
