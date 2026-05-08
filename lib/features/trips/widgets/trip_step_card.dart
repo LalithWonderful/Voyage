@@ -89,8 +89,12 @@ class TripStepCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // V2 Phase A — accent visuel selon l'état de lock. Discret : bordure
-    // de base inchangée + bordure gauche teintée 3px côté locked.
+    // V2 Phase A — accent visuel selon l'état de lock. Discret : barre
+    // gauche teintée 3px implémentée via un Container externe coloré
+    // dont le child blanc lui laisse 3px à gauche. Évite le bug
+    // Flutter "Border non-uniforme + borderRadius → throw FlutterError"
+    // qui blanchissait les cards locked (régression rapportée Lalith
+    // 2026-05-08).
     final accentColor = switch (lockState) {
       TripStepLockState.docLinked => AppColors.accent,
       TripStepLockState.windowLinked => AppColors.primary,
@@ -100,16 +104,10 @@ class TripStepCard extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        border: Border(
-          top: BorderSide(color: AppColors.border.withValues(alpha: 0.7)),
-          right: BorderSide(color: AppColors.border.withValues(alpha: 0.7)),
-          bottom: BorderSide(color: AppColors.border.withValues(alpha: 0.7)),
-          left: BorderSide(
-            color: accentColor != null
-                ? accentColor.withValues(alpha: 0.7)
-                : AppColors.border.withValues(alpha: 0.7),
-            width: accentColor != null ? 3 : 1,
-          ),
+        border: Border.all(
+          color: accentColor != null
+              ? accentColor.withValues(alpha: 0.55)
+              : AppColors.border.withValues(alpha: 0.7),
         ),
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
