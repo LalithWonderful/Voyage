@@ -27,6 +27,7 @@
 library;
 
 import 'package:voyage/features/planning/data/sub_trip_suggestions.dart';
+import 'package:voyage/features/planning/services/pinned_dates.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 
 /// Description immutable d'une mutation à appliquer sur une liste de
@@ -58,12 +59,38 @@ class ItineraryMutation {
   /// - `> 0` : anchor réduit (SPLIT, conserve uniquement le reliquat).
   final int? newAnchorDays;
 
+  /// V2 — Date à laquelle l'insertion commence dans le bloc anchor (1ère
+  /// nuit à la ville suggérée). Null pour APPEND/REPLACE et pour les SPLIT
+  /// qui n'exigent pas de date (cf. `requiresInsertionDate`).
+  ///
+  /// Conservé pour log/observabilité — le calcul effectif d'`applyMutation`
+  /// utilise `insertionPreDays` (offset en jours).
+  final DateTime? insertionStartDate;
+
+  /// V2 — Décalage en jours entre `anchor.startDate` et
+  /// `insertionStartDate`. Calculé à `computeMutation` à partir de
+  /// `pinnedAnalysis`. Sert à `applyMutation` pour découper l'anchor en
+  /// `[pre anchor, inserted, post anchor]` en segment-space (stable
+  /// sous batch même si des APPEND amont décalent l'anchor en
+  /// date-space).
+  final int? insertionPreDays;
+
+  /// V2 — Vrai si la suggestion à l'origine de cette mutation EXIGE une
+  /// `insertionStartDate` (rule produit non négociable : pas
+  /// d'heuristique début/milieu/fin de bloc). Calculé à `computeMutation`
+  /// via `suggestionRequiresInsertionDate`. Le batch validator rejette
+  /// toute mutation requiresInsertionDate sans date.
+  final bool requiresInsertionDate;
+
   const ItineraryMutation({
     required this.anchorIndex,
     required this.anchorCity,
     required this.mode,
     required this.insertedSegments,
     required this.newAnchorDays,
+    this.insertionStartDate,
+    this.insertionPreDays,
+    this.requiresInsertionDate = false,
   });
 
   /// Vrai si la mutation modifie structurellement l'anchor (SPLIT ou
@@ -93,6 +120,15 @@ enum MutationFailureReason {
   /// `tripDuration - currentTotal < suggestedTotal`. V1 ne vole pas
   /// de jours à un autre segment automatiquement.
   notEnoughFreeDaysToAppend,
+
+  /// V2 — `insertionStartDate` est en dehors des bornes du segment ancrage
+  /// OU viole une contrainte de transport pinné (arrivée/départ daté).
+  /// Couvre les contraintes 1-4 de `validateInsertionDate`.
+  insertionDateOutOfBounds,
+
+  /// V2 — `insertionStartDate` chevauche une réservation d'hôtel à
+  /// l'ancrage. Contrainte 5 de `validateInsertionDate`.
+  insertionDateConflictsHotel,
 }
 
 /// Résultat scellé de `computeMutation`. Soit un `MutationOk(mutation)`
@@ -132,6 +168,8 @@ MutationResult computeMutation({
   required SubTripSuggestion suggestion,
   required List<TripSegment> currentSegments,
   required int tripDurationDays,
+  DateTime? insertionStartDate,
+  PinnedDatesAnalysis? pinnedAnalysis,
 }) {
   final anchorIdx = _findAnchorIndex(currentSegments, suggestion.anchorCity);
   if (anchorIdx < 0) {
@@ -141,6 +179,7 @@ MutationResult computeMutation({
     );
   }
   final anchor = currentSegments[anchorIdx];
+  final requiresDate = suggestionRequiresInsertionDate(suggestion);
 
   switch (suggestion.insertionMode) {
     case InsertionMode.dayTrip:
@@ -163,6 +202,7 @@ MutationResult computeMutation({
         mode: suggestion.insertionMode,
         insertedSegments: _materialize(suggestion),
         newAnchorDays: null, // anchor inchangé
+        requiresInsertionDate: requiresDate,
       ));
 
     case InsertionMode.replaceAnchorGateway:
@@ -195,6 +235,7 @@ MutationResult computeMutation({
         mode: suggestion.insertionMode,
         insertedSegments: inserted,
         newAnchorDays: 0, // anchor supprimé
+        requiresInsertionDate: requiresDate,
       ));
 
     case InsertionMode.splitSegment:
@@ -218,14 +259,81 @@ MutationResult computeMutation({
               'restant = $reduced.',
         );
       }
+
+      // V2 — Validation date d'insertion si fournie + analyse pinned dispo.
+      // L'absence de date n'est PAS rejetée ici (le batch validator s'en
+      // charge selon `requiresInsertionDate`) — applyMutation fallback à
+      // l'heuristique MVP si pas de date.
+      int? insertionPreDays;
+      if (insertionStartDate != null && pinnedAnalysis != null) {
+        final reason = validateInsertionDate(
+          anchorCity: anchor.city,
+          insertionStartDate: insertionStartDate,
+          insertionDays: addedDays,
+          analysis: pinnedAnalysis,
+        );
+        if (reason != null) {
+          final isHotel = reason.contains('hôtel');
+          return MutationFailed(
+            isHotel
+                ? MutationFailureReason.insertionDateConflictsHotel
+                : MutationFailureReason.insertionDateOutOfBounds,
+            detail: reason,
+          );
+        }
+        final pin = pinnedAnalysis.forCity(anchor.city);
+        if (pin != null) {
+          insertionPreDays = DateTime(
+            insertionStartDate.year,
+            insertionStartDate.month,
+            insertionStartDate.day,
+          ).difference(DateTime(
+            pin.startDate.year,
+            pin.startDate.month,
+            pin.startDate.day,
+          )).inDays;
+        }
+      }
+
       return MutationOk(ItineraryMutation(
         anchorIndex: anchorIdx,
         anchorCity: anchor.city,
         mode: suggestion.insertionMode,
         insertedSegments: _materialize(suggestion),
         newAnchorDays: reduced,
+        insertionStartDate: insertionStartDate,
+        insertionPreDays: insertionPreDays,
+        requiresInsertionDate: requiresDate,
       ));
   }
+}
+
+/// V2 — Vrai si la suggestion exige une `insertionStartDate` explicite
+/// avant d'être appliquée. Sert à la fois au UI (afficher un date picker
+/// à la sélection) et au batch validator (rejeter une mutation
+/// structurelle sans date).
+///
+/// Critère narrow (V2.2) :
+/// - `splitSegment` × `majorDestination` (Chiang Mai, Krabi, Koh Samui,
+///   Phuket depuis Bangkok) — grandes alternatives où l'insertion à la
+///   date heuristique de début de bloc shifterait des dates pinnées.
+/// - `splitGatewaySequence` multi-step (≥2 segments insérés —
+///   Rayong+Koh Samet) — séquences longues qui consomment
+///   significativement les nuits du gateway.
+///
+/// Les autres SPLIT (gateway × splitSegment, splitGatewaySequence
+/// single-step) gardent le comportement MVP "insertion en début de
+/// bloc" jusqu'à ce que le picker soit étendu.
+bool suggestionRequiresInsertionDate(SubTripSuggestion s) {
+  if (s.insertionMode == InsertionMode.splitSegment &&
+      s.category == SuggestionCategory.majorDestination) {
+    return true;
+  }
+  if (s.insertionMode == InsertionMode.splitGatewaySequence &&
+      s.segments.length >= 2) {
+    return true;
+  }
+  return false;
 }
 
 /// Applique une mutation calculée à la liste de segments. Retourne une
@@ -251,10 +359,27 @@ List<TripSegment> applyMutation(
       // REPLACE : anchor supprimé, segments insérés à sa place.
       result.addAll(mutation.insertedSegments);
     } else {
-      // SPLIT : segments insérés À LA PLACE de l'anchor, suivi du
-      // reliquat de l'anchor avec days réduit.
-      result.addAll(mutation.insertedSegments);
-      result.add(currentSegments[i].copyWith(days: mutation.newAnchorDays));
+      // SPLIT : 2 stratégies selon `insertionPreDays`.
+      // - Si fourni (V2 picker) : 3-way split [anchor pre, inserted, anchor post]
+      //   en omettant les bouts à 0 jour. L'anchor garde son city/country.
+      // - Sinon (fallback MVP) : insertion en début de bloc, anchor reliquat
+      //   après. Comportement Lot 2.1 inchangé.
+      final pre = mutation.insertionPreDays;
+      if (pre != null && mutation.insertedSegments.isNotEmpty) {
+        final insertedTotal = mutation.insertedSegments
+            .fold<int>(0, (sum, e) => sum + e.days);
+        final post = currentSegments[i].days - pre - insertedTotal;
+        if (pre > 0) {
+          result.add(currentSegments[i].copyWith(days: pre));
+        }
+        result.addAll(mutation.insertedSegments);
+        if (post > 0) {
+          result.add(currentSegments[i].copyWith(days: post));
+        }
+      } else {
+        result.addAll(mutation.insertedSegments);
+        result.add(currentSegments[i].copyWith(days: mutation.newAnchorDays));
+      }
     }
   }
   return result;
@@ -315,6 +440,12 @@ enum BatchFailureReason {
   /// Le total des jours ajoutés via APPEND dépasse les jours libres
   /// du voyage (somme des APPEND > tripDuration - currentTotal).
   notEnoughFreeDaysForAllAppends,
+
+  /// V2 — Une mutation structurelle dont la suggestion exige une
+  /// `insertionStartDate` (cf. `suggestionRequiresInsertionDate`) a été
+  /// fournie sans date. Le caller doit ouvrir le date picker avant
+  /// d'appeler le validator.
+  missingInsertionDate,
 }
 
 /// Résultat scellé de `validateMutationBatch`.
@@ -351,6 +482,18 @@ BatchValidationResult validateMutationBatch({
   required int tripDurationDays,
 }) {
   if (mutations.isEmpty) return const BatchOk();
+
+  // V2 — Pre-check : toute mutation requiresInsertionDate sans date est
+  // rejetée. Le UI doit ouvrir le picker avant le batch.
+  for (final m in mutations) {
+    if (m.requiresInsertionDate && m.insertionStartDate == null) {
+      return BatchFailed(
+        BatchFailureReason.missingInsertionDate,
+        anchorCity: m.anchorCity,
+        detail: 'Mutation "${m.anchorCity}" exige une insertionStartDate.',
+      );
+    }
+  }
 
   // Groupage par anchor (normalisé pour case/accent insensible).
   final byAnchor = <String, List<ItineraryMutation>>{};
@@ -431,6 +574,9 @@ List<TripSegment> applyMutationBatch(
       mode: m.mode,
       insertedSegments: m.insertedSegments,
       newAnchorDays: m.newAnchorDays,
+      insertionStartDate: m.insertionStartDate,
+      insertionPreDays: m.insertionPreDays,
+      requiresInsertionDate: m.requiresInsertionDate,
     );
     current = applyMutation(current, patched);
   }

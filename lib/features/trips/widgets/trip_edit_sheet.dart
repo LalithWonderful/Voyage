@@ -548,6 +548,12 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
           BatchFailureReason.notEnoughFreeDaysForAllAppends =>
               'Pas assez de jours libres dans le voyage pour toutes ces '
                   'excursions.',
+          // V2.2 garde-fou : ce chemin ne devrait pas arriver tant que V2.3
+          // (date picker UI) n'est pas livré — la sheet n'expose pas encore
+          // de suggestion `requiresInsertionDate`. Message neutre.
+          BatchFailureReason.missingInsertionDate =>
+              'Cette modification nécessite une date d\'insertion. '
+                  'Réessaie depuis la card.',
         };
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(msg), duration: const Duration(seconds: 3)),

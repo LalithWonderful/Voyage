@@ -8,8 +8,10 @@ library;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:voyage/features/planning/data/sub_trip_suggestions.dart';
+import 'package:voyage/features/planning/services/pinned_dates.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/services/itinerary_mutation.dart';
+import 'package:voyage/features/wallet/models/document_model.dart';
 
 // ─── Fixtures ─────────────────────────────────────────────────────────
 
@@ -725,6 +727,407 @@ void main() {
       expect(result.length, 2);
       expect(result[0].city, 'Hanoï');
       expect(result[1].city, 'Da Nang');
+    });
+  });
+
+  // ─── V2.2 — insertionStartDate ──────────────────────────────────────
+
+  group('suggestionRequiresInsertionDate', () {
+    test('majorDestination × splitSegment → true', () {
+      final s = SubTripSuggestion(
+        anchorCity: 'Bangkok',
+        displayName: 'Krabi',
+        segments: const [SuggestedSegment(city: 'Krabi', days: 3)],
+        insertionMode: InsertionMode.splitSegment,
+        category: SuggestionCategory.majorDestination,
+        minAnchorDaysToKeep: 1,
+      );
+      expect(suggestionRequiresInsertionDate(s), isTrue);
+    });
+
+    test('gateway × splitSegment → false (cas Ha Long single-step)', () {
+      final s = SubTripSuggestion(
+        anchorCity: 'Hanoï',
+        displayName: 'Ha Long',
+        segments: const [SuggestedSegment(city: 'Baie d\'Ha Long', days: 2)],
+        insertionMode: InsertionMode.splitSegment,
+        minAnchorDaysToKeep: 1,
+      );
+      expect(suggestionRequiresInsertionDate(s), isFalse);
+    });
+
+    test('splitGatewaySequence multi-step → true (Rayong+Koh Samet)', () {
+      final s = SubTripSuggestion(
+        anchorCity: 'Bangkok',
+        displayName: 'Rayong + Koh Samet',
+        segments: const [
+          SuggestedSegment(city: 'Rayong', days: 1),
+          SuggestedSegment(city: 'Koh Samet', days: 2),
+        ],
+        insertionMode: InsertionMode.splitGatewaySequence,
+        minAnchorDaysToKeep: 1,
+      );
+      expect(suggestionRequiresInsertionDate(s), isTrue);
+    });
+
+    test('splitGatewaySequence single-step → false (Ninh Bình)', () {
+      final s = SubTripSuggestion(
+        anchorCity: 'Hanoï',
+        displayName: 'Ninh Bình',
+        segments: const [SuggestedSegment(city: 'Ninh Bình', days: 3)],
+        insertionMode: InsertionMode.splitGatewaySequence,
+        minAnchorDaysToKeep: 1,
+      );
+      expect(suggestionRequiresInsertionDate(s), isFalse);
+    });
+
+    test('APPEND modes → false', () {
+      final s = SubTripSuggestion(
+        anchorCity: 'Paris',
+        displayName: 'Versailles',
+        segments: const [SuggestedSegment(city: 'Versailles', days: 1)],
+        insertionMode: InsertionMode.dayTrip,
+      );
+      expect(suggestionRequiresInsertionDate(s), isFalse);
+    });
+
+    test('REPLACE → false', () {
+      final s = SubTripSuggestion(
+        anchorCity: 'Da Nang',
+        displayName: 'Hội An',
+        segments: const [SuggestedSegment(city: 'Hội An', days: 5)],
+        insertionMode: InsertionMode.replaceAnchorGateway,
+      );
+      expect(suggestionRequiresInsertionDate(s), isFalse);
+    });
+  });
+
+  group('computeMutation — insertionStartDate', () {
+    SubTripSuggestion krabiMajor() => const SubTripSuggestion(
+          anchorCity: 'Bangkok',
+          displayName: 'Krabi',
+          segments: [SuggestedSegment(city: 'Krabi', days: 3, country: 'Thaïlande')],
+          insertionMode: InsertionMode.splitSegment,
+          category: SuggestionCategory.majorDestination,
+          minAnchorDaysToKeep: 1,
+        );
+
+    PinnedDatesAnalysis bkkAnalysis({List<TripDocument> docs = const []}) {
+      return analyzePinnedDates(
+        segments: [_seg('Bangkok', 11), _seg('Phú Quốc', 5)],
+        tripStartDate: DateTime(2026, 6, 21),
+        docs: docs,
+      );
+    }
+
+    test('mutation porte requiresInsertionDate=true même sans date fournie', () {
+      final result = computeMutation(
+        suggestion: krabiMajor(),
+        currentSegments: [_seg('Bangkok', 11)],
+        tripDurationDays: 11,
+      );
+      expect(result, isA<MutationOk>());
+      final m = (result as MutationOk).mutation;
+      expect(m.requiresInsertionDate, isTrue);
+      expect(m.insertionStartDate, isNull);
+      expect(m.insertionPreDays, isNull);
+    });
+
+    test('date valide + analyse → MutationOk avec insertionPreDays calculé', () {
+      final result = computeMutation(
+        suggestion: krabiMajor(),
+        currentSegments: [_seg('Bangkok', 11)],
+        tripDurationDays: 11,
+        insertionStartDate: DateTime(2026, 6, 26),
+        pinnedAnalysis: bkkAnalysis(),
+      );
+      expect(result, isA<MutationOk>());
+      final m = (result as MutationOk).mutation;
+      expect(m.insertionStartDate, DateTime(2026, 6, 26));
+      expect(m.insertionPreDays, 5); // 26/06 - 21/06
+      expect(m.newAnchorDays, 8); // 11 - 3
+    });
+
+    test('date hors borne → MutationFailed.insertionDateOutOfBounds', () {
+      // Date avant le début du segment.
+      final result = computeMutation(
+        suggestion: krabiMajor(),
+        currentSegments: [_seg('Bangkok', 11)],
+        tripDurationDays: 11,
+        insertionStartDate: DateTime(2026, 6, 18),
+        pinnedAnalysis: bkkAnalysis(),
+      );
+      expect(result, isA<MutationFailed>());
+      expect(
+        (result as MutationFailed).reason,
+        MutationFailureReason.insertionDateOutOfBounds,
+      );
+    });
+
+    test('startPinned violé → insertionDateOutOfBounds', () {
+      final analysis = bkkAnalysis(docs: [
+        TripDocument(
+          id: 'f1', userId: 'u', tripId: 't',
+          category: DocumentCategory.flight,
+          name: 'Vol',
+          metadata: const {
+            'from_city': 'Luxembourg',
+            'to_city': 'Bangkok',
+            'date': '2026-06-21',
+          },
+          createdAt: DateTime(2026, 1, 1),
+        ),
+      ]);
+      // pre=0 alors que startPinned → rejet.
+      final result = computeMutation(
+        suggestion: krabiMajor(),
+        currentSegments: [_seg('Bangkok', 11)],
+        tripDurationDays: 11,
+        insertionStartDate: DateTime(2026, 6, 21),
+        pinnedAnalysis: analysis,
+      );
+      expect(result, isA<MutationFailed>());
+      expect(
+        (result as MutationFailed).reason,
+        MutationFailureReason.insertionDateOutOfBounds,
+      );
+    });
+
+    test('overlap hôtel anchor → insertionDateConflictsHotel', () {
+      final analysis = bkkAnalysis(docs: [
+        TripDocument(
+          id: 'h1', userId: 'u', tripId: 't',
+          category: DocumentCategory.hotel,
+          name: 'Hôtel',
+          metadata: const {
+            'address_city': 'Bangkok',
+            'check_in': '2026-06-25',
+            'check_out': '2026-06-28',
+          },
+          createdAt: DateTime(2026, 1, 1),
+        ),
+      ]);
+      final result = computeMutation(
+        suggestion: krabiMajor(),
+        currentSegments: [_seg('Bangkok', 11)],
+        tripDurationDays: 11,
+        insertionStartDate: DateTime(2026, 6, 26),
+        pinnedAnalysis: analysis,
+      );
+      expect(result, isA<MutationFailed>());
+      expect(
+        (result as MutationFailed).reason,
+        MutationFailureReason.insertionDateConflictsHotel,
+      );
+    });
+
+    test('date sans analyse → mutation acceptée avec insertionStartDate '
+        'mais pas de pre/post (applyMutation tombera en fallback)', () {
+      final result = computeMutation(
+        suggestion: krabiMajor(),
+        currentSegments: [_seg('Bangkok', 11)],
+        tripDurationDays: 11,
+        insertionStartDate: DateTime(2026, 6, 26),
+      );
+      expect(result, isA<MutationOk>());
+      final m = (result as MutationOk).mutation;
+      expect(m.insertionStartDate, DateTime(2026, 6, 26));
+      expect(m.insertionPreDays, isNull);
+    });
+  });
+
+  group('applyMutation — 3-way split V2', () {
+    test('cas E2E mémoire — Bangkok 11 + Krabi 3 @ 26/06 → '
+        '[Bangkok 5, Krabi 3, Bangkok 3]', () {
+      final segments = [_seg('Bangkok', 11, country: 'Thaïlande'), _seg('Phú Quốc', 5)];
+      final result = computeMutation(
+        suggestion: const SubTripSuggestion(
+          anchorCity: 'Bangkok',
+          displayName: 'Krabi',
+          segments: [SuggestedSegment(city: 'Krabi', days: 3, country: 'Thaïlande')],
+          insertionMode: InsertionMode.splitSegment,
+          category: SuggestionCategory.majorDestination,
+          minAnchorDaysToKeep: 1,
+        ),
+        currentSegments: segments,
+        tripDurationDays: 16,
+        insertionStartDate: DateTime(2026, 6, 26),
+        pinnedAnalysis: analyzePinnedDates(
+          segments: segments,
+          tripStartDate: DateTime(2026, 6, 21),
+          docs: const [],
+        ),
+      );
+      expect(result, isA<MutationOk>());
+      final mutated = applyMutation(segments, (result as MutationOk).mutation);
+
+      expect(mutated.length, 4);
+      expect(mutated[0].city, 'Bangkok');
+      expect(mutated[0].days, 5);
+      expect(mutated[0].country, 'Thaïlande');
+      expect(mutated[1].city, 'Krabi');
+      expect(mutated[1].days, 3);
+      expect(mutated[2].city, 'Bangkok');
+      expect(mutated[2].days, 3);
+      expect(mutated[2].country, 'Thaïlande');
+      expect(mutated[3].city, 'Phú Quốc');
+      expect(mutated[3].days, 5);
+    });
+
+    test('pre=0 → pas de segment anchor pre émis', () {
+      final segments = [_seg('Bangkok', 11)];
+      // Insertion au tout début (pre=0).
+      final mutation = ItineraryMutation(
+        anchorIndex: 0,
+        anchorCity: 'Bangkok',
+        mode: InsertionMode.splitSegment,
+        insertedSegments: [_seg('Krabi', 3)],
+        newAnchorDays: 8,
+        insertionStartDate: DateTime(2026, 6, 21),
+        insertionPreDays: 0,
+      );
+      final mutated = applyMutation(segments, mutation);
+      expect(mutated.length, 2);
+      expect(mutated[0].city, 'Krabi');
+      expect(mutated[1].city, 'Bangkok');
+      expect(mutated[1].days, 8);
+    });
+
+    test('post=0 → pas de segment anchor post émis', () {
+      final segments = [_seg('Bangkok', 11)];
+      // pre=8, inserted=3 → post=0.
+      final mutation = ItineraryMutation(
+        anchorIndex: 0,
+        anchorCity: 'Bangkok',
+        mode: InsertionMode.splitSegment,
+        insertedSegments: [_seg('Krabi', 3)],
+        newAnchorDays: 8,
+        insertionStartDate: DateTime(2026, 6, 29),
+        insertionPreDays: 8,
+      );
+      final mutated = applyMutation(segments, mutation);
+      expect(mutated.length, 2);
+      expect(mutated[0].city, 'Bangkok');
+      expect(mutated[0].days, 8);
+      expect(mutated[1].city, 'Krabi');
+    });
+
+    test('sans insertionPreDays → fallback comportement MVP', () {
+      final segments = [_seg('Bangkok', 11)];
+      final mutation = ItineraryMutation(
+        anchorIndex: 0,
+        anchorCity: 'Bangkok',
+        mode: InsertionMode.splitSegment,
+        insertedSegments: [_seg('Krabi', 3)],
+        newAnchorDays: 8,
+        // pas d'insertionStartDate ni preDays
+      );
+      final mutated = applyMutation(segments, mutation);
+      // Comportement Lot 2.1 inchangé : insertion en début, anchor reliquat après.
+      expect(mutated.length, 2);
+      expect(mutated[0].city, 'Krabi');
+      expect(mutated[1].city, 'Bangkok');
+      expect(mutated[1].days, 8);
+    });
+
+    test('SPLIT préserve la somme totale après 3-way split', () {
+      final segments = [_seg('Bangkok', 11), _seg('Phú Quốc', 5)];
+      final mutation = ItineraryMutation(
+        anchorIndex: 0,
+        anchorCity: 'Bangkok',
+        mode: InsertionMode.splitSegment,
+        insertedSegments: [_seg('Krabi', 3)],
+        newAnchorDays: 8,
+        insertionStartDate: DateTime(2026, 6, 26),
+        insertionPreDays: 5,
+      );
+      final mutated = applyMutation(segments, mutation);
+      final totalBefore = segments.fold<int>(0, (s, e) => s + e.days);
+      final totalAfter = mutated.fold<int>(0, (s, e) => s + e.days);
+      expect(totalAfter, totalBefore);
+    });
+  });
+
+  group('validateMutationBatch — missingInsertionDate', () {
+    test('mutation requiresInsertionDate sans date → BatchFailed', () {
+      final result = computeMutation(
+        suggestion: const SubTripSuggestion(
+          anchorCity: 'Bangkok',
+          displayName: 'Krabi',
+          segments: [SuggestedSegment(city: 'Krabi', days: 3)],
+          insertionMode: InsertionMode.splitSegment,
+          category: SuggestionCategory.majorDestination,
+          minAnchorDaysToKeep: 1,
+        ),
+        currentSegments: [_seg('Bangkok', 11)],
+        tripDurationDays: 11,
+      );
+      final m = (result as MutationOk).mutation;
+      expect(m.requiresInsertionDate, isTrue);
+      expect(m.insertionStartDate, isNull);
+
+      final batch = validateMutationBatch(
+        mutations: [m],
+        currentSegments: [_seg('Bangkok', 11)],
+        tripDurationDays: 11,
+      );
+      expect(batch, isA<BatchFailed>());
+      expect(
+        (batch as BatchFailed).reason,
+        BatchFailureReason.missingInsertionDate,
+      );
+      expect(batch.anchorCity, 'Bangkok');
+    });
+
+    test('mutation requiresInsertionDate avec date → BatchOk', () {
+      final segments = [_seg('Bangkok', 11)];
+      final result = computeMutation(
+        suggestion: const SubTripSuggestion(
+          anchorCity: 'Bangkok',
+          displayName: 'Krabi',
+          segments: [SuggestedSegment(city: 'Krabi', days: 3)],
+          insertionMode: InsertionMode.splitSegment,
+          category: SuggestionCategory.majorDestination,
+          minAnchorDaysToKeep: 1,
+        ),
+        currentSegments: segments,
+        tripDurationDays: 11,
+        insertionStartDate: DateTime(2026, 6, 26),
+        pinnedAnalysis: analyzePinnedDates(
+          segments: segments,
+          tripStartDate: DateTime(2026, 6, 21),
+          docs: const [],
+        ),
+      );
+      final batch = validateMutationBatch(
+        mutations: [(result as MutationOk).mutation],
+        currentSegments: segments,
+        tripDurationDays: 11,
+      );
+      expect(batch, isA<BatchOk>());
+    });
+
+    test('SPLIT sans requiresInsertionDate (gateway × split) sans date → '
+        'BatchOk (legacy MVP path autorisé)', () {
+      final result = computeMutation(
+        suggestion: _split(
+          anchor: 'Hanoï',
+          city: 'Ninh Bình',
+          days: 3,
+          minKeep: 1,
+          gateway: false, // splitSegment, pas majorDestination
+        ),
+        currentSegments: [_seg('Hanoï', 4)],
+        tripDurationDays: 4,
+      );
+      final m = (result as MutationOk).mutation;
+      expect(m.requiresInsertionDate, isFalse);
+      final batch = validateMutationBatch(
+        mutations: [m],
+        currentSegments: [_seg('Hanoï', 4)],
+        tripDurationDays: 4,
+      );
+      expect(batch, isA<BatchOk>());
     });
   });
 }
