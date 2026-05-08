@@ -255,19 +255,23 @@ const _subTripSuggestions = <SubTripSuggestion>[
     anchorCity: 'Da Nang',
     displayName: 'Hué',
     segments: [
-      SuggestedSegment(city: 'Hué', days: 2, country: 'Vietnam'),
+      SuggestedSegment(city: 'Hué', days: 3, country: 'Vietnam'),
     ],
-    // 2026-05-08 : reclassée nearbyStay (était splitSegment). Hué n'est
-    // PAS la correction du segment Da Nang (= Hội An), c'est une option
-    // culturelle additionnelle au Vietnam central.
-    insertionMode: InsertionMode.nearbyStay,
+    // 2026-05-08 (rev 2) : reclassée replaceAnchorGateway (avait été
+    // nearbyStay puis bloquée par wouldShiftPinnedDownstream à cause du
+    // vol Da Nang→Bangkok pinné). Hué est une ALTERNATIVE structurelle
+    // à Hội An sur le bloc Da Nang : l'utilisateur peut choisir l'une
+    // OU l'autre (même anchor → mutex via _isCardDisabled rule "1
+    // structurelle par anchor"). Consomme les jours du bloc Da Nang
+    // sans pousser le vol vers Bangkok.
+    insertionMode: InsertionMode.replaceAnchorGateway,
     travelLabel: '≈ 2h depuis Da Nang (col du Hai Van)',
     tags: ['Patrimoine', 'Cité impériale', 'UNESCO'],
     priority: 7,
     whyText:
-        'Cité impériale UNESCO, à combiner avec Hội An. La route via '
-        'le col du Hai Van est elle-même un highlight.',
-    ctaLabel: 'Ajouter Hué au Vietnam central',
+        'Ancienne cité impériale, temples et patrimoine UNESCO. '
+        'Alternative culturelle à Hội An dans le Vietnam central.',
+    ctaLabel: 'Remplacer Da Nang par Hué',
     regionLabel: 'au Vietnam central',
   ),
 
