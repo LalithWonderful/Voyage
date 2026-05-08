@@ -970,6 +970,12 @@ void main() {
       () async {
     final results = <({_Scenario scenario, _Kpi kpi})>[];
 
+    // ⚠ Effet d'ordre observé 2026-05-08 : le profil en DERNIÈRE position
+    // tend à perdre 4-5 meals (~30% mls) à cause du rate-limiting / quota
+    // dégradation Google Places après ~500-1000 RPCs cumulés. Tester un
+    // profil en 1re position prouve qu'il atteint son score nominal. Si
+    // un profil suspect apparaît dégradé, le bouger en 1re position pour
+    // valider que le problème vient du quota et non du scoring.
     for (final s in _scenarios) {
       // ignore: avoid_print
       print('▶ Run ${s.label}…');
