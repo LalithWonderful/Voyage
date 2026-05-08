@@ -518,25 +518,59 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
     // `applyMutation` et on persiste via le mécanisme habituel
     // (setState + sauvegarde au "Enregistrer" du parent sheet).
     if (_isItineraryAware) {
-      final mutation = await openImproveItinerarySheet(
+      // Lot 2.3 : la sheet retourne une LISTE de mutations (multi-select).
+      // On valide le batch puis on applique.
+      final mutations = await openImproveItinerarySheet(
         context,
         tripId: widget.trip.id,
         currentSegments: _segments.toList(growable: false),
         tripStartDate: _start,
         tripDurationDays: _end.difference(_start).inDays + 1,
       );
-      if (mutation == null || !mounted) return;
+      if (mutations == null || mutations.isEmpty || !mounted) return;
+
+      final tripDuration = _end.difference(_start).inDays + 1;
+      final validation = validateMutationBatch(
+        mutations: mutations,
+        currentSegments: _segments,
+        tripDurationDays: tripDuration,
+      );
+      if (validation is BatchFailed) {
+        // Garde-fou : la sheet désactive déjà les sélections conflit
+        // mais on protège contre toute incohérence (race condition,
+        // double-tap, etc.). Snackbar humaine.
+        final msg = switch (validation.reason) {
+          BatchFailureReason.conflictingStructuralOnSameAnchor =>
+              'Une seule modification possible pour ${validation.anchorCity}.',
+          BatchFailureReason.appendOnRemovedAnchor =>
+              'Conflit sur ${validation.anchorCity} : impossible d\'ajouter '
+                  'une excursion à une étape qui sera remplacée.',
+          BatchFailureReason.notEnoughFreeDaysForAllAppends =>
+              'Pas assez de jours libres dans le voyage pour toutes ces '
+                  'excursions.',
+        };
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg), duration: const Duration(seconds: 3)),
+        );
+        return;
+      }
+
       setState(() {
-        final newSegments = applyMutation(_segments, mutation);
+        final newSegments = applyMutationBatch(_segments, mutations);
         _segments
           ..clear()
           ..addAll(newSegments);
         _enforceSingleSegmentRule();
       });
+      final n = mutations.length;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Étapes mises à jour.'),
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: Text(
+            n == 1
+                ? 'Étapes mises à jour (1 modification).'
+                : 'Étapes mises à jour ($n modifications).',
+          ),
+          duration: const Duration(seconds: 2),
         ),
       );
       return;

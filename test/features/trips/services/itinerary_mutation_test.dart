@@ -479,4 +479,252 @@ void main() {
       }
     });
   });
+
+  // ─── Batch (Lot 2.3) ─────────────────────────────────────────────
+
+  /// Helper local au groupe : compute la mutation pour une suggestion
+  /// donnée, throw si MutationFailed (les fixtures de tests batch
+  /// présupposent que les individuelles passent). Pas de underscore
+  /// au préfixe (closure locale, lint le déconseille).
+  ItineraryMutation mut(
+    SubTripSuggestion s,
+    List<TripSegment> segments,
+    int duration,
+  ) {
+    final r = computeMutation(
+      suggestion: s,
+      currentSegments: segments,
+      tripDurationDays: duration,
+    );
+    if (r is MutationOk) return r.mutation;
+    throw StateError('test fixture: mutation failed: ${(r as MutationFailed).reason}');
+  }
+
+  group('validateMutationBatch', () {
+    test('liste vide → BatchOk', () {
+      final result = validateMutationBatch(
+        mutations: const [],
+        currentSegments: [_seg('Hanoï', 4)],
+        tripDurationDays: 4,
+      );
+      expect(result, isA<BatchOk>());
+    });
+
+    test('1 SPLIT + 1 REPLACE sur anchors différents → OK', () {
+      final segments = [_seg('Hanoï', 4), _seg('Da Nang', 3)];
+      final m1 = mut(
+        _split(anchor: 'Hanoï', city: 'Ninh Bình', days: 3, minKeep: 1),
+        segments,
+        7,
+      );
+      final m2 = mut(
+        _replace(anchor: 'Da Nang', city: 'Hội An', suggestedDays: 3),
+        segments,
+        7,
+      );
+      final result = validateMutationBatch(
+        mutations: [m1, m2],
+        currentSegments: segments,
+        tripDurationDays: 7,
+      );
+      expect(result, isA<BatchOk>());
+    });
+
+    test('2 SPLIT sur même anchor → conflictingStructuralOnSameAnchor', () {
+      final segments = [_seg('Hanoï', 6)];
+      final m1 = mut(
+        _split(anchor: 'Hanoï', city: 'Ninh Bình', days: 3, minKeep: 1),
+        segments,
+        6,
+      );
+      // 2e split sur Hanoï (Ha Long) — calculé contre original.
+      final m2 = mut(
+        _split(anchor: 'Hanoï', city: 'Ha Long', days: 2, minKeep: 1),
+        segments,
+        6,
+      );
+      final result = validateMutationBatch(
+        mutations: [m1, m2],
+        currentSegments: segments,
+        tripDurationDays: 6,
+      );
+      expect(result, isA<BatchFailed>());
+      expect(
+        (result as BatchFailed).reason,
+        BatchFailureReason.conflictingStructuralOnSameAnchor,
+      );
+      expect(result.anchorCity, 'Hanoï');
+    });
+
+    test('REPLACE + APPEND sur même anchor → appendOnRemovedAnchor', () {
+      final segments = [_seg('Da Nang', 3)];
+      final m1 = mut(
+        _replace(anchor: 'Da Nang', city: 'Hội An', suggestedDays: 3),
+        segments,
+        5,
+      );
+      // APPEND sur Da Nang via dayTrip imaginaire (Da Nang n'a pas de
+      // dayTrip dans le catalogue mais on peut le construire ici).
+      final dayTripFromDaNang = SubTripSuggestion(
+        anchorCity: 'Da Nang',
+        displayName: 'Marble Mountains',
+        segments: [SuggestedSegment(city: 'Marble Mountains', days: 1)],
+        insertionMode: InsertionMode.dayTrip,
+      );
+      final m2 = mut(dayTripFromDaNang, segments, 5);
+      final result = validateMutationBatch(
+        mutations: [m1, m2],
+        currentSegments: segments,
+        tripDurationDays: 5,
+      );
+      expect(result, isA<BatchFailed>());
+      expect(
+        (result as BatchFailed).reason,
+        BatchFailureReason.appendOnRemovedAnchor,
+      );
+    });
+
+    test('2 APPEND avec total > free days → notEnoughFreeDaysForAllAppends',
+        () {
+      // Trip 4j, déjà placés Hanoï 3 + Da Nang 1 = 4. Aucun jour libre.
+      final segments = [_seg('Hanoï', 3), _seg('Da Nang', 1)];
+      final dayTripHanoi = SubTripSuggestion(
+        anchorCity: 'Hanoï',
+        displayName: 'Trang An',
+        segments: [SuggestedSegment(city: 'Trang An', days: 1)],
+        insertionMode: InsertionMode.dayTrip,
+      );
+      // 2 mutations avec free=0 → la 1re passe individuellement
+      // (computeMutation est appelée avec tripDuration assez grand pour
+      // faire passer le test fixture). Mais en BATCH avec free = 0,
+      // la somme excède.
+      // Pour isoler la règle batch, on appelle le validator avec une
+      // duration plus stricte que celle utilisée pour compute.
+      final m1 = mut(dayTripHanoi, segments, 5); // free=1 dispo
+      // 2e mutation : on fabrique manuellement un append de 2 jours
+      // pour dépasser. Direct sans passer par computeMutation pour
+      // contourner les checks individuels.
+      final m2 = ItineraryMutation(
+        anchorIndex: 1,
+        anchorCity: 'Da Nang',
+        mode: InsertionMode.dayTrip,
+        insertedSegments: [_seg('Hoi An', 2)],
+        newAnchorDays: null,
+      );
+      final result = validateMutationBatch(
+        mutations: [m1, m2],
+        currentSegments: segments,
+        tripDurationDays: 4, // 0 free days
+      );
+      expect(result, isA<BatchFailed>());
+      expect(
+        (result as BatchFailed).reason,
+        BatchFailureReason.notEnoughFreeDaysForAllAppends,
+      );
+    });
+
+    test('SPLIT + APPEND sur même anchor → OK (split garde anchor, append après)',
+        () {
+      final segments = [_seg('Bangkok', 6)];
+      final m1 = mut(
+        _split(anchor: 'Bangkok', city: 'Pattaya', days: 2, minKeep: 1),
+        segments,
+        7,
+      );
+      // APPEND dayTrip sur Bangkok aussi.
+      final dayTripBkk = SubTripSuggestion(
+        anchorCity: 'Bangkok',
+        displayName: 'Ayutthaya',
+        segments: [SuggestedSegment(city: 'Ayutthaya', days: 1)],
+        insertionMode: InsertionMode.dayTrip,
+      );
+      final m2 = mut(dayTripBkk, segments, 7);
+      final result = validateMutationBatch(
+        mutations: [m1, m2],
+        currentSegments: segments,
+        tripDurationDays: 7,
+      );
+      expect(result, isA<BatchOk>(),
+          reason: 'SPLIT garde l\'anchor (réduit), APPEND peut s\'ajouter');
+    });
+  });
+
+  group('applyMutationBatch', () {
+    test('multi-anchor : Hanoï SPLIT + Da Nang REPLACE en cascade', () {
+      final segments = [_seg('Hanoï', 4), _seg('Da Nang', 3)];
+      final m1 = mut(
+        _split(anchor: 'Hanoï', city: 'Ninh Bình', days: 3, minKeep: 1),
+        segments,
+        7,
+      );
+      final m2 = mut(
+        _replace(anchor: 'Da Nang', city: 'Hội An', suggestedDays: 3),
+        segments,
+        7,
+      );
+      final result = applyMutationBatch(segments, [m1, m2]);
+      // Attendu : [Ninh Bình 3, Hanoï 1, Hội An 3]
+      expect(result.length, 3);
+      expect(result[0].city, 'Ninh Bình');
+      expect(result[0].days, 3);
+      expect(result[1].city, 'Hanoï');
+      expect(result[1].days, 1);
+      expect(result[2].city, 'Hội An');
+      expect(result[2].days, 3);
+    });
+
+    test('ordre tap-order préservé pour anchors indépendants', () {
+      final segments = [_seg('Hanoï', 4), _seg('Da Nang', 3)];
+      // Ordre inverse dans le batch : Da Nang d'abord, Hanoï ensuite.
+      final m1 = mut(
+        _replace(anchor: 'Da Nang', city: 'Hội An', suggestedDays: 3),
+        segments,
+        7,
+      );
+      final m2 = mut(
+        _split(anchor: 'Hanoï', city: 'Ninh Bình', days: 3, minKeep: 1),
+        segments,
+        7,
+      );
+      final result = applyMutationBatch(segments, [m1, m2]);
+      // Re-localisation par city : Da Nang appliqué d'abord (Hội An
+      // remplace), puis Hanoï SPLIT (Ninh Bình + Hanoï 1).
+      expect(result.length, 3);
+      expect(result.map((s) => s.city).toList(),
+          ['Ninh Bình', 'Hanoï', 'Hội An']);
+    });
+
+    test('apply Bangkok SPLIT multi-step + Hanoï SPLIT', () {
+      final segments = [_seg('Hanoï', 4), _seg('Bangkok', 6)];
+      final m1 = mut(
+        _split(anchor: 'Hanoï', city: 'Ninh Bình', days: 3, minKeep: 1),
+        segments,
+        10,
+      );
+      final m2 = mut(
+        _splitMulti(
+          anchor: 'Bangkok',
+          cities: [
+            (city: 'Rayong', days: 1),
+            (city: 'Koh Samet', days: 2),
+          ],
+          minKeep: 1,
+        ),
+        segments,
+        10,
+      );
+      final result = applyMutationBatch(segments, [m1, m2]);
+      expect(result.map((s) => s.city).toList(),
+          ['Ninh Bình', 'Hanoï', 'Rayong', 'Koh Samet', 'Bangkok']);
+      expect(result.map((s) => s.days).toList(), [3, 1, 1, 2, 3]);
+    });
+
+    test('liste vide → segments inchangés', () {
+      final segments = [_seg('Hanoï', 4), _seg('Da Nang', 3)];
+      final result = applyMutationBatch(segments, []);
+      expect(result.length, 2);
+      expect(result[0].city, 'Hanoï');
+      expect(result[1].city, 'Da Nang');
+    });
+  });
 }

@@ -31,14 +31,20 @@ import 'package:voyage/features/trips/models/trip_model.dart';
 
 /// Description immutable d'une mutation à appliquer sur une liste de
 /// `TripSegment`. Calculée par `computeMutation`, appliquée par
-/// `applyMutation`.
+/// `applyMutation` (single) ou `applyMutationBatch` (multi).
 class ItineraryMutation {
-  /// Index de l'anchor dans la liste des segments d'origine.
+  /// Index de l'anchor dans la liste des segments AU MOMENT DU CALCUL.
+  /// Reste utile pour `applyMutation` single. En batch, on re-localise
+  /// l'anchor par `anchorCity` (les indices shift entre mutations).
   final int anchorIndex;
 
-  /// Mode logique (pour log/observabilité). N'influe pas sur
-  /// `applyMutation` qui se base uniquement sur `newAnchorDays` et
-  /// `insertedSegments`.
+  /// Nom de la ville d'ancrage. Sert au batch apply (re-localisation
+  /// par nom après que d'autres mutations aient shifté les indices)
+  /// et à `validateMutationBatch` (groupage par anchor).
+  final String anchorCity;
+
+  /// Mode logique (pour log/observabilité + validation batch — ex:
+  /// 2 SPLIT sur même anchor = conflit).
   final InsertionMode mode;
 
   /// Segments à insérer, dans l'ordre. Pour APPEND : insérés APRÈS
@@ -54,10 +60,21 @@ class ItineraryMutation {
 
   const ItineraryMutation({
     required this.anchorIndex,
+    required this.anchorCity,
     required this.mode,
     required this.insertedSegments,
     required this.newAnchorDays,
   });
+
+  /// Vrai si la mutation modifie structurellement l'anchor (SPLIT ou
+  /// REPLACE — les jours de l'anchor changent ou l'anchor disparaît).
+  /// Sert à la validation batch : 2 mutations structurelles sur le même
+  /// anchor sont incompatibles.
+  bool get isStructural => newAnchorDays != null;
+
+  /// Vrai si la mutation supprime l'anchor (REPLACE). Bloque toute
+  /// autre mutation sur le même anchor (anchor disparaît).
+  bool get removesAnchor => newAnchorDays == 0;
 }
 
 /// Raisons d'échec exposées au caller (pour message UX humain).
@@ -142,6 +159,7 @@ MutationResult computeMutation({
       }
       return MutationOk(ItineraryMutation(
         anchorIndex: anchorIdx,
+        anchorCity: anchor.city,
         mode: suggestion.insertionMode,
         insertedSegments: _materialize(suggestion),
         newAnchorDays: null, // anchor inchangé
@@ -173,6 +191,7 @@ MutationResult computeMutation({
       }
       return MutationOk(ItineraryMutation(
         anchorIndex: anchorIdx,
+        anchorCity: anchor.city,
         mode: suggestion.insertionMode,
         insertedSegments: inserted,
         newAnchorDays: 0, // anchor supprimé
@@ -201,6 +220,7 @@ MutationResult computeMutation({
       }
       return MutationOk(ItineraryMutation(
         anchorIndex: anchorIdx,
+        anchorCity: anchor.city,
         mode: suggestion.insertionMode,
         insertedSegments: _materialize(suggestion),
         newAnchorDays: reduced,
@@ -277,4 +297,142 @@ String _normalizeCity(String s) {
   var out = s.toLowerCase().trim();
   accents.forEach((k, v) => out = out.replaceAll(k, v));
   return out;
+}
+
+// ─── Batch (Lot 2.3 — multi-select) ──────────────────────────────────
+
+/// Raisons d'échec spécifiques au batch (en plus de
+/// `MutationFailureReason` qui couvre les erreurs single).
+enum BatchFailureReason {
+  /// Au moins 2 mutations structurelles (SPLIT/REPLACE) ciblent le
+  /// même anchor city. Une seule modification par anchor est autorisée.
+  conflictingStructuralOnSameAnchor,
+
+  /// REPLACE supprime l'anchor, mais une autre mutation cible le même
+  /// anchor (devenu inexistant après REPLACE).
+  appendOnRemovedAnchor,
+
+  /// Le total des jours ajoutés via APPEND dépasse les jours libres
+  /// du voyage (somme des APPEND > tripDuration - currentTotal).
+  notEnoughFreeDaysForAllAppends,
+}
+
+/// Résultat scellé de `validateMutationBatch`.
+sealed class BatchValidationResult {
+  const BatchValidationResult();
+}
+
+class BatchOk extends BatchValidationResult {
+  const BatchOk();
+}
+
+class BatchFailed extends BatchValidationResult {
+  final BatchFailureReason reason;
+  /// Ville d'ancrage liée au conflit (si pertinent — pour message UX).
+  final String? anchorCity;
+  /// Détails optionnels (logs/debug).
+  final String? detail;
+  const BatchFailed(this.reason, {this.anchorCity, this.detail});
+}
+
+/// Valide qu'un batch de mutations peut être appliqué ensemble. Règles :
+/// 1. Au plus 1 mutation STRUCTURELLE (SPLIT ou REPLACE) par anchor city.
+/// 2. Si REPLACE sur anchor X → aucune autre mutation ne peut cibler X
+///    (anchor disparaît).
+/// 3. La somme des jours ajoutés via APPEND doit tenir dans les jours
+///    libres du voyage.
+///
+/// Les conflits city-level / date-précis sont gérés en amont par
+/// `_resolveSuggestion` côté UI — ce validator se concentre sur les
+/// règles INTER-mutations (impossibles à détecter individuellement).
+BatchValidationResult validateMutationBatch({
+  required List<ItineraryMutation> mutations,
+  required List<TripSegment> currentSegments,
+  required int tripDurationDays,
+}) {
+  if (mutations.isEmpty) return const BatchOk();
+
+  // Groupage par anchor (normalisé pour case/accent insensible).
+  final byAnchor = <String, List<ItineraryMutation>>{};
+  for (final m in mutations) {
+    final k = _normalizeCity(m.anchorCity);
+    byAnchor.putIfAbsent(k, () => []).add(m);
+  }
+
+  for (final entry in byAnchor.entries) {
+    final group = entry.value;
+    final structural = group.where((m) => m.isStructural).toList();
+
+    // Règle 1 : au plus 1 structurelle par anchor.
+    if (structural.length > 1) {
+      return BatchFailed(
+        BatchFailureReason.conflictingStructuralOnSameAnchor,
+        anchorCity: structural.first.anchorCity,
+      );
+    }
+
+    // Règle 2 : REPLACE → aucune autre mutation sur l'anchor.
+    final removes = group.where((m) => m.removesAnchor).toList();
+    if (removes.isNotEmpty && group.length > 1) {
+      return BatchFailed(
+        BatchFailureReason.appendOnRemovedAnchor,
+        anchorCity: removes.first.anchorCity,
+      );
+    }
+  }
+
+  // Règle 3 : somme des APPEND ≤ jours libres.
+  final currentTotal =
+      currentSegments.fold<int>(0, (sum, s) => sum + s.days);
+  final freeDays = tripDurationDays - currentTotal;
+  // APPEND = mutations non structurelles (newAnchorDays == null).
+  // Pour SPLIT (structural), la somme des days reste préservée par
+  // construction → ne consomme pas de jour libre.
+  // Pour REPLACE (structural removal) idem : suggested prend anchor.days
+  // → pas de consommation de jour libre.
+  final appendTotal = mutations
+      .where((m) => !m.isStructural)
+      .fold<int>(
+          0, (sum, m) => sum + m.insertedSegments.fold<int>(0, (s, e) => s + e.days));
+  if (appendTotal > freeDays) {
+    return BatchFailed(
+      BatchFailureReason.notEnoughFreeDaysForAllAppends,
+      detail:
+          'APPEND total = $appendTotal jours, libres = $freeDays.',
+    );
+  }
+
+  return const BatchOk();
+}
+
+/// Applique séquentiellement un batch de mutations. À chaque étape, on
+/// re-localise l'anchor par CITY (pas par index, qui shifterait après
+/// les mutations précédentes).
+///
+/// Présuppose que `validateMutationBatch` a déjà validé le batch — sinon
+/// une mutation pourrait référencer un anchor disparu (REPLACE+autre)
+/// et serait skippée silencieusement.
+List<TripSegment> applyMutationBatch(
+  List<TripSegment> initial,
+  List<ItineraryMutation> mutations,
+) {
+  var current = List<TripSegment>.from(initial);
+  for (final m in mutations) {
+    final idx = _findAnchorIndex(current, m.anchorCity);
+    if (idx < 0) {
+      // Anchor disparu (e.g., REPLACE l'a supprimé en amont) — skip
+      // proprement plutôt que crasher. La validation upstream aurait
+      // dû éviter ce cas.
+      continue;
+    }
+    final patched = ItineraryMutation(
+      anchorIndex: idx,
+      anchorCity: m.anchorCity,
+      mode: m.mode,
+      insertedSegments: m.insertedSegments,
+      newAnchorDays: m.newAnchorDays,
+    );
+    current = applyMutation(current, patched);
+  }
+  return current;
 }

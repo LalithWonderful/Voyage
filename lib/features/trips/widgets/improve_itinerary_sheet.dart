@@ -26,18 +26,18 @@ import 'package:voyage/features/trips/services/itinerary_mutation.dart';
 import 'package:voyage/features/wallet/models/document_model.dart';
 import 'package:voyage/features/wallet/providers/wallet_provider.dart';
 
-/// Ouvre la sheet "Améliorer ton itinéraire". Retourne la mutation
-/// choisie par l'utilisateur, ou `null` s'il a annulé / fermé sans tap.
-/// Le caller est responsable d'appliquer via `applyMutation` et de
-/// persister.
-Future<ItineraryMutation?> openImproveItinerarySheet(
+/// Ouvre la sheet "Améliorer ton itinéraire". Retourne la liste des
+/// mutations choisies par l'utilisateur (multi-select), ou `null` /
+/// liste vide s'il a annulé / fermé sans rien sélectionner. Le caller
+/// est responsable de validateMutationBatch puis applyMutationBatch.
+Future<List<ItineraryMutation>?> openImproveItinerarySheet(
   BuildContext context, {
   required String tripId,
   required List<TripSegment> currentSegments,
   required DateTime tripStartDate,
   required int tripDurationDays,
 }) async {
-  return showModalBottomSheet<ItineraryMutation>(
+  return showModalBottomSheet<List<ItineraryMutation>>(
     context: context,
     isScrollControlled: true,
     backgroundColor: AppColors.background,
@@ -67,7 +67,7 @@ bool isImproveItineraryEligible(List<String> anchorCities) {
   return hasAnySuggestionsFor(anchorCities);
 }
 
-class _ImproveItinerarySheet extends ConsumerWidget {
+class _ImproveItinerarySheet extends ConsumerStatefulWidget {
   final String tripId;
   final List<TripSegment> currentSegments;
   final DateTime tripStartDate;
@@ -81,8 +81,37 @@ class _ImproveItinerarySheet extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final docsAsync = ref.watch(tripDocumentsProvider(tripId));
+  ConsumerState<_ImproveItinerarySheet> createState() =>
+      _ImproveItinerarySheetState();
+}
+
+class _ImproveItinerarySheetState
+    extends ConsumerState<_ImproveItinerarySheet> {
+  // Set des `_ResolvedSuggestion` actuellement sélectionnées par l'user.
+  // Identité par référence : la même `_ResolvedSuggestion` est créée
+  // au build via `_resolveSuggestion` mais on rebuild le set à chaque
+  // rebuild (les références changent). On utilise donc un ID stable
+  // basé sur `(anchorCity, displayName)` qui est unique dans le
+  // catalogue actuel.
+  final Set<String> _selectedKeys = <String>{};
+
+  String _idFor(_ResolvedSuggestion r) =>
+      '${r.suggestion.anchorCity}|${r.suggestion.displayName}';
+
+  void _toggle(_ResolvedSuggestion r) {
+    setState(() {
+      final key = _idFor(r);
+      if (_selectedKeys.contains(key)) {
+        _selectedKeys.remove(key);
+      } else {
+        _selectedKeys.add(key);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final docsAsync = ref.watch(tripDocumentsProvider(widget.tripId));
 
     return DraggableScrollableSheet(
       initialChildSize: 0.85,
@@ -170,7 +199,7 @@ class _ImproveItinerarySheet extends ConsumerWidget {
     // pouvoir computer mutations + dates précises).
     final seen = <String>{};
     final uniqueCities = <String>[];
-    for (final s in currentSegments) {
+    for (final s in widget.currentSegments) {
       final t = s.city.trim();
       if (t.isEmpty) continue;
       final key = t.toLowerCase();
@@ -206,9 +235,9 @@ class _ImproveItinerarySheet extends ConsumerWidget {
       for (final s in catalogue) {
         final r = _resolveSuggestion(
           suggestion: s,
-          currentSegments: currentSegments,
-          tripStartDate: tripStartDate,
-          tripDurationDays: tripDurationDays,
+          currentSegments: widget.currentSegments,
+          tripStartDate: widget.tripStartDate,
+          tripDurationDays: widget.tripDurationDays,
           docs: docs,
         );
         if (r != null) resolved.add(r);
@@ -245,9 +274,92 @@ class _ImproveItinerarySheet extends ConsumerWidget {
           anchorCity: entry.city,
           resolved: entry.resolved,
           isLikelyArrivalGateway: entry.isArrival,
+          selectedKeys: _selectedKeys,
+          idFor: _idFor,
+          isDisabled: (r) => _isCardDisabled(r, sectionsWithSuggestions),
+          onToggle: _toggle,
         );
       },
     );
+  }
+
+  /// Renvoie tous les `_ResolvedSuggestion` actuellement sélectionnés
+  /// dans toutes les sections. Sert au sticky footer (count) et au
+  /// retour au caller via `Navigator.pop`.
+  List<_ResolvedSuggestion> _collectSelected(
+    List<({String city, List<_ResolvedSuggestion> resolved, bool isArrival})>
+        sections,
+  ) {
+    final out = <_ResolvedSuggestion>[];
+    for (final s in sections) {
+      for (final r in s.resolved) {
+        if (_selectedKeys.contains(_idFor(r))) out.add(r);
+      }
+    }
+    return out;
+  }
+
+  /// Détermine si la card `r` doit être désactivée (greyed + un-tappable)
+  /// vu la sélection courante. Règles MVP — Lalith 2026-05-08 :
+  /// - Si une autre suggestion STRUCTURELLE (SPLIT/REPLACE) est déjà
+  ///   sélectionnée pour le même anchor → désactiver les autres
+  ///   structurelles du même anchor
+  /// - Si une REPLACE est sélectionnée pour anchor X → désactiver TOUTES
+  ///   les autres suggestions sur X (anchor disparaît)
+  /// - Si la sélection courante remplit déjà les jours libres →
+  ///   désactiver les APPEND restantes qui ne tiennent plus
+  /// La card courante elle-même n'est jamais "désactivée par
+  /// elle-même" — l'user peut toujours la décocher.
+  bool _isCardDisabled(
+    _ResolvedSuggestion candidate,
+    List<({String city, List<_ResolvedSuggestion> resolved, bool isArrival})>
+        sections,
+  ) {
+    final candKey = _idFor(candidate);
+    if (_selectedKeys.contains(candKey)) return false; // déjà sélectionnée
+
+    final selected = _collectSelected(sections);
+    final candAnchor = candidate.suggestion.anchorCity.toLowerCase().trim();
+    final candIsStructural = candidate.mutation.isStructural;
+    final candIsReplace = candidate.mutation.removesAnchor;
+
+    for (final s in selected) {
+      final selAnchor = s.suggestion.anchorCity.toLowerCase().trim();
+      if (selAnchor != candAnchor) continue;
+      // Même anchor.
+      if (s.mutation.removesAnchor) {
+        // REPLACE déjà sélectionné → toute autre suggestion sur cet
+        // anchor devient impossible.
+        return true;
+      }
+      // Sinon, conflit uniquement si la candidate est structurelle.
+      if (candIsStructural && s.mutation.isStructural) return true;
+      if (candIsReplace) {
+        // Cand veut remplacer mais une autre mutation sur l'anchor
+        // est déjà sélectionnée → REPLACE incompatible.
+        return true;
+      }
+    }
+
+    // Vérif jours libres pour APPEND.
+    if (!candIsStructural) {
+      final currentTotal = widget.currentSegments
+          .fold<int>(0, (sum, s) => sum + s.days);
+      final freeDays = widget.tripDurationDays - currentTotal;
+      // Somme des APPEND déjà sélectionnés (pas la candidate).
+      final selectedAppendDays = selected
+          .where((r) => !r.mutation.isStructural)
+          .fold<int>(
+              0,
+              (sum, r) =>
+                  sum +
+                  r.mutation.insertedSegments.fold<int>(0, (s, e) => s + e.days));
+      final candAppendDays = candidate.mutation.insertedSegments
+          .fold<int>(0, (s, e) => s + e.days);
+      if (selectedAppendDays + candAppendDays > freeDays) return true;
+    }
+
+    return false;
   }
 
   /// Empty state. Si `allBlocked=false` : aucune suggestion catalogue
@@ -301,8 +413,10 @@ class _ImproveItinerarySheet extends ConsumerWidget {
   }
 
   Widget _buildFooter(BuildContext context) {
+    final count = _selectedKeys.length;
+    final hasSelection = count > 0;
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
       decoration: BoxDecoration(
         color: AppColors.background,
         border: Border(
@@ -313,15 +427,100 @@ class _ImproveItinerarySheet extends ConsumerWidget {
       ),
       child: SafeArea(
         top: false,
-        child: SizedBox(
-          width: double.infinity,
-          child: TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Fermer'),
-          ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (hasSelection) ...[
+              Text(
+                count == 1
+                    ? '1 suggestion sélectionnée'
+                    : '$count suggestions sélectionnées',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary.withValues(alpha: 0.7),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            Row(
+              children: [
+                if (hasSelection) ...[
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Annuler'),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _applySelection,
+                      icon: const Icon(Icons.check, size: 18),
+                      label: Text(
+                        count == 1
+                            ? 'Appliquer 1 modification'
+                            : 'Appliquer $count modifications',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(0, 44),
+                      ),
+                    ),
+                  ),
+                ] else ...[
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size(0, 44),
+                      ),
+                      child: const Text('Fermer'),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  /// Tape "Appliquer N modifications" : récupère les `_ResolvedSuggestion`
+  /// sélectionnées (à travers toutes les sections), extrait la mutation
+  /// de chacune, et pop la sheet avec la liste. Le caller fait la
+  /// validation `validateMutationBatch` puis `applyMutationBatch`.
+  void _applySelection() {
+    // On reconstruit la liste flat des resolved en re-parcourant le
+    // catalogue (le state ne mémorise pas le résultat de _buildBody).
+    final docsAsync = ref.read(tripDocumentsProvider(widget.tripId));
+    final docs = docsAsync.maybeWhen(
+      data: (d) => d,
+      orElse: () => const <TripDocument>[],
+    );
+    final mutations = <ItineraryMutation>[];
+    final seenCities = <String>{};
+    for (final s in widget.currentSegments) {
+      final t = s.city.trim();
+      if (t.isEmpty) continue;
+      if (!seenCities.add(t.toLowerCase())) continue;
+      final catalogue = findSuggestionsForAnchor(t);
+      for (final sug in catalogue) {
+        final r = _resolveSuggestion(
+          suggestion: sug,
+          currentSegments: widget.currentSegments,
+          tripStartDate: widget.tripStartDate,
+          tripDurationDays: widget.tripDurationDays,
+          docs: docs,
+        );
+        if (r == null) continue;
+        if (_selectedKeys.contains(_idFor(r))) {
+          mutations.add(r.mutation);
+        }
+      }
+    }
+    Navigator.of(context).pop(mutations);
   }
 }
 
@@ -428,32 +627,6 @@ _ResolvedSuggestion? _resolveSuggestion({
   );
 }
 
-/// CTA label dérivé du mode si la suggestion ne fournit pas un override
-/// `ctaLabel`. Évite "Ajouter cette étape" générique : chaque mode a une
-/// formulation contextuelle. Reformulations validées Lalith 2026-05-08.
-String _defaultCtaLabel(SubTripSuggestion s) {
-  if (s.ctaLabel != null && s.ctaLabel!.isNotEmpty) return s.ctaLabel!;
-  switch (s.insertionMode) {
-    case InsertionMode.dayTrip:
-      return 'Ajouter ${s.displayName} comme excursion';
-    case InsertionMode.replaceAnchorGateway:
-      return 'Remplacer ${s.anchorCity} par ${s.displayName}';
-    case InsertionMode.nearbyStay:
-      return 'Ajouter ${s.displayName} au parcours';
-    case InsertionMode.splitSegment:
-    case InsertionMode.splitGatewaySequence:
-      // Multi-step (≥2 segments) : "Ajouter X et Y" / "Ajouter X, Y et Z"
-      if (s.segments.length >= 2) {
-        final names = s.segments.map((e) => e.city).toList();
-        if (names.length == 2) return 'Ajouter ${names[0]} et ${names[1]}';
-        final head = names.take(names.length - 1).join(', ');
-        return 'Ajouter $head et ${names.last}';
-      }
-      // Single-step split (Hanoï → Ninh Bình + retour) : "Transformer X en Y"
-      return 'Transformer ${s.anchorCity} en ${s.displayName}';
-  }
-}
-
 /// Phrase courte expliquant l'impact concret sur le bloc d'étapes du
 /// voyage. Affichée sur la card juste avant le CTA, en gris discret.
 /// Wordings validés Lalith 2026-05-08 :
@@ -522,14 +695,23 @@ String _impactText(SubTripSuggestion s) {
 class _SectionForCity extends StatelessWidget {
   final String anchorCity;
   /// Liste des suggestions DÉJÀ résolues (filtrées des cas non
-  /// actionnables). Les cards qui s'affichent sont toutes cliquables.
+  /// actionnables côté hôtel/conflits). Les cards affichées peuvent
+  /// néanmoins être désactivées par `isDisabled` (conflit batch).
   final List<_ResolvedSuggestion> resolved;
   final bool isLikelyArrivalGateway;
+  final Set<String> selectedKeys;
+  final String Function(_ResolvedSuggestion) idFor;
+  final bool Function(_ResolvedSuggestion) isDisabled;
+  final void Function(_ResolvedSuggestion) onToggle;
 
   const _SectionForCity({
     required this.anchorCity,
     required this.resolved,
     required this.isLikelyArrivalGateway,
+    required this.selectedKeys,
+    required this.idFor,
+    required this.isDisabled,
+    required this.onToggle,
   });
 
   @override
@@ -551,20 +733,34 @@ class _SectionForCity extends StatelessWidget {
             ),
           ),
         ),
-        ...resolved.map((r) => _SuggestionCard(resolved: r)),
+        ...resolved.map((r) => _SuggestionCard(
+              resolved: r,
+              isSelected: selectedKeys.contains(idFor(r)),
+              isDisabled: isDisabled(r),
+              onToggle: () => onToggle(r),
+            )),
         const SizedBox(height: 4),
       ],
     );
   }
 }
 
-/// Card affichant une suggestion résolue (toujours actionnable —
-/// les cas non actionnables sont filtrés en amont par
-/// `_resolveSuggestion`). CTA cliqué → `Navigator.pop(mutation)`.
+/// Card affichant une suggestion résolue. Multi-select V2.3 : tap
+/// toggle la sélection (au lieu d'apply direct). Désactivée
+/// dynamiquement si conflit batch (autre sélection rend celle-ci
+/// impossible) — visuellement greyed out + non tappable.
 class _SuggestionCard extends StatelessWidget {
   final _ResolvedSuggestion resolved;
+  final bool isSelected;
+  final bool isDisabled;
+  final VoidCallback onToggle;
 
-  const _SuggestionCard({required this.resolved});
+  const _SuggestionCard({
+    required this.resolved,
+    required this.isSelected,
+    required this.isDisabled,
+    required this.onToggle,
+  });
 
   SubTripSuggestion get suggestion => resolved.suggestion;
   ItineraryMutation get mutation => resolved.mutation;
@@ -573,16 +769,25 @@ class _SuggestionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasNotice = notice != null && notice!.isNotEmpty;
+    // Card disabled = greyed + un-tappable. Sélectionnée = bordure
+    // primary + fond légèrement teinté. Sinon : neutre tappable.
+    final cardOpacity = isDisabled ? 0.45 : 1.0;
+    final borderColor = isSelected
+        ? AppColors.primary.withValues(alpha: 0.6)
+        : AppColors.textPrimary.withValues(alpha: 0.08);
+    final bgColor = isSelected
+        ? AppColors.primary.withValues(alpha: 0.04)
+        : Colors.white;
+    final borderWidth = isSelected ? 1.5 : 1.0;
 
-    return Container(
+    return Opacity(
+      opacity: cardOpacity,
+      child: Container(
         margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: bgColor,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: AppColors.textPrimary.withValues(alpha: 0.08),
-          ),
+          border: Border.all(color: borderColor, width: borderWidth),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.025),
@@ -591,136 +796,174 @@ class _SuggestionCard extends StatelessWidget {
             ),
           ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header : displayName + badge durée
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    suggestion.displayName,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
-                    ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: isDisabled ? null : onToggle,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header : checkbox + displayName + badge durée
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _SelectIndicator(
+                        isSelected: isSelected,
+                        isDisabled: isDisabled,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          suggestion.displayName,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                      _DurationBadge(suggestion: suggestion),
+                    ],
                   ),
-                ),
-                _DurationBadge(suggestion: suggestion),
-              ],
-            ),
-            // Travel label
-            if (suggestion.travelLabel != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                suggestion.travelLabel!,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textPrimary.withValues(alpha: 0.65),
-                ),
-              ),
-            ],
-            // Tags
-            if (suggestion.tags.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 6,
-                runSpacing: 4,
-                children: suggestion.tags
-                    .map((t) => _TagChip(label: t))
-                    .toList(),
-              ),
-            ],
-            // whyText : pourquoi cette suggestion
-            if (suggestion.whyText != null) ...[
-              const SizedBox(height: 10),
-              Text(
-                suggestion.whyText!,
-                style: TextStyle(
-                  fontSize: 12.5,
-                  height: 1.4,
-                  fontStyle: FontStyle.italic,
-                  color: AppColors.textPrimary.withValues(alpha: 0.78),
-                ),
-              ),
-            ],
-            // Notice conflit/info
-            if (hasNotice) ...[
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  // Card affichée = toujours actionnable. Notice est
-                  // donc toujours informatif (allowWithNotice).
-                  color: AppColors.primary.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      size: 16,
-                      color: AppColors.primary,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
+                  // Travel label
+                  if (suggestion.travelLabel != null) ...[
+                    const SizedBox(height: 4),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 32),
                       child: Text(
-                        notice!,
+                        suggestion.travelLabel!,
                         style: TextStyle(
                           fontSize: 12,
-                          height: 1.35,
-                          color: AppColors.textPrimary.withValues(alpha: 0.85),
+                          color: AppColors.textPrimary.withValues(alpha: 0.65),
                         ),
                       ),
                     ),
                   ],
-                ),
-              ),
-            ],
-            // Ligne d'impact planning : décrit en 1 ligne ce que la
-            // suggestion va concrètement faire au bloc d'étapes. Permet
-            // à l'utilisateur de comprendre la transformation AVANT
-            // d'appliquer.
-            const SizedBox(height: 10),
-            Text(
-              _impactText(suggestion),
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary.withValues(alpha: 0.55),
-              ),
-            ),
-            // CTA primary — Lot 2.2 : retourne la mutation au caller.
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => Navigator.of(context).pop(mutation),
-                icon: const Icon(Icons.add, size: 18),
-                label: Text(
-                  _defaultCtaLabel(suggestion),
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                  maxLines: 2,
-                  textAlign: TextAlign.center,
-                ),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(0, 44),
-                  foregroundColor: AppColors.primary,
-                  side: BorderSide(
-                    color: AppColors.primary.withValues(alpha: 0.4),
+                  // Tags
+                  if (suggestion.tags.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 32),
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: suggestion.tags
+                            .map((t) => _TagChip(label: t))
+                            .toList(),
+                      ),
+                    ),
+                  ],
+                  // whyText : pourquoi cette suggestion
+                  if (suggestion.whyText != null) ...[
+                    const SizedBox(height: 10),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 32),
+                      child: Text(
+                        suggestion.whyText!,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          height: 1.4,
+                          fontStyle: FontStyle.italic,
+                          color: AppColors.textPrimary.withValues(alpha: 0.78),
+                        ),
+                      ),
+                    ),
+                  ],
+                  // Notice info (allowWithNotice — hôtel à la suggested
+                  // city, etc.). Block hôtel sont déjà filtrées en amont.
+                  if (hasNotice) ...[
+                    const SizedBox(height: 10),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 32),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              size: 16,
+                              color: AppColors.primary,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                notice!,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  height: 1.35,
+                                  color:
+                                      AppColors.textPrimary.withValues(alpha: 0.85),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                  // Ligne d'impact planning
+                  const SizedBox(height: 10),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 32),
+                    child: Text(
+                      _impactText(suggestion),
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary.withValues(alpha: 0.55),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
-          ],
+          ),
         ),
-      );
+      ),
+    );
+  }
+}
+
+/// Indicateur visuel multi-select à gauche de la card. État vide /
+/// rempli (selected) / disabled (greyed). Pas de Checkbox material
+/// classique — on garde un design custom plus discret.
+class _SelectIndicator extends StatelessWidget {
+  final bool isSelected;
+  final bool isDisabled;
+  const _SelectIndicator({required this.isSelected, required this.isDisabled});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isDisabled
+        ? AppColors.textPrimary.withValues(alpha: 0.25)
+        : isSelected
+            ? AppColors.primary
+            : AppColors.textPrimary.withValues(alpha: 0.4);
+    return Container(
+      width: 22,
+      height: 22,
+      margin: const EdgeInsets.only(top: 1),
+      decoration: BoxDecoration(
+        color: isSelected ? color : Colors.transparent,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color, width: 1.5),
+      ),
+      child: isSelected
+          ? const Icon(Icons.check, size: 16, color: Colors.white)
+          : null,
+    );
   }
 }
 
