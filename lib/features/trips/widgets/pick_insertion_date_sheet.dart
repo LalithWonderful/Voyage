@@ -16,17 +16,21 @@ import 'package:flutter/material.dart';
 import 'package:voyage/core/theme/app_theme.dart';
 import 'package:voyage/features/planning/services/pinned_dates.dart';
 
+/// Détail d'un segment inséré pour l'affichage (ex: Rayong 1 nuit).
+typedef InsertionSegmentSummary = ({String city, int nights});
+
 /// Ouvre la sheet et retourne la date choisie, ou `null` si l'utilisateur
 /// a fermé sans choisir.
 ///
 /// `validDates` doit déjà être filtrée par `validInsertionStartDates`
-/// (V2.1). `insertionDays` = somme des nuits insérées (multi-step =
-/// somme totale, ex: Rayong 1 + Koh Samet 2 = 3).
+/// (V2.1). `insertedSegments` détaille la répartition des nuits par
+/// ville (multi-step = ≥2 entrées, ex: Rayong 1 + Koh Samet 2). La somme
+/// des `nights` doit correspondre à la durée totale d'insertion.
 Future<DateTime?> openPickInsertionDateSheet(
   BuildContext context, {
   required String anchorCity,
   required String displayName,
-  required int insertionDays,
+  required List<InsertionSegmentSummary> insertedSegments,
   required List<DateTime> validDates,
   required SegmentPinnedDates anchorPin,
 }) {
@@ -40,7 +44,7 @@ Future<DateTime?> openPickInsertionDateSheet(
     builder: (_) => _PickInsertionDateSheet(
       anchorCity: anchorCity,
       displayName: displayName,
-      insertionDays: insertionDays,
+      insertedSegments: insertedSegments,
       validDates: validDates,
       anchorPin: anchorPin,
     ),
@@ -50,17 +54,20 @@ Future<DateTime?> openPickInsertionDateSheet(
 class _PickInsertionDateSheet extends StatelessWidget {
   final String anchorCity;
   final String displayName;
-  final int insertionDays;
+  final List<InsertionSegmentSummary> insertedSegments;
   final List<DateTime> validDates;
   final SegmentPinnedDates anchorPin;
 
   const _PickInsertionDateSheet({
     required this.anchorCity,
     required this.displayName,
-    required this.insertionDays,
+    required this.insertedSegments,
     required this.validDates,
     required this.anchorPin,
   });
+
+  int get _insertionNights =>
+      insertedSegments.fold<int>(0, (sum, s) => sum + s.nights);
 
   @override
   Widget build(BuildContext context) {
@@ -111,11 +118,11 @@ class _PickInsertionDateSheet extends StatelessWidget {
                   separatorBuilder: (_, _) => const SizedBox(height: 8),
                   itemBuilder: (context, i) {
                     final start = validDates[i];
-                    final end = start.add(Duration(days: insertionDays));
+                    final end = start.add(Duration(days: _insertionNights));
                     return _DateOption(
                       start: start,
                       endExclusive: end,
-                      anchorCity: anchorCity,
+                      breakdown: _formatBreakdown(insertedSegments),
                       onTap: () => Navigator.of(context).pop(start),
                     );
                   },
@@ -143,19 +150,20 @@ class _PickInsertionDateSheet extends StatelessWidget {
 class _DateOption extends StatelessWidget {
   final DateTime start;
   final DateTime endExclusive;
-  final String anchorCity;
+  /// Description compacte du contenu de l'insertion ("Rayong 1 nuit +
+  /// Koh Samet 2 nuits" pour multi-step, "Krabi 3 nuits" pour single).
+  final String breakdown;
   final VoidCallback onTap;
 
   const _DateOption({
     required this.start,
     required this.endExclusive,
-    required this.anchorCity,
+    required this.breakdown,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final lastNight = endExclusive.subtract(const Duration(days: 1));
     return Material(
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(12),
@@ -183,8 +191,8 @@ class _DateOption extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'jusqu\'au ${_formatShortDate(lastNight)} '
-                      '· retour à $anchorCity',
+                      '$breakdown · retour le '
+                      '${_formatShortDate(endExclusive)}',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: AppColors.textSecondary,
                           ),
@@ -223,4 +231,11 @@ String _formatLongDate(DateTime d) {
 String _formatShortDate(DateTime d) {
   final m = _frenchMonths[d.month - 1];
   return '${d.day} $m';
+}
+
+/// "Rayong 1 nuit + Koh Samet 2 nuits" pour multi-step,
+/// "Krabi 3 nuits" pour single-step.
+String _formatBreakdown(List<InsertionSegmentSummary> segments) {
+  String label(int n) => n <= 1 ? '1 nuit' : '$n nuits';
+  return segments.map((s) => '${s.city} ${label(s.nights)}').join(' + ');
 }

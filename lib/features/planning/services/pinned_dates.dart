@@ -160,9 +160,14 @@ List<DateTime> validInsertionStartDates({
 /// Contraintes vérifiées dans l'ordre :
 /// 1. La date est ≥ début du segment ancrage.
 /// 2. La date + durée est ≤ fin (exclusive) du segment ancrage.
-/// 3. Si arrivée pinnée à l'ancrage : ≥1 nuit avant l'insertion.
-/// 4. Si départ pinné de l'ancrage : ≥1 nuit après l'insertion.
-/// 5. L'insertion ne chevauche aucun hôtel à l'ancrage.
+/// 3. L'insertion ne chevauche aucun hôtel à l'ancrage.
+///
+/// Lalith 2026-05-08 : ne PAS forcer "≥1 nuit avant/après transport
+/// pinné". Si l'utilisateur n'a pas réservé d'hôtel à l'ancrage et n'a
+/// pas d'autre doc qui ancre la nuit, il est libre de partir le jour
+/// même de l'arrivée (vol matin → drive vers Rayong même soir) ou de
+/// rentrer le jour du départ pinné. Le filtre hôtel (#3) couvre déjà
+/// les nuits réellement réservées à l'ancrage.
 String? validateInsertionDate({
   required String anchorCity,
   required DateTime insertionStartDate,
@@ -189,18 +194,6 @@ String? validateInsertionDate({
   if (insertEndExcl.isAfter(anchorEndExcl)) {
     return 'L\'insertion dépasse la fin de l\'étape $anchorCity '
         '(${_fmtDate(anchor.endDateExclusive)}).';
-  }
-
-  final pre = insertStart.difference(anchorStart).inDays;
-  final post = anchor.days - pre - insertionDays;
-
-  if (anchor.startPinned && pre < 1) {
-    return 'Tu arrives à $anchorCity le ${_fmtDate(anchor.startDate)} — '
-        'garde au moins 1 nuit sur place avant de partir ailleurs.';
-  }
-  if (anchor.endPinned && post < 1) {
-    return 'Tu repars de $anchorCity le ${_fmtDate(anchor.endDateExclusive)} '
-        '— garde au moins 1 nuit sur place avant ce départ.';
   }
 
   for (final stay in anchor.hotelRanges) {

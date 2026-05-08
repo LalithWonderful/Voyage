@@ -864,7 +864,8 @@ void main() {
       );
     });
 
-    test('startPinned violé → insertionDateOutOfBounds', () {
+    test('startPinned + pre=0 → autorisé (Lalith 2026-05-08 : pas de '
+        'nuit forcée à l\'ancrage)', () {
       final analysis = bkkAnalysis(docs: [
         TripDocument(
           id: 'f1', userId: 'u', tripId: 't',
@@ -878,7 +879,6 @@ void main() {
           createdAt: DateTime(2026, 1, 1),
         ),
       ]);
-      // pre=0 alors que startPinned → rejet.
       final result = computeMutation(
         suggestion: krabiMajor(),
         currentSegments: [_seg('Bangkok', 11)],
@@ -886,11 +886,8 @@ void main() {
         insertionStartDate: DateTime(2026, 6, 21),
         pinnedAnalysis: analysis,
       );
-      expect(result, isA<MutationFailed>());
-      expect(
-        (result as MutationFailed).reason,
-        MutationFailureReason.insertionDateOutOfBounds,
-      );
+      expect(result, isA<MutationOk>());
+      expect((result as MutationOk).mutation.insertionPreDays, 0);
     });
 
     test('overlap hôtel anchor → insertionDateConflictsHotel', () {

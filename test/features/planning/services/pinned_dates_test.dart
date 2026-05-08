@@ -270,7 +270,8 @@ void main() {
       expect(reason, contains('dépasse'));
     });
 
-    test('contrainte 3 — startPinned + pre=0 → rejet', () {
+    test('startPinned + pre=0 → autorisé (Lalith 2026-05-08 : pas de '
+        'nuit forcée avant l\'insertion)', () {
       final analysis = basicAnalysis(docs: [
         _flight(fromCity: 'Luxembourg', toCity: 'Bangkok', date: '2026-06-21'),
       ]);
@@ -280,23 +281,11 @@ void main() {
         insertionDays: 3,
         analysis: analysis,
       );
-      expect(reason, contains('arrives'));
-    });
-
-    test('contrainte 3 — startPinned + pre=1 → OK', () {
-      final analysis = basicAnalysis(docs: [
-        _flight(fromCity: 'Luxembourg', toCity: 'Bangkok', date: '2026-06-21'),
-      ]);
-      final reason = validateInsertionDate(
-        anchorCity: 'Bangkok',
-        insertionStartDate: _d(2026, 6, 22),
-        insertionDays: 3,
-        analysis: analysis,
-      );
       expect(reason, isNull);
     });
 
-    test('contrainte 4 — endPinned + post=0 → rejet', () {
+    test('endPinned + post=0 → autorisé (insertion finit exactement au jour '
+        'du départ pinné)', () {
       final analysis = basicAnalysis(docs: [
         _flight(fromCity: 'Bangkok', toCity: 'Phú Quốc', date: '2026-07-02'),
       ]);
@@ -304,20 +293,6 @@ void main() {
       final reason = validateInsertionDate(
         anchorCity: 'Bangkok',
         insertionStartDate: _d(2026, 6, 29),
-        insertionDays: 3,
-        analysis: analysis,
-      );
-      expect(reason, contains('repars'));
-    });
-
-    test('contrainte 4 — endPinned + post=1 → OK', () {
-      final analysis = basicAnalysis(docs: [
-        _flight(fromCity: 'Bangkok', toCity: 'Phú Quốc', date: '2026-07-02'),
-      ]);
-      // pre=7 (28/06), insertionDays=3 → fin au 01/07, post=1.
-      final reason = validateInsertionDate(
-        anchorCity: 'Bangkok',
-        insertionStartDate: _d(2026, 6, 28),
         insertionDays: 3,
         analysis: analysis,
       );
@@ -405,7 +380,7 @@ void main() {
       expect(dates.last, _d(2026, 6, 29));
     });
 
-    test('avec startPinned : retire le 1er jour', () {
+    test('avec startPinned : 1er jour reste sélectionnable', () {
       final analysis = analyzePinnedDates(
         segments: [_seg('Bangkok', 11)],
         tripStartDate: tripStart,
@@ -418,13 +393,13 @@ void main() {
         insertionDays: 3,
         analysis: analysis,
       );
-      expect(dates.first, _d(2026, 6, 22));
-      expect(dates.contains(_d(2026, 6, 21)), isFalse);
+      expect(dates.first, _d(2026, 6, 21));
+      expect(dates.contains(_d(2026, 6, 21)), isTrue);
     });
 
-    test('avec endPinned : retire le dernier jour possible', () {
-      // Bangkok finit le 02/07. endPinned → post≥1 → fin insertion ≤ 01/07
-      // → dernière insertionStart ≤ 28/06.
+    test('avec endPinned : dernier jour possible reste sélectionnable', () {
+      // Bangkok finit le 02/07 (excl). Insertion 3n → dernière start = 29/06
+      // (insertion 29/06→02/07, post=0 autorisé).
       final analysis = analyzePinnedDates(
         segments: [_seg('Bangkok', 11), _seg('Phú Quốc', 5)],
         tripStartDate: tripStart,
@@ -437,8 +412,9 @@ void main() {
         insertionDays: 3,
         analysis: analysis,
       );
-      expect(dates.last, _d(2026, 6, 28));
-      expect(dates.contains(_d(2026, 6, 29)), isFalse);
+      expect(dates.last, _d(2026, 6, 29));
+      expect(dates.contains(_d(2026, 6, 29)), isTrue);
+      expect(dates.contains(_d(2026, 6, 30)), isFalse); // dépasserait 02/07
     });
 
     test('avec hôtel au milieu : exclut les dates qui chevauchent', () {
@@ -466,7 +442,10 @@ void main() {
       expect(dates.contains(_d(2026, 6, 28)), isTrue);
     });
 
-    test('cas E2E V2 — Krabi 3n dans Bangkok 11n (start+end pinned)', () {
+    test('cas E2E V2 — Rayong+Koh Samet 3n dans Bangkok 11n (start+end pinned)',
+        () {
+      // Lalith 2026-05-08 — règle révisée : pas de nuits forcées à l'ancrage.
+      // Bornes brutes du segment ancrage suffisent + filtre hôtel.
       final analysis = analyzePinnedDates(
         segments: [_seg('Bangkok', 11), _seg('Phú Quốc', 5), _seg('Hanoï', 3)],
         tripStartDate: tripStart,
@@ -481,13 +460,12 @@ void main() {
         insertionDays: 3,
         analysis: analysis,
       );
-      // pre ≥ 1 → start ≥ 22/06.
-      // post ≥ 1 → start + 3 ≤ 01/07 → start ≤ 28/06.
-      // → 22, 23, 24, 25, 26, 27, 28 = 7 dates.
-      expect(dates.length, 7);
-      expect(dates.first, _d(2026, 6, 22));
-      expect(dates.last, _d(2026, 6, 28));
-      expect(dates.contains(_d(2026, 6, 26)), isTrue); // cas attendu mémoire
+      // start ≥ 21/06 (anchor.startDate, même si startPinned).
+      // start + 3 ≤ 02/07 (anchor.endDateExclusive) → start ≤ 29/06.
+      // → 21, 22, 23, 24, 25, 26, 27, 28, 29 = 9 dates.
+      expect(dates.length, 9);
+      expect(dates.first, _d(2026, 6, 21));
+      expect(dates.last, _d(2026, 6, 29));
     });
   });
 }

@@ -158,7 +158,9 @@ class _ImproveItinerarySheetState
         context,
         anchorCity: r.suggestion.anchorCity,
         displayName: r.suggestion.displayName,
-        insertionDays: r.suggestion.totalSuggestedDays,
+        insertedSegments: r.suggestion.segments
+            .map((s) => (city: s.city, nights: s.days))
+            .toList(),
         validDates: validDates,
         anchorPin: anchorPin,
       );
