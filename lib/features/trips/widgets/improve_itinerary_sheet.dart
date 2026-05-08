@@ -125,8 +125,10 @@ class _ImproveItinerarySheet extends ConsumerWidget {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Lunao a détecté plusieurs étapes grâce à tes vols. '
-                  'Voici des idées autour de ton parcours.',
+                  'Lunao a détecté des étapes depuis tes documents de '
+                  'voyage. Certaines villes peuvent être des points '
+                  'd\'arrivée ou de transit. Voici des idées pour '
+                  'affiner ton parcours.',
                   style: TextStyle(
                     fontSize: 13,
                     height: 1.4,
@@ -162,11 +164,21 @@ class _ImproveItinerarySheet extends ConsumerWidget {
     }
 
     // Pour chaque ville, récupère les suggestions catalogue.
-    final sectionsWithSuggestions = <({String city, List<SubTripSuggestion> suggestions})>[];
-    for (final c in uniqueCities) {
+    // `isArrivalGateway` : on considère les 2 premières villes du parcours
+    // comme probables points d'arrivée (vol AR + 1ère escale gateway).
+    // Heuristique simple V1 — sera affinée en V2 si on intègre le signal
+    // "ville origine d'un vol/transfert vers une autre étape".
+    final sectionsWithSuggestions =
+        <({String city, List<SubTripSuggestion> suggestions, bool isArrival})>[];
+    for (var i = 0; i < uniqueCities.length; i++) {
+      final c = uniqueCities[i];
       final s = findSuggestionsForAnchor(c);
       if (s.isNotEmpty) {
-        sectionsWithSuggestions.add((city: c, suggestions: s));
+        sectionsWithSuggestions.add((
+          city: c,
+          suggestions: s,
+          isArrival: i < 2,
+        ));
       }
     }
 
@@ -176,7 +188,10 @@ class _ImproveItinerarySheet extends ConsumerWidget {
 
     return ListView.builder(
       controller: scrollController,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      // Padding bottom large pour s'assurer que la dernière card ne se
+      // retrouve pas masquée par le footer fixe "Fermer" (icone shadow +
+      // SafeArea sur certains devices).
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
       itemCount: sectionsWithSuggestions.length,
       itemBuilder: (context, index) {
         final entry = sectionsWithSuggestions[index];
@@ -184,6 +199,7 @@ class _ImproveItinerarySheet extends ConsumerWidget {
           anchorCity: entry.city,
           suggestions: entry.suggestions,
           docs: docs,
+          isLikelyArrivalGateway: entry.isArrival,
         );
       },
     );
@@ -251,17 +267,66 @@ class _ImproveItinerarySheet extends ConsumerWidget {
   }
 }
 
-/// Section d'une ville d'ancrage : header "Après ton arrivée à X" +
-/// cards de suggestions filtrées + désactivées selon conflits.
+/// CTA label dérivé du mode si la suggestion ne fournit pas un override
+/// `ctaLabel`. Évite "Ajouter cette étape" générique pour une excursion
+/// dayTrip ou pour les cas où le mode mérite une formulation spécifique.
+String _defaultCtaLabel(SubTripSuggestion s) {
+  if (s.ctaLabel != null && s.ctaLabel!.isNotEmpty) return s.ctaLabel!;
+  switch (s.insertionMode) {
+    case InsertionMode.dayTrip:
+      return 'Ajouter 1 journée à ${s.displayName}';
+    case InsertionMode.replaceAnchorGateway:
+      return 'Remplacer ${s.anchorCity} par ${s.displayName}';
+    case InsertionMode.nearbyStay:
+    case InsertionMode.splitSegment:
+    case InsertionMode.splitGatewaySequence:
+      return 'Ajouter ${s.displayName}';
+  }
+}
+
+/// Phrase courte expliquant l'impact concret sur le bloc d'étapes du
+/// voyage. Affichée sur la card juste avant le CTA, en gris discret,
+/// pour que l'utilisateur sache exactement ce qui va se passer s'il
+/// applique la suggestion.
+String _impactText(SubTripSuggestion s) {
+  String nights(int n) => n <= 1 ? '1 nuit' : '$n nuits';
+  String segPart(SuggestedSegment seg) => '${seg.city} ${nights(seg.days)}';
+  switch (s.insertionMode) {
+    case InsertionMode.dayTrip:
+      return 'Impact : ajoute une excursion d\'1 jour à '
+          '${s.segments.first.city} depuis ${s.anchorCity}.';
+    case InsertionMode.nearbyStay:
+      final added = s.segments.map(segPart).join(' + ');
+      return 'Impact : ajoute $added après ${s.anchorCity}.';
+    case InsertionMode.replaceAnchorGateway:
+      final main = s.segments.first;
+      return 'Impact : remplace ${s.anchorCity} par '
+          '${main.city} (${nights(main.days)}).';
+    case InsertionMode.splitSegment:
+    case InsertionMode.splitGatewaySequence:
+      final added = s.segments.map(segPart).join(' + ');
+      return 'Impact : transforme le bloc ${s.anchorCity} en '
+          '$added + ${s.anchorCity} restant.';
+  }
+}
+
+/// Section d'une ville d'ancrage : header contextuel + cards de
+/// suggestions filtrées + désactivées selon conflits.
+///
+/// Si `isLikelyArrivalGateway` est vrai (ville parmi les 2 premiers
+/// segments du voyage = probable arrivée vol), titre "Après ton arrivée
+/// à X". Sinon, "Autour de X" (étape intermédiaire/finale).
 class _SectionForCity extends StatelessWidget {
   final String anchorCity;
   final List<SubTripSuggestion> suggestions;
   final List<TripDocument> docs;
+  final bool isLikelyArrivalGateway;
 
   const _SectionForCity({
     required this.anchorCity,
     required this.suggestions,
     required this.docs,
+    required this.isLikelyArrivalGateway,
   });
 
   @override
@@ -272,7 +337,9 @@ class _SectionForCity extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(4, 12, 4, 8),
           child: Text(
-            'Après ton arrivée à $anchorCity',
+            isLikelyArrivalGateway
+                ? 'Après ton arrivée à $anchorCity'
+                : 'Autour de $anchorCity',
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
@@ -425,6 +492,20 @@ class _SuggestionCard extends StatelessWidget {
                 ),
               ),
             ],
+            // Ligne d'impact planning : décrit en 1 ligne ce que la
+            // suggestion va concrètement faire au bloc d'étapes. Permet
+            // à l'utilisateur de comprendre la transformation AVANT
+            // d'appliquer (utile en V1 même si CTAs stubbés, indispensable
+            // en V2 quand l'insertion sera réelle).
+            const SizedBox(height: 10),
+            Text(
+              _impactText(suggestion),
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary.withValues(alpha: 0.55),
+              ),
+            ),
             // CTA primary
             const SizedBox(height: 12),
             SizedBox(
@@ -436,7 +517,7 @@ class _SuggestionCard extends StatelessWidget {
                   size: 18,
                 ),
                 label: Text(
-                  suggestion.ctaLabel ?? 'Ajouter cette étape',
+                  _defaultCtaLabel(suggestion),
                   style: const TextStyle(fontWeight: FontWeight.w600),
                   maxLines: 2,
                   textAlign: TextAlign.center,
