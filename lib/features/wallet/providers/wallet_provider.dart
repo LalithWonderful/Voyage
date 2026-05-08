@@ -141,11 +141,19 @@ Set<String> _confirmedSleepNights(TripDocument h) {
 /// Logique :
 /// - Si un seul hôtel couvre la nuit → c'est lui.
 /// - Si plusieurs hôtels couvrent la même nuit (chevauchement) :
-///   1. **Option C** : le premier dont `metadata.sleep_nights` contient explicitement ce jour gagne.
-///   2. **Option B (fallback)** : le séjour le plus court gagne (heuristique "ça doit être
+///   1. **Option C** : un hôtel dont `metadata.sleep_nights` contient explicitement ce jour gagne.
+///   2. **Option D (V2 2026-05-08)** : si `itineraryCity` est fourni et qu'EXACTEMENT un
+///      candidat match cette ville → on pick celui-là. Évite l'apparts longue durée à
+///      Bangkok qui chevauche les hôtels de Rayong/Phú Quốc/etc. : l'étape itinéraire
+///      désambiguise.
+///   3. **Option B (fallback)** : le séjour le plus court gagne (heuristique "ça doit être
 ///      l'hébergement secondaire réservé pendant un séjour principal plus long").
 /// - Si aucun hôtel ne couvre → fallback : le premier de la liste (rétrocompatibilité).
-TripDocument? hotelForDay(List<TripDocument> hotels, DateTime day) {
+TripDocument? hotelForDay(
+  List<TripDocument> hotels,
+  DateTime day, {
+  String? itineraryCity,
+}) {
   if (hotels.isEmpty) return null;
   final d = DateTime(day.year, day.month, day.day);
   final iso = _isoDay(d);
@@ -165,7 +173,88 @@ TripDocument? hotelForDay(List<TripDocument> hotels, DateTime day) {
     if (_confirmedSleepNights(h).contains(iso)) return h;
   }
 
+  // Option D : inférence par itinéraire (V2 2026-05-08).
+  if (itineraryCity != null && itineraryCity.trim().isNotEmpty) {
+    final matches =
+        candidates.where((h) => _hotelMatchesCity(h, itineraryCity)).toList();
+    if (matches.length == 1) return matches.first;
+  }
+
   // Option B : heuristique — le séjour le plus court prend la nuit
   candidates.sort((a, b) => _sleepNightsRange(a).length.compareTo(_sleepNightsRange(b).length));
   return candidates.first;
+}
+
+/// V2 (2026-05-08) — vrai si la nuit `day` est "résolue" : un seul
+/// candidat la couvre, OU l'utilisateur a confirmé via Option C, OU
+/// l'itinéraire désambiguise (Option D — exactement un candidat match
+/// `itineraryCity`). Sert au filtre `unresolved` du form save : on
+/// n'ouvre la sheet d'overlap QUE pour les nuits réellement ambiguës.
+bool isNightResolved(
+  List<TripDocument> hotels,
+  DateTime day, {
+  String? itineraryCity,
+}) {
+  final d = DateTime(day.year, day.month, day.day);
+  final iso = _isoDay(d);
+  final candidates = <TripDocument>[];
+  for (final h in hotels) {
+    final nights = _sleepNightsRange(h);
+    if (nights.any((n) => n.isAtSameMomentAs(d))) {
+      candidates.add(h);
+    }
+  }
+  if (candidates.length <= 1) return true;
+  // Option C
+  if (candidates.any((h) => _confirmedSleepNights(h).contains(iso))) {
+    return true;
+  }
+  // Option D
+  if (itineraryCity != null && itineraryCity.trim().isNotEmpty) {
+    final matches =
+        candidates.where((h) => _hotelMatchesCity(h, itineraryCity)).toList();
+    if (matches.length == 1) return true;
+  }
+  return false;
+}
+
+/// Vrai si l'hôtel `h` est rattaché à la ville `city` (case+accent
+/// insensible). Match prioritaire sur `metadata['address_city']`
+/// (structuré), fallback substring sur `metadata['address']` libre.
+bool _hotelMatchesCity(TripDocument h, String city) {
+  final norm = _normalizeCity(city);
+  if (norm.isEmpty) return false;
+  final structured = (h.metadata['address_city'] as String?)?.trim();
+  if (structured != null &&
+      structured.isNotEmpty &&
+      _normalizeCity(structured) == norm) {
+    return true;
+  }
+  final address = (h.metadata['address'] as String?)?.trim();
+  if (address != null && address.isNotEmpty) {
+    final pattern = RegExp(
+      r'(^|[\s,;\-])' + RegExp.escape(norm) + r'($|[\s,;\-])',
+    );
+    if (pattern.hasMatch(_normalizeCity(address))) return true;
+  }
+  return false;
+}
+
+/// Réplique locale du `_normalizeCity` pattern projet (cf.
+/// `sub_trip_conflict_detector.dart` / `pinned_dates.dart` /
+/// `itinerary_mutation.dart`).
+String _normalizeCity(String s) {
+  const accents = {
+    'à': 'a', 'â': 'a', 'ä': 'a', 'á': 'a', 'ã': 'a',
+    'ç': 'c',
+    'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
+    'í': 'i', 'ï': 'i', 'î': 'i',
+    'ñ': 'n',
+    'ó': 'o', 'ô': 'o', 'ö': 'o', 'õ': 'o',
+    'ú': 'u', 'û': 'u', 'ü': 'u',
+    'ý': 'y', 'ÿ': 'y',
+  };
+  var out = s.toLowerCase().trim();
+  accents.forEach((k, v) => out = out.replaceAll(k, v));
+  return out;
 }

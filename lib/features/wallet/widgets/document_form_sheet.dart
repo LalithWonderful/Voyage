@@ -1108,12 +1108,22 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
         final savedHotel = hotels.where((h) => h.id == savedId).firstOrNull;
         if (savedHotel != null) {
           final overlap = overlappingNights(savedHotel, hotels);
-          // Une nuit est "résolue" si UN des hôtels qui la couvrent l'a dans sleep_nights.
+          // V2 (2026-05-08) — une nuit est "résolue" si :
+          // 1. un seul hôtel la couvre (= pas vraiment un overlap),
+          // 2. un hôtel a la nuit dans sleep_nights (Option C user choice),
+          // 3. l'itinéraire désambiguise (Option D : exactement un
+          //    candidat match la ville du segment).
+          // L'option D évite le sheet inutile sur le pattern "apparts
+          // Bangkok longue durée + hôtel local Phú Quốc/Rayong/etc.".
+          final trip =
+              await ref.read(tripByIdProvider(_tripId!).future);
+          if (!mounted) return;
           final unresolved = overlap.where((night) {
-            final iso = isoDay(night);
-            final candidates = hotelsSleepingOnNight(hotels, night);
-            return !candidates.any(
-              (h) => confirmedSleepNights(h).contains(iso),
+            final segmentCity = trip?.cityForDay(night);
+            return !isNightResolved(
+              hotels,
+              night,
+              itineraryCity: segmentCity,
             );
           }).toList();
           if (unresolved.isNotEmpty) {

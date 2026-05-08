@@ -35,7 +35,11 @@ Future<DayCenter?> centerForDay({
   // hôtel Nancy seul) ancrerait J7-J8 Épinal sur l'hôtel Nancy. On force donc
   // une vérification explicite via `sleepNightsRange` pour basculer au
   // fallback "ville du segment" quand pas de couverture réelle.
-  final hotel = hotelForDay(hotels, day);
+  // V2 (2026-05-08) : on passe `itineraryCity = trip.cityForDay(day)` pour
+  // que l'inférence par itinéraire (Option D) désambiguise les overlaps
+  // long-stay (apparts Bangkok 47j) vs hôtel local (Phú Quốc 5j).
+  final hotel =
+      hotelForDay(hotels, day, itineraryCity: trip.cityForDay(day));
   final dayKey = DateTime(day.year, day.month, day.day);
   final hotelCovers = hotel != null &&
       sleepNightsRange(hotel).any((n) => n.isAtSameMomentAs(dayKey));

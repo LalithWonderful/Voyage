@@ -1200,8 +1200,11 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
     final rows = <Map<String, dynamic>>[];
     for (final entry in byDay.entries) {
       final day = entry.key;
-      // Hôtel actif pour ce jour précis (ou null si aucun ne couvre ce jour)
-      final dayHotel = hotelForDay(hotels, day);
+      // Hôtel actif pour ce jour précis (ou null si aucun ne couvre ce jour).
+      // V2 (2026-05-08) : itineraryCity passé pour désambiguer les
+      // overlaps long-stay vs hôtel local via Option D.
+      final dayHotel =
+          hotelForDay(hotels, day, itineraryCity: trip.cityForDay(day));
       if (dayHotel == null) continue;
       DateTime? tryParseDate(dynamic v) => v is String ? DateTime.tryParse(v) : null;
       final ci = tryParseDate(dayHotel.metadata['check_in']);
