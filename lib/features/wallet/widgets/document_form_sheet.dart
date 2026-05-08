@@ -552,6 +552,72 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
     return m;
   }
 
+  /// V2.3 — vrai si l'inférence J+1 ne peut pas être déclenchée
+  /// fiablement et qu'aucune `arrival_date` n'a été saisie. Conditions :
+  /// - Catégorie transport (flight/train).
+  /// - `date` (départ) renseignée.
+  /// - `arrival_date` vide.
+  /// - Au moins une heure manquante (sinon l'inférence J+1 marche).
+  ///
+  /// Si vrai, le formulaire affiche une bannière jaune non bloquante
+  /// avant le bouton Enregistrer pour éviter le silent-fail "Bangkok
+  /// disponible le jour du décollage" sur les vols overnight.
+  bool _shouldWarnArrivalDate() {
+    if (_category != DocumentCategory.flight &&
+        _category != DocumentCategory.train) {
+      return false;
+    }
+    if (_dates['date'] == null) return false;
+    if (_dates['arrival_date'] != null) return false;
+    final hasDep = _ctrl('departure_time').text.trim().isNotEmpty;
+    final hasArr = _ctrl('arrival_time').text.trim().isNotEmpty;
+    return !(hasDep && hasArr);
+  }
+
+  Widget _buildArrivalDateWarning() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.accentLight,
+        border: Border.all(color: AppColors.accent.withValues(alpha: 0.4)),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline, size: 18, color: AppColors.accent),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Date d\'arrivée non vérifiée',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Renseigne la date d\'arrivée si ce transport arrive le '
+                  'lendemain. Elle permet à Lunao de ne pas planifier '
+                  'd\'activité pendant le trajet.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textPrimary.withValues(alpha: 0.85),
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Tente de géocoder l'adresse d'un hôtel et met à jour `meta` en place
   /// (`latitude`, `longitude`, `geocoding_failed`). Comportement :
   /// - Adresse vide → reset coords + flag (l'user a effacé l'adresse).
@@ -1430,6 +1496,18 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
                       ),
                       const SizedBox(height: 6),
                       _buildField(spec),
+                      if (spec.key == 'arrival_date') ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Lunao la déduit automatiquement si les deux '
+                          'heures sont renseignées.',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 14),
                     ],
                   ],
@@ -1444,18 +1522,27 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
               ),
               child: SafeArea(
                 top: false,
-                child: ElevatedButton(
-                  onPressed: _saving ? null : _save,
-                  child: _saving
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Text('Enregistrer'),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_shouldWarnArrivalDate()) ...[
+                      _buildArrivalDateWarning(),
+                      const SizedBox(height: 12),
+                    ],
+                    ElevatedButton(
+                      onPressed: _saving ? null : _save,
+                      child: _saving
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text('Enregistrer'),
+                    ),
+                  ],
                 ),
               ),
             ),
