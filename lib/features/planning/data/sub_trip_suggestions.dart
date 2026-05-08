@@ -144,10 +144,9 @@ const _subTripSuggestions = <SubTripSuggestion>[
     tags: ['Nature', 'Patrimoine', 'Karst'],
     priority: 10,
     whyText:
-        'Tu peux arriver à Hanoï, partir directement vers Ninh Bình '
-        '(rizières, grottes karstiques, baie d\'Ha Long terrestre), '
-        'puis revenir à Hanoï avant la suite du voyage.',
-    ctaLabel: 'Transformer Hanoï en Ninh Bình + Hanoï',
+        'Rizières et grottes karstiques (la "baie d\'Ha Long terrestre"). '
+        'Vrai séjour 3 nuits, retour à Hanoï avant la suite.',
+    ctaLabel: 'Transformer le bloc Hanoï',
   ),
   SubTripSuggestion(
     anchorCity: 'Hanoï',
@@ -161,8 +160,8 @@ const _subTripSuggestions = <SubTripSuggestion>[
     tags: ['Nature', 'Mer', 'Croisière'],
     priority: 8,
     whyText:
-        'Croisière de 1-2 nuits dans la baie d\'Ha Long ou la baie de '
-        'Lan Ha (moins fréquentée). À combiner avec Hanoï.',
+        'Croisière 1-2 nuits dans la baie d\'Ha Long ou Lan Ha '
+        '(moins fréquentée). À combiner avec Hanoï.',
   ),
 
   // ─── Vietnam — Da Nang gateway ─────────────────────────────────────
@@ -178,9 +177,8 @@ const _subTripSuggestions = <SubTripSuggestion>[
     tags: ['Patrimoine', 'UNESCO', 'Lanternes'],
     priority: 10,
     whyText:
-        'Da Nang est souvent uniquement l\'aéroport d\'arrivée. Hội An '
-        '(vieille ville classée UNESCO) est presque toujours la vraie '
-        'étape de séjour pour le Vietnam central.',
+        'Da Nang est souvent juste l\'aéroport d\'arrivée. Hội An '
+        '(vieille ville UNESCO) est la vraie étape de séjour.',
     ctaLabel: 'Remplacer Da Nang par Hội An',
   ),
   SubTripSuggestion(
@@ -197,8 +195,8 @@ const _subTripSuggestions = <SubTripSuggestion>[
     tags: ['Patrimoine', 'Cité impériale', 'UNESCO'],
     priority: 7,
     whyText:
-        'Ancienne cité impériale, à combiner avec Hội An. La route '
-        'depuis Da Nang via le col du Hai Van est elle-même un highlight.',
+        'Cité impériale UNESCO, à combiner avec Hội An. La route via '
+        'le col du Hai Van est elle-même un highlight.',
     ctaLabel: 'Ajouter Hué au Vietnam central',
     regionLabel: 'au Vietnam central',
   ),
@@ -217,9 +215,8 @@ const _subTripSuggestions = <SubTripSuggestion>[
     tags: ['Plage', 'Île', 'Détente'],
     priority: 9,
     whyText:
-        'Idéal après une arrivée à Bangkok : nuit à Rayong puis 2 nuits '
-        'sur l\'île de Koh Samet avant de revenir à Bangkok pour la '
-        'suite.',
+        'Idéal après une arrivée à Bangkok : 1 nuit à Rayong puis '
+        '2 nuits sur l\'île, retour à Bangkok ensuite.',
     ctaLabel: 'Ajouter Rayong et Koh Samet',
   ),
   SubTripSuggestion(
@@ -234,8 +231,8 @@ const _subTripSuggestions = <SubTripSuggestion>[
     tags: ['Patrimoine', 'UNESCO', 'Temples'],
     priority: 7,
     whyText:
-        'Ancienne capitale du royaume de Siam, ruines classées UNESCO. '
-        'Excursion d\'1 jour facile depuis Bangkok.',
+        'Ancienne capitale du Siam, ruines UNESCO. Excursion d\'1 jour '
+        'facile depuis Bangkok.',
   ),
 
   // ─── Phú Quốc — surveillance, pas de vraie sub-étape ──────────────
@@ -255,8 +252,7 @@ const _subTripSuggestions = <SubTripSuggestion>[
     tags: ['Château', 'Patrimoine', 'UNESCO'],
     priority: 8,
     whyText:
-        'Château de Versailles + jardins. Excursion classique d\'1 jour '
-        'depuis Paris.',
+        'Château + jardins. Excursion classique d\'1 jour depuis Paris.',
   ),
   SubTripSuggestion(
     anchorCity: 'Tokyo',
@@ -270,8 +266,8 @@ const _subTripSuggestions = <SubTripSuggestion>[
     tags: ['Patrimoine', 'Temples', 'Tradition'],
     priority: 10,
     whyText:
-        'Ancienne capitale impériale, des centaines de temples et '
-        'jardins zen. Étape incontournable au Japon, à combiner avec Tokyo.',
+        'Ancienne capitale impériale, temples et jardins zen. '
+        'Étape incontournable, à combiner avec Tokyo.',
   ),
   SubTripSuggestion(
     anchorCity: 'Tokyo',
@@ -285,8 +281,8 @@ const _subTripSuggestions = <SubTripSuggestion>[
     tags: ['Nature', 'Sanctuaires', 'UNESCO'],
     priority: 6,
     whyText:
-        'Sanctuaires bouddhistes au cœur de la forêt + cascades. '
-        'Excursion d\'1 jour depuis Tokyo.',
+        'Sanctuaires bouddhistes en forêt + cascades. Excursion d\'1 '
+        'jour depuis Tokyo.',
   ),
   SubTripSuggestion(
     anchorCity: 'Madrid',
@@ -300,8 +296,8 @@ const _subTripSuggestions = <SubTripSuggestion>[
     tags: ['Patrimoine', 'UNESCO', 'Médiéval'],
     priority: 8,
     whyText:
-        'Cité médiévale fortifiée, classée UNESCO. Excursion d\'1 jour '
-        'depuis Madrid.',
+        'Cité médiévale fortifiée UNESCO. Excursion d\'1 jour depuis '
+        'Madrid.',
   ),
 ];
 

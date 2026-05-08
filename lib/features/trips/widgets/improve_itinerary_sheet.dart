@@ -164,22 +164,28 @@ class _ImproveItinerarySheet extends ConsumerWidget {
     }
 
     // Pour chaque ville, récupère les suggestions catalogue.
-    // `isArrivalGateway` : on considère les 2 premières villes du parcours
-    // comme probables points d'arrivée (vol AR + 1ère escale gateway).
-    // Heuristique simple V1 — sera affinée en V2 si on intègre le signal
-    // "ville origine d'un vol/transfert vers une autre étape".
+    // `isArrival` (= titre "Après ton arrivée à X") : data-driven via les
+    // modes des suggestions plutôt que l'index dans le voyage. Une ville
+    // est traitée comme gateway si AU MOINS une de ses suggestions est
+    // mode `replaceAnchorGateway` ou `splitGatewaySequence` (signe que
+    // la ville sert de point d'arrivée vers une vraie étape de séjour).
+    // Plus stable que l'heuristique d'index : Hanoï/Da Nang restent
+    // gateway même si le voyage commence par Phú Quốc.
     final sectionsWithSuggestions =
         <({String city, List<SubTripSuggestion> suggestions, bool isArrival})>[];
-    for (var i = 0; i < uniqueCities.length; i++) {
-      final c = uniqueCities[i];
+    for (final c in uniqueCities) {
       final s = findSuggestionsForAnchor(c);
-      if (s.isNotEmpty) {
-        sectionsWithSuggestions.add((
-          city: c,
-          suggestions: s,
-          isArrival: i < 2,
-        ));
-      }
+      if (s.isEmpty) continue;
+      final isArrival = s.any(
+        (e) =>
+            e.insertionMode == InsertionMode.replaceAnchorGateway ||
+            e.insertionMode == InsertionMode.splitGatewaySequence,
+      );
+      sectionsWithSuggestions.add((
+        city: c,
+        suggestions: s,
+        isArrival: isArrival,
+      ));
     }
 
     if (sectionsWithSuggestions.isEmpty) {
@@ -294,16 +300,19 @@ String _defaultCtaLabel(SubTripSuggestion s) {
 }
 
 /// Phrase courte expliquant l'impact concret sur le bloc d'étapes du
-/// voyage. Affichée sur la card juste avant le CTA, en gris discret,
-/// pour que l'utilisateur sache exactement ce qui va se passer s'il
-/// applique la suggestion. Wordings validés Lalith 2026-05-08 :
+/// voyage. Affichée sur la card juste avant le CTA, en gris discret.
+/// Wordings validés Lalith 2026-05-08 :
 /// - dayTrip : "ajoute une excursion d'1 jour depuis [anchor], sans nuit"
 /// - replaceAnchorGateway : "remplace [anchor] par [suggestion] dans planning"
 /// - nearbyStay : "ajoute [seg] [regionLabel || 'au parcours']"
-/// - split single-step : "transforme le bloc [anchor] en [seg] + [anchor] N"
-///   où N = `minAnchorDaysToKeep` (proxy raisonnable, on n'a pas le total
-///   d'origine de l'anchor à ce niveau)
-/// - split multi-step (≥2 seg) : "ajoute [seg1] + [seg2] après [anchor]"
+/// - splitSegment single-step (Ha Long depuis Hanoï) : "utilise N nuits
+///   du bloc [anchor] pour ajouter [seg]" — l'anchor reste vraie étape
+/// - splitSegment multi-step : "ajoute [seg1] + [seg2] depuis [anchor]"
+/// - splitGatewaySequence single-step (Ninh Bình depuis Hanoï) :
+///   "transforme le bloc [anchor] en [seg] + [anchor] N nuits" — anchor
+///   réduit à minAnchorDaysToKeep
+/// - splitGatewaySequence multi-step (Rayong+Koh Samet depuis Bangkok) :
+///   "ajoute [seg1] + [seg2] après [anchor]"
 String _impactText(SubTripSuggestion s) {
   String nights(int n) => n <= 1 ? '1 nuit' : '$n nuits';
   String segPart(SuggestedSegment seg) => '${seg.city} ${nights(seg.days)}';
@@ -319,22 +328,29 @@ String _impactText(SubTripSuggestion s) {
       return 'Impact : remplace ${s.anchorCity} par ${s.displayName} '
           'dans ton planning.';
     case InsertionMode.splitSegment:
+      // Sub-trip side-excursion : l'anchor reste une vraie étape, on
+      // emprunte juste quelques nuits pour la suggested. Phrasé qui
+      // évite l'ambiguïté "je remplace l'anchor".
+      if (s.segments.length >= 2) {
+        final added = s.segments.map(segPart).join(' + ');
+        return 'Impact : ajoute $added depuis ${s.anchorCity}.';
+      }
+      final main = s.segments.first;
+      return 'Impact : utilise ${nights(main.days)} du bloc '
+          '${s.anchorCity} pour ajouter ${main.city}.';
     case InsertionMode.splitGatewaySequence:
       final added = s.segments.map(segPart).join(' + ');
       // Multi-step gateway sequence (Bangkok → Rayong + Koh Samet) :
-      // phrasé "ajoute après" pour rester accessible. La nature SPLIT
-      // (Bangkok réduit) reste implicite.
+      // phrasé "ajoute après" pour rester accessible.
       if (s.segments.length >= 2) {
         return 'Impact : ajoute $added après ${s.anchorCity}.';
       }
-      // Single-step split-with-return (Hanoï → Ninh Bình + retour) :
-      // phrasé "transforme le bloc" pour rendre la transformation
-      // explicite. On utilise minAnchorDaysToKeep comme nombre concret
-      // de nuits restantes à l'anchor.
+      // Single-step gateway sequence (Hanoï → Ninh Bình + retour à
+      // Hanoï) : "transforme le bloc". minAnchorDaysToKeep = nombre
+      // concret de nuits restantes à l'anchor.
       final keep = s.minAnchorDaysToKeep;
-      final keepLabel = nights(keep);
       return 'Impact : transforme le bloc ${s.anchorCity} en '
-          '$added + ${s.anchorCity} $keepLabel.';
+          '$added + ${s.anchorCity} ${nights(keep)}.';
   }
 }
 
