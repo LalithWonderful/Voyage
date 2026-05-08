@@ -818,6 +818,22 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
   /// Ouvre un dialog d'édition pour une étape (ajout ou modif).
   /// L'ordre des étapes est défini par leur position dans la liste — pas de tri auto
   /// (l'utilisateur peut réordonner via drag-and-drop).
+  /// V2 (Lalith 2026-05-09) — vrai si le voyage contient déjà ≥2 pays
+  /// distincts dans ses segments (basé sur `segment.country`, valeurs
+  /// non-nulles dédupliquées case-insensible). Exemple : voyage
+  /// Thaïlande + Vietnam après ajout d'un segment Vietnam → multi-country.
+  /// Sert à débrayer la restriction d'autocomplete ville pour l'ajout
+  /// manuel : Bangkok est un hub régional, l'utilisateur doit pouvoir
+  /// ajouter Vientiane / Tokyo / Singapour sans contrainte de pays.
+  bool get _isMultiCountrySegments {
+    final countries = <String>{};
+    for (final s in _segments) {
+      final c = s.country?.trim().toLowerCase();
+      if (c != null && c.isNotEmpty) countries.add(c);
+    }
+    return countries.length >= 2;
+  }
+
   Future<void> _openSegmentEditor({TripSegment? existing, int? index}) async {
     // Si on édite l'unique étape OU si on ajoute la 1ère étape (liste vide),
     // alors après save la liste comptera 1 étape → la règle "1 étape =
@@ -827,14 +843,17 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
     final willBeOnlySegment =
         (existing != null && _segments.length == 1) ||
         (existing == null && _segments.isEmpty);
+    // V2 (Lalith 2026-05-09) — restriction par pays UNIQUEMENT si le
+    // voyage est mono-pays. Pour un voyage multi-pays (ex: Thaïlande +
+    // Vietnam), la recherche est mondiale : Bangkok est un hub régional,
+    // l'utilisateur peut ajouter Vientiane, Tokyo, Singapour, etc.
+    final restrictCountry =
+        _isMultiCountrySegments ? null : _destinationCountryCode;
     final result = await showDialog<_SegmentEditResult?>(
       context: context,
       builder: (ctx) => _SegmentEditorDialog(
         existing: existing,
-        // Filtre l'autocomplete des villes au pays de la destination quand
-        // disponible. Si null (city/place ou code pays pas encore récupéré),
-        // on accepte toutes les villes du monde (comportement historique).
-        restrictToCountryCode: _destinationCountryCode,
+        restrictToCountryCode: restrictCountry,
         lockedToTripDays: willBeOnlySegment,
         tripDays: _tripDays,
         tripStartDate: widget.trip.startDate,
@@ -2379,9 +2398,13 @@ class _SegmentEditorDialogState extends ConsumerState<_SegmentEditorDialog> {
               initialValue: widget.existing?.city,
               autofocus: widget.existing == null,
               labelText: 'Destination',
+              // V2 (Lalith 2026-05-09) — placeholder large quand le
+              // voyage est multi-pays (recherche mondiale activée). Sinon
+              // on garde le placeholder restreint qui guide vers les
+              // villes du pays principal.
               hintText: widget.restrictToCountryCode != null
                   ? 'Tape une ville du pays choisi'
-                  : 'ex: Strasbourg',
+                  : 'Tape une ville, un pays ou un aéroport',
               restrictToCountryCode: widget.restrictToCountryCode,
               onSelectedDetailed: (city, country, _, _) => setState(() {
                 _city = city;
