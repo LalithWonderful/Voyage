@@ -398,7 +398,7 @@ String _defaultCtaLabel(SubTripSuggestion s) {
   if (s.ctaLabel != null && s.ctaLabel!.isNotEmpty) return s.ctaLabel!;
   switch (s.insertionMode) {
     case InsertionMode.dayTrip:
-      return 'Ajouter comme excursion';
+      return 'Ajouter ${s.displayName} comme excursion';
     case InsertionMode.replaceAnchorGateway:
       return 'Remplacer ${s.anchorCity} par ${s.displayName}';
     case InsertionMode.nearbyStay:

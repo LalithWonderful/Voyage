@@ -167,6 +167,44 @@ const _subTripSuggestions = <SubTripSuggestion>[
     ctaLabel: 'Ajouter Ha Long / Lan Ha',
   ),
 
+  // ─── Variantes day-trip (fallback quand l'hôtel à Hanoï bloque les
+  // versions split). Spec Lalith 2026-05-08 : "Still allow day-trip /
+  // excursion suggestions from that city, because they do not modify
+  // the stay segment or hotel nights." Priorité plus basse que les
+  // versions stay : si pas de conflit, le user voit les 2 (stay en haut,
+  // dayTrip en bas comme alternative). Si stay bloqué par hôtel, le
+  // dayTrip prend la place.
+  SubTripSuggestion(
+    anchorCity: 'Hanoï',
+    displayName: 'Ninh Bình',
+    segments: [
+      SuggestedSegment(city: 'Ninh Bình', days: 1, country: 'Vietnam'),
+    ],
+    insertionMode: InsertionMode.dayTrip,
+    travelLabel: '≈ 2h-3h depuis Hanoï',
+    tags: ['Nature', 'Patrimoine'],
+    priority: 4,
+    whyText:
+        'Si tu ne peux pas modifier ton hébergement à Hanoï, tu peux '
+        'toujours faire un aller-retour à la journée pour voir les '
+        'rizières et grottes karstiques.',
+  ),
+  SubTripSuggestion(
+    anchorCity: 'Hanoï',
+    displayName: 'Ha Long / Lan Ha',
+    segments: [
+      SuggestedSegment(city: 'Baie d\'Ha Long', days: 1, country: 'Vietnam'),
+    ],
+    insertionMode: InsertionMode.dayTrip,
+    travelLabel: '≈ 2h30 depuis Hanoï',
+    tags: ['Nature', 'Mer'],
+    priority: 3,
+    whyText:
+        'Excursion à la journée en bateau (parfois fatigante avec le '
+        'trajet). Une nuit sur place reste l\'option recommandée si '
+        'possible.',
+  ),
+
   // ─── Vietnam — Da Nang gateway ─────────────────────────────────────
   SubTripSuggestion(
     anchorCity: 'Da Nang',
