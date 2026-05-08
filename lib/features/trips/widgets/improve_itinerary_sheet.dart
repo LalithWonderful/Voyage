@@ -340,9 +340,29 @@ class _ResolvedSuggestion {
   });
 }
 
+/// Normalise un nom de ville (case + diacritiques). Aligné sur les
+/// helpers `_normalize` dans `sub_trip_conflict_detector.dart` et
+/// `_normalizeCity` dans `sub_trip_suggestions.dart` (pattern projet).
+String _normalizeCityName(String s) {
+  const accents = {
+    'à': 'a', 'â': 'a', 'ä': 'a', 'á': 'a', 'ã': 'a',
+    'ç': 'c',
+    'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
+    'í': 'i', 'ï': 'i', 'î': 'i',
+    'ñ': 'n',
+    'ó': 'o', 'ô': 'o', 'ö': 'o', 'õ': 'o',
+    'ú': 'u', 'û': 'u', 'ü': 'u',
+    'ý': 'y', 'ÿ': 'y',
+  };
+  var out = s.toLowerCase().trim();
+  accents.forEach((k, v) => out = out.replaceAll(k, v));
+  return out;
+}
+
 /// Compute mutation + preflight pour une suggestion, et retourne :
 /// - `null` si la suggestion n'est pas applicable (MutationFailed OU
-///   preflight city-level / date-précis = block) → la card sera masquée
+///   preflight city-level / date-précis = block, OU déjà appliquée)
+///   → la card sera masquée
 /// - `_ResolvedSuggestion` sinon (ALLOW ou ALLOW_WITH_NOTICE)
 ///
 /// Demande UX Lalith 2026-05-08 : ne pas afficher les cards non
@@ -354,6 +374,23 @@ _ResolvedSuggestion? _resolveSuggestion({
   required int tripDurationDays,
   required List<TripDocument> docs,
 }) {
+  // ─── 0. Filtre "déjà appliquée" ────────────────────────────────────
+  // Si AU MOINS UNE des villes suggérées est déjà présente dans les
+  // segments du voyage → masquer la card (la suggestion a probablement
+  // déjà été appliquée, ou la ville a été ajoutée manuellement). Évite
+  // les doublons après application sur multi-step (ex: Rayong + Koh
+  // Samet qui restait visible après ajout). Spec Lalith 2026-05-08.
+  // MVP : on hide dès qu'UNE des cibles est présente — on ne propose
+  // pas une suggestion partielle (ex: si user a Rayong mais pas Koh
+  // Samet, on ne propose pas l'ajout du seul Koh Samet via cette card).
+  final existingCitiesNorm = currentSegments
+      .map((s) => _normalizeCityName(s.city))
+      .where((c) => c.isNotEmpty)
+      .toSet();
+  final anyTargetAlreadyPresent = suggestion.segments
+      .any((s) => existingCitiesNorm.contains(_normalizeCityName(s.city)));
+  if (anyTargetAlreadyPresent) return null;
+
   final mutationResult = computeMutation(
     suggestion: suggestion,
     currentSegments: currentSegments,
