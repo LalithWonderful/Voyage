@@ -142,6 +142,15 @@ enum MutationFailureReason {
   /// V2 — `insertionStartDate` chevauche une réservation d'hôtel à
   /// l'ancrage. Contrainte 5 de `validateInsertionDate`.
   insertionDateConflictsHotel,
+
+  /// V2 (Lalith 2026-05-08) — APPEND impossible : un segment aval est
+  /// ancré par un document daté (vol/train d'arrivée, hôtel, vol de
+  /// départ pinné). Étendre le voyage shifterait ce segment et casserait
+  /// la relation avec le doc — règle produit non négociable. L'user
+  /// peut soit raccourcir manuellement le segment ancrage, soit choisir
+  /// une suggestion structurelle (SPLIT) qui consomme des nuits sans
+  /// shifter.
+  wouldShiftPinnedDownstream,
 }
 
 /// Résultat scellé de `computeMutation`. Soit un `MutationOk(mutation)`
@@ -229,6 +238,26 @@ MutationResult computeMutation({
           detail: 'Voyage = $tripDurationDays jours, déjà placés = '
               '$currentTotal, suggéré = $addedDays, libres = $freeDays.',
         );
+      }
+      // Lalith 2026-05-08 — règle produit : un APPEND étend le voyage
+      // et shifte tous les segments aval. Si un segment aval est ancré
+      // par un document daté (vol/train d'arrivée, hôtel, vol de départ),
+      // ce shift casserait la relation avec le doc → on refuse. L'user
+      // doit raccourcir manuellement ou choisir une suggestion SPLIT.
+      if (pinnedAnalysis != null) {
+        for (var i = anchorIdx + 1;
+            i < pinnedAnalysis.segments.length;
+            i++) {
+          final seg = pinnedAnalysis.segments[i];
+          if (_isSegmentDateAnchored(seg)) {
+            return MutationFailed(
+              MutationFailureReason.wouldShiftPinnedDownstream,
+              detail: 'Ajouter ${suggestion.displayName} (+$addedDays j) '
+                  'décalerait "${seg.city}" qui est ancré par un document '
+                  'daté.',
+            );
+          }
+        }
       }
       return MutationOk(ItineraryMutation(
         anchorIndex: anchorIdx,
@@ -480,6 +509,32 @@ int findAnchorIndexForSuggestion(
     suggestion.anchorCity,
     category: suggestion.category,
   );
+}
+
+/// V2 (Lalith 2026-05-08) — vrai si le segment est ancré dans le temps
+/// par au moins un document daté. Sources d'ancrage :
+/// - vol/train entrant (`startPinned`, ou `effectiveStartDate >
+///   startDate` quand l'arrivée diffère du cumul)
+/// - vol/train sortant (`endPinned`)
+/// - réservation d'hôtel dans la fenêtre du segment
+///
+/// Sert au check APPEND : si un segment aval est ancré, étendre le
+/// voyage (APPEND) shifterait sa date et casserait la relation avec le
+/// doc — on refuse la mutation.
+bool _isSegmentDateAnchored(SegmentPinnedDates seg) {
+  if (seg.startPinned) return true;
+  if (seg.endPinned) return true;
+  if (seg.hotelRanges.isNotEmpty) return true;
+  // effectiveStartDate >= startDate par construction. S'il a été avancé
+  // par un arrival_date d'un transport entrant, le segment est ancré.
+  final start = seg.startDate;
+  final eff = seg.effectiveStartDate;
+  if (eff.year != start.year ||
+      eff.month != start.month ||
+      eff.day != start.day) {
+    return true;
+  }
+  return false;
 }
 
 /// V2 (multi-window) — retourne TOUS les indices de segments matchant la

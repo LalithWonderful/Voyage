@@ -1401,4 +1401,198 @@ void main() {
       expect(result[1].days, 22);
     });
   });
+
+  // ─── V2 fix : APPEND ne doit pas shifter un segment aval pinné ───────
+
+  group('computeMutation — wouldShiftPinnedDownstream', () {
+    SubTripSuggestion hueNearbyStay() => const SubTripSuggestion(
+          anchorCity: 'Da Nang',
+          displayName: 'Hué',
+          segments: [SuggestedSegment(city: 'Hué', days: 2)],
+          insertionMode: InsertionMode.nearbyStay,
+        );
+
+    test('APPEND avec vol pinné aval (Da Nang→BKK 15/07) → '
+        'wouldShiftPinnedDownstream', () {
+      // Cas E2E rapport Lalith 2026-05-08.
+      final segments = [
+        _seg('Hanoï', 4),
+        _seg('Da Nang', 3),
+        _seg('Bangkok', 22),
+      ];
+      final tripStart = DateTime(2026, 7, 8);
+      // Vol Da Nang→Bangkok pinne Bangkok.
+      final docs = [
+        TripDocument(
+          id: 'f1',
+          userId: 'u',
+          tripId: 't',
+          category: DocumentCategory.flight,
+          name: 'Vol DAD→BKK',
+          metadata: const {
+            'from_city': 'Da Nang',
+            'to_city': 'Bangkok',
+            'date': '2026-07-15',
+          },
+          createdAt: DateTime(2026, 1, 1),
+        ),
+      ];
+      final analysis = analyzePinnedDates(
+        segments: segments,
+        tripStartDate: tripStart,
+        docs: docs,
+      );
+      final result = computeMutation(
+        suggestion: hueNearbyStay(),
+        currentSegments: segments,
+        tripDurationDays: 35,
+        pinnedAnalysis: analysis,
+      );
+      expect(result, isA<MutationFailed>());
+      expect(
+        (result as MutationFailed).reason,
+        MutationFailureReason.wouldShiftPinnedDownstream,
+      );
+      expect(result.detail, contains('Bangkok'));
+    });
+
+    test('APPEND sans pinned aval → autorisé', () {
+      final segments = [
+        _seg('Hanoï', 4),
+        _seg('Da Nang', 3),
+      ];
+      final tripStart = DateTime(2026, 7, 8);
+      final analysis = analyzePinnedDates(
+        segments: segments,
+        tripStartDate: tripStart,
+        docs: const [],
+      );
+      final result = computeMutation(
+        suggestion: hueNearbyStay(),
+        currentSegments: segments,
+        tripDurationDays: 9,
+        pinnedAnalysis: analysis,
+      );
+      expect(result, isA<MutationOk>());
+    });
+
+    test('APPEND quand l\'anchor est le dernier segment → autorisé '
+        '(rien à shifter)', () {
+      final segments = [
+        _seg('Hanoï', 4),
+        _seg('Da Nang', 3),
+      ];
+      final tripStart = DateTime(2026, 7, 8);
+      final docs = [
+        TripDocument(
+          id: 'h1',
+          userId: 'u',
+          tripId: 't',
+          category: DocumentCategory.hotel,
+          name: 'Hôtel Da Nang',
+          metadata: const {
+            'address_city': 'Da Nang',
+            'check_in': '2026-07-12',
+            'check_out': '2026-07-15',
+          },
+          createdAt: DateTime(2026, 1, 1),
+        ),
+      ];
+      final analysis = analyzePinnedDates(
+        segments: segments,
+        tripStartDate: tripStart,
+        docs: docs,
+      );
+      final result = computeMutation(
+        suggestion: hueNearbyStay(),
+        currentSegments: segments,
+        tripDurationDays: 9,
+        pinnedAnalysis: analysis,
+      );
+      expect(result, isA<MutationOk>());
+    });
+
+    test('APPEND avec hôtel aval pinné → wouldShiftPinnedDownstream', () {
+      final segments = [
+        _seg('Hanoï', 4),
+        _seg('Da Nang', 3),
+        _seg('Bangkok', 22),
+      ];
+      final tripStart = DateTime(2026, 7, 8);
+      final docs = [
+        TripDocument(
+          id: 'h1',
+          userId: 'u',
+          tripId: 't',
+          category: DocumentCategory.hotel,
+          name: 'Hôtel Bangkok',
+          metadata: const {
+            'address_city': 'Bangkok',
+            'check_in': '2026-07-15',
+            'check_out': '2026-07-20',
+          },
+          createdAt: DateTime(2026, 1, 1),
+        ),
+      ];
+      final analysis = analyzePinnedDates(
+        segments: segments,
+        tripStartDate: tripStart,
+        docs: docs,
+      );
+      final result = computeMutation(
+        suggestion: hueNearbyStay(),
+        currentSegments: segments,
+        tripDurationDays: 35,
+        pinnedAnalysis: analysis,
+      );
+      expect(result, isA<MutationFailed>());
+      expect(
+        (result as MutationFailed).reason,
+        MutationFailureReason.wouldShiftPinnedDownstream,
+      );
+    });
+
+    test('SPLIT avec pinned aval → autorisé (preserve la durée totale, '
+        'pas de shift)', () {
+      final segments = [
+        _seg('Hanoï', 4),
+        _seg('Da Nang', 3),
+        _seg('Bangkok', 22),
+      ];
+      final tripStart = DateTime(2026, 7, 8);
+      final docs = [
+        TripDocument(
+          id: 'f1',
+          userId: 'u',
+          tripId: 't',
+          category: DocumentCategory.flight,
+          name: 'Vol DAD→BKK',
+          metadata: const {
+            'from_city': 'Da Nang',
+            'to_city': 'Bangkok',
+            'date': '2026-07-15',
+          },
+          createdAt: DateTime(2026, 1, 1),
+        ),
+      ];
+      final analysis = analyzePinnedDates(
+        segments: segments,
+        tripStartDate: tripStart,
+        docs: docs,
+      );
+      final result = computeMutation(
+        suggestion: const SubTripSuggestion(
+          anchorCity: 'Da Nang',
+          displayName: 'Hué',
+          segments: [SuggestedSegment(city: 'Hué', days: 2)],
+          insertionMode: InsertionMode.splitGatewaySequence,
+          minAnchorDaysToKeep: 1,
+        ),
+        currentSegments: segments,
+        tripDurationDays: 29,
+        pinnedAnalysis: analysis,
+      );
+      expect(result, isA<MutationOk>());
+    });
+  });
 }
