@@ -235,20 +235,34 @@ class _ImproveItinerarySheetState
     // catalogue est mode `replaceAnchorGateway` ou `splitGatewaySequence`,
     // même si toutes ces suggestions sont actuellement bloquées par un
     // hôtel — le statut sémantique de la ville reste "gateway".
+    // Une ville peut avoir 2 sections distinctes (gateway vs
+    // majorDestination) — on émet 2 entrées sectionsWithSuggestions
+    // pour Bangkok si les 2 catégories sont peuplées.
     final sectionsWithSuggestions = <({
       String city,
       List<_ResolvedSuggestion> resolved,
       bool isArrival,
+      SuggestionCategory category,
     })>[];
     for (final c in uniqueCities) {
       final catalogue = findSuggestionsForAnchor(c);
       if (catalogue.isEmpty) continue;
+      // `isArrival` calculé sur le catalogue complet (avant filtrage),
+      // pour que le statut sémantique de la ville reste stable même
+      // si les cards gateway sont actuellement bloquées par hôtel.
       final isArrival = catalogue.any(
         (e) =>
             e.insertionMode == InsertionMode.replaceAnchorGateway ||
             e.insertionMode == InsertionMode.splitGatewaySequence,
       );
-      final resolved = <_ResolvedSuggestion>[];
+
+      // Résout chaque suggestion (filtre block / déjà appliquée /
+      // arrival anchor manquant / minAnchorDaysToShow) puis groupe
+      // par catégorie d'affichage.
+      final byCategory = <SuggestionCategory, List<_ResolvedSuggestion>>{
+        SuggestionCategory.gateway: [],
+        SuggestionCategory.majorDestination: [],
+      };
       for (final s in catalogue) {
         final r = _resolveSuggestion(
           suggestion: s,
@@ -257,14 +271,31 @@ class _ImproveItinerarySheetState
           tripDurationDays: widget.tripDurationDays,
           docs: docs,
         );
-        if (r != null) resolved.add(r);
+        if (r == null) continue;
+        byCategory[s.category]!.add(r);
       }
-      if (resolved.isEmpty) continue; // toutes les cards sont bloquées
-      sectionsWithSuggestions.add((
-        city: c,
-        resolved: resolved,
-        isArrival: isArrival,
-      ));
+
+      // Émettre les sections dans cet ordre : gateway puis
+      // majorDestination (gateway = plus pertinent à l'arrivée,
+      // majorDestination = à proposer après).
+      final gateway = byCategory[SuggestionCategory.gateway]!;
+      if (gateway.isNotEmpty) {
+        sectionsWithSuggestions.add((
+          city: c,
+          resolved: gateway,
+          isArrival: isArrival,
+          category: SuggestionCategory.gateway,
+        ));
+      }
+      final major = byCategory[SuggestionCategory.majorDestination]!;
+      if (major.isNotEmpty) {
+        sectionsWithSuggestions.add((
+          city: c,
+          resolved: major,
+          isArrival: isArrival,
+          category: SuggestionCategory.majorDestination,
+        ));
+      }
     }
 
     if (sectionsWithSuggestions.isEmpty) {
@@ -291,6 +322,7 @@ class _ImproveItinerarySheetState
           anchorCity: entry.city,
           resolved: entry.resolved,
           isLikelyArrivalGateway: entry.isArrival,
+          category: entry.category,
           selectedKeys: _selectedKeys,
           idFor: _idFor,
           isDisabled: (r) => _isCardDisabled(r, sectionsWithSuggestions),
@@ -304,7 +336,7 @@ class _ImproveItinerarySheetState
   /// dans toutes les sections. Sert au sticky footer (count) et au
   /// retour au caller via `Navigator.pop`.
   List<_ResolvedSuggestion> _collectSelected(
-    List<({String city, List<_ResolvedSuggestion> resolved, bool isArrival})>
+    List<({String city, List<_ResolvedSuggestion> resolved, bool isArrival, SuggestionCategory category})>
         sections,
   ) {
     final out = <_ResolvedSuggestion>[];
@@ -329,7 +361,7 @@ class _ImproveItinerarySheetState
   /// elle-même" — l'user peut toujours la décocher.
   bool _isCardDisabled(
     _ResolvedSuggestion candidate,
-    List<({String city, List<_ResolvedSuggestion> resolved, bool isArrival})>
+    List<({String city, List<_ResolvedSuggestion> resolved, bool isArrival, SuggestionCategory category})>
         sections,
   ) {
     final candKey = _idFor(candidate);
@@ -619,15 +651,42 @@ _ResolvedSuggestion? _resolveSuggestion({
   if (anyTargetAlreadyPresent) return null;
 
   // ─── 0.5 MVP safety guard splitGatewaySequence ─────────────────────
-  // Lalith 2026-05-08 : un SPLIT gateway insère les segments suggérés
-  // au DÉBUT du bloc anchor. Sans date fiable d'arrivée dans la ville
-  // gateway, ça produit des dates aberrantes (ex: Rayong J1 alors que
-  // le user vient juste d'atterrir à Bangkok). On refuse la suggestion
-  // si aucun document transport/hôtel ne donne d'arrival anchor fiable.
-  // (Note : même AVEC un anchor, le positionnement actuel reste naïf
-  // — le user a accepté la limite, V2 affinera la logique de buffer.)
+  // Lalith 2026-05-08 :
+  // (a) Multi-step (≥2 segments insérés, ex: Bangkok→Rayong+Koh Samet)
+  //     nécessite une `insertionStartDate` explicite que V1 ne sait pas
+  //     calculer. Sans elle, l'insertion en début de segment produit
+  //     des dates aberrantes (Rayong J1 = jour d'atterrissage). On
+  //     hide la card en V1 — V2 introduira un date picker.
+  // (b) Single-step (Hanoï→Ninh Bình) ne nécessite pas d'insertionDate
+  //     mais requiert quand même un arrival anchor fiable (sinon on ne
+  //     sait pas si le user arrive vraiment à la gateway au début du
+  //     segment).
   if (suggestion.insertionMode == InsertionMode.splitGatewaySequence) {
+    if (suggestion.segments.length >= 2) {
+      // Multi-step : refus dur en V1 (insertionStartDate absente).
+      return null;
+    }
     if (!hasReliableArrivalAnchor(suggestion.anchorCity, docs)) {
+      return null;
+    }
+  }
+
+  // ─── 0.6 Filtre minAnchorDaysToShow ───────────────────────────────
+  // Suggestions catégorie `majorDestination` (Chiang Mai, Krabi…) ne
+  // s'affichent que si le segment d'ancrage est suffisamment long
+  // (typiquement Bangkok > 7 nuits). Évite de proposer Chiang Mai
+  // quand Bangkok ne fait que 3 nuits.
+  if (suggestion.minAnchorDaysToShow != null) {
+    TripSegment? anchorSeg;
+    final anchorNorm = _normalizeCityName(suggestion.anchorCity);
+    for (final s in currentSegments) {
+      if (_normalizeCityName(s.city) == anchorNorm) {
+        anchorSeg = s;
+        break;
+      }
+    }
+    if (anchorSeg == null ||
+        anchorSeg.days < suggestion.minAnchorDaysToShow!) {
       return null;
     }
   }
@@ -741,6 +800,11 @@ class _SectionForCity extends StatelessWidget {
   /// néanmoins être désactivées par `isDisabled` (conflit batch).
   final List<_ResolvedSuggestion> resolved;
   final bool isLikelyArrivalGateway;
+  /// Catégorie d'affichage. Pilote le titre + sous-titre de section :
+  /// - `gateway` : "Après ton arrivée à X" / "Autour de X"
+  /// - `majorDestination` : "Rééquilibrer ton long séjour à X" +
+  ///   sous-titre explicatif.
+  final SuggestionCategory category;
   final Set<String> selectedKeys;
   final String Function(_ResolvedSuggestion) idFor;
   final bool Function(_ResolvedSuggestion) isDisabled;
@@ -750,23 +814,40 @@ class _SectionForCity extends StatelessWidget {
     required this.anchorCity,
     required this.resolved,
     required this.isLikelyArrivalGateway,
+    required this.category,
     required this.selectedKeys,
     required this.idFor,
     required this.isDisabled,
     required this.onToggle,
   });
 
+  String get _sectionTitle {
+    if (category == SuggestionCategory.majorDestination) {
+      return 'Rééquilibrer ton long séjour à $anchorCity';
+    }
+    return isLikelyArrivalGateway
+        ? 'Après ton arrivée à $anchorCity'
+        : 'Autour de $anchorCity';
+  }
+
+  String? get _sectionSubtitle {
+    if (category == SuggestionCategory.majorDestination) {
+      return 'Ton séjour à $anchorCity est long. Tu peux utiliser '
+          'quelques nuits pour ajouter une grande étape.';
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final subtitle = _sectionSubtitle;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(4, 12, 4, 8),
+          padding: EdgeInsets.fromLTRB(4, 16, 4, subtitle == null ? 8 : 4),
           child: Text(
-            isLikelyArrivalGateway
-                ? 'Après ton arrivée à $anchorCity'
-                : 'Autour de $anchorCity',
+            _sectionTitle,
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
@@ -775,6 +856,19 @@ class _SectionForCity extends StatelessWidget {
             ),
           ),
         ),
+        if (subtitle != null) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
+            child: Text(
+              subtitle,
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.35,
+                color: AppColors.textPrimary.withValues(alpha: 0.65),
+              ),
+            ),
+          ),
+        ],
         ...resolved.map((r) => _SuggestionCard(
               resolved: r,
               isSelected: selectedKeys.contains(idFor(r)),

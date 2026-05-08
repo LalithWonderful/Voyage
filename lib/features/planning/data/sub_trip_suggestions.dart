@@ -17,6 +17,21 @@
 /// validation fine des conflits réservation/planning.
 library;
 
+/// Catégorie d'affichage dans la sheet (Lot 2.4 — Lalith 2026-05-08).
+///
+/// Distingue 2 grands groupes :
+/// - `gateway` : raffinements autour de l'arrivée (sub-trip / replace
+///   gateway / day-trip / nearby-stay). Affichés sous "Après ton arrivée
+///   à X" ou "Autour de X".
+/// - `majorDestination` : grandes étapes alternatives quand l'anchor
+///   est anormalement longue (ex: Bangkok 22 nuits → proposer
+///   Chiang Mai, Krabi, Koh Samui, Phuket). Affichés sous une section
+///   séparée "Rééquilibrer ton long séjour à X".
+enum SuggestionCategory {
+  gateway,
+  majorDestination,
+}
+
 /// Mode d'insertion d'une suggestion par rapport à la ville d'ancrage.
 /// Mappés en interne à 3 opérations concrètes (cf. Lot 2) :
 /// - APPEND : anchor inchangé, suggested ajouté APRÈS (trip allonge)
@@ -106,6 +121,18 @@ class SubTripSuggestion {
   /// "dans la baie de Ha Long". Default null → "au parcours".
   final String? regionLabel;
 
+  /// Catégorie d'affichage. Default `gateway` (refinement autour de
+  /// l'arrivée). `majorDestination` pour les grandes alternatives
+  /// (Chiang Mai, Krabi, Koh Samui, Phuket depuis Bangkok).
+  final SuggestionCategory category;
+
+  /// Si non-null, la suggestion n'est affichée que si le segment
+  /// d'ancrage a au moins `minAnchorDaysToShow` jours. Filtre côté
+  /// resolver pour ne pas proposer une "grande étape" sur un séjour
+  /// trop court (ex: Chiang Mai s'affiche seulement si Bangkok > 7
+  /// nuits — ça n'a pas de sens de splitter un Bangkok 3 nuits).
+  final int? minAnchorDaysToShow;
+
   const SubTripSuggestion({
     required this.anchorCity,
     required this.displayName,
@@ -118,6 +145,8 @@ class SubTripSuggestion {
     this.whyText,
     this.ctaLabel,
     this.regionLabel,
+    this.category = SuggestionCategory.gateway,
+    this.minAnchorDaysToShow,
   });
 
   /// Total jours/nuits suggérés (somme `segments.days`).
@@ -274,6 +303,81 @@ const _subTripSuggestions = <SubTripSuggestion>[
     whyText:
         'Ancienne capitale du Siam, ruines UNESCO. Excursion d\'1 jour '
         'facile depuis Bangkok.',
+  ),
+
+  // ─── Thaïlande — grandes alternatives sur séjour long Bangkok ─────
+  // Spec Lalith 2026-05-08 : si Bangkok > 7 nuits, proposer une
+  // section "Rééquilibrer ton long séjour à Bangkok" avec les grandes
+  // étapes alternatives. Mode splitSegment (Bangkok reste vraie étape,
+  // on emprunte quelques nuits). Catégorie majorDestination →
+  // affichage dans une section séparée des refinements gateway.
+  SubTripSuggestion(
+    anchorCity: 'Bangkok',
+    displayName: 'Chiang Mai',
+    segments: [
+      SuggestedSegment(city: 'Chiang Mai', days: 4, country: 'Thaïlande'),
+    ],
+    minAnchorDaysToKeep: 1,
+    insertionMode: InsertionMode.splitSegment,
+    travelLabel: 'Vol ou train depuis Bangkok',
+    tags: ['Culture', 'Temples', 'Nature'],
+    priority: 9,
+    whyText:
+        'Temples, marchés, nature et ambiance nord de la Thaïlande. '
+        'Plus calme que Bangkok et culturellement très différent.',
+    category: SuggestionCategory.majorDestination,
+    minAnchorDaysToShow: 8,
+  ),
+  SubTripSuggestion(
+    anchorCity: 'Bangkok',
+    displayName: 'Krabi',
+    segments: [
+      SuggestedSegment(city: 'Krabi', days: 3, country: 'Thaïlande'),
+    ],
+    minAnchorDaysToKeep: 1,
+    insertionMode: InsertionMode.splitSegment,
+    travelLabel: 'Vol depuis Bangkok',
+    tags: ['Plage', 'Îles', 'Nature'],
+    priority: 8,
+    whyText:
+        'Plages, îles karstiques (Railay, Phi Phi) et paysages '
+        'spectaculaires. Bonne base pour les excursions en bateau.',
+    category: SuggestionCategory.majorDestination,
+    minAnchorDaysToShow: 8,
+  ),
+  SubTripSuggestion(
+    anchorCity: 'Bangkok',
+    displayName: 'Koh Samui',
+    segments: [
+      SuggestedSegment(city: 'Koh Samui', days: 4, country: 'Thaïlande'),
+    ],
+    minAnchorDaysToKeep: 1,
+    insertionMode: InsertionMode.splitSegment,
+    travelLabel: 'Vol depuis Bangkok',
+    tags: ['Plage', 'Îles', 'Détente'],
+    priority: 7,
+    whyText:
+        'Île plus posée que Phuket, plages et séjour balnéaire. '
+        'Accès Koh Phangan et Koh Tao en ferry.',
+    category: SuggestionCategory.majorDestination,
+    minAnchorDaysToShow: 8,
+  ),
+  SubTripSuggestion(
+    anchorCity: 'Bangkok',
+    displayName: 'Phuket',
+    segments: [
+      SuggestedSegment(city: 'Phuket', days: 4, country: 'Thaïlande'),
+    ],
+    minAnchorDaysToKeep: 1,
+    insertionMode: InsertionMode.splitSegment,
+    travelLabel: 'Vol depuis Bangkok',
+    tags: ['Plage', 'Îles', 'Activités'],
+    priority: 6,
+    whyText:
+        'Plages, activités, excursions vers les îles (Phi Phi, James '
+        'Bond). Plus animé que Koh Samui.',
+    category: SuggestionCategory.majorDestination,
+    minAnchorDaysToShow: 8,
   ),
 
   // ─── Phú Quốc — surveillance, pas de vraie sub-étape ──────────────
