@@ -78,6 +78,28 @@ class SegmentPinnedDates {
     required this.endPinned,
     required this.hotelRanges,
   });
+
+  /// V2 (Lalith 2026-05-08) — vrai si le segment est ancré dans le temps
+  /// par au moins un document daté (vol/train d'arrivée ou de départ,
+  /// hôtel dans la fenêtre, ou arrival_date d'un transport entrant qui
+  /// avance la disponibilité réelle).
+  ///
+  /// Sert :
+  /// - au check APPEND (refuser de shifter un segment ancré aval)
+  /// - au verrouillage UI du drag/reorder (Phase A 2026-05-08) : un
+  ///   segment lié à un doc ne doit pas pouvoir être réordonné
+  ///   manuellement.
+  bool get isDocLinked {
+    if (startPinned) return true;
+    if (endPinned) return true;
+    if (hotelRanges.isNotEmpty) return true;
+    if (effectiveStartDate.year != startDate.year ||
+        effectiveStartDate.month != startDate.month ||
+        effectiveStartDate.day != startDate.day) {
+      return true;
+    }
+    return false;
+  }
 }
 
 class PinnedDatesAnalysis {

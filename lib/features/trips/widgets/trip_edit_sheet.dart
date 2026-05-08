@@ -8,6 +8,7 @@ import 'package:voyage/core/widgets/city_autocomplete_field.dart';
 import 'package:voyage/features/auth/providers/auth_provider.dart';
 import 'package:voyage/features/planning/providers/planning_provider.dart';
 import 'package:voyage/features/planning/services/airport_city_overrides.dart';
+import 'package:voyage/features/planning/services/pinned_dates.dart';
 import 'package:voyage/features/regions/services/country_regions_repository.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
@@ -16,6 +17,8 @@ import 'package:voyage/features/trips/widgets/airport_picker_dialog.dart';
 import 'package:voyage/features/trips/widgets/improve_itinerary_sheet.dart';
 import 'package:voyage/features/trips/widgets/regional_loop_sheet.dart';
 import 'package:voyage/features/trips/widgets/trip_step_card.dart';
+import 'package:voyage/features/wallet/models/document_model.dart';
+import 'package:voyage/features/wallet/providers/wallet_provider.dart';
 
 const _coverEmojis = ['✈️', '🏝️', '🏔️', '🏙️', '🏞️', '🌴', '🛶', '🚐', '🎡', '🎿', '🗺️', '🌍'];
 
@@ -1917,8 +1920,42 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
     );
   }
 
+  /// V2 Phase A — snackbar affichée quand l'utilisateur tape l'icône
+  /// cadenas d'une étape liée à un document, ou tente un reorder qui
+  /// shifterait une étape locked. Wording validé Lalith 2026-05-08.
+  void _showLockedSegmentSnackbar() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Cette étape est liée à un document de voyage. '
+          'Modifie le document associé pour changer son ordre ou ses dates.',
+        ),
+        duration: Duration(seconds: 4),
+      ),
+    );
+  }
+
   /// État développé : liste réordonnable + bilan jours + boutons + optimiser.
   Widget _buildSegmentsContent() {
+    // V2 Phase A (Lalith 2026-05-08) — détection des segments liés à un
+    // document daté : un segment lié ne peut pas être réordonné par
+    // drag & drop. Les docs sont la source de vérité, l'utilisateur
+    // doit éditer le doc pour changer l'ordre/les dates.
+    final docsAsync = ref.watch(tripDocumentsProvider(widget.trip.id));
+    final docs = docsAsync.maybeWhen(
+      data: (d) => d,
+      orElse: () => const <TripDocument>[],
+    );
+    final pinnedAnalysis = analyzePinnedDates(
+      segments: _segments.toList(growable: false),
+      tripStartDate: _start,
+      docs: docs,
+    );
+    final lockedIndices = <int>{};
+    for (var i = 0; i < pinnedAnalysis.segments.length; i++) {
+      if (pinnedAnalysis.segments[i].isDocLinked) lockedIndices.add(i);
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1929,8 +1966,25 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
             buildDefaultDragHandles: false,
             itemCount: _segments.length,
             onReorder: (oldIdx, newIdx) {
+              if (newIdx > oldIdx) newIdx--;
+              // Garde-fou défensif : le drag handle est déjà absent pour
+              // les locked, mais double-check au cas où.
+              if (lockedIndices.contains(oldIdx)) {
+                _showLockedSegmentSnackbar();
+                return;
+              }
+              // Empêcher un reorder qui shifterait un segment locked
+              // (drag d'un segment libre par-dessus un locked → le locked
+              // change d'index).
+              final lo = oldIdx < newIdx ? oldIdx : newIdx;
+              final hi = oldIdx < newIdx ? newIdx : oldIdx;
+              for (var i = lo; i <= hi; i++) {
+                if (i != oldIdx && lockedIndices.contains(i)) {
+                  _showLockedSegmentSnackbar();
+                  return;
+                }
+              }
               setState(() {
-                if (newIdx > oldIdx) newIdx--;
                 final item = _segments.removeAt(oldIdx);
                 _segments.insert(newIdx, item);
               });
@@ -1938,6 +1992,7 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
             itemBuilder: (ctx, i) {
               final seg = _segments[i];
               final dates = _segmentDates(i);
+              final isLocked = lockedIndices.contains(i);
               return Padding(
                 key: ValueKey('seg-$i-${seg.city}-${seg.days}'),
                 padding: const EdgeInsets.only(bottom: 8),
@@ -1947,16 +2002,30 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
                   days: seg.days,
                   startDate: dates.start,
                   endDate: dates.end,
-                  // Drag handle discret à gauche (priorité visuelle :
-                  // ville > durée > dates > actions, cf. brief Lalith).
-                  leading: ReorderableDragStartListener(
-                    index: i,
-                    child: Icon(
-                      Icons.drag_indicator,
-                      size: 16,
-                      color: AppColors.textSecondary.withValues(alpha: 0.6),
-                    ),
-                  ),
+                  // Locked = icône cadenas + tap snackbar (pas de drag).
+                  // Sinon = drag handle classique. Phase A 2026-05-08.
+                  leading: isLocked
+                      ? GestureDetector(
+                          onTap: _showLockedSegmentSnackbar,
+                          child: Tooltip(
+                            message: 'Étape liée à un document',
+                            child: Icon(
+                              Icons.lock_outline,
+                              size: 16,
+                              color: AppColors.textSecondary
+                                  .withValues(alpha: 0.7),
+                            ),
+                          ),
+                        )
+                      : ReorderableDragStartListener(
+                          index: i,
+                          child: Icon(
+                            Icons.drag_indicator,
+                            size: 16,
+                            color: AppColors.textSecondary
+                                .withValues(alpha: 0.6),
+                          ),
+                        ),
                   onTap: () => _openSegmentEditor(existing: seg, index: i),
                   onDelete: () => setState(() {
                     _segments.removeAt(i);

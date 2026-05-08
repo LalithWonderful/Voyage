@@ -572,6 +572,95 @@ void main() {
       expect(targetedDates.last, _d(2026, 7, 21));
     });
 
+    test('isDocLinked — segment sans aucun doc → false', () {
+      final analysis = analyzePinnedDates(
+        segments: [_seg('Bangkok', 5)],
+        tripStartDate: tripStart,
+        docs: const [],
+      );
+      expect(analysis.segments.first.isDocLinked, isFalse);
+    });
+
+    test('isDocLinked — vol entrant à startDate → true (startPinned)', () {
+      final analysis = analyzePinnedDates(
+        segments: [_seg('Bangkok', 5)],
+        tripStartDate: tripStart,
+        docs: [
+          _flight(fromCity: 'Lux', toCity: 'Bangkok', date: '2026-06-21'),
+        ],
+      );
+      expect(analysis.segments.first.isDocLinked, isTrue);
+    });
+
+    test('isDocLinked — vol sortant à endDateExclusive → true (endPinned)',
+        () {
+      final analysis = analyzePinnedDates(
+        segments: [_seg('Bangkok', 5), _seg('Phú Quốc', 3)],
+        tripStartDate: tripStart,
+        docs: [
+          _flight(fromCity: 'Bangkok', toCity: 'Phú Quốc', date: '2026-06-26'),
+        ],
+      );
+      expect(analysis.segments.first.isDocLinked, isTrue);
+    });
+
+    test('isDocLinked — hôtel à la ville → true (hotelRanges non vide)', () {
+      final analysis = analyzePinnedDates(
+        segments: [_seg('Bangkok', 5)],
+        tripStartDate: tripStart,
+        docs: [
+          _hotel(
+            city: 'Bangkok',
+            checkIn: '2026-06-22',
+            checkOut: '2026-06-25',
+          ),
+        ],
+      );
+      expect(analysis.segments.first.isDocLinked, isTrue);
+    });
+
+    test('isDocLinked — arrival_date avancé → true (effectiveStartDate '
+        'différent de startDate)', () {
+      final analysis = analyzePinnedDates(
+        segments: [_seg('Bangkok', 5)],
+        tripStartDate: tripStart,
+        docs: [
+          _flight(
+            fromCity: 'Lux',
+            toCity: 'Bangkok',
+            date: '2026-06-21',
+            arrivalDate: '2026-06-22',
+          ),
+        ],
+      );
+      final bkk = analysis.segments.first;
+      expect(bkk.startDate, _d(2026, 6, 21));
+      expect(bkk.effectiveStartDate, _d(2026, 6, 22));
+      expect(bkk.isDocLinked, isTrue);
+    });
+
+    test('isDocLinked — segment intermédiaire sans doc malgré docs aux '
+        'autres villes → false (matching strict par ville)', () {
+      // Hué ajouté manuellement sans doc, entre Da Nang et Bangkok qui
+      // ont chacun leurs docs. Ne doit pas être considéré comme linked
+      // juste parce que ses voisins le sont.
+      final analysis = analyzePinnedDates(
+        segments: [_seg('Da Nang', 3), _seg('Hué', 2), _seg('Bangkok', 5)],
+        tripStartDate: _d(2026, 7, 8),
+        docs: [
+          _flight(fromCity: 'Hanoï', toCity: 'Da Nang', date: '2026-07-08'),
+          _flight(fromCity: 'Da Nang', toCity: 'Bangkok', date: '2026-07-13'),
+        ],
+      );
+      // Hué = index 1 : pas de doc à Hué → pas linked.
+      expect(analysis.segments[1].city, 'Hué');
+      expect(analysis.segments[1].isDocLinked, isFalse);
+      // Da Nang = index 0 : startPinned via vol entrant → linked.
+      expect(analysis.segments[0].isDocLinked, isTrue);
+      // Bangkok = index 2 : startPinned via vol entrant → linked.
+      expect(analysis.segments[2].isDocLinked, isTrue);
+    });
+
     test('inférence J+1 depuis arrival_time < departure_time '
         '(backward-compat docs sans arrival_date explicite)', () {
       // Doc Lux→BKK legacy : pas d'arrival_date, mais départ 23:30 et
