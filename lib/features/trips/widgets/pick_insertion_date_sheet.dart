@@ -1,40 +1,72 @@
-/// Sheet "Quand veux-tu ajouter `<ville>` ?" — V2.3.
+/// Sheet "Quand veux-tu ajouter `<ville>` ?" — V2.3 + multi-window.
 ///
 /// Ouverte depuis `improve_itinerary_sheet.dart` quand l'utilisateur tape
 /// une suggestion structurelle dont
 /// `suggestionRequiresInsertionDate(s) == true` (cas Krabi/Chiang Mai
-/// dans Bangkok, Rayong+Koh Samet, etc.). L'utilisateur choisit une date
-/// dans la liste contrainte par `validInsertionStartDates` ; la sheet
-/// retourne cette date au caller, qui la passe à `computeMutation`.
+/// dans Bangkok, Rayong+Koh Samet, etc.).
 ///
-/// Pas de date picker calendrier en V2.3 — la liste des dates valides est
-/// typiquement courte (≤7 jours) et un calendrier complet avec >75% de
-/// jours grisés n'aide pas. Une liste de gros boutons date est plus claire.
+/// Multi-window (Lalith 2026-05-08) : si la même ville d'ancrage apparaît
+/// plusieurs fois dans le voyage (Bangkok aller + retour), une seule
+/// card `Krabi` est affichée mais le picker liste les dates valides
+/// regroupées par fenêtre ("Avant Phú Quốc", "Après Hội An"). L'user
+/// choisit la fenêtre ET la date en un seul geste.
+///
+/// Pas de date picker calendrier — la liste des dates valides est
+/// typiquement courte (≤30 jours par fenêtre) et un calendrier complet
+/// avec >75 % de jours grisés n'aide pas. Une liste de gros boutons est
+/// plus claire.
 library;
 
 import 'package:flutter/material.dart';
 import 'package:voyage/core/theme/app_theme.dart';
-import 'package:voyage/features/planning/services/pinned_dates.dart';
 
 /// Détail d'un segment inséré pour l'affichage (ex: Rayong 1 nuit).
 typedef InsertionSegmentSummary = ({String city, int nights});
 
-/// Ouvre la sheet et retourne la date choisie, ou `null` si l'utilisateur
-/// a fermé sans choisir.
+/// Une fenêtre d'insertion compatible. Pour Krabi 3n quand Bangkok
+/// apparaît 2 fois dans le voyage, on émet 2 `InsertionWindow` :
+/// - "Avant Phú Quốc" : anchorSegmentIndex=0, validStartDates=[22/06..29/06]
+/// - "Après Hội An"   : anchorSegmentIndex=4, validStartDates=[15/07..02/08]
+class InsertionWindow {
+  /// Index du segment d'ancrage dans la liste de segments AU MOMENT du
+  /// calcul. Sert à `computeMutation` (via `anchorOverrideIndex`) pour
+  /// cibler le bon Bangkok à l'application.
+  final int anchorSegmentIndex;
+
+  /// Label compact pour distinguer les fenêtres ("Avant Phú Quốc",
+  /// "Après Hội An"). Null/vide quand une seule fenêtre est dispo
+  /// (rendu sans en-tête de section).
+  final String? label;
+
+  /// Dates de début d'insertion valides (déjà filtrées par
+  /// `validInsertionStartDates` côté caller).
+  final List<DateTime> validStartDates;
+
+  const InsertionWindow({
+    required this.anchorSegmentIndex,
+    required this.label,
+    required this.validStartDates,
+  });
+}
+
+/// Résultat du picker : la date de début ET le segment d'ancrage choisi.
+typedef PickedInsertion = ({DateTime startDate, int anchorSegmentIndex});
+
+/// Ouvre la sheet et retourne `(date, anchorIndex)`, ou `null` si
+/// l'utilisateur a fermé sans choisir.
 ///
-/// `validDates` doit déjà être filtrée par `validInsertionStartDates`
-/// (V2.1). `insertedSegments` détaille la répartition des nuits par
-/// ville (multi-step = ≥2 entrées, ex: Rayong 1 + Koh Samet 2). La somme
-/// des `nights` doit correspondre à la durée totale d'insertion.
-Future<DateTime?> openPickInsertionDateSheet(
+/// `windows` doit contenir au moins une fenêtre. Le rendu est
+/// automatique :
+/// - 1 fenêtre → liste plate sans en-tête.
+/// - ≥2 fenêtres → sections avec labels.
+Future<PickedInsertion?> openPickInsertionDateSheet(
   BuildContext context, {
   required String anchorCity,
   required String displayName,
   required List<InsertionSegmentSummary> insertedSegments,
-  required List<DateTime> validDates,
-  required SegmentPinnedDates anchorPin,
+  required List<InsertionWindow> windows,
 }) {
-  return showModalBottomSheet<DateTime>(
+  return showModalBottomSheet<PickedInsertion>(
     context: context,
     isScrollControlled: true,
     backgroundColor: AppColors.background,
@@ -45,8 +77,7 @@ Future<DateTime?> openPickInsertionDateSheet(
       anchorCity: anchorCity,
       displayName: displayName,
       insertedSegments: insertedSegments,
-      validDates: validDates,
-      anchorPin: anchorPin,
+      windows: windows,
     ),
   );
 }
@@ -55,19 +86,19 @@ class _PickInsertionDateSheet extends StatelessWidget {
   final String anchorCity;
   final String displayName;
   final List<InsertionSegmentSummary> insertedSegments;
-  final List<DateTime> validDates;
-  final SegmentPinnedDates anchorPin;
+  final List<InsertionWindow> windows;
 
   const _PickInsertionDateSheet({
     required this.anchorCity,
     required this.displayName,
     required this.insertedSegments,
-    required this.validDates,
-    required this.anchorPin,
+    required this.windows,
   });
 
   int get _insertionNights =>
       insertedSegments.fold<int>(0, (sum, s) => sum + s.nights);
+
+  bool get _multiWindow => windows.length >= 2;
 
   @override
   Widget build(BuildContext context) {
@@ -75,7 +106,7 @@ class _PickInsertionDateSheet extends StatelessWidget {
     return SafeArea(
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          maxHeight: mq.size.height * 0.7,
+          maxHeight: mq.size.height * 0.75,
         ),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
@@ -103,8 +134,11 @@ class _PickInsertionDateSheet extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                'Lunao découpera $anchorCity autour de $displayName. '
-                'Tes vols et hôtels datés ne bougeront pas.',
+                _multiWindow
+                    ? 'Plusieurs créneaux à $anchorCity sont compatibles. '
+                        'Tes vols et hôtels datés ne bougeront pas.'
+                    : 'Lunao découpera $anchorCity autour de $displayName. '
+                        'Tes vols et hôtels datés ne bougeront pas.',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: AppColors.textSecondary,
                       height: 1.35,
@@ -112,20 +146,9 @@ class _PickInsertionDateSheet extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Flexible(
-                child: ListView.separated(
+                child: ListView(
                   shrinkWrap: true,
-                  itemCount: validDates.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
-                  itemBuilder: (context, i) {
-                    final start = validDates[i];
-                    final end = start.add(Duration(days: _insertionNights));
-                    return _DateOption(
-                      start: start,
-                      endExclusive: end,
-                      breakdown: _formatBreakdown(insertedSegments),
-                      onTap: () => Navigator.of(context).pop(start),
-                    );
-                  },
+                  children: _buildItems(context),
                 ),
               ),
               const SizedBox(height: 12),
@@ -145,13 +168,64 @@ class _PickInsertionDateSheet extends StatelessWidget {
       ),
     );
   }
+
+  List<Widget> _buildItems(BuildContext context) {
+    final items = <Widget>[];
+    for (var w = 0; w < windows.length; w++) {
+      final window = windows[w];
+      // En-tête de section (uniquement si ≥2 fenêtres et label présent).
+      if (_multiWindow && (window.label?.isNotEmpty ?? false)) {
+        if (w > 0) items.add(const SizedBox(height: 16));
+        items.add(_SectionHeader(label: window.label!));
+        items.add(const SizedBox(height: 8));
+      }
+      for (var i = 0; i < window.validStartDates.length; i++) {
+        final start = window.validStartDates[i];
+        final end = start.add(Duration(days: _insertionNights));
+        items.add(_DateOption(
+          start: start,
+          endExclusive: end,
+          breakdown: _formatBreakdown(insertedSegments),
+          onTap: () => Navigator.of(context).pop((
+            startDate: start,
+            anchorSegmentIndex: window.anchorSegmentIndex,
+          )),
+        ));
+        if (i < window.validStartDates.length - 1) {
+          items.add(const SizedBox(height: 8));
+        }
+      }
+    }
+    return items;
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String label;
+  const _SectionHeader({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Text(
+        label.toUpperCase(),
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: AppColors.textSecondary,
+          letterSpacing: 0.6,
+        ),
+      ),
+    );
+  }
 }
 
 class _DateOption extends StatelessWidget {
   final DateTime start;
   final DateTime endExclusive;
-  /// Description compacte du contenu de l'insertion ("Rayong 1 nuit +
-  /// Koh Samet 2 nuits" pour multi-step, "Krabi 3 nuits" pour single).
+
+  /// "Rayong 1 nuit + Koh Samet 2 nuits" / "Krabi 3 nuits".
   final String breakdown;
   final VoidCallback onTap;
 
