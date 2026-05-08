@@ -20,9 +20,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:voyage/core/theme/app_theme.dart';
 import 'package:voyage/features/planning/data/sub_trip_suggestions.dart';
+import 'package:voyage/features/planning/services/pinned_dates.dart';
 import 'package:voyage/features/planning/services/sub_trip_conflict_detector.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/services/itinerary_mutation.dart';
+import 'package:voyage/features/trips/widgets/pick_insertion_date_sheet.dart';
 import 'package:voyage/features/wallet/models/document_model.dart';
 import 'package:voyage/features/wallet/providers/wallet_provider.dart';
 
@@ -93,6 +95,13 @@ class _ImproveItinerarySheetState
   // ont le même displayName mais sont 2 cards distinctes).
   final Set<String> _selectedKeys = <String>{};
 
+  /// V2.3 — Dates choisies au date picker pour les cards
+  /// `requiresInsertionDate`. Indexé par la même clé que `_selectedKeys` ;
+  /// une entrée existe ssi la card est sélectionnée ET demande une date.
+  /// Utilisé à `_applySelection` pour passer la date à `computeMutation`
+  /// et obtenir un 3-way split correct.
+  final Map<String, DateTime> _selectionDates = <String, DateTime>{};
+
   String _idFor(_ResolvedSuggestion r) =>
       '${r.suggestion.anchorCity}|${r.suggestion.displayName}|'
       '${r.suggestion.insertionMode.name}';
@@ -115,15 +124,53 @@ class _ImproveItinerarySheetState
         '${_normalizeCityName(firstCity)}';
   }
 
-  void _toggle(_ResolvedSuggestion r) {
-    setState(() {
-      final key = _idFor(r);
-      if (_selectedKeys.contains(key)) {
+  Future<void> _toggle(_ResolvedSuggestion r) async {
+    final key = _idFor(r);
+    if (_selectedKeys.contains(key)) {
+      setState(() {
         _selectedKeys.remove(key);
-      } else {
+        _selectionDates.remove(key);
+      });
+      return;
+    }
+
+    // V2.3 — cards requiresInsertionDate : ouvrir le picker AVANT
+    // d'ajouter à la sélection. Si l'user annule, on n'ajoute rien.
+    if (suggestionRequiresInsertionDate(r.suggestion)) {
+      final docs = ref.read(tripDocumentsProvider(widget.tripId)).maybeWhen(
+            data: (d) => d,
+            orElse: () => const <TripDocument>[],
+          );
+      final analysis = analyzePinnedDates(
+        segments: widget.currentSegments,
+        tripStartDate: widget.tripStartDate,
+        docs: docs,
+      );
+      final anchorPin = analysis.forCity(r.suggestion.anchorCity);
+      if (anchorPin == null) return;
+      final validDates = validInsertionStartDates(
+        anchorCity: r.suggestion.anchorCity,
+        insertionDays: r.suggestion.totalSuggestedDays,
+        analysis: analysis,
+      );
+      if (validDates.isEmpty) return;
+      final chosen = await openPickInsertionDateSheet(
+        context,
+        anchorCity: r.suggestion.anchorCity,
+        displayName: r.suggestion.displayName,
+        insertionDays: r.suggestion.totalSuggestedDays,
+        validDates: validDates,
+        anchorPin: anchorPin,
+      );
+      if (chosen == null || !mounted) return;
+      setState(() {
         _selectedKeys.add(key);
-      }
-    });
+        _selectionDates[key] = chosen;
+      });
+      return;
+    }
+
+    setState(() => _selectedKeys.add(key));
   }
 
   @override
@@ -223,6 +270,15 @@ class _ImproveItinerarySheetState
       if (seen.add(key)) uniqueCities.add(t);
     }
 
+    // V2.3 — analyse des dates pinnées (vols/hôtels datés) pour filtrer
+    // les cards qui exigent une date d'insertion mais n'ont aucune date
+    // valide. Pure computation, recalculée à chaque rebuild.
+    final pinnedAnalysis = analyzePinnedDates(
+      segments: widget.currentSegments,
+      tripStartDate: widget.tripStartDate,
+      docs: docs,
+    );
+
     // Pour chaque ville, récupère les suggestions catalogue puis FILTRE
     // celles qui ne sont pas applicables (MutationFailed ou preflight
     // bloqué = conflit hôtel city-level / date-précis). Demande UX
@@ -270,6 +326,7 @@ class _ImproveItinerarySheetState
           tripStartDate: widget.tripStartDate,
           tripDurationDays: widget.tripDurationDays,
           docs: docs,
+          pinnedAnalysis: pinnedAnalysis,
         );
         if (r == null) continue;
         byCategory[s.category]!.add(r);
@@ -559,6 +616,13 @@ class _ImproveItinerarySheetState
       data: (d) => d,
       orElse: () => const <TripDocument>[],
     );
+    // V2.3 — recompute analysis avec les docs courants pour que les
+    // mutations renvoyées portent un `insertionPreDays` correct.
+    final pinnedAnalysis = analyzePinnedDates(
+      segments: widget.currentSegments,
+      tripStartDate: widget.tripStartDate,
+      docs: docs,
+    );
     final mutations = <ItineraryMutation>[];
     final seenCities = <String>{};
     for (final s in widget.currentSegments) {
@@ -567,17 +631,32 @@ class _ImproveItinerarySheetState
       if (!seenCities.add(t.toLowerCase())) continue;
       final catalogue = findSuggestionsForAnchor(t);
       for (final sug in catalogue) {
-        final r = _resolveSuggestion(
+        final preview = _resolveSuggestion(
           suggestion: sug,
           currentSegments: widget.currentSegments,
           tripStartDate: widget.tripStartDate,
           tripDurationDays: widget.tripDurationDays,
           docs: docs,
+          pinnedAnalysis: pinnedAnalysis,
         );
+        if (preview == null) continue;
+        final key = _idFor(preview);
+        if (!_selectedKeys.contains(key)) continue;
+        // Re-compute avec la date choisie pour les cards V2.3.
+        final pickedDate = _selectionDates[key];
+        final r = pickedDate == null
+            ? preview
+            : _resolveSuggestion(
+                suggestion: sug,
+                currentSegments: widget.currentSegments,
+                tripStartDate: widget.tripStartDate,
+                tripDurationDays: widget.tripDurationDays,
+                docs: docs,
+                pinnedAnalysis: pinnedAnalysis,
+                insertionStartDate: pickedDate,
+              );
         if (r == null) continue;
-        if (_selectedKeys.contains(_idFor(r))) {
-          mutations.add(r.mutation);
-        }
+        mutations.add(r.mutation);
       }
     }
     Navigator.of(context).pop(mutations);
@@ -632,6 +711,8 @@ _ResolvedSuggestion? _resolveSuggestion({
   required DateTime tripStartDate,
   required int tripDurationDays,
   required List<TripDocument> docs,
+  PinnedDatesAnalysis? pinnedAnalysis,
+  DateTime? insertionStartDate,
 }) {
   // ─── 0. Filtre "déjà appliquée" ────────────────────────────────────
   // Si AU MOINS UNE des villes suggérées est déjà présente dans les
@@ -650,41 +731,31 @@ _ResolvedSuggestion? _resolveSuggestion({
       .any((s) => existingCitiesNorm.contains(_normalizeCityName(s.city)));
   if (anyTargetAlreadyPresent) return null;
 
-  // ─── 0.5 MVP safety guard splitGatewaySequence ─────────────────────
-  // Lalith 2026-05-08 :
-  // (a) Multi-step (≥2 segments insérés, ex: Bangkok→Rayong+Koh Samet)
-  //     nécessite une `insertionStartDate` explicite que V1 ne sait pas
-  //     calculer. Sans elle, l'insertion en début de segment produit
-  //     des dates aberrantes (Rayong J1 = jour d'atterrissage). On
-  //     hide la card en V1 — V2 introduira un date picker.
-  // (b) Single-step (Hanoï→Ninh Bình) ne nécessite pas d'insertionDate
-  //     mais requiert quand même un arrival anchor fiable (sinon on ne
-  //     sait pas si le user arrive vraiment à la gateway au début du
-  //     segment).
-  if (suggestion.insertionMode == InsertionMode.splitGatewaySequence) {
-    if (suggestion.segments.length >= 2) {
-      // Multi-step : refus dur en V1 (insertionStartDate absente).
-      return null;
-    }
-    if (!hasReliableArrivalAnchor(suggestion.anchorCity, docs)) {
-      return null;
-    }
+  // ─── 0.5 splitGatewaySequence single-step : exige arrival anchor ───
+  // Single-step (Hanoï→Ninh Bình) ne demande pas de date picker (V2.2
+  // : `requiresInsertionDate=false` pour ce cas) mais requiert un
+  // arrival anchor fiable — sinon on ne sait pas si le user arrive
+  // vraiment à la gateway au début du segment et l'heuristique MVP
+  // (insertion en début de bloc) peut produire des dates aberrantes.
+  // Le cas multi-step est désormais géré par le date picker (V2.3).
+  if (suggestion.insertionMode == InsertionMode.splitGatewaySequence &&
+      suggestion.segments.length < 2 &&
+      !hasReliableArrivalAnchor(suggestion.anchorCity, docs)) {
+    return null;
   }
 
-  // ─── 0.55 MVP safety guard majorDestination splitSegment ──────────
-  // Lalith 2026-05-08 : appliquer Krabi / Chiang Mai / Koh Samui /
-  // Phuket via `splitSegment` insère au début du bloc anchor (Bangkok)
-  // sans `insertionStartDate`. Conséquence observée : tout l'itinéraire
-  // aval se décale d'1 jour (Phú Quốc 02/07→03/07, Ninh Bình 07/07→
-  // 08/07, Hanoï 10/07→11/07), ce qui CASSE des dates dérivées de
-  // documents transport / réservations. Règle produit : une mutation
-  // ne doit jamais shifter une date issue d'un doc. Tant que V2 n'a
-  // pas de date picker pour positionner correctement, on hide ces
-  // cards. Les dayTrip (Ayutthaya) restent visibles : elles n'ajoutent
-  // pas de nuits et ne restructurent rien.
-  if (suggestion.category == SuggestionCategory.majorDestination &&
-      suggestion.insertionMode == InsertionMode.splitSegment) {
-    return null;
+  // ─── 0.55 V2.3 — Filtre cards requiresInsertionDate sans dates ────
+  // Si la suggestion exige une date (Krabi/Chiang Mai/Rayong+Koh Samet)
+  // mais qu'aucune date d'insertion valide n'existe (segment ancrage
+  // entièrement contraint par des transports/hôtels pinnés), inutile
+  // de l'afficher : elle serait dé-tappable.
+  if (suggestionRequiresInsertionDate(suggestion) && pinnedAnalysis != null) {
+    final dates = validInsertionStartDates(
+      anchorCity: suggestion.anchorCity,
+      insertionDays: suggestion.totalSuggestedDays,
+      analysis: pinnedAnalysis,
+    );
+    if (dates.isEmpty) return null;
   }
 
   // ─── 0.6 Filtre minAnchorDaysToShow ───────────────────────────────
@@ -711,6 +782,8 @@ _ResolvedSuggestion? _resolveSuggestion({
     suggestion: suggestion,
     currentSegments: currentSegments,
     tripDurationDays: tripDurationDays,
+    insertionStartDate: insertionStartDate,
+    pinnedAnalysis: pinnedAnalysis,
   );
   if (mutationResult is MutationFailed) return null;
   final mutation = (mutationResult as MutationOk).mutation;
