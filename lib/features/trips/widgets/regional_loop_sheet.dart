@@ -7,6 +7,8 @@ import 'package:voyage/features/regions/models/country_region.dart';
 import 'package:voyage/features/regions/services/country_regions_repository.dart';
 import 'package:voyage/features/regions/widgets/country_regions_sheet.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
+import 'package:voyage/features/wallet/models/document_model.dart';
+import 'package:voyage/features/wallet/providers/wallet_provider.dart';
 
 /// Affiche un bottom sheet qui propose une boucle régionale (suggestion Gemini)
 /// autour de la destination principale. L'utilisateur coche les étapes qu'il
@@ -363,6 +365,26 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
 
   @override
   Widget build(BuildContext context) {
+    // Signal "déjà des étapes manuelles" : on adapte le titre vers
+    // "Compléter" plutôt que "Propose-moi" — Lunao complète, ne crée
+    // pas from scratch. Spec Lalith 2026-05-08.
+    final hasExistingSegments = widget.existingCities.isNotEmpty;
+
+    // Signal "transport docs présents" : si l'user n'a importé aucun
+    // vol/train/etc, Lunao ne sait pas si J1 et JN sont utilisables
+    // — on ne peut donc pas affirmer "couvre tout le voyage".
+    // Watch via Riverpod : si `tripId` null (cas onboarding), on fait
+    // l'hypothèse hasTransportDocs=false (pas de wallet branché).
+    final docsAsync = widget.tripId == null
+        ? const AsyncValue<List<TripDocument>>.data([])
+        : ref.watch(tripDocumentsProvider(widget.tripId!));
+    final hasTransportDocs = docsAsync.maybeWhen(
+      data: (docs) => docs.any((d) =>
+          d.category == DocumentCategory.flight ||
+          d.category == DocumentCategory.train),
+      orElse: () => false,
+    );
+
     return SafeArea(
       child: SizedBox(
         height: MediaQuery.of(context).size.height * 0.88,
@@ -382,7 +404,9 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Propose-moi un itinéraire',
+                          hasExistingSegments
+                              ? 'Compléter mon itinéraire'
+                              : 'Propose-moi un itinéraire',
                           style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                         ),
                       ),
@@ -582,7 +606,7 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
                               ? 'Suggérer'
                               : _paramsChangedSinceLastFetch
                                   ? 'Re-suggérer avec ce périmètre'
-                                  : 'Voir d\'autres villes'),
+                                  : 'Voir d\'autres idées'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.accent,
                         foregroundColor: Colors.white,
@@ -620,12 +644,22 @@ class _RegionalLoopSheetState extends ConsumerState<_RegionalLoopSheet> {
                           _projectedTotal > _tripDays
                               ? '⚠ Total projeté : $_projectedTotal jours (dépasse les $_tripDays jours du voyage)'
                               : _projectedTotal == _tripDays
-                                  ? '✓ Total projeté : $_projectedTotal / $_tripDays jours — couvre tout le voyage'
-                                  : 'Total projeté : $_projectedTotal / $_tripDays jours',
+                                  // Si AUCUN doc transport (vol/train) n'est
+                                  // importé, on ne peut pas affirmer "couvre
+                                  // tout le voyage" — J1 et JN ne sont pas
+                                  // forcément utilisables. Phrase indicative.
+                                  ? (hasTransportDocs
+                                      ? '✓ Total projeté : $_projectedTotal / $_tripDays jours — couvre tout le voyage'
+                                      : 'Total projeté : $_projectedTotal / $_tripDays jours — à vérifier selon tes horaires de transport')
+                                  : (hasTransportDocs
+                                      ? 'Total projeté : $_projectedTotal / $_tripDays jours'
+                                      : 'Total projeté : $_projectedTotal / $_tripDays jours · répartition indicative, à ajuster selon tes horaires d\'arrivée et de retour'),
                           style: TextStyle(
                             fontSize: 11,
                             color: _projectedTotal > _tripDays ? AppColors.error : AppColors.textSecondary,
-                            fontWeight: _projectedTotal == _tripDays ? FontWeight.w600 : FontWeight.normal,
+                            fontWeight: (_projectedTotal == _tripDays && hasTransportDocs)
+                                ? FontWeight.w600
+                                : FontWeight.normal,
                           ),
                         ),
                       ],
