@@ -671,6 +671,22 @@ _ResolvedSuggestion? _resolveSuggestion({
     }
   }
 
+  // ─── 0.55 MVP safety guard majorDestination splitSegment ──────────
+  // Lalith 2026-05-08 : appliquer Krabi / Chiang Mai / Koh Samui /
+  // Phuket via `splitSegment` insère au début du bloc anchor (Bangkok)
+  // sans `insertionStartDate`. Conséquence observée : tout l'itinéraire
+  // aval se décale d'1 jour (Phú Quốc 02/07→03/07, Ninh Bình 07/07→
+  // 08/07, Hanoï 10/07→11/07), ce qui CASSE des dates dérivées de
+  // documents transport / réservations. Règle produit : une mutation
+  // ne doit jamais shifter une date issue d'un doc. Tant que V2 n'a
+  // pas de date picker pour positionner correctement, on hide ces
+  // cards. Les dayTrip (Ayutthaya) restent visibles : elles n'ajoutent
+  // pas de nuits et ne restructurent rien.
+  if (suggestion.category == SuggestionCategory.majorDestination &&
+      suggestion.insertionMode == InsertionMode.splitSegment) {
+    return null;
+  }
+
   // ─── 0.6 Filtre minAnchorDaysToShow ───────────────────────────────
   // Suggestions catégorie `majorDestination` (Chiang Mai, Krabi…) ne
   // s'affichent que si le segment d'ancrage est suffisamment long
