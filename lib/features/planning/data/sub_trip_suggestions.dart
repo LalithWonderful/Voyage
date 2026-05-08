@@ -98,9 +98,13 @@ class SubTripSuggestion {
   final String? whyText;
 
   /// CTA explicite override. Ex: "Transformer Hanoï en Ninh Bình + Hanoï"
-  /// au lieu du générique "Ajouter cette étape". Si null, label dérivé
-  /// du mode.
+  /// au lieu du générique dérivé. Si null, label dérivé du mode.
   final String? ctaLabel;
+
+  /// Label régional pour la phrase Impact (mode `nearbyStay`).
+  /// Doit inclure l'article : "au Vietnam central", "en Toscane",
+  /// "dans la baie de Ha Long". Default null → "au parcours".
+  final String? regionLabel;
 
   const SubTripSuggestion({
     required this.anchorCity,
@@ -113,6 +117,7 @@ class SubTripSuggestion {
     this.priority = 5,
     this.whyText,
     this.ctaLabel,
+    this.regionLabel,
   });
 
   /// Total jours/nuits suggérés (somme `segments.days`).
@@ -184,14 +189,18 @@ const _subTripSuggestions = <SubTripSuggestion>[
     segments: [
       SuggestedSegment(city: 'Hué', days: 2, country: 'Vietnam'),
     ],
-    minAnchorDaysToKeep: 1,
-    insertionMode: InsertionMode.splitSegment,
+    // 2026-05-08 : reclassée nearbyStay (était splitSegment). Hué n'est
+    // PAS la correction du segment Da Nang (= Hội An), c'est une option
+    // culturelle additionnelle au Vietnam central.
+    insertionMode: InsertionMode.nearbyStay,
     travelLabel: '≈ 2h depuis Da Nang (col du Hai Van)',
     tags: ['Patrimoine', 'Cité impériale', 'UNESCO'],
     priority: 7,
     whyText:
         'Ancienne cité impériale, à combiner avec Hội An. La route '
         'depuis Da Nang via le col du Hai Van est elle-même un highlight.',
+    ctaLabel: 'Ajouter Hué au Vietnam central',
+    regionLabel: 'au Vietnam central',
   ),
 
   // ─── Thaïlande — Bangkok gateway ───────────────────────────────────

@@ -268,45 +268,73 @@ class _ImproveItinerarySheet extends ConsumerWidget {
 }
 
 /// CTA label dérivé du mode si la suggestion ne fournit pas un override
-/// `ctaLabel`. Évite "Ajouter cette étape" générique pour une excursion
-/// dayTrip ou pour les cas où le mode mérite une formulation spécifique.
+/// `ctaLabel`. Évite "Ajouter cette étape" générique : chaque mode a une
+/// formulation contextuelle. Reformulations validées Lalith 2026-05-08.
 String _defaultCtaLabel(SubTripSuggestion s) {
   if (s.ctaLabel != null && s.ctaLabel!.isNotEmpty) return s.ctaLabel!;
   switch (s.insertionMode) {
     case InsertionMode.dayTrip:
-      return 'Ajouter 1 journée à ${s.displayName}';
+      return 'Ajouter comme excursion';
     case InsertionMode.replaceAnchorGateway:
       return 'Remplacer ${s.anchorCity} par ${s.displayName}';
     case InsertionMode.nearbyStay:
+      return 'Ajouter ${s.displayName} au parcours';
     case InsertionMode.splitSegment:
     case InsertionMode.splitGatewaySequence:
-      return 'Ajouter ${s.displayName}';
+      // Multi-step (≥2 segments) : "Ajouter X et Y" / "Ajouter X, Y et Z"
+      if (s.segments.length >= 2) {
+        final names = s.segments.map((e) => e.city).toList();
+        if (names.length == 2) return 'Ajouter ${names[0]} et ${names[1]}';
+        final head = names.take(names.length - 1).join(', ');
+        return 'Ajouter $head et ${names.last}';
+      }
+      // Single-step split (Hanoï → Ninh Bình + retour) : "Transformer X en Y"
+      return 'Transformer ${s.anchorCity} en ${s.displayName}';
   }
 }
 
 /// Phrase courte expliquant l'impact concret sur le bloc d'étapes du
 /// voyage. Affichée sur la card juste avant le CTA, en gris discret,
 /// pour que l'utilisateur sache exactement ce qui va se passer s'il
-/// applique la suggestion.
+/// applique la suggestion. Wordings validés Lalith 2026-05-08 :
+/// - dayTrip : "ajoute une excursion d'1 jour depuis [anchor], sans nuit"
+/// - replaceAnchorGateway : "remplace [anchor] par [suggestion] dans planning"
+/// - nearbyStay : "ajoute [seg] [regionLabel || 'au parcours']"
+/// - split single-step : "transforme le bloc [anchor] en [seg] + [anchor] N"
+///   où N = `minAnchorDaysToKeep` (proxy raisonnable, on n'a pas le total
+///   d'origine de l'anchor à ce niveau)
+/// - split multi-step (≥2 seg) : "ajoute [seg1] + [seg2] après [anchor]"
 String _impactText(SubTripSuggestion s) {
   String nights(int n) => n <= 1 ? '1 nuit' : '$n nuits';
   String segPart(SuggestedSegment seg) => '${seg.city} ${nights(seg.days)}';
   switch (s.insertionMode) {
     case InsertionMode.dayTrip:
-      return 'Impact : ajoute une excursion d\'1 jour à '
-          '${s.segments.first.city} depuis ${s.anchorCity}.';
+      return 'Impact : ajoute une excursion d\'1 jour depuis '
+          '${s.anchorCity}, sans nuit sur place.';
     case InsertionMode.nearbyStay:
       final added = s.segments.map(segPart).join(' + ');
-      return 'Impact : ajoute $added après ${s.anchorCity}.';
+      final tail = s.regionLabel ?? 'au parcours';
+      return 'Impact : ajoute $added $tail.';
     case InsertionMode.replaceAnchorGateway:
-      final main = s.segments.first;
-      return 'Impact : remplace ${s.anchorCity} par '
-          '${main.city} (${nights(main.days)}).';
+      return 'Impact : remplace ${s.anchorCity} par ${s.displayName} '
+          'dans ton planning.';
     case InsertionMode.splitSegment:
     case InsertionMode.splitGatewaySequence:
       final added = s.segments.map(segPart).join(' + ');
+      // Multi-step gateway sequence (Bangkok → Rayong + Koh Samet) :
+      // phrasé "ajoute après" pour rester accessible. La nature SPLIT
+      // (Bangkok réduit) reste implicite.
+      if (s.segments.length >= 2) {
+        return 'Impact : ajoute $added après ${s.anchorCity}.';
+      }
+      // Single-step split-with-return (Hanoï → Ninh Bình + retour) :
+      // phrasé "transforme le bloc" pour rendre la transformation
+      // explicite. On utilise minAnchorDaysToKeep comme nombre concret
+      // de nuits restantes à l'anchor.
+      final keep = s.minAnchorDaysToKeep;
+      final keepLabel = nights(keep);
       return 'Impact : transforme le bloc ${s.anchorCity} en '
-          '$added + ${s.anchorCity} restant.';
+          '$added + ${s.anchorCity} $keepLabel.';
   }
 }
 
