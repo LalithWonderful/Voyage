@@ -88,15 +88,32 @@ class _ImproveItinerarySheet extends ConsumerStatefulWidget {
 class _ImproveItinerarySheetState
     extends ConsumerState<_ImproveItinerarySheet> {
   // Set des `_ResolvedSuggestion` actuellement sélectionnées par l'user.
-  // Identité par référence : la même `_ResolvedSuggestion` est créée
-  // au build via `_resolveSuggestion` mais on rebuild le set à chaque
-  // rebuild (les références changent). On utilise donc un ID stable
-  // basé sur `(anchorCity, displayName)` qui est unique dans le
-  // catalogue actuel.
+  // ID stable basé sur `(anchorCity, displayName, insertionMode)` :
+  // doit être unique PAR VARIANT (Ninh Bình stay vs Ninh Bình dayTrip
+  // ont le même displayName mais sont 2 cards distinctes).
   final Set<String> _selectedKeys = <String>{};
 
   String _idFor(_ResolvedSuggestion r) =>
-      '${r.suggestion.anchorCity}|${r.suggestion.displayName}';
+      '${r.suggestion.anchorCity}|${r.suggestion.displayName}|'
+      '${r.suggestion.insertionMode.name}';
+
+  /// Clé d'EXCLUSIVITÉ entre alternatives : `(anchor, firstTargetCity)`
+  /// normalisés. 2 suggestions partageant la même exclusivity key sont
+  /// alternatives — l'user ne peut en sélectionner qu'une à la fois.
+  /// Exemples :
+  /// - Hanoï→Ninh Bình stay  & Hanoï→Ninh Bình dayTrip → même clé
+  ///   "hanoi|ninh binh"
+  /// - Hanoï→Ha Long stay & Hanoï→Ha Long dayTrip → même clé
+  ///   "hanoi|baie d'ha long"
+  /// Multi-step (Bangkok→Rayong+Koh Samet) utilise la 1re ville
+  /// (Rayong) — pas de collision actuelle dans le catalogue.
+  String _exclusivityKeyFor(_ResolvedSuggestion r) {
+    final firstCity = r.suggestion.segments.isEmpty
+        ? ''
+        : r.suggestion.segments.first.city;
+    return '${_normalizeCityName(r.suggestion.anchorCity)}|'
+        '${_normalizeCityName(firstCity)}';
+  }
 
   void _toggle(_ResolvedSuggestion r) {
     setState(() {
@@ -319,6 +336,17 @@ class _ImproveItinerarySheetState
     if (_selectedKeys.contains(candKey)) return false; // déjà sélectionnée
 
     final selected = _collectSelected(sections);
+
+    // ─── Règle exclusivité (Lalith 2026-05-08) ──────────────────────
+    // 2 suggestions partageant la même `(anchor, firstTargetCity)`
+    // sont des alternatives mutuellement exclusives (ex: Ninh Bình
+    // stay vs Ninh Bình dayTrip). Si l'user a déjà sélectionné une
+    // variante, l'autre devient indisponible.
+    final candExKey = _exclusivityKeyFor(candidate);
+    for (final s in selected) {
+      if (_exclusivityKeyFor(s) == candExKey) return true;
+    }
+
     final candAnchor = candidate.suggestion.anchorCity.toLowerCase().trim();
     final candIsStructural = candidate.mutation.isStructural;
     final candIsReplace = candidate.mutation.removesAnchor;
