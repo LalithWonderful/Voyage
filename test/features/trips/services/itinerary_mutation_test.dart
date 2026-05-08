@@ -250,6 +250,47 @@ void main() {
           reason: 'reste = 1 = minKeep, doit passer');
       expect((result as MutationOk).mutation.newAnchorDays, 1);
     });
+
+    test('safety floor : SPLIT avec minKeep=0 et addedDays=anchor.days '
+        '→ refus (jamais 0-day segment)', () {
+      // Cas pathologique : catalogue mal configuré (minKeep=0 + 3 nuits
+      // suggérées sur anchor de 3 nuits → reste 0). La safety floor
+      // dans computeMutation force minKeep effectif à 1.
+      final result = computeMutation(
+        suggestion: _split(
+          anchor: 'Hanoï',
+          city: 'Ninh Bình',
+          days: 3,
+          minKeep: 0,
+        ),
+        currentSegments: [_seg('Hanoï', 3)],
+        tripDurationDays: 3,
+      );
+      expect(result, isA<MutationFailed>(),
+          reason: 'safety floor refuse de créer un anchor à 0 jour '
+              'même si catalogue déclare minKeep=0');
+      expect(
+        (result as MutationFailed).reason,
+        MutationFailureReason.notEnoughDaysToSplit,
+      );
+    });
+
+    test('safety floor : SPLIT avec minKeep=0 et marge → autorisé', () {
+      // minKeep=0 mais addedDays < anchor.days → reste ≥ 1, pas de
+      // segment vide → autorisé.
+      final result = computeMutation(
+        suggestion: _split(
+          anchor: 'Hanoï',
+          city: 'Ninh Bình',
+          days: 3,
+          minKeep: 0,
+        ),
+        currentSegments: [_seg('Hanoï', 4)],
+        tripDurationDays: 4,
+      );
+      expect(result, isA<MutationOk>());
+      expect((result as MutationOk).mutation.newAnchorDays, 1);
+    });
   });
 
   group('computeMutation — REPLACE (replaceAnchorGateway)', () {

@@ -181,14 +181,22 @@ MutationResult computeMutation({
     case InsertionMode.splitSegment:
     case InsertionMode.splitGatewaySequence:
       // ─── SPLIT ──────────────────────────────────────────────────
+      // Safety floor : SPLIT ne doit JAMAIS produire un anchor à 0 jour
+      // (pas de TripSegment vide). Si le catalogue déclare
+      // minAnchorDaysToKeep = 0 (cas non observé en V1 mais possible),
+      // on force quand même un minimum de 1 jour. Une suggestion qui
+      // veut consommer 100 % des jours de l'anchor doit utiliser
+      // `replaceAnchorGateway`, pas SPLIT avec minKeep = 0.
       final addedDays = suggestion.totalSuggestedDays;
       final reduced = anchor.days - addedDays;
-      if (reduced < suggestion.minAnchorDaysToKeep) {
+      final effectiveMinKeep =
+          suggestion.minAnchorDaysToKeep < 1 ? 1 : suggestion.minAnchorDaysToKeep;
+      if (reduced < effectiveMinKeep) {
         return MutationFailed(
           MutationFailureReason.notEnoughDaysToSplit,
           detail: 'Anchor "${anchor.city}" a ${anchor.days} jours, '
-              'suggéré = $addedDays, minKeep = '
-              '${suggestion.minAnchorDaysToKeep}, restant = $reduced.',
+              'suggéré = $addedDays, min keep effectif = $effectiveMinKeep, '
+              'restant = $reduced.',
         );
       }
       return MutationOk(ItineraryMutation(
