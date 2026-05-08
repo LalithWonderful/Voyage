@@ -177,33 +177,58 @@ class _ImproveItinerarySheet extends ConsumerWidget {
       if (seen.add(key)) uniqueCities.add(t);
     }
 
-    // Pour chaque ville, récupère les suggestions catalogue.
-    // `isArrival` (= titre "Après ton arrivée à X") : data-driven via les
-    // modes des suggestions plutôt que l'index dans le voyage. Une ville
-    // est traitée comme gateway si AU MOINS une de ses suggestions est
-    // mode `replaceAnchorGateway` ou `splitGatewaySequence` (signe que
-    // la ville sert de point d'arrivée vers une vraie étape de séjour).
-    // Plus stable que l'heuristique d'index : Hanoï/Da Nang restent
-    // gateway même si le voyage commence par Phú Quốc.
-    final sectionsWithSuggestions =
-        <({String city, List<SubTripSuggestion> suggestions, bool isArrival})>[];
+    // Pour chaque ville, récupère les suggestions catalogue puis FILTRE
+    // celles qui ne sont pas applicables (MutationFailed ou preflight
+    // bloqué = conflit hôtel city-level / date-précis). Demande UX
+    // Lalith 2026-05-08 : ne pas afficher de card non actionnable, ça
+    // crée du bruit visuel sans valeur.
+    //
+    // `isArrival` (= titre "Après ton arrivée à X") : data-driven via
+    // les modes des suggestions catalogue (pas le subset filtré). Une
+    // ville est traitée comme gateway si AU MOINS une de ses suggestions
+    // catalogue est mode `replaceAnchorGateway` ou `splitGatewaySequence`,
+    // même si toutes ces suggestions sont actuellement bloquées par un
+    // hôtel — le statut sémantique de la ville reste "gateway".
+    final sectionsWithSuggestions = <({
+      String city,
+      List<_ResolvedSuggestion> resolved,
+      bool isArrival,
+    })>[];
     for (final c in uniqueCities) {
-      final s = findSuggestionsForAnchor(c);
-      if (s.isEmpty) continue;
-      final isArrival = s.any(
+      final catalogue = findSuggestionsForAnchor(c);
+      if (catalogue.isEmpty) continue;
+      final isArrival = catalogue.any(
         (e) =>
             e.insertionMode == InsertionMode.replaceAnchorGateway ||
             e.insertionMode == InsertionMode.splitGatewaySequence,
       );
+      final resolved = <_ResolvedSuggestion>[];
+      for (final s in catalogue) {
+        final r = _resolveSuggestion(
+          suggestion: s,
+          currentSegments: currentSegments,
+          tripStartDate: tripStartDate,
+          tripDurationDays: tripDurationDays,
+          docs: docs,
+        );
+        if (r != null) resolved.add(r);
+      }
+      if (resolved.isEmpty) continue; // toutes les cards sont bloquées
       sectionsWithSuggestions.add((
         city: c,
-        suggestions: s,
+        resolved: resolved,
         isArrival: isArrival,
       ));
     }
 
     if (sectionsWithSuggestions.isEmpty) {
-      return _buildEmptyState(context);
+      // Distinction subtile : si AUCUNE suggestion n'existe au catalogue
+      // pour les villes du voyage → "pas de suggestions". Si des
+      // suggestions existent mais sont TOUTES bloquées → message dédié
+      // qui pointe vers les réservations comme cause probable.
+      final hasAnyCatalogue = uniqueCities
+          .any((c) => findSuggestionsForAnchor(c).isNotEmpty);
+      return _buildEmptyState(context, allBlocked: hasAnyCatalogue);
     }
 
     return ListView.builder(
@@ -218,31 +243,41 @@ class _ImproveItinerarySheet extends ConsumerWidget {
         final entry = sectionsWithSuggestions[index];
         return _SectionForCity(
           anchorCity: entry.city,
-          suggestions: entry.suggestions,
-          docs: docs,
+          resolved: entry.resolved,
           isLikelyArrivalGateway: entry.isArrival,
-          currentSegments: currentSegments,
-          tripStartDate: tripStartDate,
-          tripDurationDays: tripDurationDays,
         );
       },
     );
   }
 
-  Widget _buildEmptyState(BuildContext context) {
+  /// Empty state. Si `allBlocked=false` : aucune suggestion catalogue
+  /// pour les villes du voyage. Si `allBlocked=true` : des suggestions
+  /// existent mais sont TOUTES bloquées par les réservations actuelles
+  /// (typiquement hôtels couvrant les nuits affectées par les
+  /// transformations).
+  Widget _buildEmptyState(BuildContext context, {required bool allBlocked}) {
+    final title = allBlocked
+        ? 'Aucune amélioration possible pour l\'instant'
+        : 'Pas encore de suggestions pour ton parcours';
+    final subtitle = allBlocked
+        ? 'Toutes les transformations entreraient en conflit avec '
+            'tes réservations actuelles. Modifie tes hôtels ou tes '
+            'étapes si tu veux explorer d\'autres options.'
+        : 'Le catalogue Lunao s\'enrichit petit à petit. '
+            'Tu peux toujours ajouter une étape manuellement.';
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.travel_explore,
+            allBlocked ? Icons.event_busy : Icons.travel_explore,
             size: 48,
             color: AppColors.textPrimary.withValues(alpha: 0.3),
           ),
           const SizedBox(height: 16),
           Text(
-            'Pas encore de suggestions pour ton parcours',
+            title,
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w600,
@@ -252,8 +287,7 @@ class _ImproveItinerarySheet extends ConsumerWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Le catalogue Lunao s\'enrichit petit à petit. '
-            'Tu peux toujours ajouter une étape manuellement.',
+            subtitle,
             style: TextStyle(
               fontSize: 13,
               height: 1.4,
@@ -289,6 +323,72 @@ class _ImproveItinerarySheet extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Résultat de la résolution d'une suggestion : mutation calculée +
+/// notice optionnelle (allowWithNotice). Ne contient que des cards
+/// AFFICHABLES (mutation OK + preflight non-block). Les blocked et
+/// MutationFailed sont filtrés en amont, retour null.
+class _ResolvedSuggestion {
+  final SubTripSuggestion suggestion;
+  final ItineraryMutation mutation;
+  final String? notice;
+  const _ResolvedSuggestion({
+    required this.suggestion,
+    required this.mutation,
+    required this.notice,
+  });
+}
+
+/// Compute mutation + preflight pour une suggestion, et retourne :
+/// - `null` si la suggestion n'est pas applicable (MutationFailed OU
+///   preflight city-level / date-précis = block) → la card sera masquée
+/// - `_ResolvedSuggestion` sinon (ALLOW ou ALLOW_WITH_NOTICE)
+///
+/// Demande UX Lalith 2026-05-08 : ne pas afficher les cards non
+/// actionnables, ça pollue la sheet sans valeur ajoutée.
+_ResolvedSuggestion? _resolveSuggestion({
+  required SubTripSuggestion suggestion,
+  required List<TripSegment> currentSegments,
+  required DateTime tripStartDate,
+  required int tripDurationDays,
+  required List<TripDocument> docs,
+}) {
+  final mutationResult = computeMutation(
+    suggestion: suggestion,
+    currentSegments: currentSegments,
+    tripDurationDays: tripDurationDays,
+  );
+  if (mutationResult is MutationFailed) return null;
+  final mutation = (mutationResult as MutationOk).mutation;
+
+  final preflightCity = preflightSuggestion(
+    anchorCity: suggestion.anchorCity,
+    suggestedCities: suggestion.segments.map((e) => e.city).toList(),
+    mode: suggestion.insertionMode.name,
+    docs: docs,
+  );
+  if (preflightCity.verdict == SuggestionVerdict.block) return null;
+
+  final preflightDate = preflightDatePrecise(
+    suggestion: suggestion,
+    currentSegments: currentSegments,
+    tripStartDate: tripStartDate,
+    docs: docs,
+  );
+  if (preflightDate.verdict == SuggestionVerdict.block) return null;
+
+  // Notice positive (allowWithNotice) éventuellement présente côté
+  // city-level (« ton hôtel est à la ville suggérée, ça colle »).
+  final notice = preflightCity.verdict == SuggestionVerdict.allowWithNotice
+      ? preflightCity.notice
+      : null;
+
+  return _ResolvedSuggestion(
+    suggestion: suggestion,
+    mutation: mutation,
+    notice: notice,
+  );
 }
 
 /// CTA label dérivé du mode si la suggestion ne fournit pas un override
@@ -384,21 +484,15 @@ String _impactText(SubTripSuggestion s) {
 /// à X". Sinon, "Autour de X" (étape intermédiaire/finale).
 class _SectionForCity extends StatelessWidget {
   final String anchorCity;
-  final List<SubTripSuggestion> suggestions;
-  final List<TripDocument> docs;
+  /// Liste des suggestions DÉJÀ résolues (filtrées des cas non
+  /// actionnables). Les cards qui s'affichent sont toutes cliquables.
+  final List<_ResolvedSuggestion> resolved;
   final bool isLikelyArrivalGateway;
-  final List<TripSegment> currentSegments;
-  final DateTime tripStartDate;
-  final int tripDurationDays;
 
   const _SectionForCity({
     required this.anchorCity,
-    required this.suggestions,
-    required this.docs,
+    required this.resolved,
     required this.isLikelyArrivalGateway,
-    required this.currentSegments,
-    required this.tripStartDate,
-    required this.tripDurationDays,
   });
 
   @override
@@ -420,98 +514,30 @@ class _SectionForCity extends StatelessWidget {
             ),
           ),
         ),
-        ...suggestions.map((s) => _SuggestionCard(
-              suggestion: s,
-              docs: docs,
-              currentSegments: currentSegments,
-              tripStartDate: tripStartDate,
-              tripDurationDays: tripDurationDays,
-            )),
+        ...resolved.map((r) => _SuggestionCard(resolved: r)),
         const SizedBox(height: 4),
       ],
     );
   }
 }
 
-/// Card affichant une suggestion. Lot 2.2 : CTA actif retourne la
-/// `ItineraryMutation` au caller via `Navigator.pop`. Désactivée si
-/// `computeMutation` retourne `MutationFailed` ou si le preflight
-/// (city-level + date-précis) bloque.
+/// Card affichant une suggestion résolue (toujours actionnable —
+/// les cas non actionnables sont filtrés en amont par
+/// `_resolveSuggestion`). CTA cliqué → `Navigator.pop(mutation)`.
 class _SuggestionCard extends StatelessWidget {
-  final SubTripSuggestion suggestion;
-  final List<TripDocument> docs;
-  final List<TripSegment> currentSegments;
-  final DateTime tripStartDate;
-  final int tripDurationDays;
+  final _ResolvedSuggestion resolved;
 
-  const _SuggestionCard({
-    required this.suggestion,
-    required this.docs,
-    required this.currentSegments,
-    required this.tripStartDate,
-    required this.tripDurationDays,
-  });
+  const _SuggestionCard({required this.resolved});
+
+  SubTripSuggestion get suggestion => resolved.suggestion;
+  ItineraryMutation get mutation => resolved.mutation;
+  String? get notice => resolved.notice;
 
   @override
   Widget build(BuildContext context) {
-    // ─── 1. Compute mutation (faisabilité structurelle) ──────────────
-    final mutationResult = computeMutation(
-      suggestion: suggestion,
-      currentSegments: currentSegments,
-      tripDurationDays: tripDurationDays,
-    );
+    final hasNotice = notice != null && notice!.isNotEmpty;
 
-    // ─── 2. Preflight conflit (city-level + date-précis) ─────────────
-    // Combine les 2 niveaux : block prime sur allow, notice city-level
-    // peut compléter une absence de bloc date-precise.
-    final preflightCity = preflightSuggestion(
-      anchorCity: suggestion.anchorCity,
-      suggestedCities: suggestion.segments.map((e) => e.city).toList(),
-      mode: suggestion.insertionMode.name,
-      docs: docs,
-    );
-    final preflightDate = preflightDatePrecise(
-      suggestion: suggestion,
-      currentSegments: currentSegments,
-      tripStartDate: tripStartDate,
-      docs: docs,
-    );
-
-    // ─── 3. Verdict combiné ──────────────────────────────────────────
-    // - MutationFailed → disabled, raison ad-hoc.
-    // - preflightDate.block → disabled (date-precise prime, info la plus
-    //   fine).
-    // - preflightCity.block → disabled (Lot 1 catch e.g. replace+hôtel).
-    // - sinon → enabled, notice = preflightCity.notice si présent (allow
-    //   with notice).
-    final ItineraryMutation? mutation = mutationResult is MutationOk
-        ? mutationResult.mutation
-        : null;
-
-    String? notice;
-    bool isBlocked;
-    if (mutationResult is MutationFailed) {
-      isBlocked = true;
-      notice = _mutationFailureNotice(mutationResult.reason, suggestion);
-    } else if (preflightDate.verdict == SuggestionVerdict.block) {
-      isBlocked = true;
-      notice = preflightDate.notice;
-    } else if (preflightCity.verdict == SuggestionVerdict.block) {
-      isBlocked = true;
-      notice = preflightCity.notice;
-    } else {
-      isBlocked = false;
-      notice = preflightCity.verdict == SuggestionVerdict.allowWithNotice
-          ? preflightCity.notice
-          : null;
-    }
-
-    final hasNotice = notice != null && notice.isNotEmpty;
-    final cardOpacity = isBlocked ? 0.55 : 1.0;
-
-    return Opacity(
-      opacity: cardOpacity,
-      child: Container(
+    return Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
         decoration: BoxDecoration(
@@ -592,23 +618,23 @@ class _SuggestionCard extends StatelessWidget {
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: isBlocked
-                      ? Colors.amber.withValues(alpha: 0.12)
-                      : AppColors.primary.withValues(alpha: 0.08),
+                  // Card affichée = toujours actionnable. Notice est
+                  // donc toujours informatif (allowWithNotice).
+                  color: AppColors.primary.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Icon(
-                      isBlocked ? Icons.warning_amber_rounded : Icons.info_outline,
+                      Icons.info_outline,
                       size: 16,
-                      color: isBlocked ? Colors.amber.shade800 : AppColors.primary,
+                      color: AppColors.primary,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        notice,
+                        notice!,
                         style: TextStyle(
                           fontSize: 12,
                           height: 1.35,
@@ -623,8 +649,7 @@ class _SuggestionCard extends StatelessWidget {
             // Ligne d'impact planning : décrit en 1 ligne ce que la
             // suggestion va concrètement faire au bloc d'étapes. Permet
             // à l'utilisateur de comprendre la transformation AVANT
-            // d'appliquer (utile en V1 même si CTAs stubbés, indispensable
-            // en V2 quand l'insertion sera réelle).
+            // d'appliquer.
             const SizedBox(height: 10),
             Text(
               _impactText(suggestion),
@@ -639,13 +664,8 @@ class _SuggestionCard extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                onPressed: (isBlocked || mutation == null)
-                    ? null
-                    : () => Navigator.of(context).pop(mutation),
-                icon: Icon(
-                  isBlocked ? Icons.lock_outline : Icons.add,
-                  size: 18,
-                ),
+                onPressed: () => Navigator.of(context).pop(mutation),
+                icon: const Icon(Icons.add, size: 18),
                 label: Text(
                   _defaultCtaLabel(suggestion),
                   style: const TextStyle(fontWeight: FontWeight.w600),
@@ -663,30 +683,7 @@ class _SuggestionCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// Map une raison `MutationFailureReason` vers un message UX humain
-/// affiché sur la card désactivée. Garde le message court et orienté
-/// action (l'utilisateur sait pourquoi c'est désactivé sans avoir à
-/// décoder un message technique).
-String _mutationFailureNotice(
-  MutationFailureReason reason,
-  SubTripSuggestion suggestion,
-) {
-  switch (reason) {
-    case MutationFailureReason.anchorNotFound:
-      // Ne devrait pas arriver en pratique : la sheet ne montre que
-      // les villes effectivement présentes dans les segments. Garde-fou.
-      return 'Cette suggestion ne correspond plus à ton itinéraire.';
-    case MutationFailureReason.notEnoughDaysToSplit:
-      return 'Pas assez de jours sur "${suggestion.anchorCity}" pour '
-          'cette transformation. Allonge cette étape avant.';
-    case MutationFailureReason.notEnoughFreeDaysToAppend:
-      return 'Ton voyage est déjà complet. Libère des jours sur une '
-          'autre étape avant d\'ajouter une excursion.';
+      );
   }
 }
 
