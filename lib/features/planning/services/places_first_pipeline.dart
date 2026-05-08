@@ -1704,6 +1704,15 @@ List<ActivitySuggestion> selectVisitsDeterministic({
     travelerProfile: travelerProfile,
     localTransportMode: trip.localTransportMode,
   );
+  // 2026-05-08 calibrage #3 : multiplicateur distance penalty inversé
+  // au transportDistanceFactor. Pour profil walk (factor=0.7) on durcit
+  // ×8 → ~×11, pour taxi (1.5) on relâche à ~×5. Évite les long hops
+  // 2.8km observés sur Backpack walk : le pick à 2.8km est encore +
+  // pénalisé par rapport au pick proche, même mediocre.
+  // Base = 8.0 (validée Lalith 26/04 sur Senior). Le diviseur clamp
+  // pour éviter sur-pénalisation extrême avec d'éventuels factors < 0.5.
+  final transportFactor = transportDistanceFactor(trip.localTransportMode);
+  final distancePenaltyMultiplier = 8.0 / math.max(0.6, transportFactor);
   // Cap priceLevel calculé depuis le budget par personne. Évince les lieux
   // dont le priceLevel Places est manifestement incompatible. Lieux sans
   // priceLevel (souvent absent côté Google) toujours conservés.
@@ -1745,27 +1754,57 @@ List<ActivitySuggestion> selectVisitsDeterministic({
 
   // Cap densité Wellness — test Lalith 2026-05-08 (Essaouira) : sans cap,
   // 4 wellness en 3 jours (Sidi Magdoul + Hammam Kenza puis Spa Cocooning +
-  // Spa Zen) alors que Wellness n'était pas un intérêt fort. Règles :
-  // - Wellness PAS dans tripInterests (cas par défaut) :
-  //   max 1/jour ET max 2/cluster (= segment_city). Hard cap.
-  // - Wellness DANS tripInterests :
-  //   pas de hard cap, mais soft penalty -25 si la demi-journée précédente
-  //   a déjà un wellness pick (évite enchaîner spa matin + spa aprem).
+  // Spa Zen) alors que Wellness n'était pas un intérêt fort.
+  //
+  // 2026-05-08 calibrage #2 : ajout d'un hard cap aussi pour profil
+  // tolérant (Voyage pro 20/05 avait 4 wellness + 2 repas = 100% monotone
+  // malgré le soft penalty -25). On ne bypass plus le cap pour les
+  // tolérants — on l'élargit seulement.
+  //
+  // Règles :
+  // - Wellness PAS dans tripInterests (par défaut) :
+  //   max 1/jour ET max 2/cluster (= segment_city).
+  // - Wellness DANS tripInterests (tolérant) :
+  //   max 2/jour, cluster illimité (Grand luxe 6j peut avoir 1 spa/jour).
+  //   + soft penalty -25 si demi-journée précédente avait wellness.
   final wellnessIsStrongInterest = tripInterests.contains('Wellness');
   const maxWellnessPerDayLight = 1;
+  const maxWellnessPerDayTolerant = 2;
   const maxWellnessPerClusterLight = 2;
+
+  // 2026-05-08 calibrage #4 : cap densité Événements (miroir Wellness).
+  // Profil non-tolérant : max 1/jour, 2/cluster.
+  // Profil tolérant (Événements ∈ interests) : max 3/jour pour laisser
+  // la marge à des journées événementielles riches (Grand luxe pouvait
+  // remplir une journée 4× Événements quand pool dense ; cap=2 a tué
+  // 13 visites sur le voyage car combo avec cap Wellness=2 ne laissait
+  // plus assez de slots pour les autres tags). 3 = cap raisonnable
+  // sans ré-introduire la concentration 4× consécutifs.
+  final eventsIsStrongInterest = tripInterests.contains('Événements');
+  const maxEventsPerDayLight = 1;
+  const maxEventsPerDayTolerant = 3;
+  const maxEventsPerClusterLight = 2;
 
   for (final cluster in clusters) {
     final useCountThisCluster = <String, int>{};
     final entries = cluster.pool.entries.toList();
     var wellnessCountThisCluster = 0;
+    var eventsCountThisCluster = 0;
 
     for (final day in cluster.days) {
       final usedThisDay = <String>{};
       var wellnessCountThisDay = 0;
+      var eventsCountThisDay = 0;
       // Indique si la demi-journée précédente du même jour a déjà un
       // wellness pick (sert au soft penalty quand Wellness est intérêt fort).
       var lastHalfDayHadWellness = false;
+      // 2026-05-08 calibrage #1 : compteur par TAG dans la journée (Culture,
+      // Activité, Nature, Visite…). Sert à appliquer une soft penalty -10 ×
+      // count dans le scoring → casse les enchaînements 4× Culture observés
+      // sur Meilleur prix / Couple. Diff avec `usedThisDay` (par-lieu) :
+      // ce compteur est PAR TAG et autorise diversité même quand le pool
+      // est riche en lieux du même type.
+      final tagCountThisDay = <String, int>{};
       ActivitySuggestion? lastActivity;
 
       for (final slot in slots) {
@@ -1824,12 +1863,28 @@ List<ActivitySuggestion> selectVisitsDeterministic({
               (useCountAcrossTrip[n] ?? 0) >= 1) {
             return false;
           }
-          // Cap densité Wellness — uniquement si Wellness n'est PAS un
-          // intérêt explicite du voyageur. Limite max 1 par jour et
-          // max 2 par cluster (≈ segment_city).
-          if (!wellnessIsStrongInterest && _isWellnessPrimaryType(c)) {
-            if (wellnessCountThisDay >= maxWellnessPerDayLight) return false;
-            if (wellnessCountThisCluster >= maxWellnessPerClusterLight) {
+          // Cap densité Wellness :
+          // - Profil non-tolérant : max 1/jour, 2/cluster.
+          // - Profil tolérant (Wellness ∈ interests) : max 2/jour
+          //   (cluster illimité, soft penalty -25 si consécutif).
+          if (_isWellnessPrimaryType(c)) {
+            final dayCap = wellnessIsStrongInterest
+                ? maxWellnessPerDayTolerant
+                : maxWellnessPerDayLight;
+            if (wellnessCountThisDay >= dayCap) return false;
+            if (!wellnessIsStrongInterest &&
+                wellnessCountThisCluster >= maxWellnessPerClusterLight) {
+              return false;
+            }
+          }
+          // Cap densité Événements (miroir Wellness, 2026-05-08 #4).
+          if (_isEventsPrimaryType(c)) {
+            final dayCap = eventsIsStrongInterest
+                ? maxEventsPerDayTolerant
+                : maxEventsPerDayLight;
+            if (eventsCountThisDay >= dayCap) return false;
+            if (!eventsIsStrongInterest &&
+                eventsCountThisCluster >= maxEventsPerClusterLight) {
               return false;
             }
           }
@@ -1840,7 +1895,7 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           // Diagnostic : pourquoi aucun candidat ne passe les filtres durs ?
           var rejectTime = 0, rejectMeal = 0, rejectExisting = 0;
           var rejectCity = 0, rejectDay = 0, rejectReuse = 0, rejectIconic = 0;
-          var rejectDup = 0, rejectWellness = 0;
+          var rejectDup = 0, rejectWellness = 0, rejectEvents = 0;
           for (final e in entries) {
             final c = e.value.candidate;
             if (!_isAppropriateForTime(c, slot)) {
@@ -1889,10 +1944,25 @@ List<ActivitySuggestion> selectVisitsDeterministic({
               rejectIconic++;
               continue;
             }
-            if (!wellnessIsStrongInterest && _isWellnessPrimaryType(c)) {
-              if (wellnessCountThisDay >= maxWellnessPerDayLight ||
-                  wellnessCountThisCluster >= maxWellnessPerClusterLight) {
+            if (_isWellnessPrimaryType(c)) {
+              final dayCap = wellnessIsStrongInterest
+                  ? maxWellnessPerDayTolerant
+                  : maxWellnessPerDayLight;
+              final clusterExceeded = !wellnessIsStrongInterest &&
+                  wellnessCountThisCluster >= maxWellnessPerClusterLight;
+              if (wellnessCountThisDay >= dayCap || clusterExceeded) {
                 rejectWellness++;
+                continue;
+              }
+            }
+            if (_isEventsPrimaryType(c)) {
+              final dayCap = eventsIsStrongInterest
+                  ? maxEventsPerDayTolerant
+                  : maxEventsPerDayLight;
+              final clusterExceeded = !eventsIsStrongInterest &&
+                  eventsCountThisCluster >= maxEventsPerClusterLight;
+              if (eventsCountThisDay >= dayCap || clusterExceeded) {
+                rejectEvents++;
                 continue;
               }
             }
@@ -1909,7 +1979,8 @@ List<ActivitySuggestion> selectVisitsDeterministic({
             'rejected_by_day_dup': rejectDay,
             'rejected_by_reuse_cap': rejectReuse,
             'rejected_by_iconic_cap': rejectIconic,
-            'rejected_by_interest_cap': rejectWellness,
+            'rejected_by_wellness_cap': rejectWellness,
+            'rejected_by_events_cap': rejectEvents,
           };
           final sortedRejects = rejects.entries.where((e) => e.value > 0).toList()
             ..sort((a, b) => b.value.compareTo(a.value));
@@ -1962,9 +2033,10 @@ List<ActivitySuggestion> selectVisitsDeterministic({
               (lat: anchorLat, lng: anchorLng),
             ),
           );
-          // Distance penalty renforcée (×8 au lieu de ×5) — décourage les
-          // transitions longues qui forcent taxi/voiture pour Senior.
-          final distancePenalty = (d / maxConsec) * 8.0;
+          // Distance penalty renforcée — décourage les transitions longues.
+          // 2026-05-08 calibrage #3 : multiplicateur dérivé du
+          // transportDistanceFactor (walk ≈ ×11.4, taxi ≈ ×5.3, etc.).
+          final distancePenalty = (d / maxConsec) * distancePenaltyMultiplier;
           final keyN = norm(c.name);
           final clusterUseCount = useCountThisCluster[keyN] ?? 0;
           final tripUseCount = useCountAcrossTrip[keyN] ?? 0;
@@ -2003,13 +2075,24 @@ List<ActivitySuggestion> selectVisitsDeterministic({
                       _isWellnessPrimaryType(c))
                   ? 25.0
                   : 0.0;
+          // 2026-05-08 calibrage #1 : pénalité diversité PAR TAG dans la
+          // journée. -10 par occurrence du même tag déjà pické. Casse les
+          // 4× Culture consécutifs observés sur Meilleur prix / Couple.
+          // Force la rotation tags sans bloquer dur (un tag dominant peut
+          // toujours gagner si l'écart de qualité > 10 × count).
+          final candidateTag = _tagFromPrimaryType(
+            c.types.isNotEmpty ? c.types.first : '',
+          );
+          final sameTagCountInDay = tagCountThisDay[candidateTag] ?? 0;
+          final tagDiversityPenalty = sameTagCountInDay * 10.0;
           return qualityScore +
               interestBonus +
               iconicMuseumBonus +
               iconicTouristBonus -
               distancePenalty -
               diversityPenalty -
-              wellnessConsecutivePenalty;
+              wellnessConsecutivePenalty -
+              tagDiversityPenalty;
         }
 
         candidates.sort((a, b) => score(b).compareTo(score(a)));
@@ -2100,6 +2183,11 @@ List<ActivitySuggestion> selectVisitsDeterministic({
         useCountAcrossTrip[pickName] = (useCountAcrossTrip[pickName] ?? 0) + 1;
         usedThisDay.add(pickName);
         selectedDedupKeys.add(_dedupKeyForCandidate(pick));
+        tagCountThisDay[tag] = (tagCountThisDay[tag] ?? 0) + 1;
+        if (_isEventsPrimaryType(pick)) {
+          eventsCountThisDay += 1;
+          eventsCountThisCluster += 1;
+        }
         if (_isWellnessPrimaryType(pick)) {
           wellnessCountThisDay += 1;
           wellnessCountThisCluster += 1;
@@ -2265,10 +2353,13 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
 
   final out = <ActivitySuggestion>[];
 
-  // Cap dur 2× sur les restos (fallback si pool petite). La diversification
-  // active passe par le `softExcludeTitlesUseCount` envoyé à _findBestRestoNear
-  // qui pénalise -50 par usage : un resto jamais utilisé écrase un resto déjà
-  // utilisé. Mais si pool maigre, le 2e usage reste possible.
+  // 2026-05-08 calibrage #5 : essai cap=1 → cassait gravement Couple
+  // (mls 12→2, 10 meals skippés) car anchors partagés en intra-Marrakech
+  // épuisent la pool restos après ~6-8 picks uniques. Revenu à cap=2
+  // (comportement initial). Le softExcludeTitlesUseCount × -50/usage
+  // suffit à pousser un resto déjà-utilisé en bas du classement quand
+  // la pool a des alternatives ; le 2× n'arrive qu'en dernier recours
+  // (pool très pauvre). Acceptable par design. Cf. memo calibrage #5.
   const maxRestoUsesAcrossTrip = 2;
   final restoUseCount = <String, int>{};
   final cuisineUseCount = <String, int>{};
@@ -2978,6 +3069,31 @@ const Set<String> _wellnessPrimaryTypes = <String>{
 bool _isWellnessPrimaryType(NearbyCandidate c) {
   if (c.types.isEmpty) return false;
   return _wellnessPrimaryTypes.contains(c.types.first);
+}
+
+/// Types Places "Événements" — usage strictement parallèle à
+/// `_wellnessPrimaryTypes` : sert au cap densité dans le sélecteur
+/// (max 1/jour standard, 2/jour pour profils tolérants Événements ∈
+/// interests). Aligné sur `_tagFromPrimaryType` branche Événements.
+///
+/// 2026-05-08 calibrage #4 : sans ce cap, Grand luxe 17/05 enchaînait
+/// Palais Festivals → Meydene → Théâtre Royal — 3 venues consécutifs
+/// même quand le pool offrait Culture/Activité au même créneau.
+const Set<String> _eventsPrimaryTypes = <String>{
+  'performing_arts_theater',
+  'event_venue',
+  'cultural_center',
+  'convention_center',
+  'movie_theater',
+  'live_music_venue',
+  'stadium',
+  'arena',
+  'sports_complex',
+};
+
+bool _isEventsPrimaryType(NearbyCandidate c) {
+  if (c.types.isEmpty) return false;
+  return _eventsPrimaryTypes.contains(c.types.first);
 }
 
 /// Types "bar" qui imposent la règle ≥17h même si types secondaires acceptent
