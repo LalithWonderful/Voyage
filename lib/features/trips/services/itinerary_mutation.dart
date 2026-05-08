@@ -82,6 +82,18 @@ class ItineraryMutation {
   /// toute mutation requiresInsertionDate sans date.
   final bool requiresInsertionDate;
 
+  /// V2 (fix Bangkok dupliqué) — 1-indexed : Nth occurrence du segment
+  /// `anchorCity` à l'instant où la mutation a été calculée. Sert à
+  /// `applyMutationBatch` pour re-localiser le bon segment quand
+  /// `anchorCity` apparaît plusieurs fois (ex: Bangkok aller + Bangkok
+  /// retour). Default = 1 (premier match — comportement historique).
+  ///
+  /// La re-localisation par index pur (`anchorIndex`) ne fonctionne pas
+  /// dans un batch où les mutations précédentes ont pu shifter les
+  /// indices. L'occurrence est plus stable : un APPEND ailleurs ne change
+  /// pas le rang des Bangkok existants.
+  final int anchorOccurrence;
+
   const ItineraryMutation({
     required this.anchorIndex,
     required this.anchorCity,
@@ -91,6 +103,7 @@ class ItineraryMutation {
     this.insertionStartDate,
     this.insertionPreDays,
     this.requiresInsertionDate = false,
+    this.anchorOccurrence = 1,
   });
 
   /// Vrai si la mutation modifie structurellement l'anchor (SPLIT ou
@@ -170,8 +183,27 @@ MutationResult computeMutation({
   required int tripDurationDays,
   DateTime? insertionStartDate,
   PinnedDatesAnalysis? pinnedAnalysis,
+  int? anchorOverrideIndex,
 }) {
-  final anchorIdx = _findAnchorIndex(currentSegments, suggestion.anchorCity);
+  // V2 (multi-window) — si un override est fourni, vérifier qu'il pointe
+  // bien sur un segment matchant la ville d'ancrage. Sinon fallback à
+  // la sélection auto (longest pour majorDestination, premier match
+  // pour les autres). Cas d'usage : sheet propose plusieurs fenêtres
+  // pour Bangkok, l'utilisateur en pick une → on transmet l'index exact.
+  final int anchorIdx;
+  if (anchorOverrideIndex != null &&
+      anchorOverrideIndex >= 0 &&
+      anchorOverrideIndex < currentSegments.length &&
+      _normalizeCity(currentSegments[anchorOverrideIndex].city) ==
+          _normalizeCity(suggestion.anchorCity)) {
+    anchorIdx = anchorOverrideIndex;
+  } else {
+    anchorIdx = _findAnchorIndex(
+      currentSegments,
+      suggestion.anchorCity,
+      category: suggestion.category,
+    );
+  }
   if (anchorIdx < 0) {
     return MutationFailed(
       MutationFailureReason.anchorNotFound,
@@ -179,6 +211,8 @@ MutationResult computeMutation({
     );
   }
   final anchor = currentSegments[anchorIdx];
+  final anchorOccurrence =
+      _occurrenceAt(currentSegments, anchorIdx, suggestion.anchorCity);
   final requiresDate = suggestionRequiresInsertionDate(suggestion);
 
   switch (suggestion.insertionMode) {
@@ -203,6 +237,7 @@ MutationResult computeMutation({
         insertedSegments: _materialize(suggestion),
         newAnchorDays: null, // anchor inchangé
         requiresInsertionDate: requiresDate,
+        anchorOccurrence: anchorOccurrence,
       ));
 
     case InsertionMode.replaceAnchorGateway:
@@ -236,6 +271,7 @@ MutationResult computeMutation({
         insertedSegments: inserted,
         newAnchorDays: 0, // anchor supprimé
         requiresInsertionDate: requiresDate,
+        anchorOccurrence: anchorOccurrence,
       ));
 
     case InsertionMode.splitSegment:
@@ -271,6 +307,7 @@ MutationResult computeMutation({
           insertionStartDate: insertionStartDate,
           insertionDays: addedDays,
           analysis: pinnedAnalysis,
+          anchorSegmentIndex: anchorIdx,
         );
         if (reason != null) {
           final isHotel = reason.contains('hôtel');
@@ -281,8 +318,11 @@ MutationResult computeMutation({
             detail: reason,
           );
         }
-        final pin = pinnedAnalysis.forCity(anchor.city);
-        if (pin != null) {
+        // V2 (fix Bangkok dupliqué) — utilise l'analyse du segment exact
+        // identifié par `anchorIdx`, pas `forCity` qui repique le 1er
+        // match (= mauvais Bangkok pour majorDestination).
+        if (anchorIdx >= 0 && anchorIdx < pinnedAnalysis.segments.length) {
+          final pin = pinnedAnalysis.segments[anchorIdx];
           insertionPreDays = DateTime(
             insertionStartDate.year,
             insertionStartDate.month,
@@ -304,6 +344,7 @@ MutationResult computeMutation({
         insertionStartDate: insertionStartDate,
         insertionPreDays: insertionPreDays,
         requiresInsertionDate: requiresDate,
+        anchorOccurrence: anchorOccurrence,
       ));
   }
 }
@@ -397,10 +438,94 @@ List<TripSegment> _materialize(SubTripSuggestion suggestion) {
       .toList();
 }
 
-int _findAnchorIndex(List<TripSegment> segments, String anchorCity) {
+int _findAnchorIndex(
+  List<TripSegment> segments,
+  String anchorCity, {
+  SuggestionCategory? category,
+}) {
   final norm = _normalizeCity(anchorCity);
+  final matches = <int>[];
   for (var i = 0; i < segments.length; i++) {
-    if (_normalizeCity(segments[i].city) == norm) return i;
+    if (_normalizeCity(segments[i].city) == norm) matches.add(i);
+  }
+  if (matches.isEmpty) return -1;
+  if (matches.length == 1) return matches.first;
+
+  // Lalith 2026-05-08 — désambiguation multi-occurrence ville :
+  // les `majorDestination` (Krabi/Chiang Mai/Phuket/Koh Samui) ciblent
+  // le séjour LONG qui motive le rééquilibrage. Si Bangkok apparaît 2
+  // fois (8j puis 22j), on choisit le 22j. Pour les autres catégories
+  // (gateway, dayTrip), on garde le premier match (= comportement
+  // historique pour les flows arrival).
+  if (category == SuggestionCategory.majorDestination) {
+    var best = matches.first;
+    for (final i in matches.skip(1)) {
+      if (segments[i].days > segments[best].days) best = i;
+    }
+    return best;
+  }
+  return matches.first;
+}
+
+/// V2 (bug fix Bangkok dupliqué) — locate l'anchor de cette suggestion
+/// dans `segments`. Public pour permettre au sheet de pré-calculer le
+/// segment cible AVANT d'appeler `computeMutation` (utile pour le filtre
+/// `validInsertionStartDates`).
+int findAnchorIndexForSuggestion(
+  List<TripSegment> segments,
+  SubTripSuggestion suggestion,
+) {
+  return _findAnchorIndex(
+    segments,
+    suggestion.anchorCity,
+    category: suggestion.category,
+  );
+}
+
+/// V2 (multi-window) — retourne TOUS les indices de segments matchant la
+/// ville d'ancrage d'une suggestion, dans l'ordre du voyage. Utile pour
+/// proposer plusieurs cards quand la même ville (ex: Bangkok) apparaît
+/// en aller ET en retour : Krabi peut être inséré dans la fenêtre 1 ou
+/// la fenêtre 2.
+List<int> findAllAnchorIndicesForSuggestion(
+  List<TripSegment> segments,
+  SubTripSuggestion suggestion,
+) {
+  final norm = _normalizeCity(suggestion.anchorCity);
+  final out = <int>[];
+  for (var i = 0; i < segments.length; i++) {
+    if (_normalizeCity(segments[i].city) == norm) out.add(i);
+  }
+  return out;
+}
+
+/// Compte les occurrences (1-indexed) de la même ville jusqu'à `index`
+/// inclus. Sert à `applyMutationBatch` pour re-localiser un anchor en
+/// présence de plusieurs segments même-ville.
+int _occurrenceAt(List<TripSegment> segments, int index, String anchorCity) {
+  final norm = _normalizeCity(anchorCity);
+  var occurrence = 0;
+  for (var i = 0; i <= index && i < segments.length; i++) {
+    if (_normalizeCity(segments[i].city) == norm) occurrence++;
+  }
+  return occurrence;
+}
+
+/// Inverse de `_occurrenceAt` : trouve l'index du Nth segment matchant
+/// `anchorCity`. Retourne -1 si l'occurrence n'est pas trouvée.
+int _findIndexByOccurrence(
+  List<TripSegment> segments,
+  String anchorCity,
+  int occurrence,
+) {
+  if (occurrence < 1) return -1;
+  final norm = _normalizeCity(anchorCity);
+  var seen = 0;
+  for (var i = 0; i < segments.length; i++) {
+    if (_normalizeCity(segments[i].city) == norm) {
+      seen++;
+      if (seen == occurrence) return i;
+    }
   }
   return -1;
 }
@@ -561,11 +686,19 @@ List<TripSegment> applyMutationBatch(
 ) {
   var current = List<TripSegment>.from(initial);
   for (final m in mutations) {
-    final idx = _findAnchorIndex(current, m.anchorCity);
+    // V2 (fix Bangkok dupliqué) — re-localiser via `anchorOccurrence`
+    // pour distinguer les segments même-ville (Bangkok aller vs retour).
+    // Le rang d'occurrence est plus stable que l'index brut sous batch.
+    final idx = _findIndexByOccurrence(
+      current,
+      m.anchorCity,
+      m.anchorOccurrence,
+    );
     if (idx < 0) {
-      // Anchor disparu (e.g., REPLACE l'a supprimé en amont) — skip
-      // proprement plutôt que crasher. La validation upstream aurait
-      // dû éviter ce cas.
+      // Anchor disparu (REPLACE l'a supprimé en amont) ou rang
+      // introuvable (un upstream batch a réorganisé la même ville) →
+      // skip safely plutôt que d'appliquer au mauvais segment. La
+      // validation upstream aurait dû éviter ce cas.
       continue;
     }
     final patched = ItineraryMutation(
@@ -577,6 +710,7 @@ List<TripSegment> applyMutationBatch(
       insertionStartDate: m.insertionStartDate,
       insertionPreDays: m.insertionPreDays,
       requiresInsertionDate: m.requiresInsertionDate,
+      anchorOccurrence: m.anchorOccurrence,
     );
     current = applyMutation(current, patched);
   }

@@ -160,8 +160,9 @@ List<DateTime> validInsertionStartDates({
   required String anchorCity,
   required int insertionDays,
   required PinnedDatesAnalysis analysis,
+  int? anchorSegmentIndex,
 }) {
-  final anchor = analysis.forCity(anchorCity);
+  final anchor = _resolveAnchor(analysis, anchorCity, anchorSegmentIndex);
   if (anchor == null || insertionDays <= 0) return const [];
   final out = <DateTime>[];
   final lastStart = anchor.endDateExclusive.subtract(
@@ -176,11 +177,28 @@ List<DateTime> validInsertionStartDates({
       insertionStartDate: d,
       insertionDays: insertionDays,
       analysis: analysis,
+      anchorSegmentIndex: anchorSegmentIndex,
     );
     if (reason == null) out.add(d);
     d = d.add(const Duration(days: 1));
   }
   return out;
+}
+
+/// V2 (bug fix Bangkok dupliqué) — résolution du segment ancrage. Si
+/// `anchorSegmentIndex` est fourni et valide, l'utilise (priorité). Sinon
+/// fallback `forCity` (premier match) — comportement legacy.
+SegmentPinnedDates? _resolveAnchor(
+  PinnedDatesAnalysis analysis,
+  String anchorCity,
+  int? anchorSegmentIndex,
+) {
+  if (anchorSegmentIndex != null &&
+      anchorSegmentIndex >= 0 &&
+      anchorSegmentIndex < analysis.segments.length) {
+    return analysis.segments[anchorSegmentIndex];
+  }
+  return analysis.forCity(anchorCity);
 }
 
 /// Retourne `null` si l'insertion (`insertionStartDate` pour
@@ -208,8 +226,9 @@ String? validateInsertionDate({
   required DateTime insertionStartDate,
   required int insertionDays,
   required PinnedDatesAnalysis analysis,
+  int? anchorSegmentIndex,
 }) {
-  final anchor = analysis.forCity(anchorCity);
+  final anchor = _resolveAnchor(analysis, anchorCity, anchorSegmentIndex);
   if (anchor == null) {
     return 'Étape "$anchorCity" introuvable dans le voyage.';
   }

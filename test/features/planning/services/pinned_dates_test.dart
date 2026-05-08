@@ -537,6 +537,41 @@ void main() {
       expect(bkk.effectiveStartDate, _d(2026, 6, 21));
     });
 
+    test('anchorSegmentIndex dirige vers le bon segment Bangkok '
+        '(fix Bangkok dupliqué)', () {
+      // Trip avec 2 Bangkok : aller (8j) puis retour (22j). Sans index,
+      // forCity prend le 1er → mauvais Bangkok. Avec index=2, on vise le
+      // long.
+      final segments = [
+        _seg('Bangkok', 8),
+        _seg('Phuket', 3),
+        _seg('Bangkok', 22),
+      ];
+      final analysis = analyzePinnedDates(
+        segments: segments,
+        tripStartDate: tripStart,
+        docs: const [],
+      );
+      // Sans index → 1er Bangkok (21/06 → 29/06) → fenêtre 21..26.
+      final defaultDates = validInsertionStartDates(
+        anchorCity: 'Bangkok',
+        insertionDays: 3,
+        analysis: analysis,
+      );
+      expect(defaultDates.first, _d(2026, 6, 21));
+      expect(defaultDates.last, _d(2026, 6, 26));
+
+      // Avec index=2 → 2nd Bangkok (02/07 → 24/07) → fenêtre 02/07..21/07.
+      final targetedDates = validInsertionStartDates(
+        anchorCity: 'Bangkok',
+        insertionDays: 3,
+        analysis: analysis,
+        anchorSegmentIndex: 2,
+      );
+      expect(targetedDates.first, _d(2026, 7, 2));
+      expect(targetedDates.last, _d(2026, 7, 21));
+    });
+
     test('inférence J+1 depuis arrival_time < departure_time '
         '(backward-compat docs sans arrival_date explicite)', () {
       // Doc Lux→BKK legacy : pas d'arrival_date, mais départ 23:30 et

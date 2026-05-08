@@ -104,7 +104,7 @@ class _ImproveItinerarySheetState
 
   String _idFor(_ResolvedSuggestion r) =>
       '${r.suggestion.anchorCity}|${r.suggestion.displayName}|'
-      '${r.suggestion.insertionMode.name}';
+      '${r.suggestion.insertionMode.name}|${r.mutation.anchorIndex}';
 
   /// Clé d'EXCLUSIVITÉ entre alternatives : `(anchor, firstTargetCity)`
   /// normalisés. 2 suggestions partageant la même exclusivity key sont
@@ -122,6 +122,28 @@ class _ImproveItinerarySheetState
         : r.suggestion.segments.first.city;
     return '${_normalizeCityName(r.suggestion.anchorCity)}|'
         '${_normalizeCityName(firstCity)}';
+  }
+
+  /// V2 multi-window — construit un label compact pour distinguer
+  /// plusieurs cards majorDestination ciblant le même nom de ville à
+  /// des moments différents du voyage. Heuristique :
+  /// - segment SUIVANT d'une autre ville → "Avant {nextCity}"
+  /// - sinon segment PRÉCÉDENT d'une autre ville → "Après {prevCity}"
+  /// - sinon (segment isolé) → "Pendant {anchorCity}".
+  String _buildWindowLabel(List<TripSegment> segments, int anchorIdx) {
+    final anchorCityNorm =
+        _normalizeCityName(segments[anchorIdx].city);
+    for (var i = anchorIdx + 1; i < segments.length; i++) {
+      if (_normalizeCityName(segments[i].city) != anchorCityNorm) {
+        return 'Avant ${segments[i].city}';
+      }
+    }
+    for (var i = anchorIdx - 1; i >= 0; i--) {
+      if (_normalizeCityName(segments[i].city) != anchorCityNorm) {
+        return 'Après ${segments[i].city}';
+      }
+    }
+    return 'Pendant ${segments[anchorIdx].city}';
   }
 
   Future<void> _toggle(_ResolvedSuggestion r) async {
@@ -146,12 +168,17 @@ class _ImproveItinerarySheetState
         tripStartDate: widget.tripStartDate,
         docs: docs,
       );
-      final anchorPin = analysis.forCity(r.suggestion.anchorCity);
-      if (anchorPin == null) return;
+      // V2 (fix Bangkok dupliqué) — viser le segment exact que la
+      // mutation a déjà résolu (longest pour majorDestination, sinon
+      // premier match), pas n'importe quel Bangkok.
+      final anchorIdx = r.mutation.anchorIndex;
+      if (anchorIdx < 0 || anchorIdx >= analysis.segments.length) return;
+      final anchorPin = analysis.segments[anchorIdx];
       final validDates = validInsertionStartDates(
         anchorCity: r.suggestion.anchorCity,
         insertionDays: r.suggestion.totalSuggestedDays,
         analysis: analysis,
+        anchorSegmentIndex: anchorIdx,
       );
       if (validDates.isEmpty) return;
       final chosen = await openPickInsertionDateSheet(
@@ -322,6 +349,36 @@ class _ImproveItinerarySheetState
         SuggestionCategory.majorDestination: [],
       };
       for (final s in catalogue) {
+        // V2 multi-window : pour majorDestination, fan-out une card par
+        // segment d'ancrage matchant (Krabi proposé sur Bangkok aller +
+        // Bangkok retour). Les autres catégories gardent 1 card via
+        // résolution auto (la sélection longest/first reste).
+        if (s.category == SuggestionCategory.majorDestination) {
+          final indices = findAllAnchorIndicesForSuggestion(
+            widget.currentSegments,
+            s,
+          );
+          // 1 seule fenêtre → pas de label, comportement single-window.
+          // ≥2 fenêtres → label de désambiguation par card.
+          final emitLabel = indices.length >= 2;
+          for (final idx in indices) {
+            final r = _resolveSuggestion(
+              suggestion: s,
+              currentSegments: widget.currentSegments,
+              tripStartDate: widget.tripStartDate,
+              tripDurationDays: widget.tripDurationDays,
+              docs: docs,
+              pinnedAnalysis: pinnedAnalysis,
+              anchorOverrideIndex: idx,
+              windowLabel: emitLabel
+                  ? _buildWindowLabel(widget.currentSegments, idx)
+                  : null,
+            );
+            if (r == null) continue;
+            byCategory[s.category]!.add(r);
+          }
+          continue;
+        }
         final r = _resolveSuggestion(
           suggestion: s,
           currentSegments: widget.currentSegments,
@@ -633,32 +690,42 @@ class _ImproveItinerarySheetState
       if (!seenCities.add(t.toLowerCase())) continue;
       final catalogue = findSuggestionsForAnchor(t);
       for (final sug in catalogue) {
-        final preview = _resolveSuggestion(
-          suggestion: sug,
-          currentSegments: widget.currentSegments,
-          tripStartDate: widget.tripStartDate,
-          tripDurationDays: widget.tripDurationDays,
-          docs: docs,
-          pinnedAnalysis: pinnedAnalysis,
-        );
-        if (preview == null) continue;
-        final key = _idFor(preview);
-        if (!_selectedKeys.contains(key)) continue;
-        // Re-compute avec la date choisie pour les cards V2.3.
-        final pickedDate = _selectionDates[key];
-        final r = pickedDate == null
-            ? preview
-            : _resolveSuggestion(
-                suggestion: sug,
-                currentSegments: widget.currentSegments,
-                tripStartDate: widget.tripStartDate,
-                tripDurationDays: widget.tripDurationDays,
-                docs: docs,
-                pinnedAnalysis: pinnedAnalysis,
-                insertionStartDate: pickedDate,
-              );
-        if (r == null) continue;
-        mutations.add(r.mutation);
+        // V2 multi-window — pour majorDestination, on doit recalculer
+        // pour CHAQUE anchor index possible (= chaque card affichée).
+        // Pour les autres catégories, 1 seule preview comme avant.
+        final indicesToTry = sug.category == SuggestionCategory.majorDestination
+            ? findAllAnchorIndicesForSuggestion(widget.currentSegments, sug)
+            : <int>[-1]; // sentinel : laisser _resolveSuggestion choisir
+        for (final overrideIdx in indicesToTry) {
+          final preview = _resolveSuggestion(
+            suggestion: sug,
+            currentSegments: widget.currentSegments,
+            tripStartDate: widget.tripStartDate,
+            tripDurationDays: widget.tripDurationDays,
+            docs: docs,
+            pinnedAnalysis: pinnedAnalysis,
+            anchorOverrideIndex: overrideIdx >= 0 ? overrideIdx : null,
+          );
+          if (preview == null) continue;
+          final key = _idFor(preview);
+          if (!_selectedKeys.contains(key)) continue;
+          // Re-compute avec la date choisie pour les cards V2.3.
+          final pickedDate = _selectionDates[key];
+          final r = pickedDate == null
+              ? preview
+              : _resolveSuggestion(
+                  suggestion: sug,
+                  currentSegments: widget.currentSegments,
+                  tripStartDate: widget.tripStartDate,
+                  tripDurationDays: widget.tripDurationDays,
+                  docs: docs,
+                  pinnedAnalysis: pinnedAnalysis,
+                  insertionStartDate: pickedDate,
+                  anchorOverrideIndex: overrideIdx >= 0 ? overrideIdx : null,
+                );
+          if (r == null) continue;
+          mutations.add(r.mutation);
+        }
       }
     }
     Navigator.of(context).pop(mutations);
@@ -669,14 +736,25 @@ class _ImproveItinerarySheetState
 /// notice optionnelle (allowWithNotice). Ne contient que des cards
 /// AFFICHABLES (mutation OK + preflight non-block). Les blocked et
 /// MutationFailed sont filtrés en amont, retour null.
+///
+/// V2 multi-window : si la même ville d'ancrage apparaît plusieurs fois
+/// dans le voyage (Bangkok aller + retour), on émet une `_ResolvedSuggestion`
+/// par fenêtre compatible. `windowLabel` distingue les cards à l'écran.
 class _ResolvedSuggestion {
   final SubTripSuggestion suggestion;
   final ItineraryMutation mutation;
   final String? notice;
+
+  /// V2 multi-window — sous-titre court pour distinguer la fenêtre
+  /// d'insertion ("Avant Phú Quốc", "Après Hội An"). Null quand un seul
+  /// segment matche → pas de désambiguation nécessaire.
+  final String? windowLabel;
+
   const _ResolvedSuggestion({
     required this.suggestion,
     required this.mutation,
     required this.notice,
+    this.windowLabel,
   });
 }
 
@@ -715,6 +793,8 @@ _ResolvedSuggestion? _resolveSuggestion({
   required List<TripDocument> docs,
   PinnedDatesAnalysis? pinnedAnalysis,
   DateTime? insertionStartDate,
+  int? anchorOverrideIndex,
+  String? windowLabel,
 }) {
   // ─── 0. Filtre "déjà appliquée" ────────────────────────────────────
   // Si AU MOINS UNE des villes suggérées est déjà présente dans les
@@ -746,6 +826,27 @@ _ResolvedSuggestion? _resolveSuggestion({
     return null;
   }
 
+  // V2 (fix Bangkok dupliqué) — pré-résolution du segment ancrage. Pour
+  // majorDestination, choisit le segment LE PLUS LONG (= cible légitime
+  // du rééquilibrage). Tous les filtres en aval (validInsertionStartDates,
+  // minAnchorDaysToShow) utilisent ce segment, pas le premier match.
+  //
+  // V2 multi-window : si `anchorOverrideIndex` est fourni, le caller a
+  // explicitement choisi une fenêtre (cas Krabi sur Bangkok aller vs
+  // retour) → on respecte ce choix.
+  final int resolvedAnchorIdx;
+  if (anchorOverrideIndex != null &&
+      anchorOverrideIndex >= 0 &&
+      anchorOverrideIndex < currentSegments.length &&
+      _normalizeCityName(currentSegments[anchorOverrideIndex].city) ==
+          _normalizeCityName(suggestion.anchorCity)) {
+    resolvedAnchorIdx = anchorOverrideIndex;
+  } else {
+    resolvedAnchorIdx =
+        findAnchorIndexForSuggestion(currentSegments, suggestion);
+    if (resolvedAnchorIdx < 0) return null;
+  }
+
   // ─── 0.55 V2.3 — Filtre cards requiresInsertionDate sans dates ────
   // Si la suggestion exige une date (Krabi/Chiang Mai/Rayong+Koh Samet)
   // mais qu'aucune date d'insertion valide n'existe (segment ancrage
@@ -756,6 +857,7 @@ _ResolvedSuggestion? _resolveSuggestion({
       anchorCity: suggestion.anchorCity,
       insertionDays: suggestion.totalSuggestedDays,
       analysis: pinnedAnalysis,
+      anchorSegmentIndex: resolvedAnchorIdx,
     );
     if (dates.isEmpty) return null;
   }
@@ -766,16 +868,8 @@ _ResolvedSuggestion? _resolveSuggestion({
   // (typiquement Bangkok > 7 nuits). Évite de proposer Chiang Mai
   // quand Bangkok ne fait que 3 nuits.
   if (suggestion.minAnchorDaysToShow != null) {
-    TripSegment? anchorSeg;
-    final anchorNorm = _normalizeCityName(suggestion.anchorCity);
-    for (final s in currentSegments) {
-      if (_normalizeCityName(s.city) == anchorNorm) {
-        anchorSeg = s;
-        break;
-      }
-    }
-    if (anchorSeg == null ||
-        anchorSeg.days < suggestion.minAnchorDaysToShow!) {
+    final anchorSegResolved = currentSegments[resolvedAnchorIdx];
+    if (anchorSegResolved.days < suggestion.minAnchorDaysToShow!) {
       return null;
     }
   }
@@ -786,6 +880,7 @@ _ResolvedSuggestion? _resolveSuggestion({
     tripDurationDays: tripDurationDays,
     insertionStartDate: insertionStartDate,
     pinnedAnalysis: pinnedAnalysis,
+    anchorOverrideIndex: resolvedAnchorIdx,
   );
   if (mutationResult is MutationFailed) return null;
   final mutation = (mutationResult as MutationOk).mutation;
@@ -816,6 +911,7 @@ _ResolvedSuggestion? _resolveSuggestion({
     suggestion: suggestion,
     mutation: mutation,
     notice: notice,
+    windowLabel: windowLabel,
   );
 }
 
@@ -1044,13 +1140,34 @@ class _SuggestionCard extends StatelessWidget {
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: Text(
-                          suggestion.displayName,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              suggestion.displayName,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            // V2 multi-window — sous-titre de fenêtre
+                            // ("Avant Phú Quốc" / "Après Hội An") quand
+                            // la même ville d'ancrage apparaît plusieurs
+                            // fois dans le voyage.
+                            if (resolved.windowLabel != null) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                resolved.windowLabel!,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppColors.primary
+                                      .withValues(alpha: 0.85),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                       _DurationBadge(suggestion: suggestion),

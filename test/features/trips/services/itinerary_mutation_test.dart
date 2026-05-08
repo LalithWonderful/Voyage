@@ -1127,4 +1127,278 @@ void main() {
       expect(batch, isA<BatchOk>());
     });
   });
+
+  // ─── V2 fix Bangkok dupliqué ────────────────────────────────────────
+
+  group('findAnchorIndexForSuggestion — multi-occurrence', () {
+    SubTripSuggestion krabiMajor() => const SubTripSuggestion(
+          anchorCity: 'Bangkok',
+          displayName: 'Krabi',
+          segments: [SuggestedSegment(city: 'Krabi', days: 3)],
+          insertionMode: InsertionMode.splitSegment,
+          category: SuggestionCategory.majorDestination,
+          minAnchorDaysToKeep: 1,
+        );
+
+    SubTripSuggestion ayutthayaDayTrip() => const SubTripSuggestion(
+          anchorCity: 'Bangkok',
+          displayName: 'Ayutthaya',
+          segments: [SuggestedSegment(city: 'Ayutthaya', days: 1)],
+          insertionMode: InsertionMode.dayTrip,
+        );
+
+    test('majorDestination + 2 Bangkok → choisit le plus long', () {
+      final segments = [
+        _seg('Bangkok', 8), // BKK aller
+        _seg('Phuket', 3),
+        _seg('Bangkok', 22), // BKK retour, plus long
+      ];
+      final idx = findAnchorIndexForSuggestion(segments, krabiMajor());
+      expect(idx, 2);
+    });
+
+    test('majorDestination + 1 seul Bangkok → premier match', () {
+      final segments = [_seg('Bangkok', 11), _seg('Phú Quốc', 5)];
+      final idx = findAnchorIndexForSuggestion(segments, krabiMajor());
+      expect(idx, 0);
+    });
+
+    test('dayTrip (gateway category) + 2 Bangkok → premier match (legacy)',
+        () {
+      final segments = [
+        _seg('Bangkok', 8),
+        _seg('Phuket', 3),
+        _seg('Bangkok', 22),
+      ];
+      final idx = findAnchorIndexForSuggestion(segments, ayutthayaDayTrip());
+      expect(idx, 0);
+    });
+
+    test('majorDestination + Bangkok absent → -1', () {
+      final segments = [_seg('Hanoï', 4)];
+      final idx = findAnchorIndexForSuggestion(segments, krabiMajor());
+      expect(idx, -1);
+    });
+  });
+
+  group('findAllAnchorIndicesForSuggestion — multi-window', () {
+    SubTripSuggestion krabi() => const SubTripSuggestion(
+          anchorCity: 'Bangkok',
+          displayName: 'Krabi',
+          segments: [SuggestedSegment(city: 'Krabi', days: 3)],
+          insertionMode: InsertionMode.splitSegment,
+          category: SuggestionCategory.majorDestination,
+          minAnchorDaysToKeep: 1,
+        );
+
+    test('2 Bangkok → 2 indices retournés dans l\'ordre du voyage', () {
+      final segments = [
+        _seg('Bangkok', 11),
+        _seg('Phú Quốc', 5),
+        _seg('Hanoï', 4),
+        _seg('Hội An', 3),
+        _seg('Bangkok', 22),
+      ];
+      final indices = findAllAnchorIndicesForSuggestion(segments, krabi());
+      expect(indices, [0, 4]);
+    });
+
+    test('1 Bangkok → 1 index', () {
+      final segments = [_seg('Bangkok', 11)];
+      final indices = findAllAnchorIndicesForSuggestion(segments, krabi());
+      expect(indices, [0]);
+    });
+
+    test('aucun Bangkok → liste vide', () {
+      final segments = [_seg('Hanoï', 4)];
+      final indices = findAllAnchorIndicesForSuggestion(segments, krabi());
+      expect(indices, isEmpty);
+    });
+  });
+
+  group('computeMutation — anchorOverrideIndex', () {
+    SubTripSuggestion krabi() => const SubTripSuggestion(
+          anchorCity: 'Bangkok',
+          displayName: 'Krabi',
+          segments: [SuggestedSegment(city: 'Krabi', days: 3)],
+          insertionMode: InsertionMode.splitSegment,
+          category: SuggestionCategory.majorDestination,
+          minAnchorDaysToKeep: 1,
+        );
+
+    test('override=0 cible le 1er Bangkok (court) malgré la règle longest',
+        () {
+      final segments = [
+        _seg('Bangkok', 11), // window 1
+        _seg('Phú Quốc', 5),
+        _seg('Bangkok', 22), // window 2 (long, sélectionné par défaut)
+      ];
+      final result = computeMutation(
+        suggestion: krabi(),
+        currentSegments: segments,
+        tripDurationDays: 38,
+        anchorOverrideIndex: 0,
+      );
+      final m = (result as MutationOk).mutation;
+      expect(m.anchorIndex, 0);
+      expect(m.anchorOccurrence, 1);
+      expect(m.newAnchorDays, 8); // 11 - 3
+    });
+
+    test('override=2 cible le 2nd Bangkok (long)', () {
+      final segments = [
+        _seg('Bangkok', 11),
+        _seg('Phú Quốc', 5),
+        _seg('Bangkok', 22),
+      ];
+      final result = computeMutation(
+        suggestion: krabi(),
+        currentSegments: segments,
+        tripDurationDays: 38,
+        anchorOverrideIndex: 2,
+      );
+      final m = (result as MutationOk).mutation;
+      expect(m.anchorIndex, 2);
+      expect(m.anchorOccurrence, 2);
+      expect(m.newAnchorDays, 19); // 22 - 3
+    });
+
+    test('override invalide (mauvaise ville) → fallback auto-resolve', () {
+      final segments = [
+        _seg('Bangkok', 11),
+        _seg('Phú Quốc', 5),
+        _seg('Bangkok', 22),
+      ];
+      // Index 1 = Phú Quốc, ne matche pas Bangkok → fallback longest.
+      final result = computeMutation(
+        suggestion: krabi(),
+        currentSegments: segments,
+        tripDurationDays: 38,
+        anchorOverrideIndex: 1,
+      );
+      final m = (result as MutationOk).mutation;
+      expect(m.anchorIndex, 2); // longest Bangkok
+    });
+
+    test('override hors bornes → fallback auto-resolve', () {
+      final segments = [_seg('Bangkok', 11)];
+      final result = computeMutation(
+        suggestion: krabi(),
+        currentSegments: segments,
+        tripDurationDays: 11,
+        anchorOverrideIndex: 99,
+      );
+      expect(result, isA<MutationOk>());
+      expect((result as MutationOk).mutation.anchorIndex, 0);
+    });
+  });
+
+  group('computeMutation — multi-occurrence majorDestination', () {
+    test('Krabi visible sur le Bangkok long, pas le court — '
+        'cas E2E rapport Lalith 2026-05-08', () {
+      // Itinéraire local après refinements précédents :
+      // Bangkok 8j + Rayong 1 + Koh Samet 2 + PQC 5 + Ninh Bình 3 +
+      // Hanoï 1 + Hội An 3 + Bangkok 22.
+      final segments = [
+        _seg('Bangkok', 8),
+        _seg('Rayong', 1),
+        _seg('Koh Samet', 2),
+        _seg('Phú Quốc', 5),
+        _seg('Ninh Bình', 3),
+        _seg('Hanoï', 1),
+        _seg('Hội An', 3),
+        _seg('Bangkok', 22),
+      ];
+      final result = computeMutation(
+        suggestion: const SubTripSuggestion(
+          anchorCity: 'Bangkok',
+          displayName: 'Krabi',
+          segments: [SuggestedSegment(city: 'Krabi', days: 3)],
+          insertionMode: InsertionMode.splitSegment,
+          category: SuggestionCategory.majorDestination,
+          minAnchorDaysToKeep: 1,
+        ),
+        currentSegments: segments,
+        tripDurationDays: 45,
+      );
+      final m = (result as MutationOk).mutation;
+      expect(m.anchorIndex, 7); // Bangkok long, pas Bangkok court
+      expect(m.anchorOccurrence, 2);
+    });
+  });
+
+  group('applyMutationBatch — re-localisation par occurrence', () {
+    test('mutation sur Bangkok occurrence 2 cible bien le 2nd Bangkok '
+        '(pas le 1er)', () {
+      final segments = [
+        _seg('Bangkok', 8),
+        _seg('Phuket', 3),
+        _seg('Bangkok', 22),
+      ];
+      // Mutation construite à la main pour viser explicitement
+      // l'occurrence 2 (= Bangkok 22j).
+      final mutation = ItineraryMutation(
+        anchorIndex: 2,
+        anchorCity: 'Bangkok',
+        mode: InsertionMode.splitSegment,
+        insertedSegments: [_seg('Krabi', 3)],
+        newAnchorDays: 19,
+        anchorOccurrence: 2,
+      );
+      final result = applyMutationBatch(segments, [mutation]);
+      // Le 1er Bangkok (8j) doit rester intact, la mutation s'applique
+      // sur le 2nd Bangkok.
+      expect(result[0].city, 'Bangkok');
+      expect(result[0].days, 8); // intact
+      expect(result[1].city, 'Phuket');
+      // Le 2nd Bangkok est split : insertion en début de bloc (pas de
+      // pickedDate ici) → [Krabi 3, Bangkok 19].
+      expect(result[2].city, 'Krabi');
+      expect(result[3].city, 'Bangkok');
+      expect(result[3].days, 19);
+    });
+
+    test('occurrence 1 cible bien le 1er Bangkok', () {
+      final segments = [
+        _seg('Bangkok', 8),
+        _seg('Bangkok', 22),
+      ];
+      final mutation = ItineraryMutation(
+        anchorIndex: 0,
+        anchorCity: 'Bangkok',
+        mode: InsertionMode.splitSegment,
+        insertedSegments: [_seg('Krabi', 3)],
+        newAnchorDays: 5,
+        anchorOccurrence: 1,
+      );
+      final result = applyMutationBatch(segments, [mutation]);
+      // 1er Bangkok split → [Krabi 3, Bangkok 5]. 2nd Bangkok intact.
+      expect(result[0].city, 'Krabi');
+      expect(result[1].city, 'Bangkok');
+      expect(result[1].days, 5);
+      expect(result[2].city, 'Bangkok');
+      expect(result[2].days, 22);
+    });
+
+    test('occurrence introuvable (3 alors que seules 2 existent) → skip safe',
+        () {
+      final segments = [
+        _seg('Bangkok', 8),
+        _seg('Bangkok', 22),
+      ];
+      final mutation = ItineraryMutation(
+        anchorIndex: 99,
+        anchorCity: 'Bangkok',
+        mode: InsertionMode.splitSegment,
+        insertedSegments: [_seg('Krabi', 3)],
+        newAnchorDays: 5,
+        anchorOccurrence: 3,
+      );
+      final result = applyMutationBatch(segments, [mutation]);
+      // Mutation skipée silencieusement : segments inchangés.
+      expect(result.length, 2);
+      expect(result[0].days, 8);
+      expect(result[1].days, 22);
+    });
+  });
 }
