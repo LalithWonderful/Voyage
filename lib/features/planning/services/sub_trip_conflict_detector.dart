@@ -1,20 +1,28 @@
 /// Détection de conflits avant d'appliquer une `SubTripSuggestion` au voyage.
 ///
-/// Lot 1 (V1) : détection city-level uniquement — pas de chevauchement de
-/// dates précis. Suffit pour les 3 cas du brief Lalith :
-/// - Hôtel à l'ancrage → bloquer `replaceAnchorGateway` (l'utilisateur dort
-///   vraiment là-bas, ne pas effacer la ville)
-/// - Hôtel à la ville suggérée → suggérer la card mais signaler "déjà
-///   réservé là-bas" pour que l'user comprenne pourquoi c'est pertinent
-/// - Vol/transport vers l'ancrage → confirme le pattern gateway (info
-///   neutre, pas un blocage)
+/// Lot 1 — `preflightSuggestion` (city-level, sans dates) :
+/// - Hôtel à l'ancrage → bloquer `replaceAnchorGateway`
+/// - Hôtel à la ville suggérée → notice positive ("ton hébergement colle")
+/// - Vol/transport vers l'ancrage → info neutre (gateway pattern)
 ///
-/// Lot 2 affinera avec :
-/// - Détection date-précise (overlap avec check_in/check_out)
-/// - Conflit transfert "Hanoï → Ninh Bình" qui rend `replace` incohérent
-/// - Validation de la chronologie après transformation
+/// Lot 2.2 — `preflightDatePrecise` (date-precise) :
+/// - Calcule la plage de dates de chaque segment depuis `trip.startDate`
+///   et le cumul des `days`.
+/// - Identifie les "jours retirés à l'anchor" selon le mode :
+///   * APPEND : aucun jour retiré → pas de check
+///   * SPLIT : les premiers `suggestedTotal` jours de l'anchor (ces
+///     nuits sont réattribuées à la ville suggérée)
+///   * REPLACE : tous les jours de l'anchor (l'anchor disparaît)
+/// - Pour chaque hôtel à l'anchor city : si check_in/check_out chevauche
+///   les "jours retirés" → BLOCK (l'user dort vraiment là-bas ces
+///   nuits-là, on ne peut pas les attribuer à une autre ville).
+///
+/// Lot 1 + Lot 2.2 sont complémentaires : le caller appelle les 2 et
+/// combine les verdicts (block prime sur allow).
 library;
 
+import 'package:voyage/features/planning/data/sub_trip_suggestions.dart';
+import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/wallet/models/document_model.dart';
 
 /// Verdict de la pré-validation d'une suggestion.
@@ -168,3 +176,195 @@ SuggestionPreflight preflightSuggestion({
 
   return const SuggestionPreflight(verdict: SuggestionVerdict.allow);
 }
+
+// ─── Lot 2.2 — Detector date-précis ──────────────────────────────────
+
+/// Plage de jours d'un segment dans le voyage. Indices basés sur
+/// `tripStartDate` : `firstDay = tripStartDate + offset`, `lastNight =
+/// firstDay + (days - 1)`. La nuit du `lastNight` est la dernière dormie
+/// dans cette ville (le lendemain matin on part).
+class _SegmentDateRange {
+  final int index;
+  final String city;
+  final DateTime firstDay;
+  final DateTime lastNight;
+  const _SegmentDateRange({
+    required this.index,
+    required this.city,
+    required this.firstDay,
+    required this.lastNight,
+  });
+}
+
+/// Calcule la plage de dates de chaque segment depuis `tripStartDate` et
+/// le cumul des `days`. Le 1er segment commence à `tripStartDate`. Si la
+/// somme des `days` dépasse la durée du voyage (cas observé sur certains
+/// voyages auto-seedés), le calcul reste correct mais les derniers
+/// segments dépassent `trip.endDate` — pas un problème ici, on raisonne
+/// sur les segments tels que définis.
+List<_SegmentDateRange> _computeSegmentRanges(
+  List<TripSegment> segments,
+  DateTime tripStartDate,
+) {
+  final ranges = <_SegmentDateRange>[];
+  var cursor = tripStartDate;
+  for (var i = 0; i < segments.length; i++) {
+    final s = segments[i];
+    final firstDay = cursor;
+    // lastNight = firstDay + (days - 1). Pour days=1, lastNight = firstDay.
+    final lastNight = cursor.add(Duration(days: s.days - 1));
+    ranges.add(_SegmentDateRange(
+      index: i,
+      city: s.city,
+      firstDay: firstDay,
+      lastNight: lastNight,
+    ));
+    cursor = cursor.add(Duration(days: s.days));
+  }
+  return ranges;
+}
+
+/// Vrai si une nuit `n` (DateTime) est couverte par une réservation hôtel
+/// `(checkIn, checkOut)`. Convention : la dernière nuit dormie est
+/// `checkOut - 1 day`. Donc `n` est couverte si `checkIn ≤ n < checkOut`.
+bool _isNightCoveredByStay(
+  DateTime night,
+  DateTime checkIn,
+  DateTime checkOut,
+) {
+  // Tout à minuit pour une comparaison de jour calendaire pure.
+  final n = DateTime(night.year, night.month, night.day);
+  final ci = DateTime(checkIn.year, checkIn.month, checkIn.day);
+  final co = DateTime(checkOut.year, checkOut.month, checkOut.day);
+  return !n.isBefore(ci) && n.isBefore(co);
+}
+
+/// Pré-validation date-précise. Calcule les jours retirés à l'anchor par
+/// la mutation et vérifie qu'aucune réservation hôtel à l'anchor city ne
+/// les couvre.
+///
+/// `suggestion` : la suggestion à pré-valider.
+/// `currentSegments` : segments actuels du voyage.
+/// `tripStartDate` : date début du voyage (pour calcul des dates segment).
+/// `docs` : documents du voyage (vols, hôtels, etc.).
+///
+/// Comportement par mode :
+/// - `dayTrip` / `nearbyStay` (APPEND) : aucun jour retiré → ALLOW.
+/// - `splitSegment` / `splitGatewaySequence` (SPLIT) : les `suggestedTotal`
+///   premiers jours de l'anchor sont retirés. BLOCK si une résa hôtel à
+///   l'anchor city couvre l'une de ces nuits.
+/// - `replaceAnchorGateway` (REPLACE) : TOUS les jours de l'anchor sont
+///   retirés. BLOCK si une résa hôtel à l'anchor city couvre l'une de ces
+///   nuits. (Cas typique : le user sleeps réellement à Hanoï tous les
+///   jours du segment → on ne peut pas remplacer Hanoï par Ninh Bình
+///   silencieusement.)
+SuggestionPreflight preflightDatePrecise({
+  required SubTripSuggestion suggestion,
+  required List<TripSegment> currentSegments,
+  required DateTime tripStartDate,
+  required List<TripDocument> docs,
+}) {
+  // Trouve le 1er segment matchant l'anchor (cohérent avec
+  // `computeMutation` qui fait pareil).
+  final anchorNorm = _normalize(suggestion.anchorCity);
+  final ranges = _computeSegmentRanges(currentSegments, tripStartDate);
+  _SegmentDateRange? anchorRange;
+  for (final r in ranges) {
+    if (_normalize(r.city) == anchorNorm) {
+      anchorRange = r;
+      break;
+    }
+  }
+  if (anchorRange == null) {
+    // Pas d'anchor → rien à vérifier (le `computeMutation` lèvera
+    // anchorNotFound de toute façon côté caller).
+    return const SuggestionPreflight(verdict: SuggestionVerdict.allow);
+  }
+
+  // Identifie les nuits "retirées à l'anchor" selon le mode.
+  final nightsRemoved = <DateTime>[];
+  switch (suggestion.insertionMode) {
+    case InsertionMode.dayTrip:
+    case InsertionMode.nearbyStay:
+      // APPEND : aucune nuit retirée à l'anchor.
+      return const SuggestionPreflight(verdict: SuggestionVerdict.allow);
+    case InsertionMode.splitSegment:
+    case InsertionMode.splitGatewaySequence:
+      // Les `suggestedTotal` premières nuits de l'anchor sont
+      // réattribuées à la ville suggérée.
+      final n = suggestion.totalSuggestedDays;
+      for (var i = 0; i < n; i++) {
+        nightsRemoved.add(anchorRange.firstDay.add(Duration(days: i)));
+      }
+      break;
+    case InsertionMode.replaceAnchorGateway:
+      // Toutes les nuits de l'anchor sont retirées (anchor disparaît).
+      var d = anchorRange.firstDay;
+      while (!d.isAfter(anchorRange.lastNight)) {
+        nightsRemoved.add(d);
+        d = d.add(const Duration(days: 1));
+      }
+      break;
+  }
+
+  if (nightsRemoved.isEmpty) {
+    return const SuggestionPreflight(verdict: SuggestionVerdict.allow);
+  }
+
+  // Pour chaque hôtel à l'anchor city : check si une nuit couverte
+  // tombe dans `nightsRemoved`. Si oui → BLOCK.
+  for (final d in docs) {
+    if (d.category != DocumentCategory.hotel) continue;
+    if (!_hotelDocMatchesCity(d, suggestion.anchorCity)) continue;
+    final ci = _parseDate(d.metadata['check_in']);
+    final co = _parseDate(d.metadata['check_out']);
+    if (ci == null || co == null) continue;
+    for (final night in nightsRemoved) {
+      if (_isNightCoveredByStay(night, ci, co)) {
+        final dStr = '${night.day.toString().padLeft(2, '0')}/'
+            '${night.month.toString().padLeft(2, '0')}';
+        return SuggestionPreflight(
+          verdict: SuggestionVerdict.block,
+          notice:
+              'Tu as une réservation d\'hôtel à ${suggestion.anchorCity} '
+              'qui couvre la nuit du $dStr. Cette modification entrerait '
+              'en conflit avec ton hébergement.',
+        );
+      }
+    }
+  }
+
+  return const SuggestionPreflight(verdict: SuggestionVerdict.allow);
+}
+
+/// Vrai si un doc hôtel matche `city` (réplique stricte de la logique de
+/// `_hasHotelInCity` mais pour 1 doc à la fois — sert au date-precise
+/// detector qui itère sur les docs).
+bool _hotelDocMatchesCity(TripDocument d, String city) {
+  if (d.category != DocumentCategory.hotel) return false;
+  final norm = _normalize(city);
+  if (norm.isEmpty) return false;
+  final m = d.metadata;
+  final structuredCity = (m['address_city'] as String?)?.trim();
+  if (structuredCity != null && structuredCity.isNotEmpty) {
+    if (_normalize(structuredCity) == norm) return true;
+  }
+  final address = (m['address'] as String?)?.trim();
+  if (address != null && address.isNotEmpty) {
+    final normAddr = _normalize(address);
+    final pattern = RegExp(
+      r'(^|[\s,;\-])' + RegExp.escape(norm) + r'($|[\s,;\-])',
+    );
+    if (pattern.hasMatch(normAddr)) return true;
+  }
+  return false;
+}
+
+/// Parse une date depuis metadata (peut être `String` ISO ou `DateTime`).
+DateTime? _parseDate(dynamic v) {
+  if (v == null) return null;
+  if (v is DateTime) return v;
+  if (v is String) return DateTime.tryParse(v);
+  return null;
+}
+

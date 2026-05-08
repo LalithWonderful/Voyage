@@ -11,6 +11,7 @@ import 'package:voyage/features/planning/services/airport_city_overrides.dart';
 import 'package:voyage/features/regions/services/country_regions_repository.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
+import 'package:voyage/features/trips/services/itinerary_mutation.dart';
 import 'package:voyage/features/trips/widgets/airport_picker_dialog.dart';
 import 'package:voyage/features/trips/widgets/improve_itinerary_sheet.dart';
 import 'package:voyage/features/trips/widgets/regional_loop_sheet.dart';
@@ -510,15 +511,33 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
   /// Sheet régionale : Gemini propose 3-5 villes autour de la destination
   /// principale. Les étapes sélectionnées sont AJOUTÉES (pas remplacées).
   Future<void> _openRegionalLoop() async {
-    // ─── Routing itinerary-aware (Lot 1, 2026-05-08) ──────────────────
+    // ─── Routing itinerary-aware (Lot 2.2, 2026-05-08) ────────────────
     // Si le voyage a déjà ≥2 étapes ET qu'on a des suggestions catalogue,
-    // on ouvre la sheet "Améliorer ton itinéraire" (lecture seule en V1,
-    // CTAs stubbés). Lot 2 implémentera les transformations.
+    // on ouvre la sheet "Améliorer ton itinéraire". La sheet retourne
+    // une `ItineraryMutation?` ; si non-null, on applique via
+    // `applyMutation` et on persiste via le mécanisme habituel
+    // (setState + sauvegarde au "Enregistrer" du parent sheet).
     if (_isItineraryAware) {
-      await openImproveItinerarySheet(
+      final mutation = await openImproveItinerarySheet(
         context,
         tripId: widget.trip.id,
-        anchorCities: _segments.map((s) => s.city).toList(),
+        currentSegments: _segments.toList(growable: false),
+        tripStartDate: _start,
+        tripDurationDays: _end.difference(_start).inDays + 1,
+      );
+      if (mutation == null || !mounted) return;
+      setState(() {
+        final newSegments = applyMutation(_segments, mutation);
+        _segments
+          ..clear()
+          ..addAll(newSegments);
+        _enforceSingleSegmentRule();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Étapes mises à jour.'),
+          duration: Duration(seconds: 2),
+        ),
       );
       return;
     }
