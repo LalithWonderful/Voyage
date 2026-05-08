@@ -1815,7 +1815,13 @@ List<ActivitySuggestion> selectVisitsDeterministic({
         // Filtres durs (sans distance pour le moment)
         final baseCandidates = entries.where((e) {
           final c = e.value.candidate;
-          if (!_isAppropriateForTime(c, slot)) return false;
+          if (!_isAppropriateForTime(
+            c,
+            slot,
+            matchedInterests: e.value.matchedInterests.toSet(),
+          )) {
+            return false;
+          }
           if (_isMealPrimaryType(c)) return false;
           // Cap budget : lieu trop cher par rapport au budget user.
           // Garde les lieux sans priceLevel (Google le manque souvent).
@@ -1898,7 +1904,11 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           var rejectDup = 0, rejectWellness = 0, rejectEvents = 0;
           for (final e in entries) {
             final c = e.value.candidate;
-            if (!_isAppropriateForTime(c, slot)) {
+            if (!_isAppropriateForTime(
+              c,
+              slot,
+              matchedInterests: e.value.matchedInterests.toSet(),
+            )) {
               rejectTime++;
               continue;
             }
@@ -2935,11 +2945,23 @@ String _stripCodeFences(String text) {
 /// le restaurant légitime un déjeuner). Si TOUS les types connus disent non
 /// → on rejette. Aucun type géré → accepte par défaut.
 ///
+/// `matchedInterests` (optionnel) sert aux types Événements contextuels :
+/// si le lieu (`stadium`/`event_venue`/`cultural_center`) a été remonté via
+/// l'intérêt 'Événements', il est restreint au soir (≥18h). Sinon il reste
+/// permissif (visite stade Bernabéu en journée OK, etc.).
+///
 /// Exemples :
 /// - "Pub Mac Carthy" types=[bar,pub] à 12:30 → bar:non, pub:non → REJET
 /// - "Brasserie Excelsior" types=[restaurant,bar] à 12:30 → restaurant:oui → ACCEPT
 /// - "Place Stanislas" types=[tourist_attraction] à 22:00 → pas géré → ACCEPT
-bool _isAppropriateForTime(NearbyCandidate c, String startTime) {
+/// - "Cinéma Colisée" types=[movie_theater] à 14:30 → REJET (≥18h strict)
+/// - "Stade Bernabéu" types=[stadium] matched=[Spots populaires] à 11:00 → ACCEPT
+/// - "Stade Bernabéu" types=[stadium] matched=[Événements] à 11:00 → REJET
+bool _isAppropriateForTime(
+  NearbyCandidate c,
+  String startTime, {
+  Set<String>? matchedInterests,
+}) {
   final hour = _parseHourFloat(startTime);
   if (hour == null) return true;
 
@@ -2953,6 +2975,25 @@ bool _isAppropriateForTime(NearbyCandidate c, String startTime) {
     final isMealHour =
         (hour >= 11.5 && hour <= 15.0) || (hour >= 18.5 && hour <= 23.0);
     if (isMealHour) return false;
+  }
+
+  // ─── Règle ≥18h ABSOLUE pour les types "evening event" purs ─────────
+  // Cinéma/théâtre/salle de concert/night-club : aller voir un film à
+  // 09:30 n'a pas de sens. PRIME sur la règle bars (17h) car night_club
+  // est aussi listé dans `_strictBarPrimaryTypes`. Cf. spec 2026-05-08.
+  if (c.types.isNotEmpty && _eveningOnlyEventTypes.contains(c.types.first)) {
+    if (hour < 18.0) return false;
+    return true;
+  }
+
+  // ─── Règle ≥18h CONTEXTUELLE pour stadium/event_venue/cultural_center
+  // Bloqué uniquement si le lieu a été remonté via 'Événements'
+  // (matchedInterests). Sinon permissif (visite touristique journée OK).
+  if (c.types.isNotEmpty &&
+      _eventVenueContextualTypes.contains(c.types.first) &&
+      (matchedInterests?.contains('Événements') ?? false)) {
+    if (hour < 18.0) return false;
+    return true;
   }
 
   // ─── Règle de rejet ABSOLU pour bars ────────────────────────────────
@@ -3110,6 +3151,33 @@ const Set<String> _strictBarPrimaryTypes = <String>{
   'lounge_bar',
   'night_club',
   'hookah_bar',
+};
+
+/// 2026-05-08 — types Événements à n'autoriser QUE le soir (≥18h).
+/// Cinéma, théâtre, salle de concert, night-club : aller voir un film à
+/// 09:30 ou un concert à 14:30 n'a pas de sens UX. Règle stricte sans
+/// condition (les types secondaires ne sauvent pas — un cinéma reste un
+/// cinéma). Cf. spec Lalith 2026-05-08.
+const Set<String> _eveningOnlyEventTypes = <String>{
+  'movie_theater',
+  'performing_arts_theater',
+  'live_music_venue',
+  'night_club',
+};
+
+/// Types Événements **contextuels** : bloqués <18h UNIQUEMENT si le lieu
+/// a été remonté via l'intérêt 'Événements'. Sinon (matché Spots
+/// populaires/Culture/Sports), permissifs.
+///
+/// Justification :
+/// - `stadium` peut être visité en journée (visite Bernabéu, Old Trafford…)
+/// - `event_venue` ambigu (palais des congrès parfois visitable en journée)
+/// - `cultural_center` souvent visitable en journée (expo permanente)
+///   mais en mode événement (concert, projection) → soir uniquement.
+const Set<String> _eventVenueContextualTypes = <String>{
+  'stadium',
+  'event_venue',
+  'cultural_center',
 };
 
 /// Types administratifs/éducatifs : ne peuvent JAMAIS être un repas.
