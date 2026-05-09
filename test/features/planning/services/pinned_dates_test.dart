@@ -661,6 +661,101 @@ void main() {
       expect(analysis.segments[2].isDocLinked, isTrue);
     });
 
+    test('findDocsLinkedToSegment — hôtel à la ville + dates overlap '
+        '→ linked', () {
+      final analysis = analyzePinnedDates(
+        segments: [_seg('Bangkok', 11)],
+        tripStartDate: tripStart,
+        docs: [
+          _hotel(
+            city: 'Bangkok',
+            checkIn: '2026-06-21',
+            checkOut: '2026-06-25',
+          ),
+        ],
+      );
+      final docs = [
+        _hotel(
+          city: 'Bangkok',
+          checkIn: '2026-06-21',
+          checkOut: '2026-06-25',
+        ),
+      ];
+      final linked = findDocsLinkedToSegment(
+        segment: analysis.segments.first,
+        docs: docs,
+      );
+      expect(linked.length, 1);
+      expect(linked.first.metadata['address_city'], 'Bangkok');
+    });
+
+    test('findDocsLinkedToSegment — hôtel ville différente → not linked',
+        () {
+      final analysis = analyzePinnedDates(
+        segments: [_seg('Bangkok', 11)],
+        tripStartDate: tripStart,
+        docs: const [],
+      );
+      final docs = [
+        _hotel(
+          city: 'Phú Quốc',
+          checkIn: '2026-06-22',
+          checkOut: '2026-06-25',
+        ),
+      ];
+      final linked = findDocsLinkedToSegment(
+        segment: analysis.segments.first,
+        docs: docs,
+      );
+      expect(linked, isEmpty);
+    });
+
+    test('findDocsLinkedToSegment — transport entrant + sortant + hôtel '
+        '→ ordre : entrant, hôtels, sortant', () {
+      final docs = [
+        _flight(fromCity: 'Bangkok', toCity: 'Phú Quốc', date: '2026-07-02'),
+        _hotel(city: 'Phú Quốc', checkIn: '2026-07-02', checkOut: '2026-07-07'),
+        _flight(fromCity: 'Phú Quốc', toCity: 'Hanoï', date: '2026-07-07'),
+      ];
+      final analysis = analyzePinnedDates(
+        segments: [_seg('Bangkok', 11), _seg('Phú Quốc', 5)],
+        tripStartDate: tripStart,
+        docs: docs,
+      );
+      final pqcSegment = analysis.segments[1];
+      final linked = findDocsLinkedToSegment(
+        segment: pqcSegment,
+        docs: docs,
+      );
+      expect(linked.length, 3);
+      // Ordre attendu : transport entrant d'abord.
+      expect(linked[0].metadata['to_city'], 'Phú Quốc');
+      // Puis hôtel.
+      expect(linked[1].category, DocumentCategory.hotel);
+      // Puis transport sortant.
+      expect(linked[2].metadata['from_city'], 'Phú Quốc');
+    });
+
+    test('findDocsLinkedToSegment — transport hors fenêtre → ignoré', () {
+      final docs = [
+        _flight(
+          fromCity: 'Hanoï',
+          toCity: 'Bangkok',
+          date: '2026-08-15',
+        ), // hors plage Bangkok 21/06→02/07
+      ];
+      final analysis = analyzePinnedDates(
+        segments: [_seg('Bangkok', 11)],
+        tripStartDate: tripStart,
+        docs: docs,
+      );
+      final linked = findDocsLinkedToSegment(
+        segment: analysis.segments.first,
+        docs: docs,
+      );
+      expect(linked, isEmpty);
+    });
+
     test('inférence J+1 depuis arrival_time < departure_time '
         '(backward-compat docs sans arrival_date explicite)', () {
       // Doc Lux→BKK legacy : pas d'arrival_date, mais départ 23:30 et

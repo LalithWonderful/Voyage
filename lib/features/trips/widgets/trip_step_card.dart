@@ -70,6 +70,12 @@ class TripStepCard extends StatelessWidget {
   final DateTime? windowStart;
   final DateTime? windowEndExclusive;
 
+  /// V2 Phase A — callback quand l'utilisateur tape le badge de lock
+  /// (ou l'icône cadenas pour `docLinked`). Le caller est responsable
+  /// d'ouvrir le ou les documents liés au segment. Null = badge non
+  /// interactif (juste informatif).
+  final VoidCallback? onLockTap;
+
   const TripStepCard({
     super.key,
     required this.city,
@@ -85,6 +91,7 @@ class TripStepCard extends StatelessWidget {
     this.windowAnchorCity,
     this.windowStart,
     this.windowEndExclusive,
+    this.onLockTap,
   });
 
   @override
@@ -194,6 +201,9 @@ class TripStepCard extends StatelessWidget {
                     anchorCity: windowAnchorCity,
                     windowStart: windowStart,
                     windowEndExclusive: windowEndExclusive,
+                    onTap: lockState == TripStepLockState.docLinked
+                        ? onLockTap
+                        : null,
                   ),
                 ],
                 // Ligne 3 (optionnelle) : source détectée
@@ -292,11 +302,17 @@ class _LockBadge extends StatelessWidget {
   final DateTime? windowStart;
   final DateTime? windowEndExclusive;
 
+  /// V2 Phase A — si non null, le badge devient tappable (effet InkWell)
+  /// et déclenche le callback. Sert à ouvrir le ou les documents liés
+  /// au segment (cas `docLinked`).
+  final VoidCallback? onTap;
+
   const _LockBadge({
     required this.state,
     this.anchorCity,
     this.windowStart,
     this.windowEndExclusive,
+    this.onTap,
   });
 
   @override
@@ -321,7 +337,7 @@ class _LockBadge extends StatelessWidget {
           AppColors.surface,
         ),
     };
-    return Container(
+    final content = Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: bg.withValues(alpha: 0.4),
@@ -345,7 +361,21 @@ class _LockBadge extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
+          if (onTap != null) ...[
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_right, size: 12, color: color),
+          ],
         ],
+      ),
+    );
+    if (onTap == null) return content;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(6),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: content,
       ),
     );
   }

@@ -207,6 +207,79 @@ List<DateTime> validInsertionStartDates({
   return out;
 }
 
+/// V2 (Lalith 2026-05-09) — retourne la liste des documents liés à un
+/// segment, c'est-à-dire ceux qui pinnent ses dates ou hébergent ces
+/// nuits. Sert au tap sur le badge "Document lié" pour ouvrir le ou
+/// les docs source d'une étape verrouillée.
+///
+/// Critères de liaison (alignés sur `_isSegmentDateAnchored`) :
+/// - **Hôtel** : `address_city` matche segment.city ET les dates
+///   `[check_in, check_out)` chevauchent `[segment.startDate,
+///   segment.endDateExclusive)`.
+/// - **Transport entrant** : `to_city` matche segment.city ET la date
+///   d'arrivée tombe dans la fenêtre du segment.
+/// - **Transport sortant** : `from_city` matche segment.city ET la
+///   date de départ == `segment.endDateExclusive` (= part le jour de
+///   fin de séjour).
+///
+/// Documents retournés dans l'ordre du voyage : transport entrant,
+/// hôtels, transport sortant.
+List<TripDocument> findDocsLinkedToSegment({
+  required SegmentPinnedDates segment,
+  required List<TripDocument> docs,
+}) {
+  final out = <TripDocument>[];
+  final segStart = _dateOnly(segment.startDate);
+  final segEnd = _dateOnly(segment.endDateExclusive);
+  final cityNorm = _normalize(segment.city);
+  if (cityNorm.isEmpty) return out;
+
+  TripDocument? incomingTransport;
+  TripDocument? outgoingTransport;
+  final hotels = <TripDocument>[];
+
+  for (final d in docs) {
+    if (d.category == DocumentCategory.flight ||
+        d.category == DocumentCategory.train) {
+      final toCity = (d.metadata['to_city'] as String?)?.trim();
+      final fromCity = (d.metadata['from_city'] as String?)?.trim();
+      if (toCity != null && _normalize(toCity) == cityNorm) {
+        final arrival = arrivalDateFromMetadata(d.metadata);
+        if (arrival != null) {
+          final dt = _dateOnly(arrival);
+          if (!dt.isBefore(segStart) && dt.isBefore(segEnd)) {
+            // Premier transport entrant rencontré gagne (l'ordre de la
+            // liste docs n'est pas garanti, mais on en a qu'un par
+            // segment dans la grande majorité des cas).
+            incomingTransport ??= d;
+          }
+        }
+      }
+      if (fromCity != null && _normalize(fromCity) == cityNorm) {
+        final dep = _parseDate(d.metadata['date']);
+        if (dep != null && _dateOnly(dep) == segEnd) {
+          outgoingTransport ??= d;
+        }
+      }
+    } else if (d.category == DocumentCategory.hotel) {
+      if (!_hotelMatchesCity(d, segment.city)) continue;
+      final ci = _parseDate(d.metadata['check_in']);
+      final co = _parseDate(d.metadata['check_out']);
+      if (ci == null || co == null) continue;
+      // Overlap [check_in, check_out) ∩ [segStart, segEnd) ≠ ∅
+      if (_dateOnly(ci).isBefore(segEnd) &&
+          segStart.isBefore(_dateOnly(co))) {
+        hotels.add(d);
+      }
+    }
+  }
+
+  if (incomingTransport != null) out.add(incomingTransport);
+  out.addAll(hotels);
+  if (outgoingTransport != null) out.add(outgoingTransport);
+  return out;
+}
+
 /// V2 (bug fix Bangkok dupliqué) — résolution du segment ancrage. Si
 /// `anchorSegmentIndex` est fourni et valide, l'utilise (priorité). Sinon
 /// fallback `forCity` (premier match) — comportement legacy.

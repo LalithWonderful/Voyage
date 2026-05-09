@@ -20,6 +20,7 @@ import 'package:voyage/features/trips/widgets/regional_loop_sheet.dart';
 import 'package:voyage/features/trips/widgets/trip_step_card.dart';
 import 'package:voyage/features/wallet/models/document_model.dart';
 import 'package:voyage/features/wallet/providers/wallet_provider.dart';
+import 'package:voyage/features/wallet/widgets/document_form_sheet.dart';
 
 const _coverEmojis = ['✈️', '🏝️', '🏔️', '🏙️', '🏞️', '🌴', '🛶', '🚐', '🎡', '🎿', '🗺️', '🌍'];
 
@@ -1969,6 +1970,124 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
     );
   }
 
+  /// V2 Phase A (Lalith 2026-05-09) — tap sur le badge "Document lié"
+  /// ou l'icône cadenas du segment `idx`. Ouvre directement le doc
+  /// si un seul est lié, sinon affiche une bottom sheet listant tous
+  /// les docs avec leur sous-titre humain — chaque ligne est tappable
+  /// pour éditer le doc. Évite le snackbar passif "Modifie ton doc"
+  /// au profit d'une navigation directe.
+  Future<void> _openLinkedDocsForSegment(int segmentIndex) async {
+    if (segmentIndex < 0 || segmentIndex >= _segments.length) return;
+    final docsAsync = ref.read(tripDocumentsProvider(widget.trip.id));
+    final docs = docsAsync.maybeWhen(
+      data: (d) => d,
+      orElse: () => const <TripDocument>[],
+    );
+    final analysis = analyzePinnedDates(
+      segments: _segments.toList(growable: false),
+      tripStartDate: _start,
+      docs: docs,
+    );
+    if (segmentIndex >= analysis.segments.length) return;
+    final segPin = analysis.segments[segmentIndex];
+    final linked = findDocsLinkedToSegment(segment: segPin, docs: docs);
+    if (linked.isEmpty) {
+      // Inattendu (le badge n'apparaît que pour docLinked) — fallback
+      // au snackbar legacy pour ne rien casser.
+      _showLockedSegmentSnackbar();
+      return;
+    }
+    if (linked.length == 1) {
+      await openDocumentFormSheet(
+        context,
+        ref,
+        existing: linked.first,
+      );
+      return;
+    }
+    if (!mounted) return;
+    await _showLinkedDocsSheet(linked, _segments[segmentIndex].city);
+  }
+
+  Future<void> _showLinkedDocsSheet(
+    List<TripDocument> linked,
+    String city,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.background,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Documents liés à $city',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${linked.length} documents verrouillent les dates de '
+                'cette étape. Tape pour modifier.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 16),
+              for (final d in linked) ...[
+                _LinkedDocRow(
+                  document: d,
+                  onTap: () async {
+                    Navigator.of(ctx).pop();
+                    await openDocumentFormSheet(
+                      context,
+                      ref,
+                      existing: d,
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
+              ],
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: Text(
+                  'Fermer',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   /// V2 Phase A — snackbar affichée quand l'utilisateur tape l'icône
   /// cadenas d'une étape liée à un document, ou tente un reorder qui
   /// shifterait une étape locked. Wording validé Lalith 2026-05-08.
@@ -2157,14 +2276,22 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
                   windowAnchorCity: windowAnchor,
                   windowStart: winStart,
                   windowEndExclusive: winEnd,
-                  // docLinked = icône cadenas + tap snackbar (pas de drag).
+                  // V2 (Lalith 2026-05-09) — tap sur cadenas/badge =
+                  // ouverture du ou des documents liés (pas de snackbar
+                  // passif). Permet d'éditer rapidement le doc qui
+                  // verrouille l'étape.
+                  onLockTap: isLocked
+                      ? () => _openLinkedDocsForSegment(i)
+                      : null,
+                  // docLinked = icône cadenas tappable (pas de drag).
                   // windowLinked / free = drag handle classique (la
                   // contrainte de fenêtre est validée à `onReorder`).
                   leading: isLocked
                       ? GestureDetector(
-                          onTap: _showLockedSegmentSnackbar,
+                          onTap: () => _openLinkedDocsForSegment(i),
                           child: Tooltip(
-                            message: 'Étape liée à un document',
+                            message:
+                                'Voir les documents liés à cette étape',
                             child: Icon(
                               Icons.lock_outline,
                               size: 16,
@@ -2939,6 +3066,76 @@ class _ConflictsBannerState extends State<_ConflictsBanner> {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// V2 Phase A (Lalith 2026-05-09) — ligne d'un doc dans la sheet
+/// "Documents liés à {city}". Affiche emoji catégorie + nom + sous-titre
+/// (route/dates), tappable pour ouvrir le doc en édition.
+class _LinkedDocRow extends StatelessWidget {
+  final TripDocument document;
+  final VoidCallback onTap;
+
+  const _LinkedDocRow({required this.document, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            border: Border.all(color: AppColors.border),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Text(
+                categoryEmoji(document.category),
+                style: const TextStyle(fontSize: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      document.name,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (document.subtitle.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        document.subtitle,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right,
+                size: 20,
+                color: AppColors.textSecondary,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
