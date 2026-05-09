@@ -8,6 +8,7 @@ import 'package:voyage/core/widgets/city_autocomplete_field.dart';
 import 'package:voyage/features/auth/providers/auth_provider.dart';
 import 'package:voyage/features/planning/providers/planning_provider.dart';
 import 'package:voyage/features/planning/services/airport_city_overrides.dart';
+import 'package:voyage/features/planning/services/document_consistency.dart';
 import 'package:voyage/features/planning/services/pinned_dates.dart';
 import 'package:voyage/features/regions/services/country_regions_repository.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
@@ -1086,6 +1087,12 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
                       ),
                     ),
 
+                    // ─── Phase C — Bannière "Points à vérifier" ───────────
+                    // Affichée uniquement quand `detectDocumentConflicts`
+                    // retourne ≥1 conflit (sinon SizedBox.shrink). Placée
+                    // au-dessus des étapes pour visibilité immédiate.
+                    _buildConflictsBanner(),
+
                     // ─── Section 2 : Étapes du voyage (ouverte par défaut) ────
                     // Le bandeau ⚠️ pays/région vit À L'INTÉRIEUR de la card étapes,
                     // pour ne pas dupliquer l'alerte (cf. _buildSegmentsCard).
@@ -1760,6 +1767,29 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
   // réservations hôtel/location/activités. Le champ reste persisté en DB
   // (_travelers est encore initialisé depuis widget.trip.travelers et écrit
   // par _save), ne pas faire de migration.
+
+  /// Phase C (Lalith 2026-05-09) — bannière "Points à vérifier" qui
+  /// affiche les conflits inter-documents détectés par
+  /// `detectDocumentConflicts` (Phase B service `document_consistency`).
+  /// Visible uniquement quand au moins un conflit existe. Pas de
+  /// correction automatique — l'utilisateur édite le doc concerné.
+  Widget _buildConflictsBanner() {
+    final docsAsync = ref.watch(tripDocumentsProvider(widget.trip.id));
+    final docs = docsAsync.maybeWhen(
+      data: (d) => d,
+      orElse: () => const <TripDocument>[],
+    );
+    final conflicts = detectDocumentConflicts(
+      docs: docs,
+      segments: _segments.toList(growable: false),
+      tripStartDate: _start,
+    );
+    if (conflicts.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: _ConflictsBanner(conflicts: conflicts),
+    );
+  }
 
   /// Card "Étapes du voyage" — 3 modes :
   /// 1. **Warning** : pays/région détecté + 0 étape → bandeau orange dans la
@@ -2821,6 +2851,134 @@ class _TripEditSection extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ─── Phase C — bannière "Points à vérifier" ─────────────────────────
+
+/// Bannière collapsible affichant la liste des conflits détectés par
+/// `detectDocumentConflicts` (Phase B). Amber/accent doux pour signaler
+/// "à vérifier" sans bloquer. Expanded par défaut quand affichée (un
+/// conflit doit attirer l'œil) ; l'utilisateur peut replier pour réduire
+/// le bruit. Pas de fix automatique — chaque ligne est une note pour
+/// que l'utilisateur édite manuellement le document concerné.
+class _ConflictsBanner extends StatefulWidget {
+  final List<DocumentConflict> conflicts;
+  const _ConflictsBanner({required this.conflicts});
+
+  @override
+  State<_ConflictsBanner> createState() => _ConflictsBannerState();
+}
+
+class _ConflictsBannerState extends State<_ConflictsBanner> {
+  bool _expanded = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final count = widget.conflicts.length;
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.accentLight.withValues(alpha: 0.45),
+        border: Border.all(color: AppColors.accent.withValues(alpha: 0.4)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header tappable (toggle expand).
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, size: 18, color: AppColors.accent),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      count == 1
+                          ? '1 point à vérifier'
+                          : '$count points à vérifier',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    _expanded
+                        ? Icons.keyboard_arrow_up
+                        : Icons.keyboard_arrow_down,
+                    size: 20,
+                    color: AppColors.textSecondary,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Liste des conflits (visible si expanded).
+          if (_expanded) ...[
+            Container(
+              height: 1,
+              color: AppColors.accent.withValues(alpha: 0.25),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var i = 0; i < widget.conflicts.length; i++) ...[
+                    if (i > 0) const SizedBox(height: 8),
+                    _ConflictRow(conflict: widget.conflicts[i]),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ConflictRow extends StatelessWidget {
+  final DocumentConflict conflict;
+  const _ConflictRow({required this.conflict});
+
+  IconData get _icon => switch (conflict.type) {
+        ConflictType.overlappingTransports => Icons.compare_arrows,
+        ConflictType.hotelDuringAbsence => Icons.hotel_outlined,
+        ConflictType.segmentArrivalMismatch => Icons.event_busy,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 1),
+          child: Icon(
+            _icon,
+            size: 14,
+            color: AppColors.accent.withValues(alpha: 0.9),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            conflict.message,
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.textPrimary.withValues(alpha: 0.9),
+              height: 1.4,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
