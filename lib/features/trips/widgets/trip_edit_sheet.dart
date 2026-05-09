@@ -2014,79 +2014,110 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
     List<TripDocument> linked,
     String city,
   ) async {
+    // Fix layout (Lalith 2026-05-09) — `isScrollControlled: true` permet
+    // au sheet de prendre plus que 9/16 de la hauteur écran. La liste
+    // des docs est mise en `Flexible + SingleChildScrollView` pour que
+    // le contenu scroll si plusieurs docs ne tiennent pas. SafeArea
+    // bottom préservé via `viewInsets` + `padding.bottom` du MediaQuery.
     await showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       backgroundColor: AppColors.background,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.border,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Documents liés à $city',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Ces documents fixent les dates de cette étape. Tape '
-                'pour modifier.',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
-                  height: 1.35,
-                ),
-              ),
-              const SizedBox(height: 16),
-              for (final d in linked) ...[
-                _LinkedDocRow(
-                  document: d,
-                  segmentCity: city,
-                  onTap: () async {
-                    Navigator.of(ctx).pop();
-                    await openDocumentFormSheet(
-                      context,
-                      ref,
-                      existing: d,
-                    );
-                  },
-                ),
-                const SizedBox(height: 8),
-              ],
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                child: Text(
-                  'Fermer',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ),
-            ],
+      builder: (ctx) {
+        final mq = MediaQuery.of(ctx);
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            // 80 % de l'écran max — laisse l'utilisateur voir un peu du
+            // contexte derrière (la trip edit sheet) et garde la sheet
+            // dismissable au tap-outside.
+            maxHeight: mq.size.height * 0.8,
           ),
-        ),
-      ),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.border,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Documents liés à $city',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Ces documents fixent les dates de cette étape. Tape '
+                    'pour modifier.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Zone scrollable : si la liste dépasse l'espace dispo,
+                  // l'utilisateur scroll dans la sheet. Sinon le contenu
+                  // reste compact (mainAxisSize=min sur le Column parent).
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          for (var i = 0; i < linked.length; i++) ...[
+                            if (i > 0) const SizedBox(height: 8),
+                            _LinkedDocRow(
+                              document: linked[i],
+                              segmentCity: city,
+                              onTap: () async {
+                                Navigator.of(ctx).pop();
+                                await openDocumentFormSheet(
+                                  context,
+                                  ref,
+                                  existing: linked[i],
+                                );
+                              },
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: Text(
+                      'Fermer',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
