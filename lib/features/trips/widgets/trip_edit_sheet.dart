@@ -1789,7 +1789,167 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
     if (conflicts.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      child: _ConflictsBanner(conflicts: conflicts),
+      child: _ConflictsBanner(
+        conflicts: conflicts,
+        onTap: (c) => _handleConflictTap(c, docs),
+      ),
+    );
+  }
+
+  /// V2 (Lalith 2026-05-09) — tap sur une ligne de conflit dans la
+  /// bannière "Points à vérifier". Résout le ou les documents source
+  /// du conflit et ouvre la sheet d'édition (1 doc) ou un picker
+  /// (≥2 docs).
+  ///
+  /// Stratégie selon le type :
+  /// - `overlappingTransports` : 2 docs dans `docIds` → picker.
+  /// - `hotelDuringAbsence` : 1 doc dans `docIds` → ouvre direct.
+  /// - `segmentArrivalMismatch` : pas de `docIds`, mais `segmentIndex`
+  ///   → résoud les docs liés au segment via `findDocsLinkedToSegment`
+  ///   et dispatch (1 → direct, ≥2 → picker).
+  Future<void> _handleConflictTap(
+    DocumentConflict conflict,
+    List<TripDocument> docs,
+  ) async {
+    // Résoud la liste des docs à proposer.
+    var targets = <TripDocument>[];
+    if (conflict.docIds.isNotEmpty) {
+      // Match par ID.
+      final byId = {for (final d in docs) d.id: d};
+      for (final id in conflict.docIds) {
+        final doc = byId[id];
+        if (doc != null) targets.add(doc);
+      }
+    } else if (conflict.segmentIndex != null &&
+        conflict.segmentIndex! >= 0 &&
+        conflict.segmentIndex! < _segments.length) {
+      // segmentArrivalMismatch — on remonte les docs liés au segment.
+      final analysis = analyzePinnedDates(
+        segments: _segments.toList(growable: false),
+        tripStartDate: _start,
+        docs: docs,
+      );
+      if (conflict.segmentIndex! < analysis.segments.length) {
+        targets = findDocsLinkedToSegment(
+          segment: analysis.segments[conflict.segmentIndex!],
+          docs: docs,
+        );
+      }
+    }
+    if (targets.isEmpty) return;
+    if (targets.length == 1) {
+      await openDocumentFormSheet(
+        context,
+        ref,
+        existing: targets.first,
+      );
+      return;
+    }
+    if (!mounted) return;
+    await _showConflictDocsPickerSheet(targets, conflict);
+  }
+
+  /// Mini bottom sheet pour choisir entre 2+ documents d'un conflit
+  /// (typiquement `overlappingTransports`). Tap = ouverture du doc.
+  Future<void> _showConflictDocsPickerSheet(
+    List<TripDocument> docs,
+    DocumentConflict conflict,
+  ) async {
+    final title = switch (conflict.type) {
+      ConflictType.overlappingTransports => 'Transports qui se chevauchent',
+      ConflictType.hotelDuringAbsence => 'Documents liés au conflit',
+      ConflictType.segmentArrivalMismatch =>
+          'Documents liés à cette étape',
+    };
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.background,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        final mq = MediaQuery.of(ctx);
+        return ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: mq.size.height * 0.7),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.border,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Tape un document pour le modifier.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          for (var i = 0; i < docs.length; i++) ...[
+                            if (i > 0) const SizedBox(height: 8),
+                            _ConflictDocRow(
+                              document: docs[i],
+                              onTap: () async {
+                                Navigator.of(ctx).pop();
+                                await openDocumentFormSheet(
+                                  context,
+                                  ref,
+                                  existing: docs[i],
+                                );
+                              },
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: Text(
+                      'Fermer',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -3025,7 +3185,16 @@ class _TripEditSection extends StatelessWidget {
 /// que l'utilisateur édite manuellement le document concerné.
 class _ConflictsBanner extends StatefulWidget {
   final List<DocumentConflict> conflicts;
-  const _ConflictsBanner({required this.conflicts});
+
+  /// V2 (Lalith 2026-05-09) — callback invoqué quand l'utilisateur tape
+  /// une ligne de conflit. Le caller résoud les docs concernés et
+  /// ouvre la sheet d'édition (1 doc) ou un picker (≥2 docs).
+  final void Function(DocumentConflict) onTap;
+
+  const _ConflictsBanner({
+    required this.conflicts,
+    required this.onTap,
+  });
 
   @override
   State<_ConflictsBanner> createState() => _ConflictsBannerState();
@@ -3092,7 +3261,10 @@ class _ConflictsBannerState extends State<_ConflictsBanner> {
                 children: [
                   for (var i = 0; i < widget.conflicts.length; i++) ...[
                     if (i > 0) const SizedBox(height: 8),
-                    _ConflictRow(conflict: widget.conflicts[i]),
+                    _ConflictRow(
+                      conflict: widget.conflicts[i],
+                      onTap: () => widget.onTap(widget.conflicts[i]),
+                    ),
                   ],
                 ],
               ),
@@ -3360,7 +3532,9 @@ String _normalizeCityName(String s) {
 
 class _ConflictRow extends StatelessWidget {
   final DocumentConflict conflict;
-  const _ConflictRow({required this.conflict});
+  final VoidCallback onTap;
+
+  const _ConflictRow({required this.conflict, required this.onTap});
 
   IconData get _icon => switch (conflict.type) {
         ConflictType.overlappingTransports => Icons.compare_arrows,
@@ -3370,29 +3544,118 @@ class _ConflictRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 1),
-          child: Icon(
-            _icon,
-            size: 14,
-            color: AppColors.accent.withValues(alpha: 0.9),
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: Icon(
+                  _icon,
+                  size: 14,
+                  color: AppColors.accent.withValues(alpha: 0.9),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  conflict.message,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textPrimary.withValues(alpha: 0.9),
+                    height: 1.4,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Icon(
+                Icons.chevron_right,
+                size: 14,
+                color: AppColors.textSecondary.withValues(alpha: 0.7),
+              ),
+            ],
           ),
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            conflict.message,
-            style: TextStyle(
-              fontSize: 12,
-              color: AppColors.textPrimary.withValues(alpha: 0.9),
-              height: 1.4,
-            ),
+      ),
+    );
+  }
+}
+
+/// V2 (Lalith 2026-05-09) — ligne de doc dans la mini-sheet de pick
+/// pour un conflit (typiquement `overlappingTransports`). Plus
+/// minimaliste que `_LinkedDocRow` : pas de rôle relatif au segment
+/// (les docs en conflit n'ont pas de segment unique de référence),
+/// juste emoji catégorie + nom + sous-titre humain.
+class _ConflictDocRow extends StatelessWidget {
+  final TripDocument document;
+  final VoidCallback onTap;
+
+  const _ConflictDocRow({required this.document, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            border: Border.all(color: AppColors.border),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Text(
+                categoryEmoji(document.category),
+                style: const TextStyle(fontSize: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      document.name,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (document.subtitle.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        document.subtitle,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right,
+                size: 20,
+                color: AppColors.textSecondary,
+              ),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 }
