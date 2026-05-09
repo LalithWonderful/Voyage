@@ -855,7 +855,21 @@ _ResolvedSuggestion? _resolveSuggestion({
     tripStartDate: tripStartDate,
     docs: docs,
   );
-  if (preflightDate.verdict == SuggestionVerdict.block) return null;
+  if (preflightDate.verdict == SuggestionVerdict.block) {
+    // V2 (Lalith 2026-05-09) — `preflightDatePrecise` utilise une
+    // heuristique "first N nights of anchor" qui ne correspond PAS au
+    // date picker des suggestions `requiresInsertionDate=true`
+    // (Krabi/Chiang Mai/Rayong+Koh Samet…). Pour celles-là, la
+    // validation des dates est déjà faite par `validInsertionStartDates`
+    // (filtre 0.55) qui gère les "base accommodations" via
+    // `HotelStay.isBase`. On ignore donc le block ici pour ne pas
+    // double-filtrer avec une heuristique caduque.
+    //
+    // Pour les autres suggestions (single-step splitGatewaySequence,
+    // splitSegment gateway category), le preflight reste actif (= MVP
+    // heuristique correcte).
+    if (!suggestionRequiresInsertionDate(suggestion)) return null;
+  }
 
   // Notice positive (allowWithNotice) éventuellement présente côté
   // city-level (« ton hôtel est à la ville suggérée, ça colle »).
