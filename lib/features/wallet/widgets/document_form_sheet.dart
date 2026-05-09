@@ -1318,7 +1318,12 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
               // V4 (Lalith 2026-05-10) — applyTimelineDiff supprime les
               // activités générées par Lunao (cf. activity_staleness_service).
               // On invalide le provider pour que le planning se rafraîchisse.
+              // V6.1 — depuis Lot E TODO 3, les générées sont marquées
+              // `stale` au lieu d'être supprimées : on invalide AUSSI
+              // `staleActivitiesProvider` pour rafraîchir le bandeau
+              // « Activités obsolètes ».
               ref.invalidate(tripActivitiesProvider(_tripId!));
+              ref.invalidate(staleActivitiesProvider(_tripId!));
               // V5.2 (Lalith bug fix 2026-05-10 — Issue 2) — persistance
               // session des « Étapes à replacer » : seuls les leftovers
               // (= étapes qui n'ont pas pu être replacées auto par dates)

@@ -313,6 +313,11 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
       ref.invalidate(tripByIdProvider(widget.trip.id));
       if (clearedActivities > 0) {
         ref.invalidate(tripActivitiesProvider(widget.trip.id));
+        // V6.1 — Lot E TODO 3 : les activités générées sont
+        // désormais marquées `stale` (au lieu d'être supprimées) →
+        // on invalide aussi le provider stale pour rafraîchir le
+        // bandeau « Activités obsolètes » du planning.
+        ref.invalidate(staleActivitiesProvider(widget.trip.id));
       }
       if (mounted) {
         Navigator.of(context).pop();

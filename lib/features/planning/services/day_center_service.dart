@@ -38,12 +38,27 @@ Future<DayCenter?> centerForDay({
   // V2 (2026-05-08) : on passe `itineraryCity = trip.cityForDay(day)` pour
   // que l'inférence par itinéraire (Option D) désambiguise les overlaps
   // long-stay (apparts Bangkok 47j) vs hôtel local (Phú Quốc 5j).
+  // V6 (Lalith bug fix 2026-05-10) — l'Option D dans `hotelForDay` ne
+  // fire QUE si plusieurs candidats overlappent le jour. Pour un trip
+  // avec UNE SEULE base longue durée (Bangna 22/06–06/08) + side trips
+  // sans hôtel local (Rayong/Koh Samet), `hotelForDay` retournait la
+  // base parce qu'il n'y a qu'un candidat → `hotelCovers=true` →
+  // search center = Bangkok. Bug : les activités du 29 juin (segment
+  // Rayong) tombent toutes en banlieue de Bangkok.
+  // Fix : si la ville du segment ≠ ville de l'hôtel candidat, on
+  // considère l'hôtel comme une « base off-trip » et on saute au
+  // niveau 2 (segment city). Ne se déclenche QUE pour les hôtels
+  // bases longue durée où segment.city diverge.
+  final segmentCity = trip.cityForDay(day);
   final hotel =
-      hotelForDay(hotels, day, itineraryCity: trip.cityForDay(day));
+      hotelForDay(hotels, day, itineraryCity: segmentCity);
   final dayKey = DateTime(day.year, day.month, day.day);
   final hotelCovers = hotel != null &&
       sleepNightsRange(hotel).any((n) => n.isAtSameMomentAs(dayKey));
-  if (hotel != null && hotelCovers) {
+  final hotelMatchesSegment = hotel != null &&
+      segmentCity.isNotEmpty &&
+      hotelMatchesCity(hotel, segmentCity);
+  if (hotel != null && hotelCovers && hotelMatchesSegment) {
     final addr = (hotel.metadata['address'] as String?)?.trim();
     final query = (addr != null && addr.isNotEmpty) ? addr : hotel.name;
     if (query.isNotEmpty) {
@@ -56,16 +71,38 @@ Future<DayCenter?> centerForDay({
         return DayCenter(latitude: geo.latitude, longitude: geo.longitude, source: 'hotel');
       }
     }
+  } else if (hotel != null && hotelCovers && !hotelMatchesSegment) {
+    developer.log(
+      'Centre du jour ${_iso(day)} : hôtel "${hotel.name}" couvre la nuit '
+      'mais ville segment "$segmentCity" diffère — fallback ville segment '
+      '(side trip off-base, cf. bug fix 2026-05-10).',
+      name: 'day_center',
+    );
   }
 
   // 2. Ville du segment (multi-villes) — `cityForDay` retourne la destination
-  // si pas de segment ne couvre ce jour.
-  final segmentCity = trip.cityForDay(day);
+  // si pas de segment ne couvre ce jour. Réutilise la variable
+  // `segmentCity` calculée plus haut (V6 bug fix).
+  //
+  // V6.3 (bug fix 2026-05-10) — désambiguïsation des villes courtes /
+  // ambiguës (« Koh Samet » → île OU district de Rayong), on enrichit
+  // la query avec le pays du segment quand disponible, ET on passe
+  // `regionHint` ISO 2 au geocoder. Le bug observé : "Koh Samet" seul
+  // remontait des coords proches du continent Rayong → activités du
+  // 30/06 et 01/07 cherchées en mer mais avec radius débordant sur le
+  // continent → résultats Rayong au lieu de l'île.
   if (segmentCity.isNotEmpty && segmentCity != trip.destination) {
-    final geo = await geocoder.geocode(segmentCity);
+    final segment = trip.segmentForDay(day);
+    final segCountry = segment?.country?.trim() ?? '';
+    final query = segCountry.isNotEmpty
+        ? '$segmentCity, $segCountry'
+        : segmentCity;
+    final regionHint = trip.destinationCountryCode?.trim().toLowerCase();
+    final geo = await geocoder.geocode(query, regionHint: regionHint);
     if (geo != null) {
       developer.log(
-        'Centre du jour ${_iso(day)} = ville segment "$segmentCity" → ${geo.latitude},${geo.longitude}',
+        'Centre du jour ${_iso(day)} = ville segment "$query" '
+        '(region=$regionHint) → ${geo.latitude},${geo.longitude}',
         name: 'day_center',
       );
       return DayCenter(latitude: geo.latitude, longitude: geo.longitude, source: 'segment_city');

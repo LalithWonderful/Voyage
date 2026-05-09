@@ -99,13 +99,48 @@ List<TripActivity> findOrphanedActivities({
 
 DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
-/// Supprime les activités GÉNÉRÉES par Lunao pour un voyage donné
-/// (`suggested = true`). Les activités utilisateur et les imports de
-/// documents (`suggested = false`) sont préservés.
+/// V6 (Lalith 2026-05-10 — Lot E TODO 3) — marque les activités
+/// GÉNÉRÉES par Lunao comme `stale` (au lieu de les SUPPRIMER comme
+/// dans le MVP V4). Les activités utilisateur et les imports de
+/// documents (`suggested = false`) sont préservés tels quels.
 ///
-/// Retourne le nombre de lignes supprimées (utile pour la feedback
-/// utilisateur — « 12 activités générées ont été réinitialisées »).
+/// Avantage : l'utilisateur peut consulter les activités obsolètes
+/// dans une section dédiée (planning_screen) et les restaurer
+/// individuellement si la mutation d'itinéraire les a invalidées à
+/// tort. Un bouton « Régénérer le planning » les supprime
+/// définitivement et lance une nouvelle suggestion.
+///
+/// Pré-requis DB : la colonne `planning_status` doit exister
+/// (cf. supabase/sql/trip_activities_planning_status.sql).
+///
+/// Retourne le nombre de lignes marquées (= signal pour la snackbar).
+Future<int> markGeneratedActivitiesStale(
+  SupabaseClient client,
+  String tripId,
+) async {
+  final updated = await client
+      .from('trip_activities')
+      .update({'planning_status': 'stale'})
+      .eq('trip_id', tripId)
+      .eq('suggested', true)
+      .neq('planning_status', 'stale')
+      .select();
+  return (updated as List).length;
+}
+
+/// Alias rétrocompat pour le code non encore migré. À retirer dans une
+/// session de cleanup ultérieure.
+@Deprecated('Use markGeneratedActivitiesStale instead (V6 Lot E TODO 3)')
 Future<int> clearGeneratedActivitiesForTrip(
+  SupabaseClient client,
+  String tripId,
+) =>
+    markGeneratedActivitiesStale(client, tripId);
+
+/// Supprime DÉFINITIVEMENT les activités stale d'un voyage. Appelé
+/// quand l'utilisateur clique « Régénérer le planning » ou « Tout
+/// supprimer » dans la section « Activités obsolètes ».
+Future<int> deleteStaleActivitiesForTrip(
   SupabaseClient client,
   String tripId,
 ) async {
@@ -113,7 +148,20 @@ Future<int> clearGeneratedActivitiesForTrip(
       .from('trip_activities')
       .delete()
       .eq('trip_id', tripId)
-      .eq('suggested', true)
+      .eq('planning_status', 'stale')
       .select();
   return (deleted as List).length;
+}
+
+/// Restore une activité stale en `planned`. Appelé quand l'utilisateur
+/// clique « Restaurer » sur une activité obsolète qu'il veut récupérer.
+Future<void> restoreStaleActivity(
+  SupabaseClient client,
+  String activityId,
+) async {
+  await client
+      .from('trip_activities')
+      .update({'planning_status': 'planned'})
+      .eq('id', activityId)
+      .eq('planning_status', 'stale');
 }

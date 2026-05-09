@@ -218,6 +218,13 @@ bool isNightResolved(
   return false;
 }
 
+/// V6 (Lalith bug fix 2026-05-10) — alias public exposé pour
+/// `day_center_service`, qui doit aussi savoir si un hôtel base
+/// longue-durée matche la ville du segment courant pour décider de
+/// l'utiliser ou non comme centre des recherches Places.
+bool hotelMatchesCity(TripDocument h, String city) =>
+    _hotelMatchesCity(h, city);
+
 /// Vrai si l'hôtel `h` est rattaché à la ville `city` (case+accent
 /// insensible). Match prioritaire sur `metadata['address_city']`
 /// (structuré), fallback substring sur `metadata['address']` libre.

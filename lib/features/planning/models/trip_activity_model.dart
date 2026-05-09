@@ -20,6 +20,59 @@ ActivityKind _parseActivityKind(dynamic raw) {
 
 String _kindToColumn(ActivityKind k) => k == ActivityKind.logistic ? 'logistic' : 'main';
 
+/// V6 (Lalith 2026-05-10 — Lot E TODO 3) — état de planification d'une
+/// activité par rapport à l'itinéraire courant. Persisté en DB via la
+/// colonne `trip_activities.planning_status` (cf. migration SQL).
+///
+/// `planned` est le défaut implicite pour les anciennes lignes (avant
+/// la migration) — `_parsePlanningStatus` retombe dessus pour toute
+/// valeur inconnue.
+enum PlanningStatus {
+  /// Activité valide dans l'itinéraire courant.
+  planned,
+
+  /// Générée par Lunao puis l'itinéraire a muté → masquée du planning
+  /// principal mais conservée pour permettre une restauration.
+  stale,
+
+  /// Activité utilisateur dont la date est sortie des segments
+  /// (cf. Lot E TODO 1). Pas encore persisté côté DB — calculé à
+  /// la volée par `findOrphanedActivities`.
+  toReposition,
+
+  /// Activité importée d'un doc dont la ville n'est plus dans
+  /// l'itinéraire (cf. Lot E TODO 2). Pas encore persisté.
+  conflict,
+}
+
+PlanningStatus _parsePlanningStatus(dynamic raw) {
+  if (raw is! String) return PlanningStatus.planned;
+  switch (raw) {
+    case 'stale':
+      return PlanningStatus.stale;
+    case 'to_reposition':
+      return PlanningStatus.toReposition;
+    case 'conflict':
+      return PlanningStatus.conflict;
+    case 'planned':
+    default:
+      return PlanningStatus.planned;
+  }
+}
+
+String _planningStatusToColumn(PlanningStatus s) {
+  switch (s) {
+    case PlanningStatus.planned:
+      return 'planned';
+    case PlanningStatus.stale:
+      return 'stale';
+    case PlanningStatus.toReposition:
+      return 'to_reposition';
+    case PlanningStatus.conflict:
+      return 'conflict';
+  }
+}
+
 class TripActivity {
   final String id;
   final String tripId;
@@ -41,6 +94,11 @@ class TripActivity {
   final int? priceLevel;
   final List<String> photoUrls;
 
+  /// V6 (Lalith 2026-05-10 — Lot E TODO 3) — état de planification :
+  /// `planned` par défaut, `stale` quand l'itinéraire a muté et que
+  /// l'activité générée n'est plus auto-validée.
+  final PlanningStatus planningStatus;
+
   const TripActivity({
     required this.id,
     required this.tripId,
@@ -61,14 +119,21 @@ class TripActivity {
     this.ratingsCount,
     this.priceLevel,
     this.photoUrls = const [],
+    this.planningStatus = PlanningStatus.planned,
   });
 
   bool get hasCoordinates => latitude != null && longitude != null;
   bool get isLogistic => kind == ActivityKind.logistic;
+  bool get isStale => planningStatus == PlanningStatus.stale;
 
   /// Sérialisation de la `kind` vers la colonne SQL `activity_kind`. À utiliser
   /// dans tout INSERT/UPDATE qui touche `trip_activities` pour rester cohérent.
   static String kindColumnValue(ActivityKind k) => _kindToColumn(k);
+
+  /// Sérialisation de `planningStatus` vers la colonne SQL
+  /// `planning_status` (V6 Lot E TODO 3).
+  static String planningStatusColumnValue(PlanningStatus s) =>
+      _planningStatusToColumn(s);
 
   factory TripActivity.fromJson(Map<String, dynamic> json) => TripActivity(
     id: json['id'] as String,
@@ -90,5 +155,6 @@ class TripActivity {
     ratingsCount: (json['ratings_count'] as num?)?.toInt(),
     priceLevel: (json['price_level'] as num?)?.toInt(),
     photoUrls: (json['photo_urls'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+    planningStatus: _parsePlanningStatus(json['planning_status']),
   );
 }

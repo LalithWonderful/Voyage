@@ -366,19 +366,25 @@ class Trip {
   /// Calcul : on parcourt les segments dans l'ordre, on accumule les jours, et on
   /// retourne la ville du segment qui couvre le jour. Sinon → fallback `destination`
   /// (utile pour les jours résiduels après la dernière étape).
-  String cityForDay(DateTime day) {
+  String cityForDay(DateTime day) => segmentForDay(day)?.city ?? destination;
+
+  /// V6.3 (Lalith bug fix 2026-05-10) — retourne le segment couvrant
+  /// la date donnée (ou null si hors plage). Utile pour les
+  /// consommateurs qui ont besoin de plus que la ville (country pour
+  /// désambiguer le geocoder, sourceAnchorCity pour gateway-aware…).
+  TripSegment? segmentForDay(DateTime day) {
     final d = DateTime(day.year, day.month, day.day);
     final s = DateTime(startDate.year, startDate.month, startDate.day);
-    if (d.isBefore(s)) return destination;
+    if (d.isBefore(s)) return null;
     final dayOffset = d.difference(s).inDays;
     var cumulative = 0;
     for (final seg in itinerarySegments) {
       if (dayOffset >= cumulative && dayOffset < cumulative + seg.days) {
-        return seg.city;
+        return seg;
       }
       cumulative += seg.days;
     }
-    return destination;
+    return null;
   }
 
   int get durationDays => endDate.difference(startDate).inDays + 1;

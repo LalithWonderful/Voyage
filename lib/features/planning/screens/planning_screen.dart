@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:math' as math;
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 import 'package:voyage/core/services/location_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,6 +23,7 @@ import 'package:voyage/features/planning/widgets/activity_create_sheet.dart';
 import 'package:voyage/features/planning/widgets/activity_detail_sheet.dart';
 import 'package:voyage/features/planning/widgets/activity_edit_sheet.dart';
 import 'package:voyage/features/planning/widgets/suggestion_detail_sheet.dart';
+import 'package:voyage/features/planning/services/activity_staleness_service.dart';
 import 'package:voyage/features/planning/services/ai_suggestions_service.dart';
 import 'package:voyage/features/planning/services/document_to_activity.dart';
 import 'package:voyage/features/planning/services/places_first_pipeline.dart';
@@ -869,6 +871,11 @@ class PlanningScreen extends ConsumerWidget {
           // l'itinéraire (ex : trip raccourci, segments réordonnés).
           // Caché si rien à signaler.
           _OrphanedActivitiesBanner(tripId: tripId),
+          // V6 (Lalith 2026-05-10 — Lot E TODO 3) — bandeau qui liste
+          // les activités GÉNÉRÉES par Lunao mais marquées obsolètes
+          // suite à une mutation structurelle de l'itinéraire. Caché
+          // si rien à signaler.
+          _StaleActivitiesBanner(tripId: tripId),
           Expanded(
             child: RefreshIndicator(
               onRefresh: () async {
@@ -1159,6 +1166,175 @@ class _OrphanedActivityPill extends StatelessWidget {
   }
 }
 
+/// V6 (Lalith 2026-05-10 — Lot E TODO 3) — bandeau qui liste les
+/// activités GÉNÉRÉES par Lunao puis marquées obsolètes après une
+/// mutation structurelle de l'itinéraire. L'utilisateur peut les
+/// restaurer individuellement ou tout supprimer pour repartir d'un
+/// planning propre. Caché tant que rien n'est obsolète.
+///
+/// Visuellement gris/discret (vs orange du `_OrphanedActivitiesBanner`)
+/// pour signaler une « zone d'archives » plutôt qu'une action
+/// urgente — l'utilisateur peut juste régénérer le planning.
+class _StaleActivitiesBanner extends ConsumerWidget {
+  final String tripId;
+  const _StaleActivitiesBanner({required this.tripId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final asyncStale = ref.watch(staleActivitiesProvider(tripId));
+    final stale = asyncStale.valueOrNull ?? const <TripActivity>[];
+    if (stale.isEmpty) return const SizedBox.shrink();
+    final n = stale.length;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: AppColors.border,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.history,
+                  size: 14, color: AppColors.textSecondary),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'ACTIVITÉS OBSOLÈTES ($n)',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textSecondary,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  final client = ref.read(supabaseProvider);
+                  final count = await deleteStaleActivitiesForTrip(
+                    client,
+                    tripId,
+                  );
+                  ref.invalidate(tripActivitiesProvider(tripId));
+                  ref.invalidate(staleActivitiesProvider(tripId));
+                  if (count > 0) {
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          '$count activité${count > 1 ? "s" : ""} '
+                          'obsolète${count > 1 ? "s" : ""} '
+                          '${count > 1 ? "supprimées" : "supprimée"}.',
+                        ),
+                      ),
+                    );
+                  }
+                },
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  'Tout supprimer',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Ces activités étaient générées avant ta dernière modif '
+            'd\'itinéraire. Restaure celles que tu veux garder, ou '
+            'supprime-les toutes pour repartir propre.',
+            style: TextStyle(
+              fontSize: 11.5,
+              color: AppColors.textSecondary,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final a in stale)
+                _StaleActivityPill(
+                  activity: a,
+                  onRestore: () async {
+                    final client = ref.read(supabaseProvider);
+                    await restoreStaleActivity(client, a.id);
+                    ref.invalidate(tripActivitiesProvider(tripId));
+                    ref.invalidate(staleActivitiesProvider(tripId));
+                  },
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StaleActivityPill extends StatelessWidget {
+  final TripActivity activity;
+  final VoidCallback onRestore;
+  const _StaleActivityPill({
+    required this.activity,
+    required this.onRestore,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final d = activity.dayDate;
+    final dateLabel =
+        '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}';
+    return Material(
+      color: AppColors.background,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onRestore,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(10, 5, 6, 5),
+          decoration: BoxDecoration(
+            border: Border.all(color: AppColors.border),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '${activity.title} · $dateLabel',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Icon(
+                Icons.refresh,
+                size: 12,
+                color: AppColors.primary,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _EmptyPlanning extends StatelessWidget {
   final VoidCallback? onSuggest;
   final VoidCallback? onAddManual;
@@ -1325,9 +1501,18 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
       // Hôtel actif pour ce jour précis (ou null si aucun ne couvre ce jour).
       // V2 (2026-05-08) : itineraryCity passé pour désambiguer les
       // overlaps long-stay vs hôtel local via Option D.
+      final segmentCity = trip.cityForDay(day);
       final dayHotel =
-          hotelForDay(hotels, day, itineraryCity: trip.cityForDay(day));
+          hotelForDay(hotels, day, itineraryCity: segmentCity);
       if (dayHotel == null) continue;
+      // V6 (Lalith bug fix 2026-05-10) — même logique que
+      // `day_center_service.centerForDay` : si la ville de l'hôtel ne
+      // matche pas le segment du jour (cas typique : base longue
+      // durée Bangna + side trip Rayong), on N'INSÈRE PAS de
+      // « Retour à hôtel » : le voyageur dort ailleurs ce jour-là.
+      if (segmentCity.isNotEmpty && !hotelMatchesCity(dayHotel, segmentCity)) {
+        continue;
+      }
       DateTime? tryParseDate(dynamic v) => v is String ? DateTime.tryParse(v) : null;
       final ci = tryParseDate(dayHotel.metadata['check_in']);
       final co = tryParseDate(dayHotel.metadata['check_out']);
@@ -1544,7 +1729,37 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
       // slot quand 2 intérêts ciblent le même créneau (ex: Randonnée 14h +
       // Nature 14h). On décale les suivants de 30 min, sinon on les drop si
       // ça déborde minuit.
+      //
+      // V6.2 (Lalith bug fix 2026-05-10) — pré-load les slots EXISTANTS
+      // en DB dans `taken` avant la boucle. Sans ça, un 2ᵉ « Suggérer »
+      // après une session précédente collidait avec les activités déjà
+      // sauvegardées : duplicate key 23505 sur insert (cas observé sur
+      // un voyage Thaïlande 142 activités).
       final taken = <String>{};
+      try {
+        final existing = await client
+            .from('trip_activities')
+            .select('day_date, start_time')
+            .eq('trip_id', widget.tripId);
+        for (final row in (existing as List)) {
+          final m = row as Map;
+          final day = m['day_date'] as String?;
+          final time = m['start_time'] as String?;
+          if (day == null || time == null) continue;
+          taken.add('$day|$time');
+        }
+        developer.log(
+          'Dédup pré-load : ${taken.length} slot(s) existant(s) en DB',
+          name: 'planning',
+        );
+      } catch (e) {
+        // Best-effort : si le pré-load échoue, on continue sans (au pire
+        // on aura des conflits 23505 en cascade comme avant le fix).
+        developer.log(
+          'Dédup pré-load échoué : $e — continuation sans pré-load',
+          name: 'planning',
+        );
+      }
       final rows = <Map<String, dynamic>>[];
       for (final row in rawRows) {
         final day = row['day_date'] as String;
@@ -1579,9 +1794,72 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
         taken.add(key);
         rows.add(row);
       }
-      developer.log('Insertion de ${rows.length} activité(s) dans trip_activities (depuis ${rawRows.length} suggestions)', name: 'planning');
-      final inserted = await client.from('trip_activities').insert(rows).select();
-      developer.log('Résultat insert : ${(inserted as List).length} ligne(s) retournée(s)', name: 'planning');
+      developer.log(
+        'Insertion de ${rows.length} activité(s) dans trip_activities '
+        '(depuis ${rawRows.length} suggestions, taken=${taken.length} '
+        'slots dédupliqués/préchargés)',
+        name: 'planning',
+      );
+      // V6.2 (debug 2026-05-10) — log détaillé en cas de 23505. On
+      // attrape PostgrestException pour identifier la collision exacte
+      // (couple day_date + start_time) et logguer un échantillon des
+      // rows à insérer pour diagnostic. On rejette ensuite l'erreur
+      // pour que la snackbar reste affichée.
+      final List<dynamic> inserted;
+      try {
+        inserted = await client
+            .from('trip_activities')
+            .insert(rows)
+            .select() as List<dynamic>;
+      } on PostgrestException catch (e) {
+        developer.log(
+          'PostgrestException sur insert trip_activities : '
+          'code=${e.code} message=${e.message} details=${e.details} '
+          'hint=${e.hint}',
+          name: 'planning',
+        );
+        if (e.code == '23505') {
+          // Diagnostic complémentaire : re-charge les slots existants
+          // pour comparer avec ce qu'on tente d'insérer.
+          try {
+            final reload = await client
+                .from('trip_activities')
+                .select('day_date, start_time, title')
+                .eq('trip_id', widget.tripId);
+            final existingKeys = <String, String>{};
+            for (final r in reload as List) {
+              final m = r as Map;
+              final d = m['day_date'] as String?;
+              final t = m['start_time'] as String?;
+              if (d != null && t != null) {
+                existingKeys['$d|$t'] = (m['title'] as String?) ?? '?';
+              }
+            }
+            final collisions = <String>[];
+            for (final r in rows) {
+              final k = '${r['day_date']}|${r['start_time']}';
+              if (existingKeys.containsKey(k)) {
+                collisions.add(
+                    '$k : DB="${existingKeys[k]}" vs nouveau="${r['title']}"');
+              }
+            }
+            developer.log(
+              '23505 diagnostic : ${existingKeys.length} slot(s) en DB, '
+              '${collisions.length} collision(s) avec le batch :\n'
+              '${collisions.take(10).join("\n")}'
+              '${collisions.length > 10 ? "\n  ... +${collisions.length - 10}" : ""}',
+              name: 'planning',
+            );
+          } catch (diagErr) {
+            developer.log(
+              '23505 diagnostic échoué : $diagErr',
+              name: 'planning',
+            );
+          }
+        }
+        rethrow;
+      }
+      developer.log('Résultat insert : ${inserted.length} ligne(s) retournée(s)', name: 'planning');
       if (inserted.isEmpty) {
         throw Exception('Aucune activité insérée (vérifie les policies RLS sur trip_activities).');
       }
