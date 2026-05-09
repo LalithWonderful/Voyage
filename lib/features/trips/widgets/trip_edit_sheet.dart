@@ -821,22 +821,6 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
   /// Ouvre un dialog d'édition pour une étape (ajout ou modif).
   /// L'ordre des étapes est défini par leur position dans la liste — pas de tri auto
   /// (l'utilisateur peut réordonner via drag-and-drop).
-  /// V2 (Lalith 2026-05-09) — vrai si le voyage contient déjà ≥2 pays
-  /// distincts dans ses segments (basé sur `segment.country`, valeurs
-  /// non-nulles dédupliquées case-insensible). Exemple : voyage
-  /// Thaïlande + Vietnam après ajout d'un segment Vietnam → multi-country.
-  /// Sert à débrayer la restriction d'autocomplete ville pour l'ajout
-  /// manuel : Bangkok est un hub régional, l'utilisateur doit pouvoir
-  /// ajouter Vientiane / Tokyo / Singapour sans contrainte de pays.
-  bool get _isMultiCountrySegments {
-    final countries = <String>{};
-    for (final s in _segments) {
-      final c = s.country?.trim().toLowerCase();
-      if (c != null && c.isNotEmpty) countries.add(c);
-    }
-    return countries.length >= 2;
-  }
-
   Future<void> _openSegmentEditor({TripSegment? existing, int? index}) async {
     // Si on édite l'unique étape OU si on ajoute la 1ère étape (liste vide),
     // alors après save la liste comptera 1 étape → la règle "1 étape =
@@ -846,17 +830,17 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
     final willBeOnlySegment =
         (existing != null && _segments.length == 1) ||
         (existing == null && _segments.isEmpty);
-    // V2 (Lalith 2026-05-09) — restriction par pays UNIQUEMENT si le
-    // voyage est mono-pays. Pour un voyage multi-pays (ex: Thaïlande +
-    // Vietnam), la recherche est mondiale : Bangkok est un hub régional,
-    // l'utilisateur peut ajouter Vientiane, Tokyo, Singapour, etc.
-    final restrictCountry =
-        _isMultiCountrySegments ? null : _destinationCountryCode;
+    // V2 (Lalith 2026-05-10) — recherche mondiale par défaut, peu
+    // importe que le voyage soit mono-pays ou multi-pays. Le spec
+    // produit (Lalith 2026-05-09 §2) dit que l'utilisateur doit pouvoir
+    // ajouter une étape hors-pays même sur un voyage mono-pays. La
+    // priorisation des villes du pays principal pourra être un futur
+    // raffinement (= biais d'autocomplete sans filtre dur).
     final result = await showDialog<_SegmentEditResult?>(
       context: context,
       builder: (ctx) => _SegmentEditorDialog(
         existing: existing,
-        restrictToCountryCode: restrictCountry,
+        restrictToCountryCode: null,
         lockedToTripDays: willBeOnlySegment,
         tripDays: _tripDays,
         tripStartDate: widget.trip.startDate,
