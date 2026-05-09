@@ -917,6 +917,7 @@ Champs de "metadata" selon "category" (tous optionnels, mets les strings vides o
 - ticket :
   "venue" (lieu)
   "address"
+  "city" (ville où l'activité a lieu — Tokyo, Bangkok, Paris… IMPORTANT : extrais la ville même si pas dans `address` mais déductible du `venue` ou du contexte. Sert à détecter les billets dont la destination n'est plus dans l'itinéraire.)
   "date"
   "time"
   "seat"

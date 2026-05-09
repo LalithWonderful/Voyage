@@ -57,6 +57,13 @@ enum ConflictType {
   /// Ex : « Ton vol arrive à Phú Quốc le 03/07, mais aucune étape
   /// Phú Quốc n'est prévue dans ton itinéraire. »
   missingSegmentForTransport,
+
+  /// V6 (Lot E TODO 2 — 2026-05-10) — un ticket / billet d'activité
+  /// référence une ville à une date pour laquelle l'itinéraire n'a
+  /// AUCUN segment couvrant. Cas typique : « Tokyo Tower 20/07 »
+  /// alors que l'utilisateur a supprimé l'étape Tokyo et reste à
+  /// Bangkok ce jour-là. Le ticket est conservé mais flaggé.
+  activityWithoutSegment,
 }
 
 /// Description structurée d'un conflit détecté. La phase UI (Phase C)
@@ -105,6 +112,11 @@ List<DocumentConflict> detectDocumentConflicts({
     );
     conflicts.addAll(_detectSegmentArrivalMismatch(analysis));
     conflicts.addAll(_detectMissingSegmentForTransport(
+      docs: docs,
+      segments: segments,
+      tripStartDate: tripStartDate,
+    ));
+    conflicts.addAll(_detectActivityWithoutSegment(
       docs: docs,
       segments: segments,
       tripStartDate: tripStartDate,
@@ -414,6 +426,88 @@ List<DocumentConflict> _detectMissingSegmentForTransport({
         ));
       }
     }
+  }
+  return out;
+}
+
+// ─── 5. Activité orpheline (segment ville+date manquant) ─────────────
+
+/// Pour chaque billet/activité dated qui référence une ville, vérifie
+/// qu'un segment couvre la combinaison `(city, date)`. Sinon →
+/// conflict. Cas typique : l'utilisateur a supprimé l'étape Tokyo
+/// mais a gardé le billet « Tokyo Tower 20/07 ». L'activité reste
+/// dans le wallet mais l'utilisateur doit savoir qu'elle est
+/// désormais incohérente avec l'itinéraire.
+///
+/// V6.1 — couverture gateway-aware (cf. Lot B) : un billet « Da Nang »
+/// est aussi couvert par une étape window-linked dont
+/// `sourceAnchorCity == Da Nang` qui couvre la date.
+///
+/// Filtres :
+///  - on ne traite que les docs ticket/other avec `metadata['city']`
+///    renseigné. Les docs hotel sont gérés par `_detectHotelDuringAbsence`,
+///    les transports par `_detectMissingSegmentForTransport`.
+///  - les billets sans `city` (legacy / non extrait par Gemini) sont
+///    silencieusement ignorés pour éviter les faux positifs.
+List<DocumentConflict> _detectActivityWithoutSegment({
+  required List<TripDocument> docs,
+  required List<TripSegment> segments,
+  required DateTime tripStartDate,
+}) {
+  final out = <DocumentConflict>[];
+  if (segments.isEmpty) return out;
+
+  // Plage couverte par chaque segment + alias gateway via sourceAnchorCity.
+  final ranges = <({String cityNorm, String? anchorNorm,
+      DateTime start, DateTime end})>[];
+  var offset = 0;
+  for (final s in segments) {
+    final start = _dateOnly(tripStartDate.add(Duration(days: offset)));
+    final end =
+        _dateOnly(tripStartDate.add(Duration(days: offset + s.days)));
+    ranges.add((
+      cityNorm: _normalizeCity(s.city),
+      anchorNorm: (s.sourceAnchorCity?.trim().isNotEmpty ?? false)
+          ? _normalizeCity(s.sourceAnchorCity!)
+          : null,
+      start: start,
+      end: end,
+    ));
+    offset += s.days;
+  }
+
+  bool isCovered(String cityNorm, DateTime day) {
+    final d = _dateOnly(day);
+    for (final r in ranges) {
+      // Inclusif sur start, exclusif sur end (= jour de départ
+      // n'appartient plus au segment).
+      if (d.isBefore(r.start) || !d.isBefore(r.end)) continue;
+      if (r.cityNorm == cityNorm) return true;
+      if (r.anchorNorm == cityNorm) return true;
+    }
+    return false;
+  }
+
+  for (final d in docs) {
+    if (d.category != DocumentCategory.ticket &&
+        d.category != DocumentCategory.other) {
+      continue;
+    }
+    final m = d.metadata;
+    final city = (m['city'] as String?)?.trim();
+    final dateStr = m['date'];
+    if (city == null || city.isEmpty) continue;
+    final date = _parseDate(dateStr);
+    if (date == null) continue;
+    if (isCovered(_normalizeCity(city), date)) continue;
+    out.add(DocumentConflict(
+      type: ConflictType.activityWithoutSegment,
+      message:
+          'Ton billet « ${d.name} » est prévu à $city le '
+          '${_fmtDate(date)}, mais aucune étape $city ne couvre cette '
+          'date. Vérifie ton itinéraire ou cette réservation.',
+      docIds: [d.id],
+    ));
   }
   return out;
 }

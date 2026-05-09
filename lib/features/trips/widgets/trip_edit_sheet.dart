@@ -2358,6 +2358,8 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
           'Documents liés à cette étape',
       ConflictType.missingSegmentForTransport =>
           'Document sans étape correspondante',
+      ConflictType.activityWithoutSegment =>
+          'Activité sans étape correspondante',
     };
     await showModalBottomSheet<void>(
       context: context,
@@ -4635,6 +4637,8 @@ class _ConflictRow extends StatelessWidget {
         ConflictType.segmentArrivalMismatch => Icons.event_busy,
         ConflictType.missingSegmentForTransport =>
             Icons.location_off_outlined,
+        ConflictType.activityWithoutSegment =>
+            Icons.confirmation_number_outlined,
       };
 
   @override

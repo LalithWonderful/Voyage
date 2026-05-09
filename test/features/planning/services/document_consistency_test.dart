@@ -65,6 +65,27 @@ TripDocument _hotel({
       createdAt: DateTime(2026, 1, 1),
     );
 
+TripDocument _ticket({
+  required String id,
+  required String name,
+  required String date,
+  String? city,
+  String? venue,
+}) =>
+    TripDocument(
+      id: id,
+      userId: 'u',
+      tripId: 't',
+      category: DocumentCategory.ticket,
+      name: name,
+      metadata: {
+        'date': date,
+        'city': ?city,
+        'venue': ?venue,
+      },
+      createdAt: DateTime(2026, 1, 1),
+    );
+
 void main() {
   group('detectDocumentConflicts — overlappingTransports', () {
     test('2 vols même jour → conflit', () {
@@ -771,6 +792,162 @@ void main() {
                 c.type == ConflictType.missingSegmentForTransport)
             .toList(),
         isEmpty,
+      );
+    });
+  });
+
+  group('detectDocumentConflicts — activityWithoutSegment (Lot E TODO 2)',
+      () {
+    test('billet Tokyo Tower 20/07 mais aucune étape Tokyo → conflit', () {
+      // Cas typique : utilisateur a supprimé l'étape Tokyo mais le
+      // billet GetYourGuide reste dans le wallet.
+      final docs = [
+        _ticket(
+          id: 'tok',
+          name: 'Tokyo Tower Skyline',
+          date: '2026-07-20',
+          city: 'Tokyo',
+        ),
+      ];
+      final segments = [
+        _seg('Bangkok', 30),
+      ];
+      final conflicts = detectDocumentConflicts(
+        docs: docs,
+        segments: segments,
+        tripStartDate: _d(2026, 7, 1),
+      );
+      final missing = conflicts
+          .where((c) =>
+              c.type == ConflictType.activityWithoutSegment)
+          .toList();
+      expect(missing.length, 1);
+      expect(missing.first.docIds, contains('tok'));
+      expect(missing.first.message, contains('Tokyo'));
+      expect(missing.first.message, contains('20/07/2026'));
+    });
+
+    test('billet Bangkok 25/06 ET segment Bangkok couvre 25/06 → '
+        'aucun conflit', () {
+      final docs = [
+        _ticket(
+          id: 'wat',
+          name: 'Wat Pho',
+          date: '2026-06-25',
+          city: 'Bangkok',
+        ),
+      ];
+      final segments = [_seg('Bangkok', 11)];
+      final conflicts = detectDocumentConflicts(
+        docs: docs,
+        segments: segments,
+        tripStartDate: _d(2026, 6, 22),
+      );
+      expect(
+        conflicts
+            .where((c) => c.type == ConflictType.activityWithoutSegment)
+            .toList(),
+        isEmpty,
+      );
+    });
+
+    test('billet Da Nang couvert par Hội An linked-to-Da Nang → '
+        'aucun conflit (gateway-aware)', () {
+      final docs = [
+        _ticket(
+          id: 'br',
+          name: 'My Khe Beach',
+          date: '2026-07-13',
+          city: 'Da Nang',
+        ),
+      ];
+      final segments = [
+        _seg('Hội An', 3, sourceAnchorCity: 'Da Nang'),
+      ];
+      final conflicts = detectDocumentConflicts(
+        docs: docs,
+        segments: segments,
+        tripStartDate: _d(2026, 7, 12),
+      );
+      expect(
+        conflicts
+            .where((c) => c.type == ConflictType.activityWithoutSegment)
+            .toList(),
+        isEmpty,
+      );
+    });
+
+    test('billet sans `city` (legacy / Gemini n\'a pas extrait) → '
+        'silencieusement ignoré, pas de faux positif', () {
+      final docs = [
+        _ticket(
+          id: 'old',
+          name: 'Spectacle Lyrique',
+          date: '2026-07-15',
+          // pas de city
+        ),
+      ];
+      final segments = [_seg('Bangkok', 30)];
+      final conflicts = detectDocumentConflicts(
+        docs: docs,
+        segments: segments,
+        tripStartDate: _d(2026, 7, 1),
+      );
+      expect(
+        conflicts
+            .where((c) => c.type == ConflictType.activityWithoutSegment)
+            .toList(),
+        isEmpty,
+      );
+    });
+
+    test('billet ville OK mais date hors voyage → conflit '
+        '(le segment couvre la ville mais pas cette date)', () {
+      // Bangkok 22-30/06. Billet Bangkok 15/07 → date hors plage.
+      final docs = [
+        _ticket(
+          id: 'late',
+          name: 'Soirée Bangkok',
+          date: '2026-07-15',
+          city: 'Bangkok',
+        ),
+      ];
+      final segments = [_seg('Bangkok', 8)];
+      final conflicts = detectDocumentConflicts(
+        docs: docs,
+        segments: segments,
+        tripStartDate: _d(2026, 6, 22),
+      );
+      final missing = conflicts
+          .where((c) => c.type == ConflictType.activityWithoutSegment)
+          .toList();
+      expect(missing.length, 1);
+      expect(missing.first.message, contains('Bangkok'));
+    });
+
+    test('jour de fin (exclusive) → conflit (le segment ne couvre '
+        'plus ce jour, l\'utilisateur est parti)', () {
+      // Bangkok 22-27/06 = 5 jours, le 27/06 est le jour de DÉPART.
+      final docs = [
+        _ticket(
+          id: 'depart',
+          name: 'Brunch d\'adieu',
+          date: '2026-06-27',
+          city: 'Bangkok',
+        ),
+      ];
+      final segments = [_seg('Bangkok', 5)];
+      final conflicts = detectDocumentConflicts(
+        docs: docs,
+        segments: segments,
+        tripStartDate: _d(2026, 6, 22),
+      );
+      expect(
+        conflicts
+            .where((c) => c.type == ConflictType.activityWithoutSegment)
+            .toList()
+            .length,
+        1,
       );
     });
   });
