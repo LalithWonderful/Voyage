@@ -239,25 +239,51 @@ MutationResult computeMutation({
               '$currentTotal, suggéré = $addedDays, libres = $freeDays.',
         );
       }
-      // Lalith 2026-05-08 — règle produit : un APPEND étend le voyage
-      // et shifte tous les segments aval. Si un segment aval est ancré
-      // par un document daté (vol/train d'arrivée, hôtel, vol de départ),
-      // ce shift casserait la relation avec le doc → on refuse. L'user
-      // doit raccourcir manuellement ou choisir une suggestion SPLIT.
+      // V2 (Lalith 2026-05-09) — quand un segment aval est ancré par un
+      // doc daté, un APPEND traditionnel décalerait ce segment en aval
+      // → casserait la relation avec le doc. Au lieu de rejeter, on
+      // CONVERTIT l'APPEND en consume-from-anchor : la suggestion prend
+      // ses jours sur l'ancrage (Bangkok 11n + Ayutthaya 1n →
+      // Bangkok 10n + Ayutthaya 1n = 11 j inchangés). Aucune date aval
+      // ne bouge. Si l'ancrage n'a pas assez de jours pour absorber, on
+      // rejette avec `notEnoughDaysToSplit`.
+      bool downstreamPinned = false;
       if (pinnedAnalysis != null) {
         for (var i = anchorIdx + 1;
             i < pinnedAnalysis.segments.length;
             i++) {
-          final seg = pinnedAnalysis.segments[i];
-          if (_isSegmentDateAnchored(seg)) {
-            return MutationFailed(
-              MutationFailureReason.wouldShiftPinnedDownstream,
-              detail: 'Ajouter ${suggestion.displayName} (+$addedDays j) '
-                  'décalerait "${seg.city}" qui est ancré par un document '
-                  'daté.',
-            );
+          if (_isSegmentDateAnchored(pinnedAnalysis.segments[i])) {
+            downstreamPinned = true;
+            break;
           }
         }
+      }
+      if (downstreamPinned) {
+        final reduced = anchor.days - addedDays;
+        if (reduced < 1) {
+          return MutationFailed(
+            MutationFailureReason.notEnoughDaysToSplit,
+            detail:
+                'Pas assez de jours dans "${anchor.city}" pour absorber '
+                '${suggestion.displayName} ($addedDays j) sans décaler '
+                'les étapes pinnées en aval.',
+          );
+        }
+        // Mutation hybride : mode reste APPEND/dayTrip pour l'UX, mais
+        // `newAnchorDays` + `insertionPreDays` activent la 3-way split
+        // path de `applyMutation` → [anchor pre, inserted, no post].
+        // Aucun shift aval, durée totale du voyage préservée.
+        return MutationOk(ItineraryMutation(
+          anchorIndex: anchorIdx,
+          anchorCity: anchor.city,
+          mode: suggestion.insertionMode,
+          insertedSegments:
+              _materialize(suggestion, sourceAnchorCity: anchor.city),
+          newAnchorDays: reduced,
+          insertionPreDays: reduced, // place inserted en fin de bloc
+          requiresInsertionDate: requiresDate,
+          anchorOccurrence: anchorOccurrence,
+        ));
       }
       return MutationOk(ItineraryMutation(
         anchorIndex: anchorIdx,
@@ -265,7 +291,7 @@ MutationResult computeMutation({
         mode: suggestion.insertionMode,
         insertedSegments:
             _materialize(suggestion, sourceAnchorCity: anchor.city),
-        newAnchorDays: null, // anchor inchangé
+        newAnchorDays: null, // anchor inchangé (= APPEND classique)
         requiresInsertionDate: requiresDate,
         anchorOccurrence: anchorOccurrence,
       ));

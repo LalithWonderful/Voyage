@@ -23,7 +23,22 @@ class HotelStay {
   /// sur les hôtels : `[checkIn, checkOutExclusive)` couvre les nuits.
   final DateTime checkOutExclusive;
 
-  const HotelStay({required this.checkIn, required this.checkOutExclusive});
+  /// V2 (Lalith 2026-05-09) — true si cet hôtel couvre des nuits où le
+  /// segment de l'itinéraire place le voyageur dans une AUTRE ville.
+  /// Indicateur de "base accommodation" (appart Bangkok longue durée
+  /// pendant un side-trip Phú Quốc). Ces hôtels ne bloquent pas les
+  /// insertions structurelles dans `validateInsertionDate` — l'utilisateur
+  /// accepte que sa base soit "vide" pendant les périodes hors-base.
+  ///
+  /// false par défaut = hôtel régulier qui colle au séjour, l'overlap
+  /// avec une insertion est un vrai conflit.
+  final bool isBase;
+
+  const HotelStay({
+    required this.checkIn,
+    required this.checkOutExclusive,
+    this.isBase = false,
+  });
 }
 
 class SegmentPinnedDates {
@@ -156,7 +171,12 @@ PinnedDatesAnalysis analyzePinnedDates({
       city: s.city,
       date: endExcl,
     );
-    final hotels = _hotelStaysAtCity(docs: docs, city: s.city);
+    final hotels = _hotelStaysAtCity(
+      docs: docs,
+      city: s.city,
+      segments: segments,
+      tripStartDate: tripStartDate,
+    );
 
     result.add(SegmentPinnedDates(
       segmentIndex: i,
@@ -347,6 +367,13 @@ String? validateInsertionDate({
   }
 
   for (final stay in anchor.hotelRanges) {
+    // V2 (Lalith 2026-05-09) — les bases longue durée (appart Bangkok
+    // pendant un side-trip Phú Quốc) ne bloquent PAS les insertions
+    // structurelles. L'utilisateur a accepté que sa base soit "vide"
+    // pendant les périodes hors-base — l'insertion est précisément ce
+    // qui formalise cet aller-retour. Les hôtels réguliers (= ceux qui
+    // collent au séjour de la ville) bloquent toujours.
+    if (stay.isBase) continue;
     if (_rangesOverlap(
       insertStart, insertEndExcl,
       _dateOnly(stay.checkIn), _dateOnly(stay.checkOutExclusive),
@@ -419,6 +446,8 @@ DateTime? _earliestIncomingArrivalAt({
 List<HotelStay> _hotelStaysAtCity({
   required List<TripDocument> docs,
   required String city,
+  required List<TripSegment> segments,
+  required DateTime tripStartDate,
 }) {
   final out = <HotelStay>[];
   for (final d in docs) {
@@ -427,9 +456,60 @@ List<HotelStay> _hotelStaysAtCity({
     final ci = _parseDate(d.metadata['check_in']);
     final co = _parseDate(d.metadata['check_out']);
     if (ci == null || co == null) continue;
-    out.add(HotelStay(checkIn: ci, checkOutExclusive: co));
+    final isBase = _hotelHasPhantomNights(
+      checkIn: ci,
+      checkOutExclusive: co,
+      hotelCity: city,
+      segments: segments,
+      tripStartDate: tripStartDate,
+    );
+    out.add(HotelStay(
+      checkIn: ci,
+      checkOutExclusive: co,
+      isBase: isBase,
+    ));
   }
   return out;
+}
+
+/// V2 (Lalith 2026-05-09) — true si l'hôtel à `hotelCity` couvre au
+/// moins une nuit où l'itinéraire (segments cumulés depuis
+/// `tripStartDate`) place le voyageur dans une AUTRE ville. Permet de
+/// distinguer un hôtel régulier (colle aux nuits du segment ville)
+/// d'une "base accommodation" (appart longue durée que le voyageur
+/// quitte pour des side-trips).
+bool _hotelHasPhantomNights({
+  required DateTime checkIn,
+  required DateTime checkOutExclusive,
+  required String hotelCity,
+  required List<TripSegment> segments,
+  required DateTime tripStartDate,
+}) {
+  if (segments.isEmpty) return false;
+  final hotelCityNorm = _normalize(hotelCity);
+  final ci = _dateOnly(checkIn);
+  final co = _dateOnly(checkOutExclusive);
+  // Construit la liste des plages (segCity, [start, endExcl)) cumulées.
+  final ranges = <({String city, DateTime start, DateTime endExcl})>[];
+  var cursor = _dateOnly(tripStartDate);
+  for (final s in segments) {
+    final endExcl = cursor.add(Duration(days: s.days));
+    ranges.add((city: s.city, start: cursor, endExcl: endExcl));
+    cursor = endExcl;
+  }
+  for (var n = ci; n.isBefore(co); n = n.add(const Duration(days: 1))) {
+    String? segCity;
+    for (final r in ranges) {
+      if (!n.isBefore(r.start) && n.isBefore(r.endExcl)) {
+        segCity = r.city;
+        break;
+      }
+    }
+    if (segCity != null && _normalize(segCity) != hotelCityNorm) {
+      return true; // phantom : l'utilisateur est ailleurs cette nuit
+    }
+  }
+  return false;
 }
 
 bool _hotelMatchesCity(TripDocument d, String city) {

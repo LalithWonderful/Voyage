@@ -1412,16 +1412,18 @@ void main() {
           insertionMode: InsertionMode.nearbyStay,
         );
 
-    test('APPEND avec vol pinné aval (Da Nang→BKK 15/07) → '
-        'wouldShiftPinnedDownstream', () {
-      // Cas E2E rapport Lalith 2026-05-08.
+    test('APPEND avec vol pinné aval (Da Nang→BKK 15/07) → consume from '
+        'anchor (Da Nang 3 - Hué 2 = 1)', () {
+      // Cas E2E rapport Lalith 2026-05-09 (rev) : la conversion en
+      // consume-from-anchor remplace le rejet wouldShiftPinnedDownstream
+      // initial. Da Nang a 3 jours, Hué prend 2 → Da Nang réduit à 1
+      // jour, total inchangé, vol Da Nang→Bangkok 15/07 préservé.
       final segments = [
         _seg('Hanoï', 4),
         _seg('Da Nang', 3),
         _seg('Bangkok', 22),
       ];
       final tripStart = DateTime(2026, 7, 8);
-      // Vol Da Nang→Bangkok pinne Bangkok.
       final docs = [
         TripDocument(
           id: 'f1',
@@ -1448,12 +1450,58 @@ void main() {
         tripDurationDays: 35,
         pinnedAnalysis: analysis,
       );
+      expect(result, isA<MutationOk>());
+      final m = (result as MutationOk).mutation;
+      // newAnchorDays set → la mutation est traitée en 3-way split par
+      // applyMutation (anchor pre = 1, inserted Hué, no post).
+      expect(m.newAnchorDays, 1);
+      expect(m.insertionPreDays, 1);
+      // mode reste nearbyStay pour l'UX (impact text inchangé).
+      expect(m.mode, InsertionMode.nearbyStay);
+    });
+
+    test('APPEND avec downstream pinné MAIS anchor trop court → '
+        'notEnoughDaysToSplit', () {
+      // Da Nang 1 jour seulement, Hué veut 2 jours → impossible
+      // d'absorber sans tomber à 0 jour anchor (interdit). Rejet
+      // explicite avec raison appropriée.
+      final segments = [
+        _seg('Hanoï', 4),
+        _seg('Da Nang', 1),
+        _seg('Bangkok', 22),
+      ];
+      final tripStart = DateTime(2026, 7, 8);
+      final docs = [
+        TripDocument(
+          id: 'f1',
+          userId: 'u',
+          tripId: 't',
+          category: DocumentCategory.flight,
+          name: 'Vol DAD→BKK',
+          metadata: const {
+            'from_city': 'Da Nang',
+            'to_city': 'Bangkok',
+            'date': '2026-07-13',
+          },
+          createdAt: DateTime(2026, 1, 1),
+        ),
+      ];
+      final analysis = analyzePinnedDates(
+        segments: segments,
+        tripStartDate: tripStart,
+        docs: docs,
+      );
+      final result = computeMutation(
+        suggestion: hueNearbyStay(),
+        currentSegments: segments,
+        tripDurationDays: 35,
+        pinnedAnalysis: analysis,
+      );
       expect(result, isA<MutationFailed>());
       expect(
         (result as MutationFailed).reason,
-        MutationFailureReason.wouldShiftPinnedDownstream,
+        MutationFailureReason.notEnoughDaysToSplit,
       );
-      expect(result.detail, contains('Bangkok'));
     });
 
     test('APPEND sans pinned aval → autorisé', () {
@@ -1512,7 +1560,10 @@ void main() {
       expect(result, isA<MutationOk>());
     });
 
-    test('APPEND avec hôtel aval pinné → wouldShiftPinnedDownstream', () {
+    test('APPEND avec hôtel aval pinné → consume from anchor (Da Nang '
+        '3 - Hué 2 = 1)', () {
+      // Hôtel Bangkok pinne Bangkok aval → APPEND Hué sur Da Nang
+      // déclenche le mode consume-from-anchor (= Da Nang réduit à 1).
       final segments = [
         _seg('Hanoï', 4),
         _seg('Da Nang', 3),
@@ -1545,11 +1596,82 @@ void main() {
         tripDurationDays: 35,
         pinnedAnalysis: analysis,
       );
-      expect(result, isA<MutationFailed>());
-      expect(
-        (result as MutationFailed).reason,
-        MutationFailureReason.wouldShiftPinnedDownstream,
+      expect(result, isA<MutationOk>());
+      final m = (result as MutationOk).mutation;
+      expect(m.newAnchorDays, 1);
+      expect(m.insertionPreDays, 1);
+    });
+
+    test('APPEND avec hôtel base longue durée → ignoré dans la résolution '
+        '(le hôtel base ne pinne pas le segment pour les insertions)', () {
+      // L'appart Bangkok 22/06→06/08 couvre Bangkok aller + side-trip
+      // PQC. Pour une insertion sur Bangkok aller, l'appart est isBase
+      // → ne bloque pas. Mais Bangkok retour reste pinné via
+      // hotelRanges base (le segment est ancré pour le drag-lock UI),
+      // mais validateInsertionDate skip les bases. Régression test :
+      // Ayutthaya 1n sur Bangkok aller (anchor 11) doit passer.
+      final segments = [
+        _seg('Bangkok', 11),
+        _seg('Phú Quốc', 5),
+        _seg('Bangkok', 22),
+      ];
+      final tripStart = DateTime(2026, 6, 22);
+      final docs = [
+        TripDocument(
+          id: 'base',
+          userId: 'u',
+          tripId: 't',
+          category: DocumentCategory.hotel,
+          name: 'Appart Bangkok',
+          metadata: const {
+            'address_city': 'Bangkok',
+            'check_in': '2026-06-22',
+            'check_out': '2026-08-06',
+          },
+          createdAt: DateTime(2026, 1, 1),
+        ),
+        TripDocument(
+          id: 'fout',
+          userId: 'u',
+          tripId: 't',
+          category: DocumentCategory.flight,
+          name: 'Vol BKK→PQC',
+          metadata: const {
+            'from_city': 'Bangkok',
+            'to_city': 'Phú Quốc',
+            'date': '2026-07-03',
+          },
+          createdAt: DateTime(2026, 1, 1),
+        ),
+      ];
+      final analysis = analyzePinnedDates(
+        segments: segments,
+        tripStartDate: tripStart,
+        docs: docs,
       );
+      // Vérification meta : l'appart Bangkok est bien classé base
+      // (couvre des nuits Phú Quốc → phantom).
+      final bkk1 = analysis.segments[0];
+      expect(bkk1.hotelRanges.first.isBase, isTrue);
+
+      // Ayutthaya 1n sur Bangkok aller — APPEND avec downstream pinné
+      // (PQC, Bangkok retour). Conversion consume-from-anchor :
+      // newAnchorDays = 11 - 1 = 10.
+      final result = computeMutation(
+        suggestion: const SubTripSuggestion(
+          anchorCity: 'Bangkok',
+          displayName: 'Ayutthaya',
+          segments: [SuggestedSegment(city: 'Ayutthaya', days: 1)],
+          insertionMode: InsertionMode.dayTrip,
+        ),
+        currentSegments: segments,
+        tripDurationDays: 46,
+        pinnedAnalysis: analysis,
+      );
+      expect(result, isA<MutationOk>());
+      final m = (result as MutationOk).mutation;
+      expect(m.newAnchorDays, 10);
+      expect(m.insertionPreDays, 10);
     });
 
     test('Phase A — segments insérés portent sourceAnchorCity', () {
