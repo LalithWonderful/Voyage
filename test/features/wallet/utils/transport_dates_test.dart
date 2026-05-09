@@ -135,4 +135,73 @@ void main() {
       expect(out, _d(2026, 6, 21));
     });
   });
+
+  group('autoFillArrivalDate', () {
+    test('cas Gemini same-day VZ982 (Lalith 2026-05-09) : départ '
+        '03/07 14:35, arrivée 15:55 → arrival_date = 03/07', () {
+      // Reproduit exactement l'extraction Gemini rapportée :
+      // VZ982 Bangkok→Phú Quốc le 03/07/2026, départ 14:35, arrivée 15:55.
+      // Gemini fournit date+times mais oublie arrival_date.
+      final extracted = const {
+        'flight_number': 'VZ982',
+        'from': 'Bangkok Suvarnabhumi',
+        'to': 'Phú Quốc International Airport',
+        'date': '2026-07-03',
+        'departure_time': '14:35',
+        'arrival_time': '15:55',
+      };
+      final filled = autoFillArrivalDate(extracted);
+      expect(filled['arrival_date'], '2026-07-03');
+      // Les autres champs sont conservés (pure copy + add).
+      expect(filled['flight_number'], 'VZ982');
+      expect(filled['departure_time'], '14:35');
+    });
+
+    test('cas overnight Lux→BKK : départ 21/06 23:30, arrivée 12:15 → '
+        'arrival_date = 22/06 (J+1)', () {
+      final extracted = const {
+        'from': 'Luxembourg',
+        'to': 'Bangkok',
+        'date': '2026-06-21',
+        'departure_time': '23:30',
+        'arrival_time': '12:15',
+      };
+      final filled = autoFillArrivalDate(extracted);
+      expect(filled['arrival_date'], '2026-06-22');
+    });
+
+    test('arrival_date explicite déjà présent → préservé (priorité '
+        'absolue, pas de réécriture)', () {
+      final extracted = const {
+        'date': '2026-06-21',
+        'departure_time': '23:30',
+        'arrival_time': '12:15',
+        'arrival_date': '2026-06-25', // override volontaire (vol >24h)
+      };
+      final filled = autoFillArrivalDate(extracted);
+      expect(filled['arrival_date'], '2026-06-25');
+    });
+
+    test('pas assez de signal (date manquante) → metadata inchangée', () {
+      final extracted = const {
+        'departure_time': '14:35',
+        'arrival_time': '15:55',
+      };
+      final filled = autoFillArrivalDate(extracted);
+      expect(filled.containsKey('arrival_date'), isFalse);
+    });
+
+    test('pure : ne mute pas l\'entrée originale', () {
+      final extracted = <String, dynamic>{
+        'date': '2026-07-03',
+        'departure_time': '14:35',
+        'arrival_time': '15:55',
+      };
+      final beforeKeys = extracted.keys.toSet();
+      autoFillArrivalDate(extracted);
+      // Le map original ne doit pas avoir été modifié.
+      expect(extracted.keys.toSet(), beforeKeys);
+      expect(extracted.containsKey('arrival_date'), isFalse);
+    });
+  });
 }

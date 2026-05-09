@@ -64,6 +64,40 @@ DateTime? arrivalDateFromMetadata(Map<String, dynamic> metadata) {
   );
 }
 
+/// Auto-fill `arrival_date` dans une metadata transport quand l'extraction
+/// (Gemini, OCR, manuelle) a oublié ce champ mais a fourni `date` +
+/// `departure_time` + `arrival_time`. Pure : ne mute pas l'entrée,
+/// retourne une copie enrichie. Si `arrival_date` est déjà présent, la
+/// valeur est respectée (l'explicite gagne — règle V2.3).
+///
+/// Utilisé au save d'un doc Vol/Train (`document_form_sheet`) : garantit
+/// que `pinned_dates` et le timeline ne tombent pas en fallback ambigu.
+///
+/// Cas d'usage typique (Lalith 2026-05-09) : Gemini extrait
+/// ```
+/// { date: '2026-07-03', departure_time: '14:35', arrival_time: '15:55' }
+/// ```
+/// sans `arrival_date`. Cette fonction inflate la metadata avec
+/// `arrival_date: '2026-07-03'` (vol same-day, 15:55 > 14:35).
+Map<String, dynamic> autoFillArrivalDate(Map<String, dynamic> metadata) {
+  final hasExplicit = (metadata['arrival_date'] as String?)?.isNotEmpty
+      ?? false;
+  if (hasExplicit) return metadata;
+  final inferred = inferArrivalDate(
+    departureDate: _parseDate(metadata['date']),
+    departureTime: metadata['departure_time'] as String?,
+    arrivalTime: metadata['arrival_time'] as String?,
+  );
+  if (inferred == null) return metadata;
+  return {
+    ...metadata,
+    'arrival_date':
+        '${inferred.year.toString().padLeft(4, '0')}-'
+        '${inferred.month.toString().padLeft(2, '0')}-'
+        '${inferred.day.toString().padLeft(2, '0')}',
+  };
+}
+
 /// Retourne `true` si `a` < `b` au format HH:MM. Pour formats invalides,
 /// retourne `false` (on ne déclenche pas la règle J+1 sur des données
 /// douteuses, plutôt rester sur le même jour).

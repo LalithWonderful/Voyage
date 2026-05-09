@@ -532,22 +532,15 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
         }
       }
     }
-    // V2.3 transport — auto-fill arrival_date si vide (l'utilisateur peut
-    // l'avoir laissé blank pour les vols same-day). Règle : si
-    // arrival_time < departure_time → J+1, sinon = date de départ.
+    // V2.3 transport — auto-fill `arrival_date` via le helper pur
+    // `autoFillArrivalDate` partagé. Cas typique (Lalith 2026-05-09) :
+    // Gemini extrait departure_time + arrival_time mais oublie
+    // arrival_date — sans ce hook le doc est sauvegardé incomplet et
+    // le timeline tombe en fallback ambigu. Helper testé directement
+    // dans `transport_dates_test.dart` (intégration Gemini case).
     if (_category == DocumentCategory.flight ||
         _category == DocumentCategory.train) {
-      final hasExplicit = (m['arrival_date'] as String?)?.isNotEmpty ?? false;
-      if (!hasExplicit) {
-        final inferred = inferArrivalDate(
-          departureDate: _dates['date'],
-          departureTime: m['departure_time'] as String?,
-          arrivalTime: m['arrival_time'] as String?,
-        );
-        if (inferred != null) {
-          m['arrival_date'] = inferred.toIso8601String().split('T').first;
-        }
-      }
+      return autoFillArrivalDate(m);
     }
     return m;
   }
