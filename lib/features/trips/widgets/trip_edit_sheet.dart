@@ -20,6 +20,7 @@ import 'package:voyage/features/trips/widgets/regional_loop_sheet.dart';
 import 'package:voyage/features/trips/widgets/trip_step_card.dart';
 import 'package:voyage/features/wallet/models/document_model.dart';
 import 'package:voyage/features/wallet/providers/wallet_provider.dart';
+import 'package:voyage/features/wallet/utils/transport_dates.dart';
 import 'package:voyage/features/wallet/widgets/document_form_sheet.dart';
 
 const _coverEmojis = ['✈️', '🏝️', '🏔️', '🏙️', '🏞️', '🌴', '🛶', '🚐', '🎡', '🎿', '🗺️', '🌍'];
@@ -2047,8 +2048,8 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
               ),
               const SizedBox(height: 4),
               Text(
-                '${linked.length} documents verrouillent les dates de '
-                'cette étape. Tape pour modifier.',
+                'Ces documents fixent les dates de cette étape. Tape '
+                'pour modifier.',
                 style: TextStyle(
                   fontSize: 12,
                   color: AppColors.textSecondary,
@@ -2059,6 +2060,7 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
               for (final d in linked) ...[
                 _LinkedDocRow(
                   document: d,
+                  segmentCity: city,
                   onTap: () async {
                     Navigator.of(ctx).pop();
                     await openDocumentFormSheet(
@@ -3072,16 +3074,146 @@ class _ConflictsBannerState extends State<_ConflictsBanner> {
 }
 
 /// V2 Phase A (Lalith 2026-05-09) — ligne d'un doc dans la sheet
-/// "Documents liés à {city}". Affiche emoji catégorie + nom + sous-titre
-/// (route/dates), tappable pour ouvrir le doc en édition.
+/// "Documents liés à {city}". Affiche le RÔLE du doc relatif au segment
+/// (Arrivée / Départ / Hébergement) + icône adaptée + carrier/résa +
+/// route ville→ville + dates formatées. Tappable pour ouvrir le doc.
 class _LinkedDocRow extends StatelessWidget {
   final TripDocument document;
+  final String segmentCity;
   final VoidCallback onTap;
 
-  const _LinkedDocRow({required this.document, required this.onTap});
+  const _LinkedDocRow({
+    required this.document,
+    required this.segmentCity,
+    required this.onTap,
+  });
+
+  _LinkedDocRole get _role {
+    if (document.category == DocumentCategory.hotel) {
+      return _LinkedDocRole.hotel;
+    }
+    final segNorm = _normalizeCityName(segmentCity);
+    final toCity = (document.metadata['to_city'] as String?)?.trim() ?? '';
+    final fromCity = (document.metadata['from_city'] as String?)?.trim() ?? '';
+    if (toCity.isNotEmpty && _normalizeCityName(toCity) == segNorm) {
+      return _LinkedDocRole.arrival;
+    }
+    if (fromCity.isNotEmpty && _normalizeCityName(fromCity) == segNorm) {
+      return _LinkedDocRole.departure;
+    }
+    return _LinkedDocRole.unknown;
+  }
+
+  IconData get _icon {
+    final cat = document.category;
+    switch (_role) {
+      case _LinkedDocRole.hotel:
+        return Icons.hotel;
+      case _LinkedDocRole.arrival:
+        if (cat == DocumentCategory.train) return Icons.train;
+        return Icons.flight_land;
+      case _LinkedDocRole.departure:
+        if (cat == DocumentCategory.train) return Icons.train;
+        return Icons.flight_takeoff;
+      case _LinkedDocRole.unknown:
+        return Icons.description_outlined;
+    }
+  }
+
+  String _title() {
+    switch (_role) {
+      case _LinkedDocRole.arrival:
+        return 'Arrivée à $segmentCity';
+      case _LinkedDocRole.departure:
+        return 'Départ de $segmentCity';
+      case _LinkedDocRole.hotel:
+        return 'Hébergement à $segmentCity';
+      case _LinkedDocRole.unknown:
+        return document.name;
+    }
+  }
+
+  /// Sous-titre = "Compagnie · Numéro de vol/train" ou nom de l'hôtel.
+  /// Reste compact, pas de redondance avec la route.
+  String? _subtitle() {
+    final m = document.metadata;
+    if (_role == _LinkedDocRole.hotel) {
+      // Pour l'hôtel, le nom du doc est déjà l'identité — on pourrait
+      // ajouter l'adresse mais le row est déjà chargé. On reprend `name`.
+      return document.name;
+    }
+    final carrier = (m['airline'] as String?)?.trim() ??
+        (m['company'] as String?)?.trim();
+    final number = (m['flight_number'] as String?)?.trim() ??
+        (m['train_number'] as String?)?.trim();
+    final parts = <String>[];
+    if (carrier != null && carrier.isNotEmpty) parts.add(carrier);
+    if (number != null && number.isNotEmpty) parts.add(number);
+    if (parts.isEmpty) return null;
+    return parts.join(' · ');
+  }
+
+  /// Route compacte ville→ville. Préfère `from_city`/`to_city` (set par
+  /// le form / Gemini extraction) au lieu des noms d'aéroports
+  /// verbeux. Null pour les hôtels (pas de route).
+  String? _route() {
+    if (_role == _LinkedDocRole.hotel) return null;
+    final m = document.metadata;
+    final from = (m['from_city'] as String?)?.trim() ??
+        (m['from'] as String?)?.trim();
+    final to = (m['to_city'] as String?)?.trim() ??
+        (m['to'] as String?)?.trim();
+    if (from == null || from.isEmpty || to == null || to.isEmpty) {
+      return null;
+    }
+    return '$from → $to';
+  }
+
+  /// Ligne de date contextuelle au rôle :
+  /// - arrivée → "{date d'arrivée} · arrivée HH:MM"
+  /// - départ → "{date de départ} · départ HH:MM"
+  /// - hôtel  → "{check-in} → {check-out}"
+  String? _dateLine() {
+    final m = document.metadata;
+    String fmt(DateTime d) =>
+        '${d.day.toString().padLeft(2, '0')}/'
+        '${d.month.toString().padLeft(2, '0')}/${d.year}';
+    DateTime? parse(dynamic v) =>
+        v is String ? DateTime.tryParse(v) : null;
+    switch (_role) {
+      case _LinkedDocRole.arrival:
+        // arrivalDateFromMetadata gère arrival_date explicite + fallback
+        // J+1 si arrival_time < departure_time.
+        final arrival = arrivalDateFromMetadata(m);
+        if (arrival == null) return null;
+        final time = (m['arrival_time'] as String?)?.trim();
+        final base = fmt(arrival);
+        return time != null && time.isNotEmpty
+            ? '$base · arrivée $time'
+            : base;
+      case _LinkedDocRole.departure:
+        final departure = parse(m['date']);
+        if (departure == null) return null;
+        final time = (m['departure_time'] as String?)?.trim();
+        final base = fmt(departure);
+        return time != null && time.isNotEmpty
+            ? '$base · départ $time'
+            : base;
+      case _LinkedDocRole.hotel:
+        final ci = parse(m['check_in']);
+        final co = parse(m['check_out']);
+        if (ci == null || co == null) return null;
+        return '${fmt(ci)} → ${fmt(co)}';
+      case _LinkedDocRole.unknown:
+        return null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final subtitle = _subtitle();
+    final route = _route();
+    final dateLine = _dateLine();
     return Material(
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(12),
@@ -3095,10 +3227,21 @@ class _LinkedDocRow extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(
-                categoryEmoji(document.category),
-                style: const TextStyle(fontSize: 22),
+              // Pastille icône — bleu/gris doux, neutre.
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  _icon,
+                  size: 18,
+                  color: AppColors.primary.withValues(alpha: 0.85),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -3106,20 +3249,42 @@ class _LinkedDocRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      document.name,
+                      _title(),
                       style: TextStyle(
                         fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
                         color: AppColors.textPrimary,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (document.subtitle.isNotEmpty) ...[
+                    if (subtitle != null) ...[
                       const SizedBox(height: 2),
                       Text(
-                        document.subtitle,
+                        subtitle,
                         style: TextStyle(
                           fontSize: 12,
+                          color: AppColors.textPrimary.withValues(alpha: 0.75),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    if (route != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        route,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    if (dateLine != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        dateLine,
+                        style: TextStyle(
+                          fontSize: 11.5,
                           color: AppColors.textSecondary,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -3128,6 +3293,7 @@ class _LinkedDocRow extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox(width: 4),
               Icon(
                 Icons.chevron_right,
                 size: 20,
@@ -3139,6 +3305,26 @@ class _LinkedDocRow extends StatelessWidget {
       ),
     );
   }
+}
+
+enum _LinkedDocRole { arrival, departure, hotel, unknown }
+
+/// Réplique locale du `_normalize` projet pour le matching ville
+/// case+accent insensible (cf. `_normalizeCity` ailleurs dans le repo).
+String _normalizeCityName(String s) {
+  const accents = {
+    'à': 'a', 'â': 'a', 'ä': 'a', 'á': 'a', 'ã': 'a',
+    'ç': 'c',
+    'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
+    'í': 'i', 'ï': 'i', 'î': 'i',
+    'ñ': 'n',
+    'ó': 'o', 'ô': 'o', 'ö': 'o', 'õ': 'o',
+    'ú': 'u', 'û': 'u', 'ü': 'u',
+    'ý': 'y', 'ÿ': 'y',
+  };
+  var out = s.toLowerCase().trim();
+  accents.forEach((k, v) => out = out.replaceAll(k, v));
+  return out;
 }
 
 class _ConflictRow extends StatelessWidget {
