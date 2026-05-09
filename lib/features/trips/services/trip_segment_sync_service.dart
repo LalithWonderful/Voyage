@@ -75,14 +75,28 @@ class TripSegmentSyncService {
   }) async {
     if (diff.isEmpty) return;
     final segments = diff.mergedSegments;
+    final updateMap = <String, dynamic>{
+      'itinerary_segments': segments.map((s) => s.toJson()).toList(),
+    };
+    // V2 (Lalith 2026-05-09) — réaligne `start_date` sur la date
+    // d'ARRIVÉE du premier vol quand celle-ci diffère du `trip.startDate`
+    // courant. Sans ça, la cascade cumulative des segments
+    // (`trip.startDate + sum(days)`) produit Bangkok au 21/06 alors que
+    // l'utilisateur arrive vraiment le 22/06 — d'où le warning
+    // `segmentArrivalMismatch`.
+    if (diff.tripStartDateNeedsUpdate) {
+      final eff = diff.effectiveTripStartDate!;
+      updateMap['start_date'] = '${eff.year.toString().padLeft(4, '0')}-'
+          '${eff.month.toString().padLeft(2, '0')}-'
+          '${eff.day.toString().padLeft(2, '0')}';
+    }
     try {
-      await _client.from('trips').update({
-        'itinerary_segments': segments.map((s) => s.toJson()).toList(),
-      }).eq('id', tripId);
+      await _client.from('trips').update(updateMap).eq('id', tripId);
       debugPrint('[trip-segment-sync] timeline appliquée — '
           '+${diff.added.length} ajout, ${diff.updated.length} maj, '
           '${diff.removed.length} retrait, '
-          '${diff.preservedManual.length} étape(s) manuelle(s) préservée(s)');
+          '${diff.preservedManual.length} étape(s) manuelle(s) préservée(s)'
+          '${diff.tripStartDateNeedsUpdate ? ' + start_date réalignée' : ''}');
     } catch (e) {
       debugPrint('[trip-segment-sync] update error : $e');
     }
@@ -204,6 +218,7 @@ class TripSegmentSyncService {
       mergedSegments: mergedSegments,
       tripDestination: trip.destination,
       tripDurationDays: trip.durationDays,
+      currentTripStartDate: trip.startDate,
     );
   }
 
@@ -258,6 +273,14 @@ class TripTimelineDiff {
   /// Durée totale du voyage (pour les warnings).
   final int tripDurationDays;
 
+  /// V2 (Lalith 2026-05-09) — date de début actuelle du voyage (= la
+  /// `Trip.startDate` au moment où le diff a été calculé). Permet de
+  /// détecter si le voyage doit être réaligné sur la date d'ARRIVÉE
+  /// du premier vol. Cas typique du bug : `trip.startDate = 21/06`
+  /// (= jour de départ de Luxembourg) alors que l'arrivée à Bangkok
+  /// est le 22/06 → segments cumulatifs décalés d'un jour.
+  final DateTime currentTripStartDate;
+
   const TripTimelineDiff({
     required this.added,
     required this.updated,
@@ -268,11 +291,37 @@ class TripTimelineDiff {
     required this.mergedSegments,
     required this.tripDestination,
     required this.tripDurationDays,
+    required this.currentTripStartDate,
   });
 
+  /// V2 (2026-05-09) — date effective de début de voyage selon les
+  /// transports : date d'arrivée du PREMIER vol détecté. Null si la
+  /// timeline est vide.
+  DateTime? get effectiveTripStartDate =>
+      timeline.isEmpty ? null : timeline.first.startDate;
+
+  /// V2 (2026-05-09) — vrai si la `start_date` du voyage doit être
+  /// mise à jour pour s'aligner sur l'arrivée réelle du premier vol.
+  /// Comparaison date-only (ignore l'heure). Faux quand timeline vide
+  /// ou quand les dates coïncident déjà.
+  bool get tripStartDateNeedsUpdate {
+    final eff = effectiveTripStartDate;
+    if (eff == null) return false;
+    final cur = currentTripStartDate;
+    return eff.year != cur.year ||
+        eff.month != cur.month ||
+        eff.day != cur.day;
+  }
+
   /// True si le diff ne propose aucun changement (rien à appliquer).
+  /// V2 (2026-05-09) : factorise aussi le besoin de réaligner
+  /// `trip.startDate` — si segments OK mais start_date décalée, le
+  /// diff reste applicable.
   bool get isEmpty =>
-      added.isEmpty && updated.isEmpty && removed.isEmpty;
+      added.isEmpty &&
+      updated.isEmpty &&
+      removed.isEmpty &&
+      !tripStartDateNeedsUpdate;
 
   /// True s'il y a quelque chose à montrer à l'utilisateur.
   bool get hasChanges => !isEmpty;
