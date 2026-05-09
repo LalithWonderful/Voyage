@@ -2710,6 +2710,101 @@ class _SegmentEditorDialogState extends ConsumerState<_SegmentEditorDialog> {
   }
 
   /// Affichage humain d'une date : "ven. 27 juin 2026".
+  /// V2 (Lalith 2026-05-10) — affiche un helper text contextuel sous le
+  /// champ destination quand le voyage contient déjà un "hub" reconnu
+  /// (Bangkok, Tokyo, Dubaï, Paris…). Suggère à l'utilisateur qu'il
+  /// peut élargir la recherche vers la région autour du hub.
+  ///
+  /// Volontairement minimaliste : map dur de hubs notables. Si aucun
+  /// hub matche, retourne une liste vide (helper invisible). Pour les
+  /// retours utilisateur, étendre la map ou passer à une détection
+  /// type "ville aéroport international" via Place Details.
+  List<Widget> _buildHubHelperText(List<TripSegment> segments) {
+    // (matchKey, message). matchKey est comparée case+accent insensible
+    // au `segment.city` normalisé.
+    const hubMessages = <String, String>{
+      'bangkok':
+          'Bangkok est un bon hub pour ajouter une étape en Asie du Sud-Est.',
+      'singapour':
+          'Singapour est un bon hub pour ajouter une étape en Asie du Sud-Est.',
+      'singapore':
+          'Singapour est un bon hub pour ajouter une étape en Asie du Sud-Est.',
+      'tokyo':
+          'Tokyo est un bon hub pour ajouter une étape en Asie de l\'Est.',
+      'hong kong':
+          'Hong Kong est un bon hub pour ajouter une étape en Asie de l\'Est.',
+      'seoul':
+          'Séoul est un bon hub pour ajouter une étape en Asie de l\'Est.',
+      'dubai':
+          'Dubaï est un bon hub pour ajouter une étape au Moyen-Orient ou en Inde.',
+      'doha':
+          'Doha est un bon hub pour ajouter une étape au Moyen-Orient ou en Inde.',
+      'istanbul':
+          'Istanbul est un bon hub entre l\'Europe, l\'Asie centrale et le Moyen-Orient.',
+      'paris':
+          'Paris est un bon hub pour ajouter une étape en Europe.',
+      'londres':
+          'Londres est un bon hub pour ajouter une étape en Europe ou aux îles britanniques.',
+      'london':
+          'Londres est un bon hub pour ajouter une étape en Europe ou aux îles britanniques.',
+      'amsterdam':
+          'Amsterdam est un bon hub pour ajouter une étape en Europe.',
+    };
+    String? hubMessage;
+    for (final s in segments) {
+      final norm = _normalizeCityForHub(s.city);
+      final msg = hubMessages[norm];
+      if (msg != null) {
+        hubMessage = msg;
+        break;
+      }
+    }
+    if (hubMessage == null) return const [];
+    return [
+      const SizedBox(height: 6),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.lightbulb_outline,
+              size: 13,
+              color: AppColors.primary.withValues(alpha: 0.85),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                hubMessage,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: AppColors.textSecondary,
+                  height: 1.35,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ];
+  }
+
+  String _normalizeCityForHub(String s) {
+    const accents = {
+      'à': 'a', 'â': 'a', 'ä': 'a', 'á': 'a', 'ã': 'a',
+      'ç': 'c',
+      'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
+      'í': 'i', 'ï': 'i', 'î': 'i',
+      'ñ': 'n',
+      'ó': 'o', 'ô': 'o', 'ö': 'o', 'õ': 'o',
+      'ú': 'u', 'û': 'u', 'ü': 'u',
+      'ý': 'y', 'ÿ': 'y',
+    };
+    var out = s.toLowerCase().trim();
+    accents.forEach((k, v) => out = out.replaceAll(k, v));
+    return out;
+  }
+
   String _formatDate(DateTime d) {
     const weekdays = ['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'];
     const months = [
@@ -2746,6 +2841,14 @@ class _SegmentEditorDialogState extends ConsumerState<_SegmentEditorDialog> {
                 _error = null;
               }),
             ),
+            // V2 (Lalith 2026-05-10) — helper text contextuel quand le
+            // voyage contient un "hub" reconnu (Bangkok, Tokyo, Dubaï
+            // etc.). Suggère subtilement à l'utilisateur qu'il peut
+            // étendre vers la région entière. Affiché seulement quand
+            // la recherche est mondiale (= pas de restriction pays).
+            if (widget.restrictToCountryCode == null) ...[
+              ..._buildHubHelperText(widget.existingSegments),
+            ],
             const SizedBox(height: 16),
             if (widget.lockedToTripDays) ...[
               // Étape unique : pas de choix de durée, elle couvre tout le voyage.
