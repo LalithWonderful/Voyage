@@ -48,6 +48,15 @@ enum ConflictType {
   /// à la date d'arrivée effective du transport qui pinne ce segment.
   /// Ex : segment Bangkok 21/06 alors que le vol arrive le 22/06.
   segmentArrivalMismatch,
+
+  /// Un transport (vol/train) référence une ville (côté arrivée ou
+  /// côté départ) pour laquelle l'itinéraire ne contient AUCUN segment.
+  /// Cas typique : l'utilisateur a supprimé une étape doc-linked sans
+  /// supprimer le document source — le doc reste orphelin dans le
+  /// wallet et la timeline est incohérente.
+  /// Ex : « Ton vol arrive à Phú Quốc le 03/07, mais aucune étape
+  /// Phú Quốc n'est prévue dans ton itinéraire. »
+  missingSegmentForTransport,
 }
 
 /// Description structurée d'un conflit détecté. La phase UI (Phase C)
@@ -95,6 +104,11 @@ List<DocumentConflict> detectDocumentConflicts({
       docs: docs,
     );
     conflicts.addAll(_detectSegmentArrivalMismatch(analysis));
+    conflicts.addAll(_detectMissingSegmentForTransport(
+      docs: docs,
+      segments: segments,
+      tripStartDate: tripStartDate,
+    ));
   }
   return conflicts;
 }
@@ -265,6 +279,140 @@ List<DocumentConflict> _detectSegmentArrivalMismatch(
         docIds: const [],
         segmentIndex: seg.segmentIndex,
       ));
+    }
+  }
+  return out;
+}
+
+// ─── 4. Transport orphelin (segment manquant) ────────────────────────
+
+/// Pour chaque vol/train, vérifie qu'une étape couvre la ville d'arrivée
+/// ET la ville de départ. Si une de ces villes n'est PAS dans
+/// l'itinéraire, on remonte un conflit — le voyageur a probablement
+/// supprimé une étape doc-linked sans archiver/supprimer le document
+/// source.
+///
+/// V5 (Lalith 2026-05-10 — Lot B) — la couverture peut désormais venir
+/// d'une étape window-linked dont `sourceAnchorCity` matche la ville
+/// du transport et dont la fenêtre couvre la date du transport. Cas
+/// type : Hội An (sourceAnchorCity = Da Nang) couvre 12/07–15/07 →
+/// le vol Da Nang du 12/07 ne déclenche PLUS « aucune étape Da Nang ».
+/// Sémantique « gateway » : le voyageur ne dort pas à Da Nang mais
+/// passe par Da Nang (aéroport) pour rejoindre Hội An.
+///
+/// Filtre des « jambes domicile » : le 1er transport chronologique
+/// (= vol aller depuis l'aéroport home) et le dernier (= vol retour
+/// vers home) ne sont PAS flaggés sur leur côté externe (resp. départ
+/// et arrivée). Sans ça, le vol Luxembourg → Bangkok produirait une
+/// fausse alerte « aucune étape Luxembourg ».
+///
+/// Heuristique : on ne tient compte que de la position chronologique
+/// 1ère/dernière dans la liste TRIÉE des transports. Tous les transports
+/// au milieu (= intra-voyage) sont flaggés des 2 côtés si manquants.
+List<DocumentConflict> _detectMissingSegmentForTransport({
+  required List<TripDocument> docs,
+  required List<TripSegment> segments,
+  required DateTime tripStartDate,
+}) {
+  final out = <DocumentConflict>[];
+  if (segments.isEmpty) return out;
+
+  // Set des villes (normalisées) avec au moins un segment couvrant.
+  final segmentCities = <String>{};
+  for (final s in segments) {
+    segmentCities.add(_normalizeCity(s.city));
+  }
+
+  // V5 — fenêtres window-linked indexées par sourceAnchorCity normalisée.
+  // Chaque entry = { gateway, [start, endInclusive] }. Convention bornes
+  // INCLUSIVES des deux côtés : le jour de départ d'une étape (= jour
+  // de transit/transfer) compte comme couvrant le transport vers la
+  // gateway. Cas typique : Hội An termine 15/07 → le vol Da Nang→BKK
+  // du 15/07 est couvert.
+  final windowGateways =
+      <({String anchorNorm, DateTime start, DateTime endInclusive})>[];
+  var offset = 0;
+  for (final s in segments) {
+    final src = (s.sourceAnchorCity ?? '').trim();
+    if (src.isNotEmpty) {
+      final start = _dateOnly(tripStartDate.add(Duration(days: offset)));
+      final endIncl =
+          _dateOnly(tripStartDate.add(Duration(days: offset + s.days)));
+      windowGateways.add((
+        anchorNorm: _normalizeCity(src),
+        start: start,
+        endInclusive: endIncl,
+      ));
+    }
+    offset += s.days;
+  }
+
+  bool gatewayCovers(String cityNorm, DateTime date) {
+    final d = _dateOnly(date);
+    for (final w in windowGateways) {
+      if (w.anchorNorm != cityNorm) continue;
+      if (!d.isBefore(w.start) && !d.isAfter(w.endInclusive)) return true;
+    }
+    return false;
+  }
+
+  // Transports triés chronologiquement par date de départ. Les bornes
+  // (1er / dernier) sont considérées comme jambes domicile.
+  final transports = docs
+      .where((d) =>
+          d.category == DocumentCategory.flight ||
+          d.category == DocumentCategory.train)
+      .where((d) => _parseDate(d.metadata['date']) != null)
+      .toList()
+    ..sort((a, b) =>
+        _parseDate(a.metadata['date'])!
+            .compareTo(_parseDate(b.metadata['date'])!));
+  if (transports.isEmpty) return out;
+
+  for (var i = 0; i < transports.length; i++) {
+    final t = transports[i];
+    final m = t.metadata;
+    final fromCity = (m['from_city'] as String?)?.trim();
+    final toCity = (m['to_city'] as String?)?.trim();
+    final dep = _parseDate(m['date']);
+    final arr = arrivalDateFromMetadata(m) ?? dep;
+
+    final isFirst = i == 0;
+    final isLast = i == transports.length - 1;
+
+    // Côté ARRIVÉE : on flag si to_city manque dans les segments ET
+    // qu'aucune fenêtre window-linked vers cette gateway ne couvre
+    // l'arrivée. Sauf pour le dernier transport (= retour vers home).
+    if (!isLast && toCity != null && toCity.isNotEmpty && arr != null) {
+      final toNorm = _normalizeCity(toCity);
+      final hasCity = segmentCities.contains(toNorm);
+      final hasGateway = !hasCity && gatewayCovers(toNorm, arr);
+      if (!hasCity && !hasGateway) {
+        out.add(DocumentConflict(
+          type: ConflictType.missingSegmentForTransport,
+          message:
+              'Ton vol arrive à $toCity le ${_fmtDate(arr)}, mais aucune '
+              'étape $toCity n\'est prévue dans ton itinéraire.',
+          docIds: [t.id],
+        ));
+      }
+    }
+
+    // Côté DÉPART : idem mais avec la date de départ. Sauf pour le 1er
+    // transport (= aller depuis home).
+    if (!isFirst && fromCity != null && fromCity.isNotEmpty && dep != null) {
+      final fromNorm = _normalizeCity(fromCity);
+      final hasCity = segmentCities.contains(fromNorm);
+      final hasGateway = !hasCity && gatewayCovers(fromNorm, dep);
+      if (!hasCity && !hasGateway) {
+        out.add(DocumentConflict(
+          type: ConflictType.missingSegmentForTransport,
+          message:
+              'Ton vol part de $fromCity le ${_fmtDate(dep)}, mais aucune '
+              'étape $fromCity n\'est prévue dans ton itinéraire.',
+          docIds: [t.id],
+        ));
+      }
     }
   }
   return out;

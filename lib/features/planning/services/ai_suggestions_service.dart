@@ -860,15 +860,28 @@ Champs de "metadata" selon "category" (tous optionnels, mets les strings vides o
 
 - flight :
   "airline" (compagnie)
-  "flight_number" (ex "AF1234")
-  "from" (code IATA ou nom aéroport de départ)
-  "to" (aéroport d'arrivée)
-  "date" (YYYY-MM-DD, date de DÉPART)
-  "departure_time" ("HH:MM")
-  "arrival_date" (YYYY-MM-DD, date d'ARRIVÉE — peut différer de "date" pour les vols overnight long-courriers ; si non explicite mais arrival_time < departure_time, mettre "date" + 1 jour ; sinon = "date")
-  "arrival_time" ("HH:MM")
+  "flight_number" (ex "AF1234". Pour un vol AVEC ESCALE — multi-segment — concatène TOUS les numéros de vol séparés par " + ", dans l'ordre chronologique. Ex : un Luxembourg → Istanbul → Bangkok donne "TK1354 + TK0058". L'utilisateur a besoin de voir l'ensemble du parcours.)
+  "from" (code IATA ou nom aéroport de DÉPART INITIAL — pas l'escale)
+  "to" (aéroport d'ARRIVÉE FINALE — pas l'escale)
+  "date" (YYYY-MM-DD, date de DÉPART du 1er segment)
+  "departure_time" ("HH:MM" du 1er segment)
+  "arrival_date" (YYYY-MM-DD, date d'ARRIVÉE FINALE — peut différer de "date" pour les vols overnight long-courriers ; si non explicite mais arrival_time < departure_time, mettre "date" + 1 jour ; sinon = "date")
+  "arrival_time" ("HH:MM" du DERNIER segment, = arrivée finale)
   "seat" (siège)
   "reservation_number"
+  "is_round_trip" (boolean, true si le billet contient un vol retour ; false sinon)
+  "return_leg" (objet, présent UNIQUEMENT si is_round_trip == true) :
+    {
+      "flight_number" (mêmes règles que ci-dessus : si retour multi-segment, concatène avec " + ". Ex : Bangkok → Istanbul → Luxembourg donne "TK0069 + TK1353"),
+      "from" (aéroport de départ du retour, généralement = "to" du vol aller),
+      "to" (aéroport d'arrivée du retour, généralement = "from" du vol aller),
+      "date" (YYYY-MM-DD, date de départ du retour),
+      "departure_time" ("HH:MM"),
+      "arrival_date" (YYYY-MM-DD),
+      "arrival_time" ("HH:MM"),
+      "seat" (siège retour, optionnel)
+    }
+  IMPORTANT : si tu vois clairement un seul trajet (one-way), is_round_trip=false et n'inclus PAS return_leg. Si le billet est un aller-retour, is_round_trip=true ET inclus return_leg avec toutes les infos disponibles.
 
 - train :
   "company" (SNCF, Trenitalia, Eurostar...)
@@ -883,6 +896,12 @@ Champs de "metadata" selon "category" (tous optionnels, mets les strings vides o
   "seat" (place)
   "class" (1re, 2e...)
   "reservation_number"
+  "is_round_trip" (boolean)
+  "return_leg" (objet, mêmes règles que pour flight :
+    {
+      "train_number", "from", "to", "date", "departure_time",
+      "arrival_date", "arrival_time", "car", "seat", "class"
+    })
 
 - car_rental :
   "company"

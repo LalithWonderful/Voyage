@@ -47,33 +47,80 @@ class TransportDocWarnings extends StatelessWidget {
     final fromGeocodingFailed = m['from_geocoding_failed'] == true;
     final toGeocodingFailed = m['to_geocoding_failed'] == true;
 
+    // V5.1 (Lalith bug fix 2026-05-10 — Issue 2) — validation par
+    // INTERVALLE de transport, pas par date unique. Un vol aller
+    // décolle souvent la veille de l'arrivée à destination (LUX→BKK
+    // 21/06 → 22/06). Si `trip.startDate` a été réaligné sur l'arrivée
+    // (= 22/06), le départ 21/06 ne doit PAS déclencher le warning :
+    // l'intervalle [21/06, 22/06] chevauche le voyage [22/06, 06/08].
+    // Idem pour le retour BKK→LUX 06/08 → 07/08 vs trip [22/06, 06/08].
     bool dateOutOfRange = false;
-    // Skippé pour les voyages sans dates exactes (mois cible / unspecified /
-    // recommended) : les bornes sont synthétiques, le warning serait trompeur.
     if (!missingDate && trip != null && trip!.hasExactDates) {
-      final docDate = DateTime.tryParse(m['date'] as String);
-      if (docDate != null) {
-        final docDay = DateTime(docDate.year, docDate.month, docDate.day);
-        final tripStart = DateTime(trip!.startDate.year, trip!.startDate.month, trip!.startDate.day);
-        final tripEnd = DateTime(trip!.endDate.year, trip!.endDate.month, trip!.endDate.day);
-        dateOutOfRange = docDay.isBefore(tripStart) || docDay.isAfter(tripEnd);
+      final dep = DateTime.tryParse(m['date'] as String);
+      final arrRaw = m['arrival_date'] as String?;
+      final arr = arrRaw != null ? DateTime.tryParse(arrRaw) : null;
+      if (dep != null) {
+        final depDay = DateTime(dep.year, dep.month, dep.day);
+        final arrDay = arr != null
+            ? DateTime(arr.year, arr.month, arr.day)
+            : depDay;
+        final tripStart = DateTime(trip!.startDate.year,
+            trip!.startDate.month, trip!.startDate.day);
+        final tripEnd = DateTime(
+            trip!.endDate.year, trip!.endDate.month, trip!.endDate.day);
+        // No-overlap si l'intervalle est entièrement avant `tripStart`
+        // OU entièrement après `tripEnd`. Toute autre situation = OK.
+        dateOutOfRange =
+            arrDay.isBefore(tripStart) || depDay.isAfter(tripEnd);
       }
     }
 
-    // "Vol/Train hors du pays du voyage" : on alerte SEULEMENT si les 2
-    // endpoints sont dans un même pays ≠ destination du voyage. Pour les
-    // vols internationaux légitimes (ex: Paris→Tokyo dans voyage Japon =
-    // CDG-FR + NRT-JP), un seul endpoint est hors → pas de warning.
-    // Si on n'a pas l'info pays sur l'un des 2 (ancien cache, fallback
-    // Geocoding texte), on s'abstient pour ne pas faire de faux positif.
+    // V5.1 (Lalith bug fix 2026-05-10 — Issue 1) — détection
+    // « hors voyage » par MATCHING DE VILLES, pas par code pays. Un
+    // voyage Thaïlande peut avoir des étapes Vietnam, Laos, etc. dans
+    // ses segments, donc un vol Phú Quốc→Hanoï est légitime même si
+    // le code pays VN ≠ TH. Règle : si l'endpoint matche une ville de
+    // segment ou un `sourceAnchorCity`, le transport est légitime.
+    // On flag seulement si AUCUN endpoint ne matche.
     bool foreignTransport = false;
-    final tripCountry = trip?.destinationCountryCode?.trim().toLowerCase();
-    if (tripCountry != null && tripCountry.isNotEmpty) {
-      final fromCountry = (m['from_country_code'] as String?)?.trim().toLowerCase();
-      final toCountry = (m['to_country_code'] as String?)?.trim().toLowerCase();
-      if (fromCountry != null && fromCountry.isNotEmpty &&
-          toCountry != null && toCountry.isNotEmpty) {
-        foreignTransport = fromCountry == toCountry && fromCountry != tripCountry;
+    if (trip != null) {
+      final tripCities = <String>{};
+      for (final s in trip!.itinerarySegments) {
+        tripCities.add(_normalizeCityName(s.city));
+        final src = s.sourceAnchorCity?.trim();
+        if (src != null && src.isNotEmpty) {
+          tripCities.add(_normalizeCityName(src));
+        }
+      }
+      // La destination principale du voyage compte aussi (segment de
+      // tête type « Bangkok, Thaïlande »).
+      final dest = trip!.destination.trim();
+      if (dest.isNotEmpty) {
+        final firstWord = dest.contains(',')
+            ? dest.split(',').first.trim()
+            : dest;
+        if (firstWord.isNotEmpty) {
+          tripCities.add(_normalizeCityName(firstWord));
+        }
+      }
+      if (tripCities.isNotEmpty) {
+        final from = (m['from_city'] as String?)?.trim() ??
+            (m['from'] as String?)?.trim() ??
+            '';
+        final to = (m['to_city'] as String?)?.trim() ??
+            (m['to'] as String?)?.trim() ??
+            '';
+        bool matches(String s) {
+          if (s.isEmpty) return false;
+          return tripCities.contains(_normalizeCityName(s));
+        }
+        // « hors voyage » uniquement si aucun des deux endpoints ne
+        // matche : un vol home → destination matche au moins par sa
+        // ville d'arrivée (= légitime). Idem retour.
+        foreignTransport = !matches(from) && !matches(to);
+        // Sécurité : si on n'a NI from NI to, on s'abstient (ancien
+        // cache / fallback). Pas de faux positif.
+        if (from.isEmpty && to.isEmpty) foreignTransport = false;
       }
     }
 
@@ -132,6 +179,26 @@ class TransportDocWarnings extends StatelessWidget {
         ],
       ],
     );
+  }
+
+  /// Normalisation locale (lowercase + accent strip) cohérente avec
+  /// `pinned_dates._normalize` et `trip_edit_sheet._normalizeCityName`.
+  /// Dupliquée ici pour éviter une dépendance croisée juste pour le
+  /// comparateur de villes.
+  String _normalizeCityName(String s) {
+    const accents = {
+      'à': 'a', 'â': 'a', 'ä': 'a', 'á': 'a', 'ã': 'a',
+      'ç': 'c',
+      'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
+      'í': 'i', 'ï': 'i', 'î': 'i',
+      'ñ': 'n',
+      'ó': 'o', 'ô': 'o', 'ö': 'o', 'õ': 'o',
+      'ú': 'u', 'û': 'u', 'ü': 'u',
+      'ý': 'y', 'ÿ': 'y',
+    };
+    var out = s.toLowerCase().trim();
+    accents.forEach((k, v) => out = out.replaceAll(k, v));
+    return out;
   }
 
   Widget _row(String message) {

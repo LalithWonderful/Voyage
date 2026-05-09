@@ -7,6 +7,8 @@ import 'package:voyage/core/theme/app_theme.dart';
 import 'package:voyage/core/widgets/transport_autocomplete_field.dart';
 import 'package:voyage/features/auth/providers/auth_provider.dart';
 import 'package:voyage/features/planning/providers/planning_provider.dart';
+import 'package:voyage/features/trips/providers/unplaced_segments_provider.dart';
+import 'package:voyage/features/wallet/services/round_trip_helper.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
 import 'package:voyage/features/trips/widgets/detected_segments_sheet.dart';
 import 'package:voyage/features/wallet/models/document_model.dart';
@@ -67,6 +69,14 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
   // "saisie libre" et retombe en fallback Geocoding texte au save).
   final Map<String, String> _placeIds = {};
   final Map<String, String> _sessionTokens = {};
+
+  // Lalith 2026-05-10 — billets aller-retour. Quand Gemini extrait un
+  // `return_leg`, on capture sa metadata + son nom prévisualisé ici. Le
+  // form principal continue d'afficher le vol aller (l'utilisateur
+  // peut le vérifier/éditer), et au save on insère AUSSI une 2ᵉ ligne
+  // dans `trip_documents` pour le retour. Booking_reference partagé.
+  Map<String, dynamic>? _pendingReturnLegMetadata;
+  String? _pendingReturnLegName;
 
   @override
   void initState() {
@@ -294,7 +304,7 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
   Future<void> _applyExtracted(Map<String, dynamic> extracted) async {
     final newCategory = (extracted['category'] as String?) ?? _category;
     final name = (extracted['name'] as String?) ?? '';
-    final metadata =
+    var metadata =
         (extracted['metadata'] as Map?)?.cast<String, dynamic>() ?? const {};
 
     // Auto-détection du voyage : cherche un voyage actif (non terminé)
@@ -344,6 +354,20 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
       }
     }
 
+    // Lalith 2026-05-10 — round-trip extraction (vols / trains
+    // uniquement). Si Gemini a posé `is_round_trip=true` ET fournit un
+    // `return_leg`, on prépare une 2ᵉ insertion silencieuse côté save.
+    // Si is_round_trip=true mais return_leg manquant, on flag pour
+    // alerter l'utilisateur (acceptance #6).
+    final rt = analyseRoundTripExtraction(
+      rawMetadata: metadata,
+      category: newCategory,
+    );
+    metadata = rt.outboundMetadata;
+    final capturedReturnLeg = rt.returnMetadata;
+    final capturedReturnLegName = rt.returnName;
+    final capturedSuspectedAR = rt.suspectedRoundTripWithoutReturn;
+
     if (!mounted) return;
     setState(() {
       _category = newCategory;
@@ -354,12 +378,35 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
       _dates.clear();
       _hydrateFromMetadata(metadata);
       if (autoTripId != null) _tripId = autoTripId;
+      _pendingReturnLegMetadata = capturedReturnLeg;
+      _pendingReturnLegName = capturedReturnLegName;
     });
 
     final msg = autoTripId != null
         ? '✨ Détecté : ${categoryLabel(newCategory)} — voyage rattaché automatiquement.'
         : '✨ Détecté : ${categoryLabel(newCategory)} — vérifie avant d\'enregistrer.';
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(SnackBar(content: Text(msg)));
+    if (capturedReturnLeg != null) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            '↩︎ Aller-retour détecté : un 2ᵉ document sera créé pour le retour.',
+          ),
+          duration: Duration(seconds: 5),
+        ),
+      );
+    } else if (capturedSuspectedAR) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            '⚠ Ce billet semble être un aller-retour. Vérifie que le vol '
+            'retour est bien enregistré dans ton wallet.',
+          ),
+          duration: Duration(seconds: 6),
+        ),
+      );
+    }
 
     // Pour les docs Vol/Train extraits par Gemini : résolution silencieuse en
     // arrière-plan des placeIds Google pour `from`/`to`. Sans ça, le save
@@ -1082,6 +1129,108 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
         }
         savedId = (inserted.first as Map)['id'] as String?;
       }
+
+      // Lalith 2026-05-10 — round-trip : insertion silencieuse du vol
+      // retour si Gemini l'avait extrait. Booking_reference partagé,
+      // catégorie identique. Persiste avant l'invalidation des
+      // providers + avant la timeline diff pour que la sheet « Lunao a
+      // détecté tes étapes » voie les 2 jambes simultanément.
+      //
+      // V5.1 (Lalith bug fix 2026-05-10) — fonctionne aussi en édition
+      // (pas seulement à la création) : si Gemini extrait à nouveau un
+      // return_leg sur un doc existant ET que ce retour n'est pas déjà
+      // présent dans le voyage, on l'insère. Idempotence via un check
+      // sur `reservation_number` + `flight_number` du retour.
+      if (_pendingReturnLegMetadata != null &&
+          _tripId != null &&
+          (_category == DocumentCategory.flight ||
+              _category == DocumentCategory.train)) {
+        final retMeta = _pendingReturnLegMetadata!;
+        final retRes = (retMeta['reservation_number'] as String?)?.trim();
+        final retNum = (retMeta['flight_number'] as String?)?.trim() ??
+            (retMeta['train_number'] as String?)?.trim() ??
+            '';
+        var alreadyExists = false;
+        try {
+          final siblings = await client
+              .from('trip_documents')
+              .select('id, metadata')
+              .eq('trip_id', _tripId!)
+              .eq('category', _category);
+          for (final row in siblings as List) {
+            final id = (row as Map)['id'] as String?;
+            if (id == savedId) continue;
+            final meta = row['metadata'];
+            if (meta is! Map) continue;
+            final r = (meta['reservation_number'] as String?)?.trim();
+            final f = (meta['flight_number'] as String?)?.trim() ??
+                (meta['train_number'] as String?)?.trim() ??
+                '';
+            // Match précis : même résa ET (même numéro de vol/train OU
+            // même direction from→to). Évite les faux positifs sur 2
+            // vols différents partageant le booking ref.
+            if (r != null && r.isNotEmpty && retRes != null && r == retRes) {
+              if (f.isNotEmpty && f == retNum) {
+                alreadyExists = true;
+                break;
+              }
+              final retFrom = (retMeta['from_city'] as String?)?.trim() ??
+                  (retMeta['from'] as String?)?.trim() ??
+                  '';
+              final retTo = (retMeta['to_city'] as String?)?.trim() ??
+                  (retMeta['to'] as String?)?.trim() ??
+                  '';
+              final mFrom = (meta['from_city'] as String?)?.trim() ??
+                  (meta['from'] as String?)?.trim() ??
+                  '';
+              final mTo = (meta['to_city'] as String?)?.trim() ??
+                  (meta['to'] as String?)?.trim() ??
+                  '';
+              if (retFrom.toLowerCase() == mFrom.toLowerCase() &&
+                  retTo.toLowerCase() == mTo.toLowerCase()) {
+                alreadyExists = true;
+                break;
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('[round-trip] sibling check failed: $e');
+        }
+        if (!alreadyExists) {
+          final returnPayload = {
+            'user_id': userId,
+            'trip_id': _tripId,
+            'category': _category,
+            'name': _pendingReturnLegName ??
+                (_category == DocumentCategory.flight
+                    ? 'Vol retour'
+                    : 'Train retour'),
+            'metadata': retMeta,
+          };
+          try {
+            final retInserted = await client
+                .from('trip_documents')
+                .insert(returnPayload)
+                .select();
+            if ((retInserted as List).isEmpty) {
+              debugPrint('[round-trip] return leg insert returned empty');
+            } else {
+              debugPrint('[round-trip] return leg inserted: '
+                  'trip=$_tripId, from=${retMeta['from_city'] ?? retMeta['from']}, '
+                  'to=${retMeta['to_city'] ?? retMeta['to']}, '
+                  'date=${retMeta['date']}');
+            }
+          } catch (e) {
+            // Pas de throw : on ne veut pas casser le flow principal si
+            // l'insertion du retour échoue. L'aller est déjà sauvé,
+            // l'user pourra ré-importer le retour à la main.
+            debugPrint('[round-trip] return leg insert failed: $e');
+          }
+        } else {
+          debugPrint('[round-trip] return leg already exists, skipping insert');
+        }
+      }
+
       ref.invalidate(documentsProvider);
       if (_tripId != null) {
         ref.invalidate(tripDocumentsProvider(_tripId!));
@@ -1138,6 +1287,7 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
       // Évite : Bangkok=47j auto-seedé qui reste, Luxembourg=ville home
       // ajoutée comme étape, hallucinations d'extraction Gemini.
       bool appliedTimeline = false;
+      var preservedManualCount = 0;
       if (_tripId != null &&
           (_category == DocumentCategory.flight ||
               _category == DocumentCategory.train)) {
@@ -1156,13 +1306,29 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
                 await DetectedSegmentsSheet.show(context, diff: diff);
             if (!mounted) return;
             if (apply) {
-              await syncService.applyTimelineDiff(
+              // V5.4 — `applyTimelineDiff` fait l'auto-placement aux
+              // dates d'origine et retourne les leftovers (= étapes
+              // qui n'ont pas pu être replacées automatiquement).
+              final leftovers = await syncService.applyTimelineDiff(
                 tripId: _tripId!,
                 diff: diff,
               );
               ref.invalidate(tripByIdProvider(_tripId!));
               ref.invalidate(tripsProvider);
+              // V4 (Lalith 2026-05-10) — applyTimelineDiff supprime les
+              // activités générées par Lunao (cf. activity_staleness_service).
+              // On invalide le provider pour que le planning se rafraîchisse.
+              ref.invalidate(tripActivitiesProvider(_tripId!));
+              // V5.2 (Lalith bug fix 2026-05-10 — Issue 2) — persistance
+              // session des « Étapes à replacer » : seuls les leftovers
+              // (= étapes qui n'ont pas pu être replacées auto par dates)
+              // sont mémorisés. Les autres ont déjà été insérées dans
+              // `trip.itinerary_segments` par l'auto-placement.
+              ref
+                  .read(unplacedSegmentsProvider(_tripId!).notifier)
+                  .state = leftovers.map((p) => p.toSegment()).toList();
               appliedTimeline = true;
+              preservedManualCount = leftovers.length;
             }
           }
         } catch (e) {
@@ -1173,12 +1339,30 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
 
       if (mounted) {
         if (appliedTimeline) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✨ Étapes mises à jour selon tes vols.'),
-              duration: Duration(seconds: 4),
-            ),
-          );
+          // Lot C (2026-05-10) — snackbar enrichi : si des étapes sont
+          // « à replacer », on rappelle à l'utilisateur quelle action
+          // suivre, plutôt qu'un message générique « tout est OK ».
+          final messenger = ScaffoldMessenger.of(context);
+          messenger.clearSnackBars();
+          if (preservedManualCount > 0) {
+            final s = preservedManualCount > 1 ? 's' : '';
+            messenger.showSnackBar(
+              SnackBar(
+                content: Text(
+                  '✨ Étapes mises à jour. $preservedManualCount '
+                  'étape$s à replacer via « Affiner les étapes ».',
+                ),
+                duration: const Duration(seconds: 6),
+              ),
+            );
+          } else {
+            messenger.showSnackBar(
+              const SnackBar(
+                content: Text('✨ Étapes mises à jour selon tes vols.'),
+                duration: Duration(seconds: 4),
+              ),
+            );
+          }
         }
         Navigator.of(context).pop();
       }

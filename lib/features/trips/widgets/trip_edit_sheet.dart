@@ -7,12 +7,14 @@ import 'package:voyage/core/theme/app_theme.dart';
 import 'package:voyage/core/widgets/city_autocomplete_field.dart';
 import 'package:voyage/features/auth/providers/auth_provider.dart';
 import 'package:voyage/features/planning/providers/planning_provider.dart';
+import 'package:voyage/features/planning/services/activity_staleness_service.dart';
 import 'package:voyage/features/planning/services/airport_city_overrides.dart';
 import 'package:voyage/features/planning/services/document_consistency.dart';
 import 'package:voyage/features/planning/services/pinned_dates.dart';
 import 'package:voyage/features/regions/services/country_regions_repository.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
+import 'package:voyage/features/trips/providers/unplaced_segments_provider.dart';
 import 'package:voyage/features/trips/services/itinerary_mutation.dart';
 import 'package:voyage/features/trips/widgets/airport_picker_dialog.dart';
 import 'package:voyage/features/trips/widgets/improve_itinerary_sheet.dart';
@@ -264,6 +266,10 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
       return;
     }
     setState(() => _saving = true);
+    // V4 (Lalith 2026-05-10) — capture l'état segments AVANT save, pour
+    // détecter les changements structurels et invalider le planning
+    // d'activités généré (cf. activity_staleness_service).
+    final originalSegments = widget.trip.itinerarySegments;
     try {
       await ref.read(supabaseProvider).from('trips').update({
         'title': title,
@@ -292,9 +298,39 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
         'arrival_transport_mode': _arrivalTransportMode,
         'local_transport_mode': _localTransportMode,
       }).eq('id', widget.trip.id);
+      // V4 — si la structure des étapes a changé (ajout/suppression/
+      // réordonnancement/durées), le planning d'activités généré est
+      // stale. On supprime ces activités, on garde celles ajoutées
+      // par l'user et celles importées de documents.
+      var clearedActivities = 0;
+      if (segmentsStructurallyDiffer(originalSegments, _segments)) {
+        clearedActivities = await clearGeneratedActivitiesForTrip(
+          ref.read(supabaseProvider),
+          widget.trip.id,
+        );
+      }
       ref.invalidate(tripsProvider);
       ref.invalidate(tripByIdProvider(widget.trip.id));
-      if (mounted) Navigator.of(context).pop();
+      if (clearedActivities > 0) {
+        ref.invalidate(tripActivitiesProvider(widget.trip.id));
+      }
+      if (mounted) {
+        Navigator.of(context).pop();
+        if (clearedActivities > 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Itinéraire mis à jour. $clearedActivities activité'
+                '${clearedActivities > 1 ? "s" : ""} générée'
+                '${clearedActivities > 1 ? "s" : ""} '
+                '${clearedActivities > 1 ? "ont été supprimées" : "a été supprimée"} '
+                '— régénère depuis le planning.',
+              ),
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -452,6 +488,313 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
     if (_segments.length == 1 && _segments[0].days != _tripDays) {
       _segments[0] = _segments[0].copyWith(days: _tripDays);
     }
+  }
+
+  /// V2 (Lalith 2026-05-10) — fusionne les paires de segments adjacents
+  /// qui partagent la même ville quand RIEN ne justifie de les garder
+  /// séparés. Cas type : l'user avait inséré « Luang Prabang » entre
+  /// 2 blocs Bangkok et le supprime → on recolle les Bangkok en 1 seul.
+  ///
+  /// Garde-fous (NE PAS fusionner si) :
+  ///  - les pays diffèrent (quand renseignés des 2 côtés)
+  ///  - les `sourceAnchorCity` divergent (= 2 fenêtres planning distinctes)
+  ///  - un transport pinné (vol/train) atterrit ou décolle dans la ville
+  ///    commune le jour-frontière → la séparation a un sens documenté
+  void _normalizeSegmentsAfterDelete() {
+    if (_segments.length < 2) return;
+    final docsAsync = ref.read(tripDocumentsProvider(widget.trip.id));
+    final docs = docsAsync.maybeWhen(
+      data: (d) => d,
+      orElse: () => const <TripDocument>[],
+    );
+
+    var i = 0;
+    while (i < _segments.length - 1) {
+      if (_canMergeAdjacent(i, docs)) {
+        final a = _segments[i];
+        final b = _segments[i + 1];
+        _segments[i] = a.copyWith(
+          days: a.days + b.days,
+          country: a.country ?? b.country,
+          latitude: a.latitude ?? b.latitude,
+          longitude: a.longitude ?? b.longitude,
+          sourceAnchorCity: a.sourceAnchorCity ?? b.sourceAnchorCity,
+        );
+        _segments.removeAt(i + 1);
+        // Ne pas incrémenter : le nouveau seg[i] peut potentiellement
+        // fusionner à son tour avec ce qui était seg[i+2].
+      } else {
+        i++;
+      }
+    }
+  }
+
+  /// Critères d'éligibilité à la fusion (cf. [_normalizeAdjacentSegments]).
+  bool _canMergeAdjacent(int i, List<TripDocument> docs) {
+    if (i < 0 || i >= _segments.length - 1) return false;
+    final a = _segments[i];
+    final b = _segments[i + 1];
+
+    final cityA = _normalizeCityName(a.city);
+    final cityB = _normalizeCityName(b.city);
+    if (cityA.isEmpty || cityA != cityB) return false;
+
+    final ca = a.country?.trim().toLowerCase();
+    final cb = b.country?.trim().toLowerCase();
+    if (ca != null && ca.isNotEmpty &&
+        cb != null && cb.isNotEmpty && ca != cb) {
+      return false;
+    }
+
+    final aa = a.sourceAnchorCity?.trim();
+    final ab = b.sourceAnchorCity?.trim();
+    if (aa != null && aa.isNotEmpty && ab != null && ab.isNotEmpty &&
+        _normalizeCityName(aa) != _normalizeCityName(ab)) {
+      return false;
+    }
+
+    final boundary = _segmentDates(i + 1).start;
+    for (final d in docs) {
+      if (d.category != DocumentCategory.flight &&
+          d.category != DocumentCategory.train) {
+        continue;
+      }
+      final m = d.metadata;
+      final fromCity = (m['from_city'] as String?)?.trim() ?? '';
+      final toCity = (m['to_city'] as String?)?.trim() ?? '';
+      final dep = DateTime.tryParse((m['date'] as String?) ?? '');
+      final arr = arrivalDateFromMetadata(m);
+      if (toCity.isNotEmpty &&
+          _normalizeCityName(toCity) == cityA &&
+          arr != null &&
+          _sameCalendarDay(arr, boundary)) {
+        return false;
+      }
+      if (fromCity.isNotEmpty &&
+          _normalizeCityName(fromCity) == cityA &&
+          dep != null &&
+          _sameCalendarDay(dep, boundary)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool _sameCalendarDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  /// V2 (Lalith 2026-05-10) — dispatcher des suppressions d'étape.
+  /// Branche selon le `lockState` calculé à l'affichage :
+  ///  - `free`         → supprime + normalise (cas le + courant).
+  ///  - `windowLinked` → réassigne les jours à l'ancre du bloc, supprime
+  ///                     puis normalise (les ancres adjacentes fusionnent).
+  ///  - `docLinked`    → ouvre une bottom sheet de confirmation (les
+  ///                     documents restent dans le wallet, l'utilisateur
+  ///                     doit savoir que la modif d'itinéraire « réelle »
+  ///                     passe par l'édition du doc source).
+  Future<void> _handleSegmentDelete({
+    required int index,
+    required TripStepLockState lockState,
+    required ({int firstIdx, int lastIdx, String anchorCity})? block,
+  }) async {
+    if (index < 0 || index >= _segments.length) return;
+    switch (lockState) {
+      case TripStepLockState.free:
+        setState(() {
+          _absorbDeletedDaysIntoSameCityFlank(index);
+          _segments.removeAt(index);
+          _normalizeSegmentsAfterDelete();
+          _enforceSingleSegmentRule();
+        });
+      case TripStepLockState.windowLinked:
+        setState(() {
+          if (block != null) _redistributeWindowLinkedDays(index, block);
+          _segments.removeAt(index);
+          _normalizeSegmentsAfterDelete();
+          _enforceSingleSegmentRule();
+        });
+      case TripStepLockState.docLinked:
+        final confirmed = await _confirmDocLinkedDelete(index);
+        if (!confirmed || !mounted) return;
+        setState(() {
+          _absorbDeletedDaysIntoSameCityFlank(index);
+          _segments.removeAt(index);
+          _normalizeSegmentsAfterDelete();
+          _enforceSingleSegmentRule();
+        });
+    }
+  }
+
+  /// V2 (Lalith 2026-05-10 — Issue 1) — quand on supprime un segment
+  /// pris en sandwich entre 2 segments même-ville, on rend ses jours
+  /// au flanc précédent. Cas typique : Tokyo (5j, FREE) inséré dans une
+  /// fenêtre Bangkok doc-bounded (15/07 arrivée pinnée → 06/08 départ
+  /// pinné). Sans absorption, supprimer Tokyo ferait chuter la durée
+  /// totale du voyage de 5j alors que les bornes restent — bilan
+  /// incohérent. Avec absorption, les 5j sont rendus à Bangkok prev,
+  /// puis `_normalizeSegmentsAfterDelete` fusionne les Bangkok adjacents.
+  ///
+  /// No-op si :
+  ///  - le segment est aux extrémités (pas de flanc des 2 côtés)
+  ///  - les flancs sont de villes différentes (vraie suppression de step)
+  void _absorbDeletedDaysIntoSameCityFlank(int deletedIdx) {
+    if (deletedIdx <= 0 || deletedIdx >= _segments.length - 1) return;
+    final prev = _segments[deletedIdx - 1];
+    final next = _segments[deletedIdx + 1];
+    if (_normalizeCityName(prev.city) != _normalizeCityName(next.city)) {
+      return;
+    }
+    final extra = _segments[deletedIdx].days;
+    if (extra <= 0) return;
+    _segments[deletedIdx - 1] = prev.copyWith(days: prev.days + extra);
+  }
+
+  /// Quand on supprime un segment dérivé d'un bloc (ex: Krabi inséré
+  /// dans la fenêtre Bangkok), on rend ses jours à l'ancre du bloc pour
+  /// préserver la couverture totale du voyage. Stratégie :
+  ///  1. ancre adjacente avant (idx-1) si elle est dans le bloc et porte
+  ///     la ville d'ancrage,
+  ///  2. sinon ancre adjacente après (idx+1),
+  ///  3. sinon premier segment du bloc dont la ville matche l'ancre.
+  /// Si aucun match (rare : bloc dégénéré sans segment-ancre), on laisse
+  /// le bilan signaler le déficit — préférable à pousser les jours sur
+  /// un segment hors-contexte.
+  void _redistributeWindowLinkedDays(
+    int deletedIdx,
+    ({int firstIdx, int lastIdx, String anchorCity}) block,
+  ) {
+    final anchorNorm = _normalizeCityName(block.anchorCity);
+    int? target;
+    if (deletedIdx - 1 >= block.firstIdx &&
+        _normalizeCityName(_segments[deletedIdx - 1].city) == anchorNorm) {
+      target = deletedIdx - 1;
+    } else if (deletedIdx + 1 <= block.lastIdx &&
+        _normalizeCityName(_segments[deletedIdx + 1].city) == anchorNorm) {
+      target = deletedIdx + 1;
+    } else {
+      for (var k = block.firstIdx; k <= block.lastIdx; k++) {
+        if (k == deletedIdx) continue;
+        if (_normalizeCityName(_segments[k].city) == anchorNorm) {
+          target = k;
+          break;
+        }
+      }
+    }
+    if (target == null) return;
+    final extra = _segments[deletedIdx].days;
+    if (extra <= 0) return;
+    _segments[target] = _segments[target].copyWith(
+      days: _segments[target].days + extra,
+    );
+  }
+
+  /// Bottom sheet de confirmation pour la suppression d'une étape liée
+  /// à un document (vol, train, hôtel…). Renvoie `true` si l'utilisateur
+  /// confirme « Supprimer l'étape seulement ». Conformément à la règle
+  /// produit (Lalith 2026-05-10) :
+  ///  - les documents NE sont PAS supprimés du wallet (ils peuvent
+  ///    recréer le segment plus tard).
+  ///  - le bouton « Voir les documents » mène à l'édition de la source,
+  ///    qui est le bon réflexe pour changer l'itinéraire « réel ».
+  Future<bool> _confirmDocLinkedDelete(int index) async {
+    if (index < 0 || index >= _segments.length) return false;
+    final result = await showModalBottomSheet<_DocLinkedDeleteAction>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.background,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Supprimer ${_segments[index].city} ?',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Cette étape est liée à un document de voyage. Les '
+                  'documents resteront dans ton wallet et pourront recréer '
+                  'cette étape. Pour changer les dates ou l\'ordre réel, '
+                  'modifie les documents liés.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: () => Navigator.of(ctx)
+                      .pop(_DocLinkedDeleteAction.viewDocs),
+                  icon: const Icon(Icons.description_outlined, size: 18),
+                  label: const Text('Voir les documents'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    minimumSize: const Size.fromHeight(44),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.of(ctx)
+                      .pop(_DocLinkedDeleteAction.deleteAnyway),
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: const Text('Supprimer l\'étape seulement'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.error,
+                    side: BorderSide(color: AppColors.error),
+                    minimumSize: const Size.fromHeight(44),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: Text(
+                    'Annuler',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (!mounted) return false;
+    if (result == _DocLinkedDeleteAction.viewDocs) {
+      // L'utilisateur a choisi de regarder ses docs — on l'y emmène et
+      // on annule la suppression. À lui de revenir s'il veut quand même
+      // supprimer après avoir vu/édité la source.
+      await _openLinkedDocsForSegment(index);
+      return false;
+    }
+    return result == _DocLinkedDeleteAction.deleteAnyway;
   }
 
   /// Extrait la 1ère partie avant la 1ère virgule d'une string. Utilisé pour
@@ -705,22 +1048,191 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
     }
     developer.log('Optimize: ANCRE $dest → ${anchor.lat},${anchor.lng} (${anchor.formattedAddress})', name: 'optimize');
 
-    // Algo : pour ≤8 étapes on calcule l'ordre EXACTEMENT optimal par énumération
-    // (8! = 40 320 permutations, < 100 ms en Dart). Au-delà → fallback nearest-neighbor.
-    // L'énumération évite les pièges classiques de NN (ex: anchor entre 2 clusters,
-    // NN choisit le plus proche puis fait un grand zigzag pour atteindre le 2nd).
-    final ordered = geocoded.length <= 8
-        ? _bruteForceTsp(geocoded, anchor.lat, anchor.lng)
-        : _nearestNeighbor(geocoded, anchor.lat, anchor.lng);
+    // V2 (Lalith 2026-05-10) — l'optimiseur DOIT respecter les segments
+    // dont les dates sont fixées par un document (vol/train/hôtel daté).
+    // Sinon il propose des ordres absurdes (« regrouper tous les Bangkok
+    // au début ») qui contredisent les vols réels.
+    //
+    // Stratégie (Issue 2 — 2026-05-10, étendue Issue 2bis) : raisonner
+    // en « fenêtres d'ancrage ». Une fenêtre d'ancrage = run maximal de
+    // segments où tous les docLinked partagent une même ville C.
+    //
+    // À l'intérieur d'une fenêtre :
+    //  1. Les segments flex (free/windowLinked, non anchor-city) sont
+    //     extraits, optimisés via TSP depuis l'ancre, puis remis adjacents.
+    //  2. Les segments anchor-city (docLinked OU non) sont consolidés
+    //     en pre-filler + post-filler autour du run flex optimisé.
+    //     pre-filler garde les jours du segment de tête (préserve un
+    //     éventuel start pinné par doc) ; post-filler récupère le reste.
+    //  3. EXCEPTION : si une ancre middle est transport-pinnée
+    //     (startPinned||endPinned, ex : un vol arrive vraiment à Bangkok
+    //     entre Tokyo et Kyoto), on conserve la structure d'origine et
+    //     on se contente de permuter le contenu aux positions flex.
+    //
+    // Pure flex run (sans ancre docLinked devant/dans) → optimisé
+    // depuis le dernier point connu (anchor du voyage ou dernier segment
+    // de la fenêtre précédente).
+    final docsForPin = ref.read(tripDocumentsProvider(widget.trip.id))
+        .maybeWhen(data: (d) => d, orElse: () => const <TripDocument>[]);
+    final pinnedAnalysis = analyzePinnedDates(
+      segments: geocoded.toList(growable: false),
+      tripStartDate: _start,
+      docs: docsForPin,
+    );
+    final fixedIndices = <int>{
+      for (var i = 0; i < pinnedAnalysis.segments.length; i++)
+        if (pinnedAnalysis.segments[i].isDocLinked) i,
+    };
+
+    // V2 (Lalith 2026-05-10 — Issue 2bis) — pour chaque fenêtre d'ancrage,
+    // on consolide les fillers anchor-city non-pinnés autour du run flex
+    // optimisé. Cas type : Bangkok-Tokyo-Bangkok-Kyoto-Bangkok devient
+    // Bangkok(pre)-Kyoto-Tokyo-Bangkok(post) si TSP préfère cet ordre,
+    // au lieu de garder un Bangkok middle parasite. Les Bangkok middle
+    // sont préservés UNIQUEMENT si transport-pinnés (un vol arrive ou
+    // part de Bangkok à cette date précise).
+    final ordered = <TripSegment>[];
+    var hasPermutableGroup = false;
+    var prevLat = anchor.lat, prevLng = anchor.lng;
+    var i = 0;
+    while (i < geocoded.length) {
+      if (fixedIndices.contains(i)) {
+        final anchorNorm = _normalizeCityName(geocoded[i].city);
+        // Fin de fenêtre = 1er docLinked d'une AUTRE ville (ou fin de
+        // liste). Les flex et les segs même-ville (docLinked ou non) sont
+        // absorbés dans la fenêtre.
+        var j = i + 1;
+        while (j < geocoded.length) {
+          if (fixedIndices.contains(j) &&
+              _normalizeCityName(geocoded[j].city) != anchorNorm) {
+            break;
+          }
+          j++;
+        }
+        // Inventaire de la fenêtre.
+        final flex = <TripSegment>[];
+        final flexRelPositions = <int>[];
+        var totalAnchorDays = 0;
+        TripSegment? firstAnchor;
+        TripSegment? lastAnchor;
+        var firstAnchorRelPos = -1;
+        var lastAnchorRelPos = -1;
+        for (var k = i; k < j; k++) {
+          final seg = geocoded[k];
+          final isAnchor = _normalizeCityName(seg.city) == anchorNorm;
+          if (isAnchor) {
+            totalAnchorDays += seg.days;
+            firstAnchor ??= seg;
+            firstAnchorRelPos = firstAnchorRelPos < 0 ? k - i : firstAnchorRelPos;
+            lastAnchor = seg;
+            lastAnchorRelPos = k - i;
+          } else {
+            flex.add(seg);
+            flexRelPositions.add(k - i);
+          }
+        }
+        // Détection d'une ancre-middle « rigide » : un transport pinne
+        // une date précise d'arrivée ou de départ sur la ville d'ancrage
+        // entre la 1ère et la dernière ancre. Ça interdit la
+        // consolidation (le doc force un retour ce jour-là).
+        var hasRigidMiddle = false;
+        if (firstAnchorRelPos >= 0 &&
+            lastAnchorRelPos > firstAnchorRelPos) {
+          for (var k = firstAnchorRelPos + 1; k < lastAnchorRelPos; k++) {
+            final absK = i + k;
+            final seg = geocoded[absK];
+            final isAnchor = _normalizeCityName(seg.city) == anchorNorm;
+            if (!isAnchor) continue;
+            final pin = pinnedAnalysis.segments[absK];
+            if (pin.startPinned || pin.endPinned) {
+              hasRigidMiddle = true;
+              break;
+            }
+          }
+        }
+        if (flex.length >= 2) hasPermutableGroup = true;
+
+        if (flex.length < 2) {
+          // Pas de permutation possible — on conserve le contenu de la
+          // fenêtre tel quel.
+          ordered.addAll(geocoded.sublist(i, j));
+        } else {
+          final tspStartLat = firstAnchor?.latitude ?? geocoded[i].latitude!;
+          final tspStartLng = firstAnchor?.longitude ?? geocoded[i].longitude!;
+          final optimized = flex.length <= 8
+              ? _bruteForceTsp(flex, tspStartLat, tspStartLng)
+              : _nearestNeighbor(flex, tspStartLat, tspStartLng);
+          if (hasRigidMiddle) {
+            // On préserve la structure (ancres middle pinnées) et on
+            // remappe juste le contenu des positions flex.
+            final result = List<TripSegment>.of(geocoded.sublist(i, j));
+            for (var k = 0; k < flexRelPositions.length; k++) {
+              result[flexRelPositions[k]] = optimized[k];
+            }
+            ordered.addAll(result);
+          } else {
+            // Consolidation : [pre-filler, optimized flex..., post-filler].
+            // pre-filler garde les jours de l'ancre originellement à
+            // relPos 0 (préserve un éventuel start pinné par doc) ;
+            // post-filler récupère le reste des jours d'ancre.
+            final firstSegIsAnchor = firstAnchorRelPos == 0;
+            final preDays = firstSegIsAnchor ? firstAnchor!.days : 0;
+            final postDays = totalAnchorDays - preDays;
+            if (preDays > 0) {
+              ordered.add(firstAnchor!.copyWith(days: preDays));
+            }
+            ordered.addAll(optimized);
+            if (postDays > 0) {
+              final ref = lastAnchor ?? firstAnchor!;
+              ordered.add(ref.copyWith(days: postDays));
+            }
+          }
+        }
+        prevLat = geocoded[j - 1].latitude!;
+        prevLng = geocoded[j - 1].longitude!;
+        i = j;
+      } else {
+        // Run flex « libre » (pas d'ancre docLinked avant) : optimisé
+        // depuis le dernier point connu.
+        var j = i;
+        while (j < geocoded.length && !fixedIndices.contains(j)) {
+          j++;
+        }
+        final run = geocoded.sublist(i, j);
+        if (run.length >= 2) {
+          hasPermutableGroup = true;
+          final optimized = run.length <= 8
+              ? _bruteForceTsp(run, prevLat, prevLng)
+              : _nearestNeighbor(run, prevLat, prevLng);
+          ordered.addAll(optimized);
+        } else {
+          ordered.addAll(run);
+        }
+        prevLat = geocoded[j - 1].latitude!;
+        prevLng = geocoded[j - 1].longitude!;
+        i = j;
+      }
+    }
+
+    if (!hasPermutableGroup) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'L\'ordre de tes étapes est déjà fixé par tes documents de voyage.',
+          ),
+        ),
+      );
+      return;
+    }
 
     // Log de la distance totale du nouveau parcours pour debug
     var totalKm = 0.0;
-    var prevLat = anchor.lat, prevLng = anchor.lng;
+    var pLat = anchor.lat, pLng = anchor.lng;
     for (final s in ordered) {
-      final d = _haversineKm(prevLat, prevLng, s.latitude!, s.longitude!);
+      final d = _haversineKm(pLat, pLng, s.latitude!, s.longitude!);
       totalKm += d;
       developer.log('Optimize: ${s.city} à ${d.toStringAsFixed(0)} km du précédent', name: 'optimize');
-      prevLat = s.latitude!; prevLng = s.longitude!;
+      pLat = s.latitude!; pLng = s.longitude!;
     }
     developer.log('Optimize: total parcours = ${totalKm.toStringAsFixed(0)} km', name: 'optimize');
 
@@ -1844,6 +2356,8 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
       ConflictType.hotelDuringAbsence => 'Documents liés au conflit',
       ConflictType.segmentArrivalMismatch =>
           'Documents liés à cette étape',
+      ConflictType.missingSegmentForTransport =>
+          'Document sans étape correspondante',
     };
     await showModalBottomSheet<void>(
       context: context,
@@ -2368,9 +2882,126 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
       if (pinnedAnalysis.segments[i].isDocLinked) lockedIndices.add(i);
     }
 
+    // V5.2 (Lalith bug fix 2026-05-10 — Issue 2) — étapes manuelles
+    // mises de côté lors d'un précédent `applyTimelineDiff`. On les
+    // affiche comme des pills tappables au-dessus de la liste, pour
+    // que l'utilisateur puisse les recréer en 1 clic via le segment
+    // editor pré-rempli.
+    //
+    // V5.3 (UX improvement 2026-05-10) — classification auto-safe :
+    // une étape avec `sourceAnchorCity` qui matche EXACTEMENT UNE
+    // ancre du squelette actuel ET avec assez de jours libres dans
+    // cette ancre est auto-replaçable. Le bandeau expose un CTA
+    // « Replacer automatiquement (N) » qui les insère en batch.
+    // Les autres (sans ancre, ancre absente, ancre ambiguë multi-match,
+    // ou pas assez de room) restent en pills à recréer manuellement.
+    final unplaced = ref.watch(unplacedSegmentsProvider(widget.trip.id));
+    final autoSafe = <({int anchorIdx, TripSegment unplaced})>[];
+    if (unplaced.isNotEmpty) {
+      final virtualDays = <int, int>{
+        for (var i = 0; i < _segments.length; i++) i: _segments[i].days,
+      };
+      for (final u in unplaced) {
+        final src = u.sourceAnchorCity?.trim();
+        if (src == null || src.isEmpty) continue;
+        final srcNorm = _normalizeCityName(src);
+        final candidates = <int>[];
+        for (var i = 0; i < _segments.length; i++) {
+          if (_normalizeCityName(_segments[i].city) == srcNorm &&
+              (virtualDays[i] ?? 0) > u.days) {
+            candidates.add(i);
+          }
+        }
+        // Auto-safe seulement si EXACTEMENT 1 candidat. 2+ → ambiguous,
+        // l'user choisit. 0 → pas d'ancre, l'user crée manuellement.
+        if (candidates.length == 1) {
+          final idx = candidates.first;
+          autoSafe.add((anchorIdx: idx, unplaced: u));
+          virtualDays[idx] = (virtualDays[idx] ?? 0) - u.days;
+        }
+      }
+    }
+
+    void removeFromUnplaced(TripSegment seg) {
+      final notifier = ref.read(
+        unplacedSegmentsProvider(widget.trip.id).notifier,
+      );
+      notifier.state = notifier.state
+          .where((u) =>
+              _normalizeCityName(u.city) !=
+                  _normalizeCityName(seg.city) ||
+              u.days != seg.days)
+          .toList();
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (unplaced.isNotEmpty) ...[
+          _UnplacedSegmentsBanner(
+            ambiguous: [
+              for (final u in unplaced)
+                if (!autoSafe.any((e) =>
+                    _normalizeCityName(e.unplaced.city) ==
+                        _normalizeCityName(u.city) &&
+                    e.unplaced.days == u.days))
+                  u,
+            ],
+            autoSafeCount: autoSafe.length,
+            onAutoReplace: autoSafe.isEmpty
+                ? null
+                : () {
+                    // Insertion batch en sens DESCENDANT par anchorIdx
+                    // pour éviter les décalages d'index quand on insère.
+                    final batch = autoSafe.toList()
+                      ..sort((a, b) => b.anchorIdx.compareTo(a.anchorIdx));
+                    setState(() {
+                      for (final entry in batch) {
+                        final anchor = _segments[entry.anchorIdx];
+                        _segments[entry.anchorIdx] = anchor.copyWith(
+                          days: anchor.days - entry.unplaced.days,
+                        );
+                        _segments.insert(
+                            entry.anchorIdx + 1, entry.unplaced);
+                      }
+                      _enforceSingleSegmentRule();
+                    });
+                    // Retire les auto-replacés du provider.
+                    final notifier = ref.read(
+                      unplacedSegmentsProvider(widget.trip.id).notifier,
+                    );
+                    final placed = autoSafe
+                        .map((e) => e.unplaced)
+                        .toList(growable: false);
+                    notifier.state = notifier.state
+                        .where((u) => !placed.any((p) =>
+                            _normalizeCityName(p.city) ==
+                                _normalizeCityName(u.city) &&
+                            p.days == u.days))
+                        .toList();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          '${autoSafe.length} étape'
+                          '${autoSafe.length > 1 ? "s" : ""} '
+                          '${autoSafe.length > 1 ? "replacées" : "replacée"} '
+                          'automatiquement.',
+                        ),
+                        duration: const Duration(seconds: 3),
+                      ),
+                    );
+                  },
+            onTapItem: (seg) async {
+              // Pré-remplit le segment editor. Si l'utilisateur valide,
+              // on retire le pill correspondant de la liste.
+              await _openSegmentEditor(existing: seg);
+              if (!mounted) return;
+              removeFromUnplaced(seg);
+            },
+            onDismiss: removeFromUnplaced,
+          ),
+          const SizedBox(height: 12),
+        ],
         if (_segments.isNotEmpty) ...[
           ReorderableListView.builder(
             shrinkWrap: true,
@@ -2440,57 +3071,81 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
               } else {
                 lockState = TripStepLockState.free;
               }
-              return Padding(
+              // V5 (Lalith 2026-05-10 — Lot A) — quand un transport
+              // pinné connecte cette étape à la précédente, on affiche
+              // une ligne de transition AVANT la card. Sémantique
+              // gateway : si l'étape est window-linked (Hội An), la
+              // transition montre le transfert via la gateway
+              // (Da Nang) en plus du vol/train, pour que la gateway
+              // reste visible visuellement même quand elle n'est plus
+              // une card-étape.
+              return Column(
                 key: ValueKey('seg-$i-${seg.city}-${seg.days}'),
-                padding: const EdgeInsets.only(bottom: 8),
-                child: TripStepCard(
-                  city: seg.city,
-                  country: seg.country,
-                  days: seg.days,
-                  startDate: dates.start,
-                  endDate: dates.end,
-                  lockState: lockState,
-                  windowAnchorCity: windowAnchor,
-                  windowStart: winStart,
-                  windowEndExclusive: winEnd,
-                  // V2 (Lalith 2026-05-09) — tap sur cadenas/badge =
-                  // ouverture du ou des documents liés (pas de snackbar
-                  // passif). Permet d'éditer rapidement le doc qui
-                  // verrouille l'étape.
-                  onLockTap: isLocked
-                      ? () => _openLinkedDocsForSegment(i)
-                      : null,
-                  // docLinked = icône cadenas tappable (pas de drag).
-                  // windowLinked / free = drag handle classique (la
-                  // contrainte de fenêtre est validée à `onReorder`).
-                  leading: isLocked
-                      ? GestureDetector(
-                          onTap: () => _openLinkedDocsForSegment(i),
-                          child: Tooltip(
-                            message:
-                                'Voir les documents liés à cette étape',
-                            child: Icon(
-                              Icons.lock_outline,
-                              size: 16,
-                              color: AppColors.accent.withValues(alpha: 0.85),
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (i > 0)
+                    _GatewayTransitionRow(
+                      prev: _segments[i - 1],
+                      current: seg,
+                      boundaryDate: dates.start,
+                      docs: docs,
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: TripStepCard(
+                      city: seg.city,
+                      country: seg.country,
+                      days: seg.days,
+                      startDate: dates.start,
+                      endDate: dates.end,
+                      lockState: lockState,
+                      windowAnchorCity: windowAnchor,
+                      windowStart: winStart,
+                      windowEndExclusive: winEnd,
+                      // V2 (Lalith 2026-05-09) — tap sur cadenas/badge =
+                      // ouverture du ou des documents liés (pas de snackbar
+                      // passif). Permet d'éditer rapidement le doc qui
+                      // verrouille l'étape.
+                      onLockTap: isLocked
+                          ? () => _openLinkedDocsForSegment(i)
+                          : null,
+                      // docLinked = icône cadenas tappable (pas de drag).
+                      // windowLinked / free = drag handle classique (la
+                      // contrainte de fenêtre est validée à `onReorder`).
+                      leading: isLocked
+                          ? GestureDetector(
+                              onTap: () => _openLinkedDocsForSegment(i),
+                              child: Tooltip(
+                                message:
+                                    'Voir les documents liés à cette étape',
+                                child: Icon(
+                                  Icons.lock_outline,
+                                  size: 16,
+                                  color: AppColors.accent
+                                      .withValues(alpha: 0.85),
+                                ),
+                              ),
+                            )
+                          : ReorderableDragStartListener(
+                              index: i,
+                              child: Icon(
+                                Icons.drag_indicator,
+                                size: 16,
+                                color: AppColors.textSecondary
+                                    .withValues(alpha: 0.6),
+                              ),
                             ),
-                          ),
-                        )
-                      : ReorderableDragStartListener(
-                          index: i,
-                          child: Icon(
-                            Icons.drag_indicator,
-                            size: 16,
-                            color: AppColors.textSecondary
-                                .withValues(alpha: 0.6),
-                          ),
-                        ),
-                  onTap: () => _openSegmentEditor(existing: seg, index: i),
-                  onDelete: () => setState(() {
-                    _segments.removeAt(i);
-                    _enforceSingleSegmentRule();
-                  }),
-                ),
+                      onTap: () =>
+                          _openSegmentEditor(existing: seg, index: i),
+                      onDelete: () => _handleSegmentDelete(
+                        index: i,
+                        lockState: lockState,
+                        block: block,
+                      ),
+                    ),
+                  ),
+                ],
               );
             },
           ),
@@ -2581,6 +3236,329 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
 /// quand l'user, en mode ajout, a explicitement choisi un jour de début (= il
 /// veut placer l'étape AU MILIEU du voyage). Dans ce cas le caller doit faire
 /// un split de l'étape qui couvre ce jour. Si null → append simple à la fin.
+/// V5.2 (Lalith 2026-05-10 — Issue 2) — Bannière listant les étapes
+/// manuelles mises de côté lors d'un précédent `applyTimelineDiff`. Le
+/// voyageur peut tap chaque pill pour les recréer en 1 clic via le
+/// segment editor pré-rempli, ou les dismiss avec ✕.
+///
+/// V5.3 (UX 2026-05-10) — quand un sous-ensemble des unplaced peut
+/// être replacé sans ambiguïté (`autoSafeCount > 0`), un CTA primaire
+/// « Replacer automatiquement (N) » apparaît au-dessus des pills pour
+/// faire le batch en 1 clic. Les pills affichées correspondent aux
+/// étapes à confirmer (ambiguous + sans ancre) — les auto-safe ne
+/// polluent pas la liste puisqu'elles vont être traitées par le CTA.
+class _UnplacedSegmentsBanner extends StatelessWidget {
+  /// Étapes restant à recréer manuellement (= unplaced \ auto-safe).
+  final List<TripSegment> ambiguous;
+  final int autoSafeCount;
+  final VoidCallback? onAutoReplace;
+  final void Function(TripSegment seg) onTapItem;
+  final void Function(TripSegment seg) onDismiss;
+
+  const _UnplacedSegmentsBanner({
+    required this.ambiguous,
+    required this.autoSafeCount,
+    required this.onAutoReplace,
+    required this.onTapItem,
+    required this.onDismiss,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasAuto = autoSafeCount > 0 && onAutoReplace != null;
+    final ambiguousCount = ambiguous.length;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: AppColors.accentLight.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: AppColors.accent.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.bookmark_outline,
+                  size: 14, color: AppColors.accent),
+              const SizedBox(width: 6),
+              Text(
+                'ÉTAPES À REPLACER',
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.accent,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            hasAuto
+                ? 'Lunao peut replacer $autoSafeCount étape'
+                    '${autoSafeCount > 1 ? "s" : ""} '
+                    'sans déplacer tes documents.'
+                    '${ambiguousCount > 0 ? " Les autres demandent ton choix." : ""}'
+                : 'Mises de côté par la dernière mise à jour des '
+                    'documents. Tap pour les recréer dans ton itinéraire.',
+            style: TextStyle(
+              fontSize: 11.5,
+              color: AppColors.textSecondary,
+              height: 1.3,
+            ),
+          ),
+          if (hasAuto) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: onAutoReplace,
+                icon: const Icon(Icons.auto_fix_high, size: 16),
+                label: Text(
+                  'Replacer automatiquement ($autoSafeCount)',
+                  style: const TextStyle(fontSize: 12.5),
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.accent,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  minimumSize: const Size.fromHeight(34),
+                ),
+              ),
+            ),
+            if (ambiguousCount > 0) ...[
+              const SizedBox(height: 8),
+              Text(
+                'À CONFIRMER',
+                style: TextStyle(
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textSecondary,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 4),
+            ],
+          ],
+          if (ambiguousCount > 0) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final seg in ambiguous)
+                  _UnplacedPill(
+                    segment: seg,
+                    onTap: () => onTapItem(seg),
+                    onDismiss: () => onDismiss(seg),
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _UnplacedPill extends StatelessWidget {
+  final TripSegment segment;
+  final VoidCallback onTap;
+  final VoidCallback onDismiss;
+
+  const _UnplacedPill({
+    required this.segment,
+    required this.onTap,
+    required this.onDismiss,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(10, 5, 4, 5),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: AppColors.accent.withValues(alpha: 0.5),
+            ),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '${segment.city} · ${segment.days}j',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(width: 4),
+              GestureDetector(
+                onTap: onDismiss,
+                child: Padding(
+                  padding: const EdgeInsets.all(3),
+                  child: Icon(
+                    Icons.close,
+                    size: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// V5 (Lalith 2026-05-10 — Lot A) — Ligne de transition affichée AU-DESSUS
+/// d'une card de segment quand un transport pinné connecte le segment
+/// précédent au segment courant. Sémantique « gateway » :
+///  - si le segment courant est window-linked (ex : Hội An liée à
+///    Da Nang), la transition montre le vol vers la gateway PUIS le
+///    transfert vers la ville de séjour.
+///  - si le segment précédent est window-linked, la transition montre
+///    le transfert depuis la ville de séjour vers la gateway PUIS le vol.
+///
+/// Si aucun doc transport ne matche `(prevGateway → currGateway,
+/// boundaryDate)`, le widget retourne `SizedBox.shrink()` — pas de
+/// pollution visuelle quand l'info n'est pas disponible.
+class _GatewayTransitionRow extends StatelessWidget {
+  final TripSegment prev;
+  final TripSegment current;
+  final DateTime boundaryDate;
+  final List<TripDocument> docs;
+
+  const _GatewayTransitionRow({
+    required this.prev,
+    required this.current,
+    required this.boundaryDate,
+    required this.docs,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final prevGatewayCity =
+        (prev.sourceAnchorCity?.trim().isNotEmpty ?? false)
+            ? prev.sourceAnchorCity!.trim()
+            : prev.city;
+    final currGatewayCity =
+        (current.sourceAnchorCity?.trim().isNotEmpty ?? false)
+            ? current.sourceAnchorCity!.trim()
+            : current.city;
+    final prevGatewayNorm = _normalizeCityName(prevGatewayCity);
+    final currGatewayNorm = _normalizeCityName(currGatewayCity);
+    if (prevGatewayNorm == currGatewayNorm) return const SizedBox.shrink();
+
+    // V5.2 (Lalith feedback 2026-05-10) — matching tolérant. On cherche
+    // un vol/train dont (from, to) matche les gateways. Pour la date,
+    // on accepte arrival_date OU dep_date dans une fenêtre de ±2 jours
+    // autour du jour-frontière (= cumul des segments). Cette tolérance
+    // absorbe les petits écarts entre jours-cumul et dates réelles des
+    // vols (ex : segment Ninh Bình 3 jours mais le retour Hanoï→Da Nang
+    // est sur le 4ᵉ jour). On choisit le doc dont la date est la plus
+    // proche.
+    TripDocument? match;
+    var bestDiff = 999;
+    for (final d in docs) {
+      if (d.category != DocumentCategory.flight &&
+          d.category != DocumentCategory.train) {
+        continue;
+      }
+      final m = d.metadata;
+      final from = (m['from_city'] as String?)?.trim() ?? '';
+      final to = (m['to_city'] as String?)?.trim() ?? '';
+      if (from.isEmpty || to.isEmpty) continue;
+      if (_normalizeCityName(from) != prevGatewayNorm) continue;
+      if (_normalizeCityName(to) != currGatewayNorm) continue;
+      final arr = arrivalDateFromMetadata(m);
+      final dep = DateTime.tryParse((m['date'] as String?) ?? '');
+      final candidates = <DateTime>[?arr, ?dep];
+      if (candidates.isEmpty) continue;
+      final minDiff = candidates
+          .map((dt) => dt.difference(boundaryDate).inDays.abs())
+          .reduce((a, b) => a < b ? a : b);
+      if (minDiff > 2) continue;
+      if (minDiff < bestDiff) {
+        match = d;
+        bestDiff = minDiff;
+      }
+    }
+
+    // V5.3 (rollback Lalith feedback 2026-05-10) — pas de fallback
+    // gateway-only quand aucun doc transport ne matche : la gateway
+    // reste de toute façon visible via le badge « Liée à {gateway} »
+    // de la card window-linked, et le « Retour vers » alourdissait la
+    // liste sans apporter d'info nouvelle.
+    if (match == null) return const SizedBox.shrink();
+
+    final m = match.metadata;
+    final isFlight = match.category == DocumentCategory.flight;
+    final modeIcon = isFlight ? '✈️' : '🚉';
+    final dateLabel = _fmtShortDate(boundaryDate);
+    final number = (m['flight_number'] as String?)?.trim() ??
+        (m['train_number'] as String?)?.trim() ??
+        '';
+    final transportLine =
+        '$modeIcon $prevGatewayCity → $currGatewayCity · $dateLabel'
+        '${number.isNotEmpty ? ' · $number' : ''}';
+
+    final lines = <String>[];
+    // V5.4 (Lalith feedback 2026-05-10) — symétrie sortante. Quand
+    // l'étape précédente est window-linked, on AJOUTE la ligne 🚗 de
+    // transfert depuis la ville de séjour vers la gateway, au-dessus
+    // de la ligne ✈️. Ordre chronologique : transfert local → vol.
+    // Wording « Transfert vers » (vs « Retour vers » qui sonnait
+    // bizarrement) pour cohérence avec la ligne entrante symétrique.
+    if (_normalizeCityName(prev.city) != prevGatewayNorm) {
+      lines.add('🚗 Transfert vers $prevGatewayCity');
+    }
+    lines.add(transportLine);
+    if (_normalizeCityName(current.city) != currGatewayNorm) {
+      lines.add('🚗 Puis transfert vers ${current.city}');
+    }
+
+    // V5.1 — typographie + spacing resserrés. Les transitions doivent
+    // rester légères dans la liste pour ne pas alourdir un grand
+    // circuit (Asie 5 vols = 5 transitions).
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 8, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final line in lines)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 1),
+              child: Text(
+                line,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                  height: 1.3,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _fmtShortDate(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/'
+      '${d.month.toString().padLeft(2, '0')}';
+}
+
 typedef _SegmentEditResult = ({TripSegment segment, int? insertAtDay});
 
 class _SegmentEditorDialog extends ConsumerStatefulWidget {
@@ -3127,16 +4105,40 @@ class _OrderPreviewDialog extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(
-                  list[i].country != null && list[i].country!.isNotEmpty
-                      ? '${list[i].city} · ${list[i].country}'
-                      : list[i].city,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: highlight ? FontWeight.w600 : FontWeight.normal,
-                    color: highlight ? AppColors.textPrimary : AppColors.textSecondary,
-                  ),
-                  overflow: TextOverflow.ellipsis,
+                child: Builder(
+                  builder: (_) {
+                    // V5 (Lalith 2026-05-10 — Lot D) — pour un segment
+                    // window-linked, on affiche « via {gateway} » au
+                    // lieu du pays. Le voyageur comprend tout de suite
+                    // que Hội An passe par Da Nang, Ninh Bình par
+                    // Hanoï, etc. Si la sourceAnchorCity matche la
+                    // ville (= self-reference rare), on retombe sur
+                    // l'affichage pays classique.
+                    final seg = list[i];
+                    final source = seg.sourceAnchorCity?.trim() ?? '';
+                    final hasGateway = source.isNotEmpty &&
+                        _normalizeCityName(source) !=
+                            _normalizeCityName(seg.city);
+                    final label = hasGateway
+                        ? '${seg.city} · via $source'
+                        : ((seg.country != null &&
+                                seg.country!.isNotEmpty)
+                            ? '${seg.city} · ${seg.country}'
+                            : seg.city);
+                    return Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: highlight
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                        color: highlight
+                            ? AppColors.textPrimary
+                            : AppColors.textSecondary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    );
+                  },
                 ),
               ),
               Text(
@@ -3599,6 +4601,10 @@ class _LinkedDocRow extends StatelessWidget {
 
 enum _LinkedDocRole { arrival, departure, hotel, unknown }
 
+/// Choix retourné par la bottom sheet de confirmation pour la suppression
+/// d'un segment doc-linked. `null` (= dismiss) équivaut à "Annuler".
+enum _DocLinkedDeleteAction { viewDocs, deleteAnyway }
+
 /// Réplique locale du `_normalize` projet pour le matching ville
 /// case+accent insensible (cf. `_normalizeCity` ailleurs dans le repo).
 String _normalizeCityName(String s) {
@@ -3627,6 +4633,8 @@ class _ConflictRow extends StatelessWidget {
         ConflictType.overlappingTransports => Icons.compare_arrows,
         ConflictType.hotelDuringAbsence => Icons.hotel_outlined,
         ConflictType.segmentArrivalMismatch => Icons.event_busy,
+        ConflictType.missingSegmentForTransport =>
+            Icons.location_off_outlined,
       };
 
   @override

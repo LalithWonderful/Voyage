@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:voyage/core/theme/app_theme.dart';
-import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/services/flight_timeline_builder.dart';
+import 'package:voyage/features/trips/services/preserved_segments.dart';
 import 'package:voyage/features/trips/services/trip_segment_sync_service.dart';
 import 'package:voyage/features/trips/widgets/trip_step_card.dart';
 
@@ -144,12 +144,34 @@ class DetectedSegmentsSheet extends StatelessWidget {
                       ),
                     ),
 
-                  // Étapes manuelles préservées
+                  // Étapes à replacer
+                  // V4 (2026-05-10) — sémantique : ces étapes ne sont
+                  // PAS ajoutées au voyage par cette sync. Elles sont
+                  // listées pour que l'user sache quoi recréer via
+                  // « Affiner les étapes ».
+                  // Lot C (2026-05-10) — section enrichie : titre aligné
+                  // sur la spec produit (« Étapes à replacer »), pill
+                  // « À replacer » sur chaque row pour la lisibilité.
                   if (diff.preservedManual.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     _SectionLabel(
-                      label: 'Étapes manuelles conservées',
+                      label: 'Étapes à replacer',
                       tone: _SectionTone.neutral,
+                    ),
+                    const SizedBox(height: 4),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4, right: 4),
+                      child: Text(
+                        'Pour ne pas casser tes dates documentées, Lunao '
+                        'met ces étapes de côté. Tu pourras les rajouter '
+                        'via « Affiner les étapes » une fois le voyage à '
+                        'jour.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                          height: 1.35,
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 6),
                     for (final m in diff.preservedManual)
@@ -320,10 +342,13 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-/// Affichage d'une étape manuelle préservée — elle reste telle quelle dans
-/// le voyage parce que sa ville n'est jamais apparue dans les vols.
+/// Affichage d'une étape « à replacer » — son nom n'apparaît pas dans
+/// les vols et Lunao tente de la replacer aux dates d'origine si
+/// possible (cf. V5.4 2026-05-10 / `autoPlacePreservedSegments`).
+/// Pill orange « À replacer » pour signaler l'action demandée à
+/// l'utilisateur quand ça n'a pas pu être placé automatiquement.
 class _ManualPreservedRow extends StatelessWidget {
-  final TripSegment segment;
+  final PreservedSegmentInfo segment;
   const _ManualPreservedRow({required this.segment});
 
   @override
@@ -341,6 +366,23 @@ class _ManualPreservedRow extends StatelessWidget {
               style: TextStyle(
                 fontSize: 13,
                 color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: AppColors.accentLight.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              'À replacer',
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w600,
+                color: AppColors.accent,
+                letterSpacing: 0.2,
               ),
             ),
           ),

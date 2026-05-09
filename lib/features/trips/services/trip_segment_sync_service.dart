@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:voyage/features/planning/services/activity_staleness_service.dart';
 import 'package:voyage/features/planning/services/airport_city_overrides.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/services/flight_timeline_builder.dart';
+import 'package:voyage/features/trips/services/preserved_segments.dart';
 import 'package:voyage/features/wallet/models/document_model.dart';
 
 /// Synchronise les étapes d'un voyage à partir de la chronologie des vols.
@@ -69,12 +71,32 @@ class TripSegmentSyncService {
 
   /// Applique un diff précédemment calculé : remplace les segments du voyage
   /// par la liste fusionnée. Idempotent.
-  Future<void> applyTimelineDiff({
+  ///
+  /// V5.4 (Lalith 2026-05-10) — auto-placement par dates d'origine. Les
+  /// étapes préservées (manuelles + window-linked) sont d'abord
+  /// retentées sur leurs dates EXACTES dans le nouveau squelette
+  /// doc-derived. Celles dont les dates restent libres → réinsérées
+  /// automatiquement. Les autres → retournées comme leftovers que le
+  /// caller stocke dans le bandeau « À replacer ».
+  ///
+  /// Retourne la liste des étapes préservées qu'on N'A PAS pu replacer
+  /// automatiquement.
+  Future<List<PreservedSegmentInfo>> applyTimelineDiff({
     required String tripId,
     required TripTimelineDiff diff,
   }) async {
-    if (diff.isEmpty) return;
-    final segments = diff.mergedSegments;
+    if (diff.isEmpty) return const [];
+    // V5.4 — auto-placement aux dates d'origine. La date de référence
+    // pour le calcul des cumuls dans le nouveau squelette = la date
+    // effective d'arrivée (post-réalignement) ou la date courante.
+    final tripStart = diff.effectiveTripStartDate ?? diff.currentTripStartDate;
+    final autoPlaced = autoPlacePreservedSegments(
+      skeleton: diff.mergedSegments,
+      tripStartDate: tripStart,
+      preserved: diff.preservedManual,
+    );
+    final segments = autoPlaced.placed;
+    final leftovers = autoPlaced.leftovers;
     final updateMap = <String, dynamic>{
       'itinerary_segments': segments.map((s) => s.toJson()).toList(),
     };
@@ -92,19 +114,42 @@ class TripSegmentSyncService {
     }
     try {
       await _client.from('trips').update(updateMap).eq('id', tripId);
+      // V4 (Lalith 2026-05-10) — quand l'itinéraire est ré-écrit depuis
+      // les documents, les activités GÉNÉRÉES par Lunao deviennent
+      // stale (mauvaises villes / mauvais jours). On les supprime.
+      // Préservées : activités utilisateur + imports de documents.
+      final clearedActivities =
+          await clearGeneratedActivitiesForTrip(_client, tripId);
+      final autoPlacedCount =
+          diff.preservedManual.length - leftovers.length;
       debugPrint('[trip-segment-sync] timeline appliquée — '
           '+${diff.added.length} ajout, ${diff.updated.length} maj, '
           '${diff.removed.length} retrait, '
-          '${diff.preservedManual.length} étape(s) manuelle(s) préservée(s)'
-          '${diff.tripStartDateNeedsUpdate ? ' + start_date réalignée' : ''}');
+          '${diff.preservedManual.length} étape(s) préservée(s) '
+          '($autoPlacedCount replacée(s) auto, ${leftovers.length} restantes)'
+          '${diff.tripStartDateNeedsUpdate ? ' + start_date réalignée' : ''}'
+          '${clearedActivities > 0 ? ' + $clearedActivities activité(s) générée(s) supprimée(s)' : ''}');
     } catch (e) {
       debugPrint('[trip-segment-sync] update error : $e');
+      // En cas d'échec d'écriture, on retourne quand même les leftovers
+      // calculés (au moins l'utilisateur peut tenter un re-apply).
     }
+    return leftovers;
   }
 
   // ─── compute diff ──────────────────────────────────────────────────────
 
   TripTimelineDiff _computeDiff({
+    required Trip trip,
+    required List<FlightStayCandidate> timeline,
+  }) =>
+      debugComputeDiff(trip: trip, timeline: timeline);
+
+  /// V4 (Lalith 2026-05-10) — logique pure exposée pour tester la
+  /// régression « Mettre à jour mon voyage corrompt l'ordre » sans
+  /// instancier de `SupabaseClient`. Pas d'I/O.
+  @visibleForTesting
+  static TripTimelineDiff debugComputeDiff({
     required Trip trip,
     required List<FlightStayCandidate> timeline,
   }) {
@@ -123,9 +168,14 @@ class TripSegmentSyncService {
 
     // Étapes manuelles : ville absente de tous les séjours déduits → on
     // les préserve telles quelles, à leur position courante.
-    final preservedManual = <TripSegment>[];
+    // V5.4 (Lalith 2026-05-10) — on capture les DATES D'ORIGINE de
+    // chaque étape préservée pour permettre l'auto-placement aux mêmes
+    // dates dans le nouveau squelette (cf. `autoPlacePreservedSegments`).
+    final preservedManual = <PreservedSegmentInfo>[];
     final removed = <TripSegment>[];
-    for (final seg in existing) {
+    var origOffset = 0;
+    for (var i = 0; i < existing.length; i++) {
+      final seg = existing[i];
       final norm = _normalize(seg.city);
       if (flightCities.contains(norm)) {
         // Cette étape sera remplacée par les séjours déduits → "removed"
@@ -133,8 +183,23 @@ class TripSegmentSyncService {
         // diff updated/added (la fusion finale gère).
         removed.add(seg);
       } else {
-        preservedManual.add(seg);
+        final segStart = trip.startDate.add(Duration(days: origOffset));
+        final segEnd =
+            trip.startDate.add(Duration(days: origOffset + seg.days));
+        preservedManual.add(PreservedSegmentInfo(
+          city: seg.city,
+          country: seg.country,
+          days: seg.days,
+          startDate: segStart,
+          endDateExclusive: segEnd,
+          originalIndex: i,
+          source: (seg.sourceAnchorCity?.trim().isNotEmpty ?? false)
+              ? PreservedSegmentSource.windowLinked
+              : PreservedSegmentSource.manual,
+          sourceAnchorCity: seg.sourceAnchorCity,
+        ));
       }
+      origOffset += seg.days;
     }
 
     // Convertit chaque séjour déduit en TripSegment.
@@ -189,24 +254,45 @@ class TripSegmentSyncService {
       }
     });
 
-    final totalDays = addedSegments.fold<int>(0, (acc, s) => acc + s.days) +
-        preservedManual.fold<int>(0, (acc, s) => acc + s.days);
-    if (totalDays > trip.durationDays) {
+    // V4 (Lalith 2026-05-10) — fix critique : NE PAS concaténer
+    // aveuglément `addedSegments + preservedManual`. C'était la source du
+    // bug "65 jours placés pour un voyage de 46 jours" — le merge naïf
+    // appendait toutes les étapes manuelles APRÈS le squelette doc-derived
+    // sans vérifier la capacité, créant un drift cumulatif et explosant la
+    // durée totale.
+    //
+    // Stratégie conservative : le squelette doc-derived est SOURCE DE
+    // VÉRITÉ et est appliqué seul. Les étapes manuelles préservées sont
+    // SURFACE'ES dans la sheet (`preservedManual`) et dans un warning,
+    // mais NE sont PAS ré-insérées automatiquement. L'utilisateur peut
+    // les recréer via « Affiner les étapes » qui a déjà la logique de
+    // placement window-aware (`itinerary_mutation.dart`).
+    //
+    // Trade-off accepté avec Lalith : préférable à un itinéraire corrompu.
+    final docTotalDays =
+        addedSegments.fold<int>(0, (acc, s) => acc + s.days);
+    if (docTotalDays > trip.durationDays) {
       warnings.add(
-        'La durée totale des étapes ($totalDays jours) dépasse '
-        'la durée du voyage (${trip.durationDays} jours).',
+        'La durée totale des étapes déduites ($docTotalDays jours) '
+        'dépasse la durée du voyage (${trip.durationDays} jours). '
+        'Vérifie tes documents.',
+      );
+    }
+    if (preservedManual.isNotEmpty) {
+      final cities = preservedManual.map((m) => m.city).join(', ');
+      final n = preservedManual.length;
+      final pluralS = n > 1 ? 's' : '';
+      final pluralVerb = n > 1 ? 'seront pas réinsérées' : 'sera pas réinsérée';
+      warnings.add(
+        '$n étape$pluralS manuelle$pluralS ($cities) ne $pluralVerb '
+        'automatiquement. Tu pourras ${n > 1 ? "les" : "l'"}ajouter '
+        'via « Affiner les étapes » dans le voyage.',
       );
     }
 
-    // Construction de la liste finale fusionnée. Stratégie simple :
-    // - les séjours déduits viennent en premier dans l'ordre chronologique
-    //   (la timeline est déjà triée par date d'arrivée)
-    // - les étapes manuelles préservées viennent ensuite
-    // L'utilisateur peut toujours réorganiser à la main dans la sheet.
-    final mergedSegments = <TripSegment>[
-      ...addedSegments,
-      ...preservedManual,
-    ];
+    // Liste finale = squelette doc-derived UNIQUEMENT. Les manuels
+    // sont visibles via `preservedManual` côté UI — pas dans le voyage.
+    final mergedSegments = <TripSegment>[...addedSegments];
 
     return TripTimelineDiff(
       added: added,
@@ -253,8 +339,11 @@ class TripTimelineDiff {
   final List<TripSegment> removed;
 
   /// Étapes existantes qui n'apparaissent dans AUCUN vol — préservées
-  /// telles quelles (ce sont des étapes manuelles de l'utilisateur).
-  final List<TripSegment> preservedManual;
+  /// telles quelles (ce sont des étapes manuelles ou window-linked).
+  /// V5.4 (Lalith 2026-05-10) — type enrichi : on capture les dates
+  /// d'origine pour permettre l'auto-placement aux mêmes dates dans le
+  /// nouveau squelette doc-derived au moment de l'apply.
+  final List<PreservedSegmentInfo> preservedManual;
 
   /// Messages informatifs pour l'utilisateur ("Bangkok sera découpé en 2
   /// séjours", "Durée totale dépasse le voyage"...).

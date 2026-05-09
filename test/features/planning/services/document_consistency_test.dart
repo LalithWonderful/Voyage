@@ -12,8 +12,13 @@ import 'package:voyage/features/planning/services/document_consistency.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/wallet/models/document_model.dart';
 
-TripSegment _seg(String city, int days, {String? country}) =>
-    TripSegment(city: city, days: days, country: country);
+TripSegment _seg(String city, int days, {String? country, String? sourceAnchorCity}) =>
+    TripSegment(
+      city: city,
+      days: days,
+      country: country,
+      sourceAnchorCity: sourceAnchorCity,
+    );
 
 DateTime _d(int y, int m, int d) => DateTime(y, m, d);
 
@@ -493,6 +498,280 @@ void main() {
               c.docIds.contains('base'))
           .toList();
       expect(phantom.length, 1);
+    });
+  });
+
+  group('detectDocumentConflicts — missingSegmentForTransport', () {
+    test('vol mid-trip dont la to_city n\'a aucun segment → flag arrivée', () {
+      // Cas typique du bug 2026-05-10 : l'user supprime l'étape Phú Quốc
+      // doc-linked, mais les vols Bangkok→Phú Quốc et Phú Quốc→Hanoï
+      // restent dans le wallet.
+      final docs = [
+        _flight(
+          id: 'home_out',
+          fromCity: 'Luxembourg',
+          toCity: 'Bangkok',
+          date: '2026-06-22',
+        ),
+        _flight(
+          id: 'go_pqc',
+          fromCity: 'Bangkok',
+          toCity: 'Phú Quốc',
+          date: '2026-07-02',
+        ),
+        _flight(
+          id: 'leave_pqc',
+          fromCity: 'Phú Quốc',
+          toCity: 'Hanoï',
+          date: '2026-07-07',
+        ),
+        _flight(
+          id: 'home_back',
+          fromCity: 'Bangkok',
+          toCity: 'Luxembourg',
+          date: '2026-08-06',
+        ),
+      ];
+      final segments = [
+        _seg('Bangkok', 10),
+        _seg('Hanoï', 5),
+      ];
+      final conflicts = detectDocumentConflicts(
+        docs: docs,
+        segments: segments,
+        tripStartDate: _d(2026, 6, 22),
+      );
+      final missing = conflicts
+          .where((c) =>
+              c.type == ConflictType.missingSegmentForTransport)
+          .toList();
+      // 2 conflits attendus : 1 arrivée (go_pqc → Phú Quốc) + 1 départ
+      // (leave_pqc → from Phú Quốc). Pas de fausse alerte sur Luxembourg
+      // grâce au filtre 1er/dernier transport.
+      expect(missing.length, 2);
+      expect(
+        missing.any((c) =>
+            c.docIds.contains('go_pqc') &&
+            c.message.contains('arrive à Phú Quốc')),
+        isTrue,
+      );
+      expect(
+        missing.any((c) =>
+            c.docIds.contains('leave_pqc') &&
+            c.message.contains('part de Phú Quốc')),
+        isTrue,
+      );
+    });
+
+    test('home-leg LUX→BKK avec Luxembourg sans segment → pas de fausse '
+        'alerte', () {
+      // Le 1er transport chronologique est traité comme jambe domicile,
+      // son côté départ (from_city) n'est jamais flaggé.
+      final docs = [
+        _flight(
+          id: 'out',
+          fromCity: 'Luxembourg',
+          toCity: 'Bangkok',
+          date: '2026-06-22',
+        ),
+        _flight(
+          id: 'back',
+          fromCity: 'Bangkok',
+          toCity: 'Luxembourg',
+          date: '2026-08-06',
+        ),
+      ];
+      final conflicts = detectDocumentConflicts(
+        docs: docs,
+        segments: [_seg('Bangkok', 45)],
+        tripStartDate: _d(2026, 6, 22),
+      );
+      expect(
+        conflicts
+            .where((c) =>
+                c.type == ConflictType.missingSegmentForTransport)
+            .toList(),
+        isEmpty,
+      );
+    });
+
+    test('Lot B — vol arrive à Da Nang couvert par Hội An (gateway via '
+        'sourceAnchorCity) → pas de warning', () {
+      // Cas typique gateway : le voyageur ne dort pas à Da Nang mais
+      // passe par l'aéroport pour rejoindre Hội An. Les vols Hanoï→DaNang
+      // (12/07) et DaNang→Bangkok (15/07) sont couverts par la fenêtre
+      // Hội An linked-to-Da Nang qui couvre 12/07–15/07.
+      final docs = [
+        _flight(
+          id: 'home_out',
+          fromCity: 'Luxembourg',
+          toCity: 'Hanoï',
+          date: '2026-07-08',
+        ),
+        _flight(
+          id: 'go_dn',
+          fromCity: 'Hanoï',
+          toCity: 'Da Nang',
+          date: '2026-07-12',
+        ),
+        _flight(
+          id: 'leave_dn',
+          fromCity: 'Da Nang',
+          toCity: 'Bangkok',
+          date: '2026-07-15',
+        ),
+        _flight(
+          id: 'home_back',
+          fromCity: 'Bangkok',
+          toCity: 'Luxembourg',
+          date: '2026-07-22',
+        ),
+      ];
+      final segments = [
+        _seg('Hanoï', 4),
+        _seg('Hội An', 3, sourceAnchorCity: 'Da Nang'),
+        _seg('Bangkok', 7),
+      ];
+      final conflicts = detectDocumentConflicts(
+        docs: docs,
+        segments: segments,
+        tripStartDate: _d(2026, 7, 8),
+      );
+      expect(
+        conflicts
+            .where((c) =>
+                c.type == ConflictType.missingSegmentForTransport)
+            .toList(),
+        isEmpty,
+      );
+    });
+
+    test('Lot B — vol Da Nang HORS fenêtre Hội An → warning persiste', () {
+      // Hội An couvre 12/07-15/07, mais le vol arrive le 20/07. La
+      // gateway ne couvre PAS cette date → warning légitime.
+      final docs = [
+        _flight(
+          id: 'out',
+          fromCity: 'Bangkok',
+          toCity: 'Hanoï',
+          date: '2026-07-08',
+        ),
+        _flight(
+          id: 'late',
+          fromCity: 'Hanoï',
+          toCity: 'Da Nang',
+          date: '2026-07-20',
+        ),
+        _flight(
+          id: 'back',
+          fromCity: 'Hanoï',
+          toCity: 'Bangkok',
+          date: '2026-07-22',
+        ),
+      ];
+      final segments = [
+        _seg('Hanoï', 4),
+        _seg('Hội An', 3, sourceAnchorCity: 'Da Nang'),
+        _seg('Hanoï', 7),
+      ];
+      final conflicts = detectDocumentConflicts(
+        docs: docs,
+        segments: segments,
+        tripStartDate: _d(2026, 7, 8),
+      );
+      final missing = conflicts
+          .where((c) =>
+              c.type == ConflictType.missingSegmentForTransport)
+          .toList();
+      expect(
+        missing.any((c) => c.docIds.contains('late')),
+        isTrue,
+      );
+    });
+
+    test('Lot B — Ninh Bình linked-to-Hanoï couvre la fenêtre Hanoï → '
+        'aucun warning sur les vols Hanoï', () {
+      final docs = [
+        _flight(
+          id: 'out',
+          fromCity: 'Bangkok',
+          toCity: 'Hanoï',
+          date: '2026-07-08',
+        ),
+        _flight(
+          id: 'back',
+          fromCity: 'Hanoï',
+          toCity: 'Bangkok',
+          date: '2026-07-12',
+        ),
+      ];
+      // L'utilisateur a uniquement une étape Ninh Bình linked-to-Hanoï,
+      // pas d'étape Hanoï explicite. La fenêtre 08/07-12/07 doit
+      // suffire à couvrir les vols.
+      final segments = [
+        _seg('Bangkok', 0),
+        _seg('Ninh Bình', 4, sourceAnchorCity: 'Hanoï'),
+        _seg('Bangkok', 0),
+      ];
+      final conflicts = detectDocumentConflicts(
+        docs: docs,
+        segments: segments,
+        tripStartDate: _d(2026, 7, 8),
+      );
+      expect(
+        conflicts
+            .where((c) =>
+                c.type == ConflictType.missingSegmentForTransport)
+            .toList(),
+        isEmpty,
+      );
+    });
+
+    test('itinéraire complet où chaque transport touche un segment → '
+        'aucun conflit', () {
+      final docs = [
+        _flight(
+          id: 'out',
+          fromCity: 'Luxembourg',
+          toCity: 'Bangkok',
+          date: '2026-06-22',
+        ),
+        _flight(
+          id: 'go_pqc',
+          fromCity: 'Bangkok',
+          toCity: 'Phú Quốc',
+          date: '2026-07-02',
+        ),
+        _flight(
+          id: 'leave_pqc',
+          fromCity: 'Phú Quốc',
+          toCity: 'Hanoï',
+          date: '2026-07-07',
+        ),
+        _flight(
+          id: 'back',
+          fromCity: 'Hanoï',
+          toCity: 'Luxembourg',
+          date: '2026-08-06',
+        ),
+      ];
+      final segments = [
+        _seg('Bangkok', 10),
+        _seg('Phú Quốc', 5),
+        _seg('Hanoï', 30),
+      ];
+      final conflicts = detectDocumentConflicts(
+        docs: docs,
+        segments: segments,
+        tripStartDate: _d(2026, 6, 22),
+      );
+      expect(
+        conflicts
+            .where((c) =>
+                c.type == ConflictType.missingSegmentForTransport)
+            .toList(),
+        isEmpty,
+      );
     });
   });
 }
