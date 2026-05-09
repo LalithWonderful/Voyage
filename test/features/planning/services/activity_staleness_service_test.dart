@@ -8,7 +8,9 @@
 library;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:voyage/features/planning/models/trip_activity_model.dart';
 import 'package:voyage/features/planning/services/activity_staleness_service.dart';
+import 'package:voyage/features/planning/services/document_to_activity.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 
 TripSegment _seg(String city, int days, {String? country, String? source}) =>
@@ -85,6 +87,143 @@ void main() {
     test('vide vs non-vide → true', () {
       expect(segmentsStructurallyDiffer(const [], [_seg('Bangkok', 11)]),
           isTrue);
+    });
+  });
+
+  group('findOrphanedActivities — V6 Lot E TODO 1', () {
+    DateTime d(int y, int m, int day) => DateTime(y, m, day);
+    TripActivity act({
+      required String id,
+      required DateTime dayDate,
+      bool suggested = false,
+      String title = 'Activity',
+    }) =>
+        TripActivity(
+          id: id,
+          tripId: 't1',
+          dayDate: dayDate,
+          startTime: '12:00',
+          title: title,
+          tag: 'Activité',
+          suggested: suggested,
+        );
+
+    test('activité dans la plage → non orpheline', () {
+      final segments = [_seg('Bangkok', 11)];
+      final acts = [act(id: 'a1', dayDate: d(2026, 6, 25))];
+      final orphans = findOrphanedActivities(
+        activities: acts,
+        segments: segments,
+        tripStartDate: d(2026, 6, 22),
+      );
+      expect(orphans, isEmpty);
+    });
+
+    test('activité avant le début du voyage → orpheline', () {
+      final segments = [_seg('Bangkok', 11)];
+      final acts = [act(id: 'a1', dayDate: d(2026, 6, 20))];
+      final orphans = findOrphanedActivities(
+        activities: acts,
+        segments: segments,
+        tripStartDate: d(2026, 6, 22),
+      );
+      expect(orphans.length, 1);
+    });
+
+    test('activité après la fin du voyage → orpheline', () {
+      final segments = [_seg('Bangkok', 5)];
+      final acts = [act(id: 'a1', dayDate: d(2026, 7, 10))];
+      final orphans = findOrphanedActivities(
+        activities: acts,
+        segments: segments,
+        tripStartDate: d(2026, 6, 22),
+      );
+      expect(orphans.length, 1);
+    });
+
+    test('activité sur le jour de fin (exclusive) → orpheline', () {
+      // segments end exclusive : Bangkok 22-27/06 = 5 jours, le 27/06
+      // est le jour de DÉPART (n'est plus dans le segment).
+      final segments = [_seg('Bangkok', 5)];
+      final acts = [act(id: 'a1', dayDate: d(2026, 6, 27))];
+      final orphans = findOrphanedActivities(
+        activities: acts,
+        segments: segments,
+        tripStartDate: d(2026, 6, 22),
+      );
+      expect(orphans.length, 1);
+    });
+
+    test('activités générées par Lunao (suggested=true) → ignorées '
+        '(elles sont supprimées par clearGenerated)', () {
+      final segments = [_seg('Bangkok', 5)];
+      final acts = [
+        act(id: 'a1', dayDate: d(2026, 7, 10), suggested: true),
+      ];
+      final orphans = findOrphanedActivities(
+        activities: acts,
+        segments: segments,
+        tripStartDate: d(2026, 6, 22),
+      );
+      expect(orphans, isEmpty);
+    });
+
+    test('activités virtuelles (id "doc:…") → ignorées (gérées par '
+        'document_consistency)', () {
+      final segments = [_seg('Bangkok', 5)];
+      final acts = [
+        act(
+          id: '${virtualActivityPrefix}xyz:checkin',
+          dayDate: d(2026, 7, 10),
+        ),
+      ];
+      final orphans = findOrphanedActivities(
+        activities: acts,
+        segments: segments,
+        tripStartDate: d(2026, 6, 22),
+      );
+      expect(orphans, isEmpty);
+    });
+
+    test('itinéraire avec gap entre 2 segments → activité dans le gap '
+        'ne devrait PAS arriver (les segments sont contigus par '
+        'construction du modèle)', () {
+      // Sanity check : les segments cumulent à partir de tripStartDate
+      // sans gap. Une activité au milieu est forcément dans un seg.
+      final segments = [_seg('Bangkok', 3), _seg('Phú Quốc', 3)];
+      final acts = [act(id: 'a1', dayDate: d(2026, 6, 24))];
+      final orphans = findOrphanedActivities(
+        activities: acts,
+        segments: segments,
+        tripStartDate: d(2026, 6, 22),
+      );
+      expect(orphans, isEmpty);
+    });
+
+    test('aucun segment → orphelins = liste vide (rien à comparer)', () {
+      final acts = [act(id: 'a1', dayDate: d(2026, 6, 25))];
+      final orphans = findOrphanedActivities(
+        activities: acts,
+        segments: const [],
+        tripStartDate: d(2026, 6, 22),
+      );
+      expect(orphans, isEmpty);
+    });
+
+    test('plusieurs activités, certaines orphelines → seul le subset '
+        'hors-plage est retourné', () {
+      final segments = [_seg('Bangkok', 5)];
+      final acts = [
+        act(id: 'in', dayDate: d(2026, 6, 24)),
+        act(id: 'before', dayDate: d(2026, 6, 20)),
+        act(id: 'after', dayDate: d(2026, 7, 1)),
+      ];
+      final orphans = findOrphanedActivities(
+        activities: acts,
+        segments: segments,
+        tripStartDate: d(2026, 6, 22),
+      );
+      expect(orphans.map((a) => a.id).toSet(), {'before', 'after'});
     });
   });
 }

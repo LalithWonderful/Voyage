@@ -20,6 +20,7 @@ import 'package:voyage/features/planning/providers/planning_provider.dart';
 import 'package:voyage/features/planning/services/places_service.dart';
 import 'package:voyage/features/planning/widgets/activity_create_sheet.dart';
 import 'package:voyage/features/planning/widgets/activity_detail_sheet.dart';
+import 'package:voyage/features/planning/widgets/activity_edit_sheet.dart';
 import 'package:voyage/features/planning/widgets/suggestion_detail_sheet.dart';
 import 'package:voyage/features/planning/services/ai_suggestions_service.dart';
 import 'package:voyage/features/planning/services/document_to_activity.dart';
@@ -863,6 +864,11 @@ class PlanningScreen extends ConsumerWidget {
             trip: trip,
           ),
           _TabBar(tripId: tripId),
+          // V6 (Lalith 2026-05-10 — Lot E TODO 1) — bandeau qui liste
+          // les activités utilisateur dont la date est sortie de
+          // l'itinéraire (ex : trip raccourci, segments réordonnés).
+          // Caché si rien à signaler.
+          _OrphanedActivitiesBanner(tripId: tripId),
           Expanded(
             child: RefreshIndicator(
               onRefresh: () async {
@@ -1035,6 +1041,122 @@ class _TabBar extends StatelessWidget {
       child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: active ? Colors.white : AppColors.primary)),
     ),
   );
+}
+
+/// V6 (Lalith 2026-05-10 — Lot E TODO 1) — bandeau orange listant
+/// les activités utilisateur dont la date est sortie de l'itinéraire
+/// après une mutation (raccourci, ré-alignement, suppression d'étape).
+/// Source : `orphanedActivitiesProvider`. Tap d'un item → ouvre
+/// `openActivityEditSheet` pour que l'user change la date ou supprime
+/// l'activité. Caché tant que la liste est vide.
+class _OrphanedActivitiesBanner extends ConsumerWidget {
+  final String tripId;
+  const _OrphanedActivitiesBanner({required this.tripId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final asyncOrphans = ref.watch(orphanedActivitiesProvider(tripId));
+    final orphans = asyncOrphans.valueOrNull ?? const <TripActivity>[];
+    if (orphans.isEmpty) return const SizedBox.shrink();
+    final n = orphans.length;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: AppColors.accentLight.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: AppColors.accent.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.event_busy_outlined,
+                  size: 14, color: AppColors.accent),
+              const SizedBox(width: 6),
+              Text(
+                'ACTIVITÉS À REPLACER',
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.accent,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '$n activité${n > 1 ? "s" : ""} '
+            '${n > 1 ? "ne tombent" : "ne tombe"} plus dans une étape '
+            'du voyage. Tap pour ajuster la date ou supprimer.',
+            style: TextStyle(
+              fontSize: 11.5,
+              color: AppColors.textSecondary,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final a in orphans)
+                _OrphanedActivityPill(
+                  activity: a,
+                  onTap: () =>
+                      openActivityEditSheet(context, ref, activity: a),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OrphanedActivityPill extends StatelessWidget {
+  final TripActivity activity;
+  final VoidCallback onTap;
+  const _OrphanedActivityPill({
+    required this.activity,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final d = activity.dayDate;
+    final dateLabel =
+        '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}';
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: AppColors.accent.withValues(alpha: 0.5),
+            ),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Text(
+            '${activity.title} · $dateLabel',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _EmptyPlanning extends StatelessWidget {

@@ -4,6 +4,7 @@ import 'package:voyage/core/providers/offline_provider.dart';
 import 'package:voyage/features/auth/providers/auth_provider.dart';
 import 'package:voyage/features/planning/models/trip_activity_model.dart';
 import 'package:voyage/features/planning/models/trip_transport_model.dart';
+import 'package:voyage/features/planning/services/activity_staleness_service.dart';
 import 'package:voyage/features/planning/services/ai_suggestions_service.dart';
 import 'package:voyage/features/planning/services/budget_service.dart';
 import 'package:voyage/features/planning/services/document_to_activity.dart';
@@ -177,6 +178,29 @@ final planningTimelineProvider = FutureProvider.family<List<TripActivity>, Strin
   final documents = await ref.watch(tripDocumentsProvider(tripId).future);
   final virtuals = documents.expand(virtualActivitiesFromDocument).toList();
   return [...activities, ...virtuals];
+});
+
+/// V6 (Lalith 2026-05-10 — Lot E TODO 1) — activités utilisateur dont
+/// la date de jour ne correspond plus à aucun segment de l'itinéraire.
+/// Cas typique : l'user a réordonné/raccourci son itinéraire et un
+/// dîner ajouté manuellement le 26/06 se retrouve hors plage.
+///
+/// Source : `findOrphanedActivities` filtre les `suggested=true`
+/// (déjà supprimées par `clearGeneratedActivitiesForTrip`) et les
+/// virtuelles (id `doc:…`, gérées par `document_consistency`).
+///
+/// La liste alimente la bannière « Activités à replacer » dans le
+/// planning. Vide la plupart du temps → bandeau caché.
+final orphanedActivitiesProvider =
+    FutureProvider.family<List<TripActivity>, String>((ref, tripId) async {
+  final activities = await ref.watch(tripActivitiesProvider(tripId).future);
+  final trip = await ref.watch(tripByIdProvider(tripId).future);
+  if (trip == null) return const [];
+  return findOrphanedActivities(
+    activities: activities,
+    segments: trip.itinerarySegments,
+    tripStartDate: trip.startDate,
+  );
 });
 
 final geminiCacheServiceProvider = Provider<GeminiCacheService>((ref) {

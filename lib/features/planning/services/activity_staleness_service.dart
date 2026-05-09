@@ -25,6 +25,8 @@
 library;
 
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:voyage/features/planning/models/trip_activity_model.dart';
+import 'package:voyage/features/planning/services/document_to_activity.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 
 /// Compare deux listes de segments et retourne `true` si la structure
@@ -43,6 +45,59 @@ bool segmentsStructurallyDiffer(List<TripSegment> a, List<TripSegment> b) {
   }
   return false;
 }
+
+/// V6 (Lalith 2026-05-10 — Lot E TODO 1) — détecte les activités
+/// utilisateur dont la date de jour n'est plus couverte par aucun
+/// segment de l'itinéraire (= « orphelines » après une mutation
+/// structurelle).
+///
+/// Couvre le cas typique : l'utilisateur a ajouté « Dîner au Sirocco »
+/// pour le jour 5 quand le voyage démarrait au 22/06 (= 26/06). Après
+/// avoir réaligné le voyage sur 24/06 et raccourci Bangkok, le jour
+/// 26/06 n'est plus dans le voyage → l'activité est orpheline.
+///
+/// Filtres :
+///  - on IGNORE les `suggested = true` (Lunao les a déjà supprimées
+///    via `clearGeneratedActivitiesForTrip` sur mutation structurelle).
+///  - on IGNORE les activités virtuelles (ID starts with `doc:`,
+///    cf. [virtualActivityPrefix]) — leur visibilité dépend du doc
+///    parent, géré par `document_consistency.dart`.
+///
+/// Retourne uniquement les vraies activités utilisateur (table
+/// `trip_activities`, `suggested = false`, ID natif) qui flottent
+/// hors plage segments.
+List<TripActivity> findOrphanedActivities({
+  required List<TripActivity> activities,
+  required List<TripSegment> segments,
+  required DateTime tripStartDate,
+}) {
+  if (segments.isEmpty) return const [];
+  // Pré-calcul des bornes des segments (date-only, fin exclusive).
+  final ranges = <({DateTime start, DateTime end})>[];
+  var offset = 0;
+  for (final s in segments) {
+    final start = _dateOnly(tripStartDate.add(Duration(days: offset)));
+    final end = _dateOnly(tripStartDate.add(Duration(days: offset + s.days)));
+    ranges.add((start: start, end: end));
+    offset += s.days;
+  }
+  bool covered(DateTime day) {
+    final d = _dateOnly(day);
+    for (final r in ranges) {
+      if (!d.isBefore(r.start) && d.isBefore(r.end)) return true;
+    }
+    return false;
+  }
+  return [
+    for (final a in activities)
+      if (!a.suggested &&
+          !a.id.startsWith(virtualActivityPrefix) &&
+          !covered(a.dayDate))
+        a,
+  ];
+}
+
+DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
 /// Supprime les activités GÉNÉRÉES par Lunao pour un voyage donné
 /// (`suggested = true`). Les activités utilisateur et les imports de
