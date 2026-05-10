@@ -491,6 +491,95 @@ void main() {
     });
   });
 
+  group('Day Builder V8.22 first-hop exclusion + J1 fallback restriction', () {
+    test('cluster hôtel Bang Na (12km du Old City) accepte vrai old_city_day '
+        '(hop hôtel→1ʳᵉ place ignoré du cap)', () {
+      // Cluster centre = Bang Na hôtel. Old City iconique = ~12km.
+      // Pré V8.22 : pack old_city rejeté car NN order démarrait par
+      // un 12km hop. Post V8.22 : ce hop initial est exclu du cap.
+      final result = buildDayPacksForCluster(
+        clusterCenterLat: 13.6700,
+        clusterCenterLng: 100.6000,
+        clusterDays: [
+          DateTime(2026, 6, 22),
+          DateTime(2026, 6, 25),
+        ],
+        clusterPool: bangkokPool(),
+        trip: bangkokTrip,
+        maxPerDay: 4,
+      );
+      final j1 = result.dayPackByDate[DateTime(2026, 6, 22)];
+      expect(j1, isNotNull,
+          reason: 'J1 doit avoir un pack (arrival_light ou old_city)');
+      // J1 doit être arrival_light OU old_city, jamais modern.
+      expect(j1!.type,
+          anyOf(DayPackType.arrivalLightDay, DayPackType.oldCityDay));
+      // Quel que soit le type, maxTransition (inter-pick) doit être petit.
+      expect(j1.maxTransitionKm, lessThanOrEqualTo(5.0));
+    });
+
+    test('J1 fallback restreint à old_city_day (jamais modern/market/'
+        'riverside même si old_city pool insuffisant)', () {
+      // Pool sans Old City (que des modern + riverside + market) →
+      // J1 doit retourner null (pas de pack), jamais modern_day.
+      final modernOnlyPool = <
+          String,
+          ({NearbyCandidate candidate, List<String> matchedInterests})>{};
+      void add(String id, String name, double lat, double lng,
+          int reviews, List<String> types, List<String> mi) {
+        modernOnlyPool[id] = (
+          candidate: NearbyCandidate(
+            placeId: id,
+            name: name,
+            latitude: lat,
+            longitude: lng,
+            rating: 4.5,
+            userRatingCount: reviews,
+            types: types,
+          ),
+          matchedInterests: mi,
+        );
+      }
+
+      add('jt', 'Jim Thompson House Museum', 13.7494, 100.5294, 10000,
+          ['museum'], [blueprintMustSeeMarker]);
+      add('mn', 'Mahanakhon SkyWalk', 13.7232, 100.5287, 8000,
+          ['tourist_attraction'], [blueprintMustSeeMarker]);
+      add('lp', 'Lumphini Park', 13.7307, 100.5418, 30000,
+          ['park'], [blueprintMustSeeMarker]);
+      add('is', 'IconSiam', 13.7261, 100.5108, 80000,
+          ['shopping_mall'], [blueprintMustSeeMarker]);
+      add('as', 'Asiatique The Riverfront', 13.7044, 100.5031, 50000,
+          ['tourist_attraction'], [blueprintExperienceMarker]);
+      add('ch', 'Chatuchak Weekend Market', 13.7997, 100.5505, 60000,
+          ['market'], [blueprintMustSeeMarker]);
+      add('tn', 'Train Night Market Srinagarindra', 13.6939, 100.6512, 18073,
+          ['market'], const []);
+      add('cn', 'Chinatown Yaowarat', 13.7414, 100.5103, 30000,
+          ['tourist_attraction'], [blueprintMustSeeMarker]);
+
+      final result = buildDayPacksForCluster(
+        clusterCenterLat: 13.7563,
+        clusterCenterLng: 100.5018,
+        clusterDays: [
+          DateTime(2026, 6, 22),
+          DateTime(2026, 6, 25),
+        ],
+        clusterPool: modernOnlyPool,
+        trip: bangkokTrip,
+        maxPerDay: 4,
+      );
+      final j1 = result.dayPackByDate[DateTime(2026, 6, 22)];
+      // J1 doit être null (pas de pack possible) OU arrival_light_day.
+      // Modern/market/riverside interdits sur J1.
+      if (j1 != null) {
+        expect(j1.type,
+            anyOf(DayPackType.arrivalLightDay, DayPackType.oldCityDay),
+            reason: 'J1 ne doit jamais être modern/market/riverside');
+      }
+    });
+  });
+
   group('Day Builder cross-cluster reservation', () {
     test('reservedPlaceIds exclut les places déjà prises par autre cluster',
         () {

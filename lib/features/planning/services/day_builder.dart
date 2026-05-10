@@ -341,12 +341,29 @@ class _PackMetrics {
 _PackMetrics _packMetrics(
     List<_Tagged> ordered, double anchorLat, double anchorLng) {
   if (ordered.isEmpty) return const _PackMetrics(0, 0, 0);
+  // V8.22 — `longTransitions` et `maxTransitionKm` ne comptent QUE les
+  // hops INTER-place, pas le hop initial centre_cluster → 1ʳᵉ place.
+  // Ce hop initial représente le commute matinal hôtel → 1ʳᵉ activité,
+  // qui n'est pas un « zigzag intra-jour » au sens utilisateur. Sans
+  // cette exclusion, le cluster Bang Na (hôtel 13.67/100.60 à 12 km de
+  // Old City) rejetait à tort le pack old_city compact Grand Palace +
+  // Wat Pho + Wat Arun (inter-pick 0.4 + 0.5 km).
+  //
+  // `totalDistanceKm` inclut le hop initial pour info (distance totale
+  // parcourue, utile à l'affichage).
   double total = 0;
   int longs = 0;
   double maxHop = 0;
-  double prevLat = anchorLat;
-  double prevLng = anchorLng;
-  for (final t in ordered) {
+  // Premier hop : centre cluster → 1ʳᵉ place. Compté dans total mais
+  // pas dans longs/maxHop.
+  final firstHop = _haversineKm(
+      anchorLat, anchorLng,
+      ordered.first.candidate.latitude, ordered.first.candidate.longitude);
+  total += firstHop;
+  double prevLat = ordered.first.candidate.latitude;
+  double prevLng = ordered.first.candidate.longitude;
+  for (var i = 1; i < ordered.length; i++) {
+    final t = ordered[i];
     final d = _haversineKm(
         prevLat, prevLng, t.candidate.latitude, t.candidate.longitude);
     total += d;
@@ -636,12 +653,20 @@ DayBuilderResult buildDayPacksForCluster({
       // pénalité si déjà utilisé. Tri descendant pour diversité.
       final scores = <DayPackType, double>{};
       final av = available();
-      for (final type in [
-        DayPackType.oldCityDay,
-        DayPackType.marketDay,
-        DayPackType.riversideDay,
-        DayPackType.modernDay,
-      ]) {
+      // V8.22 — sur jour d'arrivée, fallback restreint à old_city_day
+      // uniquement (pas modern/market/riverside). Préserve l'intention
+      // produit « J1 = arrivée légère, idéalement Old City compact ».
+      // Évite Jim Thompson + Lumpini + Mahanakhon le 1er jour vs Old
+      // City iconique réservé pour plus tard.
+      final candidateTypes = isArrival
+          ? const [DayPackType.oldCityDay]
+          : const [
+              DayPackType.oldCityDay,
+              DayPackType.marketDay,
+              DayPackType.riversideDay,
+              DayPackType.modernDay,
+            ];
+      for (final type in candidateTypes) {
         final pool = av[type]!;
         if (pool.length < _kMinPackSize) continue;
         final mustSeeCount = pool.where((t) => t.isMustSee).length;
