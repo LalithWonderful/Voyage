@@ -279,7 +279,6 @@ class PlanningScreen extends ConsumerWidget {
         '[places_test] Récolte ${pool.length} jours en ${stopwatch.elapsedMilliseconds}ms',
       );
 
-      var totalAfterFilters = 0;
       for (var i = 0; i < pool.length; i++) {
         final day = pool[i];
         final dayIso = day.day.toIso8601String().split('T').first;
@@ -291,7 +290,6 @@ class PlanningScreen extends ConsumerWidget {
           '${day.center.latitude.toStringAsFixed(3)},${day.center.longitude.toStringAsFixed(3)}) : '
           '${day.uniqueCandidates} uniques [$byInterestSummary]',
         );
-        totalAfterFilters += day.totalCandidates;
         // Top 3 par intérêt seulement pour le 1er jour de chaque groupe pour
         // ne pas noyer la console (la pool est la même pour tous les jours
         // d'un même centre).
@@ -498,6 +496,14 @@ class PlanningScreen extends ConsumerWidget {
       // retombera sur `_budget == null` et sera un no-op silencieux.
       final budget = nearbyService.endRun(context: 'placesTestDebug');
       if (context.mounted) {
+        // V8.1 (Lalith 2026-05-10) — labels explicites pour Cost-2 :
+        // - POOL = nombre de groupes de centres distincts (1 fetch /
+        //   groupe au lieu de 1 fetch / jour comme avant Cost-2).
+        // - reuse = `pool.length / groupes` → facteur d'économie.
+        //   Exemple : 8 jours / 2 groupes = 4× reuse (~75% d'économie).
+        final reuseFactor = groups.isEmpty
+            ? '?'
+            : (pool.length / groups.length).toStringAsFixed(1);
         final costLine = budget == null
             ? ''
             : ' · API=${budget.totalCalls} '
@@ -508,9 +514,10 @@ class PlanningScreen extends ConsumerWidget {
                 '${budget.rateLimited ? " ⚠️429" : ""}';
         messenger.showSnackBar(SnackBar(
           content: Text(
-            '✓ ${pool.length} jours · ${groups.length} groupes · $totalUnique uniques · $totalAfterFilters cumulés$costLine',
+            '✓ ${pool.length}j · POOL=${groups.length} centres '
+            '(reuse ×$reuseFactor) · $totalUnique uniques$costLine',
           ),
-          duration: const Duration(seconds: 10),
+          duration: const Duration(seconds: 12),
         ));
       }
     } catch (e, st) {

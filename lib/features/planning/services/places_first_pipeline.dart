@@ -1009,7 +1009,14 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
           .map((c) => c.placeId)
           .toSet()
           .length;
-      debugPrint(
+      // V8.1 (Lalith 2026-05-10) — `print` plutôt que `debugPrint` :
+      // sur cold cache, la pipeline emet des milliers de
+      // `[places_first_match]` qui saturent le throttle de `debugPrint`
+      // et masquent ces logs critiques pour la validation Cost-2.
+      // Volume = 1 ligne par groupe de centres distincts (typiquement
+      // 1-3 par voyage), pas de risque de spam.
+      // ignore: avoid_print
+      print(
         '[places_pool_build] sig=$sig source=${group.center.source} '
         'days=${group.days.length} walk=$walkUniqueCount '
         'transit=+${totalAfter - walkUniqueCount} (${transitRadius}m)',
@@ -1020,7 +1027,8 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
           .map((c) => c.placeId)
           .toSet()
           .length;
-      debugPrint(
+      // ignore: avoid_print
+      print(
         '[places_pool_build] sig=$sig source=${group.center.source} '
         'days=${group.days.length} walk=$unique (${walkRadius}m)',
       );
@@ -1050,7 +1058,10 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
         .map((c) => c.placeId)
         .toSet()
         .length;
-    debugPrint(
+    // V8.1 — `print` même raison que `[places_pool_build]` ci-dessus.
+    // Volume = 1 ligne par jour du voyage (max ~50 sur Thaïlande 46j).
+    // ignore: avoid_print
+    print(
       '[places_pool_reuse] sig=$sig day=${_iso(dc.day)} → $unique candidats',
     );
   }
