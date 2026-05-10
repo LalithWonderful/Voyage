@@ -494,12 +494,24 @@ class PlanningScreen extends ConsumerWidget {
         );
       }
       final totalUnique = pool.fold<int>(0, (sum, d) => sum + d.uniqueCandidates);
+      // Lit le snapshot Cost-1 AVANT le finally pour pouvoir l'inclure
+      // dans la snackbar. `endRun` est idempotent — l'appel du finally
+      // retombera sur `_budget == null` et sera un no-op silencieux.
+      final budget = nearbyService.endRun(context: 'placesTestDebug');
       if (context.mounted) {
+        final costLine = budget == null
+            ? ''
+            : ' · API=${budget.totalCalls} '
+                '(st=${budget.searchTextCalls} nb=${budget.nearbyCalls} dt=${budget.detailsCalls}) '
+                'cache=${budget.cacheHits} '
+                'dedup=${budget.dedupSkipped} '
+                'skip=${budget.budgetSkipped}'
+                '${budget.rateLimited ? " ⚠️429" : ""}';
         messenger.showSnackBar(SnackBar(
           content: Text(
-            '✓ ${pool.length} jours · ${groups.length} groupes · $totalUnique uniques · $totalAfterFilters cumulés (voir console)',
+            '✓ ${pool.length} jours · ${groups.length} groupes · $totalUnique uniques · $totalAfterFilters cumulés$costLine',
           ),
-          duration: const Duration(seconds: 5),
+          duration: const Duration(seconds: 10),
         ));
       }
     } catch (e, st) {
@@ -510,6 +522,8 @@ class PlanningScreen extends ConsumerWidget {
         );
       }
     } finally {
+      // Filet de sécurité si le try a throw avant l'`endRun` ci-dessus.
+      // Si déjà appelé en succès, retombera sur `_budget == null` (no-op).
       nearbyService.endRun(context: 'placesTestDebug');
     }
   }
