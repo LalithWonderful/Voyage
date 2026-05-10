@@ -234,4 +234,70 @@ void main() {
       expect(s, contains('l=fr'));
     });
   });
+
+  // V8.10 (Lalith 2026-05-10 — fix orphan-day Paris) — verrouille
+  // la classification destination broad vs city. Le test garantit
+  // que les villes (Paris, Tokyo, Bangkok, etc.) ne déclenchent pas
+  // le skip orphan-day, et que les pays/régions le déclenchent.
+  group('isBroadDestinationName — Q1B fix Paris', () {
+    test('villes connues → city (false)', () {
+      expect(isBroadDestinationName('Paris'), isFalse);
+      expect(isBroadDestinationName('Tokyo'), isFalse);
+      expect(isBroadDestinationName('Bangkok'), isFalse);
+      expect(isBroadDestinationName('Lisbonne'), isFalse);
+      expect(isBroadDestinationName('Rome'), isFalse);
+      expect(isBroadDestinationName('New York'), isFalse);
+      expect(isBroadDestinationName('Marrakech'), isFalse);
+    });
+
+    test('« City, Country » → first token compte (city)', () {
+      // Format usuel saisi par les utilisateurs.
+      expect(isBroadDestinationName('Paris, France'), isFalse);
+      expect(isBroadDestinationName('Tokyo, Japon'), isFalse);
+      expect(isBroadDestinationName('Bangkok, Thaïlande'), isFalse);
+      expect(isBroadDestinationName('Lisboa, Portugal'), isFalse);
+    });
+
+    test('pays/régions seuls → broad (true)', () {
+      expect(isBroadDestinationName('France'), isTrue);
+      expect(isBroadDestinationName('Thaïlande'), isTrue);
+      expect(isBroadDestinationName('Thailand'), isTrue);
+      expect(isBroadDestinationName('Brésil'), isTrue);
+      expect(isBroadDestinationName('Brazil'), isTrue);
+      expect(isBroadDestinationName('Vietnam'), isTrue);
+      expect(isBroadDestinationName('USA'), isTrue);
+      expect(isBroadDestinationName('États-Unis'), isTrue);
+      expect(isBroadDestinationName('Asie du Sud-Est'), isTrue);
+      expect(isBroadDestinationName('Southeast Asia'), isTrue);
+      expect(isBroadDestinationName('Europe'), isTrue);
+      expect(isBroadDestinationName('Caraïbes'), isTrue);
+    });
+
+    test('insensible casse', () {
+      expect(isBroadDestinationName('paris'), isFalse);
+      expect(isBroadDestinationName('PARIS'), isFalse);
+      expect(isBroadDestinationName('FRANCE'), isTrue);
+      expect(isBroadDestinationName('thailand'), isTrue);
+    });
+
+    test('insensible accents', () {
+      expect(isBroadDestinationName('Brésil'), isTrue);
+      expect(isBroadDestinationName('Bresil'), isTrue);
+      expect(isBroadDestinationName('Thaïlande'), isTrue);
+      expect(isBroadDestinationName('Thailande'), isTrue);
+      expect(isBroadDestinationName('Égypte'), isTrue);
+      expect(isBroadDestinationName('Egypte'), isTrue);
+    });
+
+    test('null ou vide → broad (safe default préserve protection anti-filler)', () {
+      expect(isBroadDestinationName(null), isTrue);
+      expect(isBroadDestinationName(''), isTrue);
+      expect(isBroadDestinationName('   '), isTrue);
+    });
+
+    test('whitespace autour → trim correctement', () {
+      expect(isBroadDestinationName('  Paris  '), isFalse);
+      expect(isBroadDestinationName('  France  '), isTrue);
+    });
+  });
 }

@@ -824,6 +824,122 @@ bool _isMajorTouristPlace(NearbyCandidate c) {
   return c.types.any(_qualityMajorTouristTypes.contains);
 }
 
+/// V8.10 (Lalith 2026-05-10 — Q1B fix orphan-day pour villes) —
+/// noms de pays / régions où la destination est trop large pour
+/// servir de centre de recherche utile. Pour ces destinations, si
+/// l'utilisateur a des segments mais qu'un jour retombe sur
+/// `source=destination`, on skip (cf. orphan-day rule).
+///
+/// Pour les autres destinations (= villes), on autorise le fallback
+/// destination — un trip « Paris » 4 jours avec segments mal alignés
+/// doit quand même fetcher la pool autour de Paris.
+///
+/// Liste FR + EN, lowercase. La normalisation accent-insensitive
+/// est faite par `_normalizeBroadDestination` avant lookup.
+const Set<String> _qualityBroadDestinationNames = <String>{
+  // ─── Pays — Europe ──────────────────────────────────────────────────
+  'france', 'italie', 'italy', 'espagne', 'spain', 'portugal',
+  'allemagne', 'germany', 'royaume-uni', 'royaume uni', 'united kingdom',
+  'uk', 'angleterre', 'england', 'ecosse', 'scotland', 'pays de galles',
+  'wales', 'irlande', 'ireland', 'grece', 'greece', 'pays-bas',
+  'pays bas', 'netherlands', 'hollande', 'belgique', 'belgium', 'suisse',
+  'switzerland', 'autriche', 'austria', 'norvege', 'norway', 'suede',
+  'sweden', 'danemark', 'denmark', 'finlande', 'finland', 'islande',
+  'iceland', 'croatie', 'croatia', 'tchequie', 'czechia',
+  'republique tcheque', 'czech republic', 'pologne', 'poland', 'hongrie',
+  'hungary', 'russie', 'russia', 'roumanie', 'romania', 'bulgarie',
+  'bulgaria', 'serbie', 'serbia', 'slovenie', 'slovenia', 'slovaquie',
+  'slovakia', 'estonie', 'estonia', 'lettonie', 'latvia', 'lituanie',
+  'lithuania', 'malte', 'malta', 'chypre', 'cyprus', 'luxembourg',
+  // ─── Pays — Amériques ───────────────────────────────────────────────
+  'etats-unis', 'etats unis', 'united states', 'usa', 'us', 'canada',
+  'mexique', 'mexico', 'bresil', 'brazil', 'argentine', 'argentina',
+  'chili', 'chile', 'perou', 'peru', 'colombie', 'colombia', 'equateur',
+  'ecuador', 'bolivie', 'bolivia', 'venezuela', 'uruguay', 'paraguay',
+  'cuba', 'jamaique', 'jamaica', 'republique dominicaine',
+  'dominican republic', 'haiti', 'porto rico', 'puerto rico',
+  'guatemala', 'panama', 'costa rica', 'honduras', 'salvador',
+  'el salvador', 'nicaragua',
+  // ─── Pays — Asie ────────────────────────────────────────────────────
+  'thailande', 'thailand', 'vietnam', 'japon', 'japan', 'chine', 'china',
+  'inde', 'india', 'indonesie', 'indonesia', 'malaisie', 'malaysia',
+  'philippines', 'coree', 'korea', 'coree du sud', 'south korea',
+  'taiwan', 'taïwan', 'singapour', 'singapore', 'cambodge', 'cambodia',
+  'laos', 'birmanie', 'myanmar', 'sri lanka', 'nepal', 'bhoutan',
+  'bhutan', 'maldives', 'pakistan', 'bangladesh', 'mongolie', 'mongolia',
+  'kazakhstan', 'ouzbekistan', 'uzbekistan',
+  // ─── Pays — Océanie ─────────────────────────────────────────────────
+  'australie', 'australia', 'nouvelle-zelande', 'nouvelle zelande',
+  'new zealand', 'fidji', 'fiji', 'polynesie francaise',
+  'french polynesia', 'tahiti',
+  // ─── Pays — Afrique ─────────────────────────────────────────────────
+  'egypte', 'egypt', 'maroc', 'morocco', 'tunisie', 'tunisia', 'algerie',
+  'algeria', 'libye', 'libya', 'afrique du sud', 'south africa', 'kenya',
+  'tanzanie', 'tanzania', 'ethiopie', 'ethiopia', 'ouganda', 'uganda',
+  'rwanda', 'madagascar', 'maurice', 'mauritius', 'reunion', 'la reunion',
+  'senegal', 'cote d ivoire', 'cote d\'ivoire', 'ivory coast', 'ghana',
+  'nigeria', 'cameroun', 'cameroon', 'zimbabwe', 'namibie', 'namibia',
+  'botswana', 'mozambique',
+  // ─── Pays — Moyen-Orient ────────────────────────────────────────────
+  'turquie', 'turkey', 'emirats', 'emirats arabes unis',
+  'united arab emirates', 'uae', 'dubai', // Dubai is borderline city/country
+  'israel', 'jordanie', 'jordan', 'liban', 'lebanon', 'iran', 'irak',
+  'iraq', 'arabie saoudite', 'saudi arabia', 'qatar', 'oman', 'koweit',
+  'kuwait', 'bahrein', 'bahrain', 'yemen',
+  // ─── Régions / continents ───────────────────────────────────────────
+  'asie', 'asia', 'europe', 'amerique du nord', 'north america',
+  'amerique du sud', 'south america', 'amerique latine', 'latin america',
+  'afrique', 'africa', 'oceanie', 'oceania', 'moyen-orient', 'moyen orient',
+  'middle east', 'asie du sud-est', 'asie du sud est', 'southeast asia',
+  'south east asia', 'asie centrale', 'central asia', 'caraibes',
+  'caribbean', 'mediterranee', 'mediterranean', 'balkans', 'scandinavie',
+  'scandinavia', 'peninsule iberique', 'iberian peninsula', 'baltique',
+  'baltics', 'baltic',
+};
+
+/// Normalise une destination pour le lookup `_qualityBroadDestinationNames` :
+/// trim, lowercase, strip diacritiques (é→e, ï→i, ç→c, etc.).
+/// Pure et déterministe.
+String _normalizeBroadDestination(String s) {
+  var n = s.toLowerCase().trim();
+  const replacements = <String, String>{
+    'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
+    'à': 'a', 'â': 'a', 'ä': 'a',
+    'î': 'i', 'ï': 'i',
+    'ô': 'o', 'ö': 'o',
+    'û': 'u', 'ü': 'u', 'ù': 'u',
+    'ç': 'c',
+    'ñ': 'n',
+  };
+  replacements.forEach((from, to) {
+    n = n.replaceAll(from, to);
+  });
+  return n;
+}
+
+/// V8.10 — vrai si la destination est un pays / région large pour
+/// laquelle le fallback `source=destination` est risqué (centre
+/// géographique trop large = filler de mauvaise qualité). Faux pour
+/// les villes (Paris, Tokyo, Bangkok, ...) où le fallback est
+/// utilisable.
+///
+/// Heuristique : on prend le PREMIER token avant la virgule, normalisé.
+/// « Paris, France » → first=paris → pas dans la liste → city → false.
+/// « France » → first=france → broad → true.
+/// « Bangkok, Thailand » → first=bangkok → city → false.
+/// « Thailand » → broad → true.
+@visibleForTesting
+bool isBroadDestinationName(String? destination) {
+  if (destination == null || destination.trim().isEmpty) {
+    // Destination vide/inconnue = on ne peut pas affirmer city → safe
+    // default = broad (préserve la protection anti-filler).
+    return true;
+  }
+  final firstToken = destination.split(',').first;
+  final norm = _normalizeBroadDestination(firstToken);
+  return _qualityBroadDestinationNames.contains(norm);
+}
+
 /// V8.5 / V8.6 (Lalith 2026-05-10) — primaries d'« événement » qui
 /// restent génériques sans une source d'événements datés (PredictHQ
 /// Premium future). Rejetés sauf si pairés avec un signal touristique
@@ -1558,17 +1674,21 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
         ))),
   );
   // V8.4 (Lalith 2026-05-10 — Phase Quality-1A, rule 6) — skip les
-  // jours orphelins. Si le voyage a des segments définis MAIS un
-  // jour donné n'est couvert par aucun (et pas d'hôtel non plus),
-  // `centerForDay` retombe sur `source='destination'` qui est trop
-  // large (centre géographique du pays, ex: Brésil = -14.235,-51.925).
-  // Générer du contenu là-dessus = filler de mauvaise qualité.
-  // Acceptance criteria : « Planning can be lighter instead of
-  // filling bad slots ». Le jour reste dans le voyage mais sans
-  // suggestion auto.
-  // Garde le fallback `destination` quand le voyage n'a AUCUN
-  // segment (cas trip fraîchement créé) — sinon on vide tout.
+  // jours orphelins.
+  //
+  // V8.10 (Lalith 2026-05-10 — fix Paris) — règle nuancée :
+  // - Si destination est un pays/région large (Brésil, Thaïlande,
+  //   Asie du Sud-Est, etc.), `source=destination` = centre géo trop
+  //   large → skip pour éviter le filler.
+  // - Si destination est UNE VILLE (Paris, Tokyo, Bangkok, …), le
+  //   fallback destination EST un centre de recherche utile → on
+  //   garde, même quand des segments sont définis (cas trip Paris
+  //   4j où segments mal alignés faisaient retomber tous les jours
+  //   en orphan → 0 suggestion).
+  // - Détection via `isBroadDestinationName` (liste pays/région
+  //   FR+EN). Default safe = broad si destination vide/inconnue.
   final tripHasSegments = trip.itinerarySegments.isNotEmpty;
+  final destinationIsBroad = isBroadDestinationName(trip.destination);
   var orphanDaysSkipped = 0;
   final validDayCenters = dayCenters
       .where((dc) {
@@ -1577,13 +1697,24 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
           return false;
         }
         if (tripHasSegments && dc.center!.source == 'destination') {
-          debugPrint(
-            '[places_quality] ${_iso(dc.day)} : jour orphelin '
-            '(source=destination malgré segments présents) — skip pour '
-            'éviter le filler depuis le centre large du pays',
-          );
-          orphanDaysSkipped++;
-          return false;
+          if (destinationIsBroad) {
+            debugPrint(
+              '[places_quality] ${_iso(dc.day)} orphan skipped '
+              'reason=broad_destination_fallback_blocked '
+              '(destination="${trip.destination}")',
+            );
+            orphanDaysSkipped++;
+            return false;
+          } else {
+            // Destination = ville → fallback OK, on log pour visibilité.
+            // ignore: avoid_print
+            print(
+              '[places_center] date=${_iso(dc.day)} '
+              'source=destination_city '
+              'city="${trip.destination}" '
+              'reason=city_destination_fallback',
+            );
+          }
         }
         return true;
       })
