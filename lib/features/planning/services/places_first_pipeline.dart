@@ -695,6 +695,78 @@ const Set<String> _qualityMarketTravelTypes = <String>{
   'night_market', 'food_market', 'floating_market',
 };
 
+/// V8.8 (Lalith 2026-05-10 — Quality-1A v5) — types « hébergement »
+/// qui ne doivent JAMAIS apparaître dans une visite, peu importe la
+/// position dans `c.types`. Couvre le cas observé : « Wellness Stay
+/// & Hotel Sukhumvit 107 » primary=`spa`, secondary=`hotel,lodging`.
+/// Le primary spa passait, le secondary hotel n'était pas vérifié.
+const Set<String> _qualityFinalLodgingTypes = <String>{
+  'hotel',
+  'lodging',
+  'motel',
+  'guest_house',
+  'resort_hotel',
+  'hostel',
+  'bed_and_breakfast',
+  'extended_stay_hotel',
+  'campground',
+  'rv_park',
+  'private_guest_room',
+  'inn',
+};
+
+/// V8.8 (Lalith 2026-05-10 — Quality-1A v5) — patterns titre/adresse
+/// qui rejettent un candidat même quand ses types Google sont
+/// innocuous (shopping_mall, museum, point_of_interest, etc.). Cas
+/// observés où Google ne donne pas le bon type :
+///
+/// - cannabis/weed/marijuana → primary `point_of_interest` ou `store`,
+///   pas de `cannabis_store`. Détection par nom seule possible.
+/// - « Benjamin Moore » → primary `painter`/`general_contractor`/
+///   `home_goods_store`. Multi-types, peut leak via secondary.
+/// - « OUTDOOR BOTANICA » (paint store) → primary `shopping_mall`,
+///   passe les filtres types.
+/// - « Michelin Car Service » → primary `tire_shop`, sometimes
+///   `auto_parts_store`. Couvert par hard blocklist mais redondance
+///   par nom OK.
+/// - « Eye Plus Glasses » → primary `medical_clinic`. Idem couvert.
+/// - « bus station » / « bến xe » → primary parfois juste
+///   `point_of_interest` (pas tagué `bus_station`).
+/// - « BITEC » / « Convention Center » → primary peut être `museum`
+///   pour une exhibition à l'intérieur. Le contexte adresse vaut.
+///
+/// Regex case-insensitive, mots ancrés sur \b. Match sur titre ET
+/// adresse (l'adresse capture les exhibitions à BITEC).
+final RegExp _qualityFinalBlockedNamePattern = RegExp(
+  r'\b('
+  // Substances réglementées / cannabis
+  r'weed|cannabis|marijuana|ganja|420|dispensary'
+  r'|'
+  // Brands non-touristiques observées
+  r'benjamin\s+moore|outdoor\s+botanica'
+  r'|'
+  // Auto / mécanique
+  r'tire\s+(shop|service)?|auto\s+parts?|car\s+service|car\s+wash'
+  r'|michelin\s+car'
+  r'|'
+  // Optique / médical
+  r'eye\s+plus\s+glasses'
+  r'|'
+  // Transit
+  r'bus\s+station|bus\s+terminal|bến\s+xe'
+  r'|'
+  // Convention / hall (se retrouvent en adresse pour les exhibitions)
+  r'bitec|convention\s+cent(re|er)'
+  r')\b',
+  caseSensitive: false,
+);
+
+/// V8.8 — seuil minimum d'avis même pour les types « strong travel-
+/// safe ». Avant : un `market` à 1 avis passait le filtre via
+/// `_qualityTravelSafeTypes`. Cas observé : « Chợ Chiều ★4.0 (1 avis) »
+/// sélectionné en Shopping. 5 avis = signal minimal de réalité.
+const int _qualityFinalMinReviewsTravelSafe = 5;
+
 /// V8.5 / V8.6 (Lalith 2026-05-10) — primaries d'« événement » qui
 /// restent génériques sans une source d'événements datés (PredictHQ
 /// Premium future). Rejetés sauf si pairés avec un signal touristique
@@ -762,6 +834,27 @@ String? _isAllowedFinalVisitCandidate(NearbyCandidate c) {
   final reviews = c.userRatingCount ?? 0;
   final rating = c.rating ?? 0;
 
+  // V8.8 — Lodging block : si HOTEL/LODGING/MOTEL/HOSTEL/etc. apparaît
+  // n'importe où dans `c.types`, on rejette. Couvre « Wellness Stay
+  // & Hotel » (primary=spa, secondary=hotel,lodging) qui leakait via
+  // le primary spa au gather.
+  if (c.types.any(_qualityFinalLodgingTypes.contains)) {
+    return 'blocked_lodging';
+  }
+
+  // V8.8 — Blocklist par nom et adresse (regex). Couvre les cas où
+  // les types Google sont innocuous mais le titre/adresse révèle un
+  // lieu non-touristique (cannabis, paint store, mécanique, BITEC...).
+  // Match sur name OU address pour attraper « Space Journey
+  // Exhibition » dont l'adresse commence par « BITEC Bang Na ».
+  if (_qualityFinalBlockedNamePattern.hasMatch(c.name)) {
+    return 'blocked_title';
+  }
+  final addr = c.address;
+  if (addr != null && _qualityFinalBlockedNamePattern.hasMatch(addr)) {
+    return 'blocked_address';
+  }
+
   // Hard blocked sur TOUS les types (primary OR secondary).
   if (c.types.any(_qualityFinalBlockedTypes.contains)) {
     return 'blocked_type';
@@ -788,7 +881,15 @@ String? _isAllowedFinalVisitCandidate(NearbyCandidate c) {
     return 'high_rating_few_reviews';
   }
 
-  // Reviews < 10 sauf si type explicitement travel-safe.
+  // V8.8 — Min 5 avis MÊME pour les types travel-safe. Avant un
+  // `market` à 1 avis passait par bypass travel-safe ; cas observé
+  // « Chợ Chiều ★4.0 (1 avis) ». Désormais reject sous 5 avis quel
+  // que soit le type.
+  if (reviews < _qualityFinalMinReviewsTravelSafe) {
+    return 'low_reviews';
+  }
+  // Reviews entre 5 et 9 : OK seulement si type explicitement
+  // travel-safe (musée à 7 avis = ok, store à 7 avis = reject).
   if (reviews < 10) {
     final hasTravelSafe = c.types.any(_qualityTravelSafeTypes.contains);
     if (!hasTravelSafe) {
@@ -2910,6 +3011,9 @@ List<ActivitySuggestion> selectVisitsDeterministic({
       'selected=${out.length} '
       'rejectedByFinalQuality=$finalGateTotal '
       'rejectedByBlockedType=${finalGateCounts['blocked_type'] ?? 0} '
+      'rejectedByBlockedLodging=${finalGateCounts['blocked_lodging'] ?? 0} '
+      'rejectedByBlockedTitle=${finalGateCounts['blocked_title'] ?? 0} '
+      'rejectedByBlockedAddress=${finalGateCounts['blocked_address'] ?? 0} '
       'rejectedByRestaurantOutOfScope=${finalGateCounts['restaurant_out_of_scope'] ?? 0} '
       'rejectedByWeakEvent=${finalGateCounts['weak_event'] ?? 0} '
       'rejectedByLowReviews=${(finalGateCounts['low_reviews'] ?? 0) + (finalGateCounts['high_rating_few_reviews'] ?? 0)} '
@@ -3878,6 +3982,13 @@ const Set<String> _strictBarPrimaryTypes = <String>{
   'lounge_bar',
   'night_club',
   'hookah_bar',
+  // V8.8 (Lalith 2026-05-10) — additions retour debug Thaïlande :
+  // « Third Pint Brewpub » primary `brewpub` était sélectionné à
+  // 14:30 (tag=Activité). brewpub/brewery sont des bars-restos
+  // soir, pas des activités diurnes. `bar_and_grill` même logique.
+  'brewpub',
+  'brewery',
+  'bar_and_grill',
 };
 
 /// 2026-05-08 — types Événements à n'autoriser QUE le soir (≥18h).
@@ -3945,6 +4056,9 @@ bool? _typeAllowedAtHour(String type, double hour) {
     case 'night_club':
     case 'wine_bar':
     case 'sports_bar':
+    case 'brewpub':
+    case 'brewery':
+    case 'bar_and_grill':
       return hour >= 17.0;
     // Cafés / bakeries : 7h-19h
     case 'cafe':
