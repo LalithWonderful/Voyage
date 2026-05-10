@@ -18,8 +18,13 @@ class GeminiCacheService {
   final SupabaseClient _client;
   final Duration _defaultTtl;
 
+  // V8.3 (Lalith 2026-05-10 — Phase Cost-3) — TTL bumpé 30j → 90j.
+  // Les payloads cachés ici sont des résultats Places/Gemini quasi
+  // statiques (rating, types, address, photos d'un venue). Sur 1-3 mois
+  // les variations sont négligeables vs le coût API en cas de re-fetch.
+  // Le risque (rating légèrement périmé) est acceptable pour le scoring.
   GeminiCacheService(this._client, {Duration? ttl})
-      : _defaultTtl = ttl ?? const Duration(days: 30);
+      : _defaultTtl = ttl ?? const Duration(days: 90);
 
   /// Récupère un payload caché. Retourne null si miss, expiré, ou erreur.
   /// Le caller décode le payload selon son schéma.

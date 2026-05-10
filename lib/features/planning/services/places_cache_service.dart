@@ -7,8 +7,13 @@ class PlacesCacheService {
   final PlacesService _places;
   final Duration _ttl;
 
+  // V8.3 (Lalith 2026-05-10 — Phase Cost-3) — TTL bumpé 30j → 90j.
+  // Mêmes raisons que `gemini_cache_service.dart` : métadonnées Places
+  // (rating, photos, address) très stables sur 1-3 mois. Réduit les
+  // re-fetches de planifications anciennes ou voyages préparés
+  // longtemps à l'avance.
   PlacesCacheService(this._client, this._places, {Duration? ttl})
-      : _ttl = ttl ?? const Duration(days: 30);
+      : _ttl = ttl ?? const Duration(days: 90);
 
   String _normKey(String s) => s.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
 

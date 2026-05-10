@@ -248,18 +248,18 @@ const interestPlacesQueries = <String, InterestPlacesQuery>{
       'arena',
       'sports_complex',
     ],
+    // V8.3 (Lalith 2026-05-10 — Phase Cost-3) — pruning textQueries de
+    // 11 → 4. Les 8 includedTypes captent déjà les venues, les
+    // textQueries n'ajoutaient que des doublons (`salle de concert` ↔
+    // `concert`, `spectacle` ↔ `salle de spectacle`) ou du bruit
+    // ultra-niche (`kick boxing event`, `cabaret`). Économie ≈ 7
+    // searchText par groupe sur cold cache (1 par centre × 1 par
+    // cascade). Validé Lalith.
     textQueries: [
       'salle de spectacle',
-      'salle de concert',
       'théâtre',
-      'spectacle',
       'concert',
-      'live music',
-      'cabaret',
-      'festival',
       'cinéma',
-      'kick boxing event',
-      'boxing event',
     ],
     minRating: 4.0,
     excludeFoodPrimaryType: true,
