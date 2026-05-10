@@ -61,29 +61,51 @@ class DestinationBlueprint {
 
 /// V1 blueprints. Manual curation par Lalith 2026-05-10.
 
+/// V8.25 (Lalith 2026-05-10) — extension blueprint Bangkok pour les
+/// long-stays (6+ jours). Passe de 10+7=17 entrées à 18+10=28. Ajoute
+/// les iconiques manquants signalés en simu (Erawan Shrine, Wat Saket
+/// /Golden Mount, Wat Traimit/Golden Buddha, Wat Benchamabophit
+/// /Marble Temple, MBK Center, Terminal 21, Bang Krachao green lung,
+/// Ratchada Rot Fai night market, Vimanmek Mansion). Cost-1 reste
+/// dans le budget (~28 calls cold, < cap 80).
 const _bangkokBlueprint = DestinationBlueprint(
   destinationKey: 'bangkok',
   kind: DestinationKind.majorCity,
   mustSeeQueries: [
+    // Old City iconic
     'Grand Palace Bangkok',
     'Wat Pho Bangkok',
     'Wat Arun Bangkok',
+    'Wat Saket Golden Mount Bangkok',
+    'Wat Traimit Golden Buddha Bangkok',
+    'Wat Benchamabophit Marble Temple Bangkok',
+    'Wat Suthat Bangkok',
+    'National Museum Bangkok',
+    // Riverside iconic
     'Chao Phraya River Bangkok',
-    'Chinatown Yaowarat Bangkok',
     'IconSiam Bangkok',
+    // Markets iconic
+    'Chinatown Yaowarat Bangkok',
     'Chatuchak Weekend Market Bangkok',
+    // Modern iconic
     'Jim Thompson House Bangkok',
     'Lumphini Park Bangkok',
     'Mahanakhon SkyWalk Bangkok',
+    'Erawan Shrine Bangkok',
+    'MBK Center Bangkok',
+    'Terminal 21 Asok Bangkok',
   ],
   experienceQueries: [
-    'Damnoen Saduak floating market',
-    'Maeklong Railway Market',
     'Khao San Road Bangkok',
     'Asiatique The Riverfront Bangkok',
-    'rooftop bar Bangkok',
-    'night market Bangkok',
     'Chao Phraya river cruise',
+    'Damnoen Saduak floating market',
+    'Maeklong Railway Market',
+    'Train Night Market Srinagarindra Bangkok',
+    'Ratchada Rot Fai Market Bangkok',
+    'Bang Krachao green lung Bangkok',
+    'Vimanmek Mansion Bangkok',
+    'rooftop bar Bangkok',
   ],
   optionalDayTrips: [
     'Ayutthaya historical park',

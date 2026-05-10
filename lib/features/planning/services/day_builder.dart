@@ -138,6 +138,9 @@ const _bangkok = _BuilderCity(
     'national museum', 'khao san', 'khaosan',
     'wat phra', 'wat saket', 'wat traimit', 'wat suthat', 'wat ratchanatda',
     'wat benchamabophit', 'wat mahathat', 'phra nakhon',
+    // V8.25 — additions blueprint extension :
+    'golden mount', 'golden buddha', 'marble temple', 'vimanmek',
+    'erawan shrine',
   ],
   riversidePatterns: [
     'iconsiam', 'icon siam', 'chao phraya', 'asiatique', 'wang lang',
@@ -154,8 +157,11 @@ const _bangkok = _BuilderCity(
     ]),
     // V8.24 — Chatuchak / nord : Chatuchak Weekend, JJ Mall, Or Tor
     // Kor. Zone ~13.80 N, 100.55 E (Chatuchak / Mo Chit).
+    // V8.25 — ajout Ratchada Rot Fai (Ratchada zone ~13.77 N, entre
+    // Old City et Chatuchak, rattachée au north Bangkok).
     _MarketZone(type: DayPackType.marketChatuchakDay, patterns: [
       'chatuchak', 'jj market', 'jj mall', 'or tor kor',
+      'ratchada rot fai', 'rot fai ratchada',
     ]),
     // V8.24 — Srinagarindra / est : Train Night Market, Seacon
     // Square, Paradise Park. Zone ~13.69 N, 100.65 E.
@@ -163,6 +169,12 @@ const _bangkok = _BuilderCity(
       'train night market srinagarindra', 'srinagarindra',
       'seacon square', 'paradise park srinagarindra',
     ]),
+    // V8.25 — Ratchada Rot Fai night market (zone Ratchada ~13.77 N,
+    // 100.57 E, géographiquement entre Old City et Chatuchak nord).
+    // Rattaché à marketChatuchakDay pour cohérence north-Bangkok.
+    // Note : Ratchada Rot Fai a fermé en 2021, mais "Talad Neon" ou
+    // "Ratchada Rot Fai 2 Srinagarindra" peuvent encore matcher via
+    // les patterns existants.
   ],
   modernPatterns: [
     'jim thompson', 'mahanakhon', 'lumpini', 'lumphini', 'siam paragon',
@@ -170,6 +182,10 @@ const _bangkok = _BuilderCity(
     'terminal 21', 'mbk', 'emquartier', 'em district', 'emporium',
     'sky walk', 'skywalk', 'benjasiri', 'benjakitti', 'kingpower',
     'king power', 'samyan mitrtown',
+    // V8.25 — Bang Krachao (péninsule verte, parc nature) → modern
+    // (catégorie parc/nature). Géographiquement ~13.69 N, 100.59 E
+    // (en face du sud Bangkok), accessible bateau.
+    'bang krachao', 'green lung',
   ],
 );
 
