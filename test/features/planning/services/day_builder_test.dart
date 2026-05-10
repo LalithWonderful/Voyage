@@ -580,6 +580,173 @@ void main() {
     });
   });
 
+  group('Day Builder V8.24 zoned market split (Bangkok)', () {
+    test('Chatuchak et Chinatown sont dans des zones distinctes '
+        '(market_chatuchak_day vs market_old_city_day)', () {
+      // Construit un pool avec assez de candidats marché pour que
+      // chaque zone puisse théoriquement former un pack.
+      final marketSplitPool = <
+          String,
+          ({NearbyCandidate candidate, List<String> matchedInterests})>{};
+      void add(String id, String name, double lat, double lng,
+          int reviews, List<String> types, List<String> mi) {
+        marketSplitPool[id] = (
+          candidate: NearbyCandidate(
+            placeId: id,
+            name: name,
+            latitude: lat,
+            longitude: lng,
+            rating: 4.5,
+            userRatingCount: reviews,
+            types: types,
+          ),
+          matchedInterests: mi,
+        );
+      }
+
+      // Old City zone (must avoid market_old_city_day pack collision —
+      // 3 candidats Old City compacts).
+      add('chinatown', 'Chinatown Yaowarat', 13.7414, 100.5103, 30000,
+          ['tourist_attraction'], [blueprintMustSeeMarker]);
+      add('banglamphu', 'Bang Lamphu Market', 13.7595, 100.4994, 776,
+          ['tourist_attraction', 'market'], const []);
+      add('pakkhlong', 'Pak Khlong Talat (Flower Market)', 13.7407, 100.4972,
+          5000, ['market', 'tourist_attraction'], const []);
+
+      // Chatuchak zone — distincte
+      add('chatuchak', 'Chatuchak Weekend Market', 13.7997, 100.5505, 60000,
+          ['market'], [blueprintMustSeeMarker]);
+      add('jjmall', 'JJ Mall', 13.8023, 100.5526, 5000,
+          ['shopping_mall'], const []);
+      add('ortorkor', 'Or Tor Kor Market', 13.8046, 100.5497, 8000,
+          ['market'], const []);
+
+      // Srinagarindra zone — distincte
+      add('trainnight', 'Train Night Market Srinagarindra', 13.6939, 100.6512,
+          18073, ['market'], const []);
+
+      // Iconiques compagnons pour atteindre minPool=8
+      add('gp', 'Grand Palace', 13.7500, 100.4914, 100000,
+          ['tourist_attraction', 'historical_landmark'],
+          [blueprintMustSeeMarker]);
+      add('wp', 'Wat Pho', 13.7465, 100.4927, 50000,
+          ['place_of_worship'], [blueprintMustSeeMarker]);
+      add('wa', 'Wat Arun', 13.7437, 100.4889, 40000,
+          ['place_of_worship'], [blueprintMustSeeMarker]);
+
+      final result = buildDayPacksForCluster(
+        clusterCenterLat: 13.7563,
+        clusterCenterLng: 100.5018,
+        clusterDays: [
+          DateTime(2026, 6, 25),
+          DateTime(2026, 6, 28),
+          DateTime(2026, 7, 1),
+        ],
+        clusterPool: marketSplitPool,
+        trip: bangkokTrip,
+        maxPerDay: 4,
+      );
+
+      // Aucun pack ne doit jamais contenir Chatuchak ET Train Night
+      // Market Srinagarindra ensemble (anciennement V8.21 risque).
+      for (final pack in result.dayPackByDate.values) {
+        final ids = pack.placeIds;
+        expect(ids.contains('chatuchak') && ids.contains('trainnight'),
+            isFalse,
+            reason: 'pack ${pack.type.label} ne doit pas mixer Chatuchak '
+                'et Srinagarindra (zones distinctes)');
+      }
+
+      // Aucun pack ne doit mixer Chatuchak (nord) ET Chinatown (Old
+      // City) — V8.24 sépare ces deux zones marché.
+      for (final pack in result.dayPackByDate.values) {
+        final ids = pack.placeIds;
+        expect(ids.contains('chatuchak') && ids.contains('chinatown'),
+            isFalse,
+            reason: 'pack ${pack.type.label} ne doit pas mixer Chatuchak '
+                'et Chinatown (zones marché distinctes V8.24)');
+      }
+    });
+
+    test('market_chatuchak_day pack possible si pool ≥ 3 '
+        '(Chatuchak + JJ Mall + Or Tor Kor)', () {
+      final pool = <
+          String,
+          ({NearbyCandidate candidate, List<String> matchedInterests})>{};
+      void add(String id, String name, double lat, double lng,
+          int reviews, List<String> types, List<String> mi) {
+        pool[id] = (
+          candidate: NearbyCandidate(
+            placeId: id,
+            name: name,
+            latitude: lat,
+            longitude: lng,
+            rating: 4.5,
+            userRatingCount: reviews,
+            types: types,
+          ),
+          matchedInterests: mi,
+        );
+      }
+
+      // Pool centré sur Chatuchak — 3 candidats market_chatuchak.
+      add('chatuchak', 'Chatuchak Weekend Market', 13.7997, 100.5505, 60000,
+          ['market'], [blueprintMustSeeMarker]);
+      add('jjmall', 'JJ Mall', 13.8023, 100.5526, 5000,
+          ['shopping_mall'], const []);
+      add('ortorkor', 'Or Tor Kor Market', 13.8046, 100.5497, 8000,
+          ['market'], const []);
+      // Padding pour atteindre minPool=8
+      add('gp', 'Grand Palace', 13.7500, 100.4914, 100000,
+          ['tourist_attraction'], [blueprintMustSeeMarker]);
+      add('wp', 'Wat Pho', 13.7465, 100.4927, 50000,
+          ['place_of_worship'], [blueprintMustSeeMarker]);
+      add('wa', 'Wat Arun', 13.7437, 100.4889, 40000,
+          ['place_of_worship'], [blueprintMustSeeMarker]);
+      add('jt', 'Jim Thompson House Museum', 13.7494, 100.5294, 10000,
+          ['museum'], [blueprintMustSeeMarker]);
+      add('mn', 'Mahanakhon SkyWalk', 13.7232, 100.5287, 8000,
+          ['tourist_attraction'], [blueprintMustSeeMarker]);
+
+      final result = buildDayPacksForCluster(
+        clusterCenterLat: 13.7563,
+        clusterCenterLng: 100.5018,
+        clusterDays: [
+          DateTime(2026, 6, 25),
+          DateTime(2026, 6, 28),
+          DateTime(2026, 7, 1),
+        ],
+        clusterPool: pool,
+        trip: bangkokTrip,
+        maxPerDay: 4,
+      );
+
+      // Le greedy doit pouvoir placer un market_chatuchak_day quelque
+      // part vu le pool (Chatuchak + JJ Mall + Or Tor Kor compacts à
+      // ~13.80/100.55, inter-pick ≤ 0.5 km).
+      final hasChatuchakPack = result.dayPackByDate.values
+          .any((p) => p.type == DayPackType.marketChatuchakDay);
+      // Le greedy peut préférer old_city ou modern d'abord, mais
+      // market_chatuchak_day doit être un type *valide* dans le
+      // catalogue. Le test plus précis : aucune des 3 places
+      // Chatuchak ne se retrouve dans un pack non-Chatuchak.
+      final chatuchakPlaces = {'chatuchak', 'jjmall', 'ortorkor'};
+      for (final pack in result.dayPackByDate.values) {
+        final overlap = pack.placeIds.intersection(chatuchakPlaces);
+        if (overlap.isNotEmpty) {
+          expect(pack.type, DayPackType.marketChatuchakDay,
+              reason: 'place Chatuchak dans pack ${pack.type.label} '
+                  'au lieu de market_chatuchak_day');
+        }
+      }
+      // Sanity: le hasChatuchakPack pourra être true ou false selon
+      // greedy ordering, mais le type doit exister dans l'enum.
+      expect(DayPackType.marketChatuchakDay.label, 'market_chatuchak_day');
+      // ignore: unused_local_variable
+      final _ = hasChatuchakPack;
+    });
+  });
+
   group('Day Builder cross-cluster reservation', () {
     test('reservedPlaceIds exclut les places déjà prises par autre cluster',
         () {

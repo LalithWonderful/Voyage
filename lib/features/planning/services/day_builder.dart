@@ -32,10 +32,20 @@ import 'package:voyage/features/trips/models/trip_model.dart';
 
 /// Archétype thématique d'un day pack. Un pack regroupe des candidats
 /// cohérents géographiquement ET thématiquement.
+///
+/// V8.24 (Lalith 2026-05-10) — `market_day` éclaté en 3 zones pour
+/// Bangkok (`market_old_city_day`, `market_chatuchak_day`,
+/// `market_srinagarindra_day`). Évite de forcer Chatuchak (nord),
+/// Chinatown (Old City), Train Night Market (est) dans le même pack
+/// thématique alors qu'ils sont à 7-16 km l'un de l'autre. Le générique
+/// `market_day` reste pour les villes sans split (Paris).
 enum DayPackType {
   oldCityDay('old_city_day'),
   riversideDay('riverside_day'),
   marketDay('market_day'),
+  marketOldCityDay('market_old_city_day'),
+  marketChatuchakDay('market_chatuchak_day'),
+  marketSrinagarindraDay('market_srinagarindra_day'),
   modernDay('modern_day'),
   arrivalLightDay('arrival_light_day');
 
@@ -85,6 +95,16 @@ class DayBuilderResult {
   );
 }
 
+/// V8.24 — zone marché. Une ville peut avoir 1 zone (générique
+/// `market_day`, ex: Paris) ou plusieurs zones géographiquement
+/// distinctes (Bangkok = market_old_city + market_chatuchak +
+/// market_srinagarindra).
+class _MarketZone {
+  final DayPackType type;
+  final List<String> patterns;
+  const _MarketZone({required this.type, required this.patterns});
+}
+
 /// Description d'une ville Day-Builder enabled. Centre canonique +
 /// patterns de noms curated par archétype. Patterns sont matchés
 /// case-insensitive sur le nom du candidat (après strip diacritiques).
@@ -94,7 +114,7 @@ class _BuilderCity {
   final double lng;
   final List<String> oldCityPatterns;
   final List<String> riversidePatterns;
-  final List<String> marketPatterns;
+  final List<_MarketZone> marketZones;
   final List<String> modernPatterns;
 
   const _BuilderCity({
@@ -103,7 +123,7 @@ class _BuilderCity {
     required this.lng,
     required this.oldCityPatterns,
     required this.riversidePatterns,
-    required this.marketPatterns,
+    required this.marketZones,
     required this.modernPatterns,
   });
 }
@@ -124,11 +144,25 @@ const _bangkok = _BuilderCity(
     'the riverfront', 'riverfront', 'river cruise', 'tha tien',
     'tha maharaj', 'phra athit', 'sathorn pier', 'saphan taksin',
   ],
-  marketPatterns: [
-    'chatuchak', 'jj market', 'chinatown', 'yaowarat', 'night market',
-    'weekend market', 'floating market', 'damnoen saduak',
-    'maeklong', 'pak khlong', 'flower market', 'rot fai',
-    'train night market', 'sampeng',
+  marketZones: [
+    // V8.24 — Old City : marchés autour de Phra Nakhon, Chinatown
+    // (Yaowarat), Pak Khlong (flower market), Bang Lamphu, Sampeng.
+    // Zone compacte 13.74-13.76 N, 100.49-100.51 E.
+    _MarketZone(type: DayPackType.marketOldCityDay, patterns: [
+      'chinatown', 'yaowarat', 'pak khlong', 'sampeng',
+      'bang lamphu', 'flower market', 'khlong toei',
+    ]),
+    // V8.24 — Chatuchak / nord : Chatuchak Weekend, JJ Mall, Or Tor
+    // Kor. Zone ~13.80 N, 100.55 E (Chatuchak / Mo Chit).
+    _MarketZone(type: DayPackType.marketChatuchakDay, patterns: [
+      'chatuchak', 'jj market', 'jj mall', 'or tor kor',
+    ]),
+    // V8.24 — Srinagarindra / est : Train Night Market, Seacon
+    // Square, Paradise Park. Zone ~13.69 N, 100.65 E.
+    _MarketZone(type: DayPackType.marketSrinagarindraDay, patterns: [
+      'train night market srinagarindra', 'srinagarindra',
+      'seacon square', 'paradise park srinagarindra',
+    ]),
   ],
   modernPatterns: [
     'jim thompson', 'mahanakhon', 'lumpini', 'lumphini', 'siam paragon',
@@ -155,13 +189,18 @@ const _paris = _BuilderCity(
     'orsay', 'quai', 'bateaux', 'bateau-mouche', 'orangerie',
     'berges de seine',
   ],
-  marketPatterns: [
-    'rue mouffetard', 'marche bastille', 'marché bastille',
-    'marche aligre', 'marché aligre', 'aligre',
-    'marche des enfants', 'marché des enfants',
-    'rue cler', 'marche monge', 'marché monge',
-    'marche beauvau', 'marché beauvau',
-    'marche saint-quentin', 'marché saint-quentin',
+  // V8.24 — Paris : 1 zone unique générique (markets centraux Old City).
+  // Pas de split géo car les marchés Paris sont tous dans la zone
+  // intra-périphérique compacte (10 km radius).
+  marketZones: [
+    _MarketZone(type: DayPackType.marketDay, patterns: [
+      'rue mouffetard', 'marche bastille', 'marché bastille',
+      'marche aligre', 'marché aligre', 'aligre',
+      'marche des enfants', 'marché des enfants',
+      'rue cler', 'marche monge', 'marché monge',
+      'marche beauvau', 'marché beauvau',
+      'marche saint-quentin', 'marché saint-quentin',
+    ]),
   ],
   modernPatterns: [
     'eiffel', 'tour eiffel', 'trocadero', 'trocadéro',
@@ -271,7 +310,11 @@ _ArchetypeMatch _archetypesForCandidate(NearbyCandidate cand, _BuilderCity city)
       patterns.any((p) => n.contains(p));
   if (matchAny(city.oldCityPatterns)) out.add(DayPackType.oldCityDay);
   if (matchAny(city.riversidePatterns)) out.add(DayPackType.riversideDay);
-  if (matchAny(city.marketPatterns)) out.add(DayPackType.marketDay);
+  // V8.24 — itère les zones marchés de la ville. Bangkok = 3 zones,
+  // Paris = 1 zone générique.
+  for (final zone in city.marketZones) {
+    if (matchAny(zone.patterns)) out.add(zone.type);
+  }
   if (matchAny(city.modernPatterns)) out.add(DayPackType.modernDay);
   if (out.isNotEmpty) return _ArchetypeMatch(out, true);
   // Fallback type-based pour les candidats sans match nom.
@@ -282,7 +325,14 @@ _ArchetypeMatch _archetypesForCandidate(NearbyCandidate cand, _BuilderCity city)
       types.contains('mosque')) {
     out.add(DayPackType.oldCityDay);
   }
-  if (types.contains('market')) {
+  // V8.24 — fallback `market` ne s'applique QUE si la ville utilise
+  // une zone marché unique générique (Paris). Pour Bangkok (3 zones),
+  // un place sans pattern n'est pas auto-tagé : sinon Indy Market /
+  // Trok Mor / Imperial World tomberaient à tort dans une zone
+  // arbitraire et casseraient la cohérence des packs zonés.
+  if (types.contains('market') &&
+      city.marketZones.length == 1 &&
+      city.marketZones.first.type == DayPackType.marketDay) {
     out.add(DayPackType.marketDay);
   }
   // `shopping_mall` retiré du fallback : un mall générique (Imperial
@@ -601,14 +651,17 @@ DayBuilderResult buildDayPacksForCluster({
 
   final maxPlacesPerDay = math.min(maxPerDay, _kMaxPlacesPerPackHardCap);
 
+  // V8.24 — log condensé : ne montre que les counts non-nuls.
+  final countsParts = <String>[];
+  for (final t in DayPackType.values) {
+    final n = byType[t]!.length;
+    if (n > 0) countsParts.add('${t.label}:$n');
+  }
   debugPrint(
     '[day_builder] city=${city.key} days=${clusterDays.length} '
     'pool=${clusterPool.length} enabled=true '
     'taggedPool=${tagged.length} '
-    'counts={old_city:${byType[DayPackType.oldCityDay]!.length},'
-    'riverside:${byType[DayPackType.riversideDay]!.length},'
-    'market:${byType[DayPackType.marketDay]!.length},'
-    'modern:${byType[DayPackType.modernDay]!.length}}',
+    'counts={${countsParts.join(",")}}',
   );
 
   final usedPlaceIds = <String>{};
@@ -663,6 +716,9 @@ DayBuilderResult buildDayPacksForCluster({
           : const [
               DayPackType.oldCityDay,
               DayPackType.marketDay,
+              DayPackType.marketOldCityDay,
+              DayPackType.marketChatuchakDay,
+              DayPackType.marketSrinagarindraDay,
               DayPackType.riversideDay,
               DayPackType.modernDay,
             ];
