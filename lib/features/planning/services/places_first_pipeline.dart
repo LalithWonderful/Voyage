@@ -526,10 +526,16 @@ const Set<String> _qualityHardBlocklistPrimaryTypes = <String>{
   'jewelry_store', 'drugstore', 'cosmetics_store',
   'electronics_store', 'hardware_store', 'wholesaler',
   // Sport personnel (pas un loisir touristique)
-  'gym', 'fitness_center', 'sports_school',
+  'gym', 'fitness_center', 'sports_school', 'sports_coaching',
   // Bureaux / services
   'corporate_office', 'finance', 'accounting',
   'service', 'non_profit_organization',
+  // V8.5 (Lalith 2026-05-10) — additions sur retour test Brésil :
+  // - `manufacturer` : usine, ne se visite pas (sauf cas niche genre
+  //   chocolaterie touristique qui auront `tourist_attraction`).
+  // - `hair_care` : variante Google de hair_salon (déjà couvert dans
+  //   `_excludedPlaceTypes`) qui passait à travers en primary.
+  'manufacturer', 'hair_care',
 };
 
 /// V8.4 (Lalith 2026-05-10 — Phase Quality-1A) — types **commerciaux
@@ -590,6 +596,16 @@ const Set<String> _qualityReligiousTypes = <String>{
   'buddhist_temple', 'hindu_temple', 'shinto_shrine',
 };
 
+/// V8.5 (Lalith 2026-05-10) — primaries d'« événement » qui restent
+/// génériques sans une source d'événements datés (PredictHQ Premium
+/// future). Rejetés sauf si pairés avec un signal touristique fort
+/// (cf. `_qualityTravelSafeTypes`) ou volume d'avis monument-tier.
+const Set<String> _qualityWeakEventPrimaryTypes = <String>{
+  'event_venue',
+  'movie_theater',
+  'concert_hall',
+};
+
 /// V8.4 — seuil de reviews qui « légitime » un religieux ou un
 /// event_venue sans signal touristique secondaire. Empirique : une
 /// cathédrale célèbre dépasse facilement 1000 avis ; à 200+ c'est
@@ -645,16 +661,21 @@ String? _isQualityRejected(NearbyCandidate c) {
     }
   }
 
-  // Rule 4 — event_venue (primary) sans signal cultural fort →
-  // rejeté. Sans source événements datés (PredictHQ Premium future,
-  // cf. project_predicthq_premium), un event_venue générique = juste
-  // un bâtiment. On garde uniquement ceux qui sont aussi des lieux
-  // culturels reconnus (cf. `_qualityTravelSafeTypes`) OU qui ont
-  // un volume d'avis « monument-tier ».
-  if (primary == 'event_venue') {
-    final hasStrongSignal = c.types.any(_qualityTravelSafeTypes.contains) ||
-        c.types.contains('cultural_center') ||
-        c.types.contains('performing_arts_theater');
+  // Rule 4 — primaries « événement » (event_venue, movie_theater,
+  // concert_hall) sans signal touristique fort → rejet. Sans source
+  // événements datés (PredictHQ Premium future, cf.
+  // project_predicthq_premium), ces venues sont juste des bâtiments.
+  // On garde uniquement ceux qui sont aussi des lieux culturels
+  // reconnus (cf. `_qualityTravelSafeTypes`, qui contient déjà
+  // `cultural_center`, `performing_arts_theater`, `philharmonic_hall`,
+  // `tourist_attraction`, etc.) OU qui ont un volume d'avis « monument-
+  // tier » (`_qualityStrongLandmarkReviewsThreshold` = 200).
+  //
+  // V8.5 (Lalith 2026-05-10) — `movie_theater` et `concert_hall`
+  // étendent la rule ; un cinéma de quartier ou une salle de concert
+  // sans signal touristique = pas une activité touristique.
+  if (_qualityWeakEventPrimaryTypes.contains(primary)) {
+    final hasStrongSignal = c.types.any(_qualityTravelSafeTypes.contains);
     if (!hasStrongSignal &&
         reviews < _qualityStrongLandmarkReviewsThreshold) {
       return 'weak_event_venue_no_dated_source';
@@ -976,12 +997,23 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
     '${transitRadius != null ? ", transit=${transitRadius}m (cascade si pool<$minPoolCascade)" : ""}',
   );
 
-  // V8.4 (Lalith 2026-05-10 — Phase Quality-1A) — compteur par motif
-  // de rejet qualité. Alimente `[places_quality_summary]` en fin de
-  // gather pour diagnostiquer ce qui a été filtré (ex: combien de
-  // jewelry stores rejetées, combien d'event venues sans signal).
-  // Déclaré ici pour être capturé par la closure `collectByInterest`.
+  // V8.4 (Lalith 2026-05-10 — Phase Quality-1A) — compteurs trackés
+  // pendant tout le gather pour alimenter `[places_quality_filter]`
+  // en fin de run. 3 axes :
+  //   - rejectedByType : `_isQualityRejected` retourne un motif type
+  //     (hard_blocklist, soft_blocklist, religious, event_venue).
+  //   - rejectedByReviews : `_isQualityRejected` retourne un motif
+  //     reviews (high_rating_too_few, low_reviews_not_travel_safe).
+  //   - rejectedByLowRating : `c.rating < placesGlobalMinRating` ou
+  //     null (filtré en amont des autres règles).
+  // V8.5 — restructuré du `[places_quality_summary]` initial pour
+  // faciliter le scan : raw + kept + 3 axes agrégés + breakdown
+  // détaillé.
   final qualityRejectCounts = <String, int>{};
+  var qualityRawCount = 0;
+  var qualityKeptCount = 0;
+  var qualityRejectedByLowRating = 0;
+  var qualityRejectedByOtherFilter = 0;
 
   // Récolte par intérêt avec un radius donné. Factorisé pour la cascade
   // walk→transit : on appelle d'abord avec walkRadius, et si la pool d'un jour
@@ -1070,18 +1102,29 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
         }
       }
       final filtered = merged.values.where((c) {
+        qualityRawCount++;
         final r = c.rating;
-        if (r == null || r < placesGlobalMinRating) return false;
-        if (!query.matchesFilters(c)) return false;
-        if (_isExcludedPlace(c)) return false;
+        if (r == null || r < placesGlobalMinRating) {
+          qualityRejectedByLowRating++;
+          return false;
+        }
+        if (!query.matchesFilters(c)) {
+          qualityRejectedByOtherFilter++;
+          return false;
+        }
+        if (_isExcludedPlace(c)) {
+          qualityRejectedByOtherFilter++;
+          return false;
+        }
         // V8.4 (Phase Quality-1A) — filtre travel-quality post
         // exclusions historiques. Tracker les rejets par motif pour
-        // alimenter `[places_quality_summary]`.
+        // alimenter `[places_quality_filter]`.
         final qReason = _isQualityRejected(c);
         if (qReason != null) {
           qualityRejectCounts[qReason] = (qualityRejectCounts[qReason] ?? 0) + 1;
           return false;
         }
+        qualityKeptCount++;
         return true;
       }).toList();
       byInterest[interest] = filtered;
@@ -1264,19 +1307,57 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
     '$totalUnique lieux uniques cumulés',
   );
 
-  // V8.4 (Lalith 2026-05-10 — Phase Quality-1A) — summary des rejets
-  // qualité. `print` (pas debugPrint) pour échapper au throttle qui
-  // ferait disparaître la ligne sur cold cache verbeux. Volume = 1
-  // ligne par run, breakdown lisible pour diagnostiquer les filtres.
-  if (qualityRejectCounts.isNotEmpty || orphanDaysSkipped > 0) {
+  // V8.5 (Lalith 2026-05-10 — Phase Quality-1A refinement) — log
+  // structuré du filtrage qualité. `print` (pas debugPrint) pour
+  // échapper au throttle qui ferait disparaître la ligne sur cold
+  // cache verbeux. Format demandé Lalith :
+  //
+  //   [places_quality_filter]
+  //   raw=N kept=M
+  //   rejectedByType=A rejectedByReviews=B rejectedByLowRating=C
+  //   breakdown={hard_blocklist_primary:X,...}
+  //
+  // 3 axes agrégés depuis `qualityRejectCounts` :
+  //   - byType : motifs liés au type Places (hard/soft blocklist,
+  //     event venue sans signal, religieux sans signal).
+  //   - byReviews : motifs liés au volume d'avis (rating ≥ 4.5 mais
+  //     trop peu d'avis, reviews < 20 sur type non travel-safe).
+  //   - byLowRating : `c.rating == null` ou `< placesGlobalMinRating`
+  //     (filtre amont, tracké séparément).
+  // L'axe « otherFilter » regroupe `query.matchesFilters` et
+  // `_isExcludedPlace` (filtres historiques V4-V7) — pas exposé en
+  // log car la rotation a stabilisé ce périmètre.
+  const byTypeKeys = <String>{
+    'hard_blocklist_primary',
+    'soft_blocklist_no_touristic_signal',
+    'weak_event_venue_no_dated_source',
+    'weak_religious_no_touristic_signal',
+  };
+  const byReviewsKeys = <String>{
+    'high_rating_too_few_reviews',
+    'low_reviews_not_travel_safe',
+  };
+  var qualityRejectedByType = 0;
+  var qualityRejectedByReviews = 0;
+  qualityRejectCounts.forEach((k, v) {
+    if (byTypeKeys.contains(k)) {
+      qualityRejectedByType += v;
+    } else if (byReviewsKeys.contains(k)) {
+      qualityRejectedByReviews += v;
+    }
+  });
+
+  if (qualityRawCount > 0 || orphanDaysSkipped > 0) {
     final breakdown = qualityRejectCounts.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-    final total =
-        qualityRejectCounts.values.fold<int>(0, (s, v) => s + v);
     // ignore: avoid_print
     print(
-      '[places_quality_summary] tripId=${trip.id} '
-      'rejected=$total '
+      '[places_quality_filter] tripId=${trip.id} '
+      'raw=$qualityRawCount kept=$qualityKeptCount '
+      'rejectedByType=$qualityRejectedByType '
+      'rejectedByReviews=$qualityRejectedByReviews '
+      'rejectedByLowRating=$qualityRejectedByLowRating '
+      'rejectedByOtherFilter=$qualityRejectedByOtherFilter '
       'orphanDaysSkipped=$orphanDaysSkipped '
       'breakdown={${breakdown.map((e) => "${e.key}:${e.value}").join(",")}}',
     );
