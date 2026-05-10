@@ -1526,88 +1526,71 @@ const Set<String> _fastFoodPrimaryTypes = <String>{
   'hamburger_restaurant',
 };
 
-/// Cherche le meilleur restaurant à proximité d'un point d'ancrage (= une
-/// activité de la journée). Filtres déterministes (Lalith 26/04) :
-/// - rating ≥ profile.minRating (boost +0.1 si "Gastronomie" dans intérêts)
-/// - userRatingCount ≥ profile.minUserRatingCount ?? 30
-/// - profile.minPriceLevel/maxPriceLevel respectés (Grand luxe ≥3, etc.)
-/// - rejet types fast food (`_fastFoodPrimaryTypes`)
-/// - rejet types blacklist général (`_isExcludedPlace`)
-/// - rejet titres déjà au planning (anti-doublon)
-/// - rejet primary types déjà utilisés pour le déjeuner (diversité midi/soir)
-/// - tri final par score qualité (rating × log(userRatingCount))
-///
-/// Retourne null si aucun candidat ne passe — l'appelant skip le créneau.
-/// Retourne `(candidate, radiusUsed)` : le rayon effectivement utilisé pour
-/// trouver le candidat permet à l'appelant d'annoter le matchReason ("un peu
-/// plus loin car peu d'options proches" si on a dû élargir au-delà du rayon
-/// initial).
-Future<(NearbyCandidate, int)?> _findBestRestoNear({
+/// V8 (Lalith 2026-05-10 — Phase Cost-2) — rayon de fetch de la pool
+/// restaurant, partagée par tous les jours d'un même centre. Plus large
+/// que la cascade `_pickRestoFromPool` (max 1500m du **anchor**, qui peut
+/// être à walkRadius du centre) pour que la pool couvre toutes les
+/// distances atteignables. 2500m couvre activité-à-walkRadius (~1km) +
+/// cascade 1500m. Au-delà = profil très transit-friendly, accepté que
+/// quelques restos au bord soient hors pool (slot laissé vide alors).
+const int _restaurantPoolFetchRadiusMeters = 2500;
+
+/// V8 (Lalith 2026-05-10 — Phase Cost-2) — fetch unique de la pool
+/// restaurants pour un centre. UNE searchNearby (types meal) par
+/// centre, à utiliser pour TOUS les jours du groupe via
+/// `_pickRestoFromPool`. Remplace l'ancienne cascade
+/// `_findBestRestoNear` qui faisait 1-3 appels API par meal × par jour.
+Future<List<NearbyCandidate>> _buildRestaurantPoolForCenter({
   required PlacesNearbyService nearbyService,
-  required double latitude,
-  required double longitude,
-  required int radius,
+  required DayCenter center,
   required String? languageCode,
+  int radius = _restaurantPoolFetchRadiusMeters,
+}) async {
+  return nearbyService.searchNearby(
+    latitude: center.latitude,
+    longitude: center.longitude,
+    includedTypes: const ['restaurant', 'cafe', 'bakery'],
+    radius: radius,
+    maxResults: 20,
+    languageCode: languageCode,
+  );
+}
+
+/// V8 (Lalith 2026-05-10 — Phase Cost-2) — sélection in-memory du
+/// meilleur resto depuis une pool pré-fetchée. Reproduit la cascade
+/// distance de l'ancien `_findBestRestoNear` (préfère ≤ `mealRadius`,
+/// élargit à 1000m, 1500m max) sans aucun appel API. Toutes les autres
+/// règles (rating, fastfood, cuisine dedup, soft use count) sont
+/// identiques à l'ancienne implémentation — c'est le même filtrage,
+/// juste appliqué localement au lieu d'être délégué à Places.
+///
+/// Retourne `(candidate, distM)` ou null. `distM` remplace le
+/// `radiusUsed` historique pour annoter le matchReason ("un peu plus
+/// loin car peu d'options proches" si distM > mealRadius).
+(NearbyCandidate, int)? _pickRestoFromPool({
+  required List<NearbyCandidate> pool,
+  required double anchorLatitude,
+  required double anchorLongitude,
+  required int mealRadius,
   required TravelerPlacesProfile? travelerProfile,
   required List<String> tripInterests,
   Set<String> excludeTitlesNorm = const {},
   Set<String> excludePrimaryTypes = const {},
-
-  /// Titres déjà utilisés sur le voyage : pénalisés fortement dans le score
-  /// (-50 par usage) pour favoriser la variété SANS être bloqués dur. Si
-  /// la pool est petite, ils peuvent quand même remonter.
   Map<String, int> softExcludeTitlesUseCount = const {},
-
-  /// Cap maximum de `priceLevel` Places dérivé du budget par personne du
-  /// voyage (cf. `priceLevelCapForBudget`). Si défini, restreint le
-  /// `maxPrice` effectif au minimum entre celui du profil voyageur et ce
-  /// cap. Lieux sans priceLevel toujours conservés.
   int? budgetPriceCap,
-
-  /// Contexte pour les logs de diagnostic quand on retourne null. Caller
-  /// passe typiquement "lunch:2026-05-19@Plage oussane" pour pouvoir
-  /// corréler depuis le harness/run app. Si null, on logue quand même
-  /// le breakdown mais sans étiquette contextuelle.
   String? logContext,
-}) async {
-  // Cascade distance fixe (Lalith 2026-05-08) : commence au rayon profil
-  // (typiquement 600m, descend à 240m pour Senior à pied), élargit à 1000m
-  // si rien n'est trouvé, puis 1500m max. Au-delà on laisse le slot vide
-  // plutôt que de proposer un mauvais lieu trop loin du centre du jour.
-  // Le rayon retenu est exposé pour annoter le matchReason.
-  final cascade = <int>{radius, 1000, 1500}.toList()..sort();
-  List<NearbyCandidate> candidates = const [];
-  int radiusUsed = radius;
-  final radiiTried = <int>[];
-  for (final r in cascade) {
-    radiiTried.add(r);
-    candidates = await nearbyService.searchNearby(
-      latitude: latitude,
-      longitude: longitude,
-      includedTypes: const ['restaurant', 'cafe', 'bakery'],
-      radius: r,
-      maxResults: 20,
-      languageCode: languageCode,
-    );
-    if (candidates.isNotEmpty) {
-      radiusUsed = r;
-      break;
-    }
-  }
-  if (candidates.isEmpty) {
+}) {
+  if (pool.isEmpty) {
     debugPrint(
       '[places_first_skip_meal] ${logContext ?? "(no_context)"} '
-      'reason=no_candidates radii_tried=${radiiTried.join(",")} raw=0',
+      'reason=empty_pool raw=0',
     );
     return null;
   }
 
-  // Seuils effectifs : profil voyageur + boost Gastronomie + plancher 4.0
-  // Boost +0.2 + minReviews ×2 si Gastronomie. Et surtout `minPriceLevel ≥ 2`
-  // si Gastronomie : les fast food (Chinexpress, Istanbul Kebab, FIVE TACOS,
-  // Harlem Smash...) sont priceLevel 1, les vrais restos ≥2. Filtre robuste
-  // qui élimine TOUS les fast food sans toucher aux bons restos. Validé 26/04
-  // après tests Lalith.
+  // Seuils effectifs : profil voyageur + boost Gastronomie + plancher 4.0.
+  // Logique copiée 1:1 de l'ancien `_findBestRestoNear` pour préserver
+  // strictement le comportement (rating/reviews/priceLevel).
   final hasGastronomieInterest = tripInterests.contains('Gastronomie');
   final profileMinRating = travelerProfile?.minRating ?? 4.0;
   final effectiveMinRating = math.max(
@@ -1619,10 +1602,6 @@ Future<(NearbyCandidate, int)?> _findBestRestoNear({
       ? baseMinReviews * 2
       : baseMinReviews;
   final profileMinPrice = travelerProfile?.minPriceLevel;
-  // Boost minPriceLevel à 2 si Gastronomie (sauf si profil vise déjà le
-  // bon marché : Backpack/Meilleur prix avec maxPriceLevel ≤ 1).
-  // maxPrice : croise le profil voyageur ET le cap budget user — on prend
-  // le minimum (le plus restrictif des deux) si les 2 sont définis.
   final profileMaxPrice = travelerProfile?.maxPriceLevel;
   final maxPrice = (profileMaxPrice == null)
       ? budgetPriceCap
@@ -1650,6 +1629,12 @@ Future<(NearbyCandidate, int)?> _findBestRestoNear({
     r"\b(burger\s*king|mc\s*donald|kfc|subway|quick|domino|pizza\s*hut|speed\s*burger|chin\w*\s*express|chinexpress|wok\s*to\s*walk|nooi|prêt\s*à\s*manger|pret\s*a\s*manger|brioche\s*dor[ée]e|paul|five\s*guys|five\s*tacos|o.?tacos|tacos\s*avenue|pomme\s*de\s*pain|harlem\s*smash|istanbul\s*kebab|kebab|berliner|baguette\s*&\s*baguette)\b",
     caseSensitive: false,
   );
+  int distMeters(double lat1, double lng1, double lat2, double lng2) {
+    final dLat = (lat1 - lat2) * 111000;
+    final dLng = (lng1 - lng2) * 73000;
+    return math.sqrt(dLat * dLat + dLng * dLng).round();
+  }
+
   // Filtrage + comptage par catégorie de rejet pour diagnostiquer pourquoi
   // un slot repas peut être skippé (cf. logs `[places_first_skip_meal]`).
   // Les compteurs sont mutuellement exclusifs : 1 candidat n'est compté
@@ -1664,8 +1649,13 @@ Future<(NearbyCandidate, int)?> _findBestRestoNear({
   var rejByCuisineExcl = 0;
   var rejByMinPrice = 0;
   var rejByMaxPrice = 0;
-  final filtered = <NearbyCandidate>[];
-  for (final c in candidates) {
+  var rejByTooFar = 0;
+  // V8 Cost-2 : la cascade distance s'applique APRÈS les filtres qualité
+  // (haversine in-memory). On garde les candidats jusqu'à 1500m du anchor
+  // — au-delà = équivalent de l'ancienne cascade qui s'arrêtait à 1500.
+  const cascadeMaxDist = 1500;
+  final filtered = <(NearbyCandidate, int)>[];
+  for (final c in pool) {
     if (c.rating == null || c.rating! < effectiveMinRating) {
       rejByRating++;
       continue;
@@ -1711,7 +1701,17 @@ Future<(NearbyCandidate, int)?> _findBestRestoNear({
       rejByMaxPrice++;
       continue;
     }
-    filtered.add(c);
+    final distM = distMeters(
+      anchorLatitude,
+      anchorLongitude,
+      c.latitude,
+      c.longitude,
+    );
+    if (distM > cascadeMaxDist) {
+      rejByTooFar++;
+      continue;
+    }
+    filtered.add((c, distM));
   }
   if (filtered.isEmpty) {
     final breakdown = <String, int>{
@@ -1725,6 +1725,7 @@ Future<(NearbyCandidate, int)?> _findBestRestoNear({
       'cuisine_excl_diversity': rejByCuisineExcl,
       'min_price': rejByMinPrice,
       'max_price_budget': rejByMaxPrice,
+      'too_far_from_anchor': rejByTooFar,
     };
     final sorted = breakdown.entries.where((e) => e.value > 0).toList()
       ..sort((a, b) => b.value.compareTo(a.value));
@@ -1734,7 +1735,7 @@ Future<(NearbyCandidate, int)?> _findBestRestoNear({
     debugPrint(
       '[places_first_skip_meal] ${logContext ?? "(no_context)"} '
       'reason=$primaryReason '
-      'raw=${candidates.length} filtered=0 radius_used=${radiusUsed}m '
+      'raw=${pool.length} filtered=0 cascade_max=${cascadeMaxDist}m '
       'breakdown={${sorted.map((e) => "${e.key}:${e.value}").join(",")}}',
     );
     return null;
@@ -1754,8 +1755,21 @@ Future<(NearbyCandidate, int)?> _findBestRestoNear({
     return base - softPenalty;
   }
 
-  filtered.sort((a, b) => score(b).compareTo(score(a)));
-  return (filtered.first, radiusUsed);
+  // Cascade in-memory : préfère candidats ≤ mealRadius, puis 1000m, puis
+  // 1500m max. Reproduit le comportement « rester près du anchor sauf si
+  // pool indigente » de l'ancien `_findBestRestoNear`. Le distM réel du
+  // pick est retourné pour annoter le matchReason côté caller.
+  final cascade = <int>{mealRadius, 1000, cascadeMaxDist}.toList()..sort();
+  for (final r in cascade) {
+    final inRadius = filtered.where((e) => e.$2 <= r).toList()
+      ..sort((a, b) => score(b.$1).compareTo(score(a.$1)));
+    if (inRadius.isNotEmpty) {
+      return inRadius.first;
+    }
+  }
+  // Inatteignable : `filtered` est non-vide et `cascade` se termine à
+  // `cascadeMaxDist` ≥ tous les `distM` (filtre `rejByTooFar`).
+  return null;
 }
 
 /// Slots de visite pour la journée selon le volume cible (= maxActivitiesPerDay
@@ -2466,12 +2480,6 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
     }
   }
 
-  int distMeters(double lat1, double lng1, double lat2, double lng2) {
-    final dLat = (lat1 - lat2) * 111000;
-    final dLng = (lng1 - lng2) * 73000;
-    return math.sqrt(dLat * dLat + dLng * dLng).round();
-  }
-
   final out = <ActivitySuggestion>[];
 
   // 2026-05-08 calibrage #5 : essai cap=1 → cassait gravement Couple
@@ -2484,6 +2492,36 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
   const maxRestoUsesAcrossTrip = 2;
   final restoUseCount = <String, int>{};
   final cuisineUseCount = <String, int>{};
+
+  // V8 Cost-2 (Lalith 2026-05-10) — pool restos partagée par centre.
+  // Avant : 2 meals × N jours × cascade 1-3 nearby = jusqu'à 6N appels.
+  // Après : 1 nearby par centre distinct (`_buildRestaurantPoolForCenter`),
+  // puis picks in-memory pour chaque meal. Sur 8j / 2 villes : 2 appels au
+  // lieu de ~24 (-92%).
+  //
+  // Signature : on réutilise `placesPoolSignature` avec le rayon de fetch
+  // resto dédié pour ne pas confondre avec le grouping pool d'intérêts
+  // (radius walking) — 2 caches séparés en gemini_cache.
+  final restaurantPoolBySig = <String, List<NearbyCandidate>>{};
+  for (final dc in pool) {
+    final sig = placesPoolSignature(
+      center: dc.center,
+      radius: _restaurantPoolFetchRadiusMeters,
+      languageCode: languageCode,
+    );
+    if (restaurantPoolBySig.containsKey(sig)) continue;
+    final restos = await _buildRestaurantPoolForCenter(
+      nearbyService: nearbyService,
+      center: dc.center,
+      languageCode: languageCode,
+    );
+    restaurantPoolBySig[sig] = restos;
+    // ignore: avoid_print
+    print(
+      '[places_pool_build] kind=resto sig=$sig source=${dc.center.source} '
+      'radius=${_restaurantPoolFetchRadiusMeters}m → ${restos.length} candidats',
+    );
+  }
 
   // On itère sur TOUS les jours de la pool (pas seulement ceux avec activités
   // Gemini), pour insérer même les repas des jours sans visite Gemini.
@@ -2499,6 +2537,15 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
           .where((e) => e.value >= maxRestoUsesAcrossTrip)
           .map((e) => e.key),
     };
+
+    // V8 Cost-2 : pool restos partagée par tous les jours du même centre.
+    final restoPoolSig = placesPoolSignature(
+      center: dayCenter.center,
+      radius: _restaurantPoolFetchRadiusMeters,
+      languageCode: languageCode,
+    );
+    final restoPool =
+        restaurantPoolBySig[restoPoolSig] ?? const <NearbyCandidate>[];
 
     // Anchors : matinale (avant 13h, géolocalisée) ou centre du jour si
     // rien — garantit qu'on insère toujours un déjeuner même sans activité
@@ -2522,12 +2569,12 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
 
     final lunchCtx =
         'kind=lunch date=$dayKey anchor="$lunchAnchorLabel"';
-    var lunch = await _findBestRestoNear(
-      nearbyService: nearbyService,
-      latitude: lunchLat,
-      longitude: lunchLng,
-      radius: mealRadius,
-      languageCode: languageCode,
+    // V8 Cost-2 : picks in-memory depuis la pool partagée — 0 appel API.
+    var lunch = _pickRestoFromPool(
+      pool: restoPool,
+      anchorLatitude: lunchLat,
+      anchorLongitude: lunchLng,
+      mealRadius: mealRadius,
       travelerProfile: travelerProfile,
       tripInterests: tripInterests,
       excludeTitlesNorm: excludeTitles,
@@ -2537,12 +2584,11 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
       logContext: '$lunchCtx pass=1_strict_cuisine',
     );
     // Fallback : si exclusion cuisines a vidé la pool, retry sans.
-    lunch ??= await _findBestRestoNear(
-      nearbyService: nearbyService,
-      latitude: lunchLat,
-      longitude: lunchLng,
-      radius: mealRadius,
-      languageCode: languageCode,
+    lunch ??= _pickRestoFromPool(
+      pool: restoPool,
+      anchorLatitude: lunchLat,
+      anchorLongitude: lunchLng,
+      mealRadius: mealRadius,
       travelerProfile: travelerProfile,
       tripInterests: tripInterests,
       excludeTitlesNorm: excludeTitles,
@@ -2554,21 +2600,20 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
     String? lunchPrimaryType;
     if (lunch != null) {
       final lunchCandidate = lunch.$1;
-      final lunchRadiusUsed = lunch.$2;
+      final lunchDistM = lunch.$2;
       lunchPrimaryType = lunchCandidate.types.isNotEmpty
           ? lunchCandidate.types.first
           : null;
-      final dM = distMeters(
-        lunchLat,
-        lunchLng,
-        lunchCandidate.latitude,
-        lunchCandidate.longitude,
-      );
-      // Suffixe reason si on a dû élargir au-delà du rayon initial (peu
-      // d'options proches du centre du jour).
-      final widenedSuffix = lunchRadiusUsed > mealRadius
+      // Suffixe reason si le pick est plus loin que le rayon initial
+      // (équivalent de l'ancien `radiusUsed > mealRadius`).
+      final widenedSuffix = lunchDistM > mealRadius
           ? ' — un peu plus loin car peu d\'options proches'
           : '';
+      // ignore: avoid_print
+      print(
+        '[places_pool_reuse] kind=resto day=$dayKey meal=lunch '
+        'sig=$restoPoolSig → "${lunchCandidate.name}" @${lunchDistM}m',
+      );
       out.add(
         ActivitySuggestion(
           dayDate: dayCenter.day,
@@ -2579,7 +2624,7 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
           durationMinutes: 75,
           priceEstimate: priceFromLevel(lunchCandidate.priceLevel),
           matchReason:
-              'Top noté ★${lunchCandidate.rating} (${lunchCandidate.userRatingCount ?? 0} avis), à ${dM}m de "$lunchAnchorLabel"$widenedSuffix',
+              'Top noté ★${lunchCandidate.rating} (${lunchCandidate.userRatingCount ?? 0} avis), à ${lunchDistM}m de "$lunchAnchorLabel"$widenedSuffix',
           latitude: lunchCandidate.latitude,
           longitude: lunchCandidate.longitude,
         ),
@@ -2621,12 +2666,11 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
 
     final dinnerCtx =
         'kind=dinner date=$dayKey anchor="$dinnerAnchorLabel"';
-    var dinner = await _findBestRestoNear(
-      nearbyService: nearbyService,
-      latitude: dinnerLat,
-      longitude: dinnerLng,
-      radius: mealRadius,
-      languageCode: languageCode,
+    var dinner = _pickRestoFromPool(
+      pool: restoPool,
+      anchorLatitude: dinnerLat,
+      anchorLongitude: dinnerLng,
+      mealRadius: mealRadius,
       travelerProfile: travelerProfile,
       tripInterests: tripInterests,
       excludeTitlesNorm: excludeTitles,
@@ -2637,12 +2681,11 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
     );
     // Fallback 1 : retry sans exclusion cuisines voyage (mais conserve
     // l'exclusion midi du jour pour ne pas servir 2× pareil dans la journée).
-    dinner ??= await _findBestRestoNear(
-      nearbyService: nearbyService,
-      latitude: dinnerLat,
-      longitude: dinnerLng,
-      radius: mealRadius,
-      languageCode: languageCode,
+    dinner ??= _pickRestoFromPool(
+      pool: restoPool,
+      anchorLatitude: dinnerLat,
+      anchorLongitude: dinnerLng,
+      mealRadius: mealRadius,
       travelerProfile: travelerProfile,
       tripInterests: tripInterests,
       excludeTitlesNorm: excludeTitles,
@@ -2654,19 +2697,18 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
 
     if (dinner != null) {
       final dinnerCandidate = dinner.$1;
-      final dinnerRadiusUsed = dinner.$2;
-      final dM = distMeters(
-        dinnerLat,
-        dinnerLng,
-        dinnerCandidate.latitude,
-        dinnerCandidate.longitude,
-      );
-      final widenedSuffix = dinnerRadiusUsed > mealRadius
+      final dinnerDistM = dinner.$2;
+      final widenedSuffix = dinnerDistM > mealRadius
           ? ' — un peu plus loin car peu d\'options proches'
           : '';
       final dinnerPrimaryType = dinnerCandidate.types.isNotEmpty
           ? dinnerCandidate.types.first
           : null;
+      // ignore: avoid_print
+      print(
+        '[places_pool_reuse] kind=resto day=$dayKey meal=dinner '
+        'sig=$restoPoolSig → "${dinnerCandidate.name}" @${dinnerDistM}m',
+      );
       out.add(
         ActivitySuggestion(
           dayDate: dayCenter.day,
@@ -2677,7 +2719,7 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
           durationMinutes: 90,
           priceEstimate: priceFromLevel(dinnerCandidate.priceLevel),
           matchReason:
-              'Top noté ★${dinnerCandidate.rating} (${dinnerCandidate.userRatingCount ?? 0} avis), à ${dM}m de "$dinnerAnchorLabel"$widenedSuffix',
+              'Top noté ★${dinnerCandidate.rating} (${dinnerCandidate.userRatingCount ?? 0} avis), à ${dinnerDistM}m de "$dinnerAnchorLabel"$widenedSuffix',
           latitude: dinnerCandidate.latitude,
           longitude: dinnerCandidate.longitude,
         ),
