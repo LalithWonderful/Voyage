@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 import 'package:voyage/core/services/location_service.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -183,34 +184,30 @@ class PlanningScreen extends ConsumerWidget {
               child: Text('Que veux-tu suggérer ?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
             ),
             const SizedBox(height: 10),
-            ListTile(
-              leading: const Text('✨', style: TextStyle(fontSize: 24)),
-              title: const Text('Tout', style: TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: const Text('Visites et repas, comble les créneaux libres'),
-              onTap: () => Navigator.pop(ctx, SuggestionCategory.all),
-            ),
-            ListTile(
-              leading: const Text('🍽️', style: TextStyle(fontSize: 24)),
-              title: const Text('Restaurants', style: TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: const Text('Petit-déj, déjeuner, dîner — uniquement'),
-              onTap: () => Navigator.pop(ctx, SuggestionCategory.restaurants),
-            ),
+            // V8.2 (Lalith 2026-05-10) — décision produit : suppression de
+            // « Tout » et « Restaurants ». Les restos ne sont plus générés
+            // auto par Lunao (UX dégradée, planning surchargé, coût Places).
+            // Restos = soit réservation manuelle via « + Ajouter une activité »,
+            // soit recherche on-demand au day header (backlog).
             ListTile(
               leading: const Text('🏛️', style: TextStyle(fontSize: 24)),
               title: const Text('Visites & activités', style: TextStyle(fontWeight: FontWeight.w600)),
               subtitle: const Text('Culture, nature, shopping, détente — hors repas'),
               onTap: () => Navigator.pop(ctx, SuggestionCategory.activities),
             ),
-            const Divider(height: 1),
             // ⚠️ DEBUG — diagnostic Places-first sans toucher à l'état du voyage.
             // Logue tout dans la console (`places_test`) et appelle Gemini en
             // mode Auto sur le plus petit groupe (cache → re-runs gratuits).
-            ListTile(
-              leading: const Text('🧪', style: TextStyle(fontSize: 24)),
-              title: const Text('Test Places-first (debug)', style: TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: const Text('Gather + groupes + Gemini Auto sur 1 groupe — voir console'),
-              onTap: () => Navigator.pop(ctx, 'test'),
-            ),
+            // Caché en release builds (V8.2) — usage dev only.
+            if (kDebugMode) ...[
+              const Divider(height: 1),
+              ListTile(
+                leading: const Text('🧪', style: TextStyle(fontSize: 24)),
+                title: const Text('Test Places-first (debug)', style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: const Text('Gather + groupes + Gemini Auto sur 1 groupe — voir console'),
+                onTap: () => Navigator.pop(ctx, 'test'),
+              ),
+            ],
             const SizedBox(height: 12),
           ],
         ),
