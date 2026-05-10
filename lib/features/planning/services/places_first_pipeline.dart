@@ -2501,6 +2501,29 @@ List<PlacesPromptInput> _splitGroupByQuartier(
   required bool coPilotMode,
 }) {
   final entries = group.pool.entries.toList();
+
+  // V8.14 (Lalith 2026-05-10 — Quality-1D fix critique) — détection
+  // des candidats blueprint (must-see / experience) dans la pool du
+  // groupe. Ils seront fan-out à TOUS les sub-clusters après le
+  // k-means, peu importe leur position géographique.
+  //
+  // Pourquoi : les must-sees iconiques (Grand Palace 13.75,100.49)
+  // sont géo-distants de l'hôtel Bang Na (13.67,100.60). Le k-means
+  // les met dans un sub-cluster « Old City », différent du sub-
+  // cluster « Bang Na » où sont assignés les jours hôtel-centric.
+  // Round-robin → jours Bang Na → ne voient jamais Grand Palace.
+  // Le voyageur prend un taxi pour Grand Palace peu importe le
+  // quartier de sa journée — must-sees doivent être dans CHAQUE
+  // sub-cluster pool.
+  final blueprintIndices = <int>[];
+  for (var i = 0; i < entries.length; i++) {
+    final mi = entries[i].value.matchedInterests;
+    if (mi.contains(blueprintMustSeeMarker) ||
+        mi.contains(blueprintExperienceMarker)) {
+      blueprintIndices.add(i);
+    }
+  }
+
   // Pool trop petite → pas de clustering (peu de gain, risque de cluster vide).
   final minPoolForCluster = coPilotMode ? 18 : 12;
   if (entries.length < minPoolForCluster) {
@@ -2564,6 +2587,15 @@ List<PlacesPromptInput> _splitGroupByQuartier(
       indices.addAll(clusterIndices[c.idx]);
       if (indices.length >= minPool) break;
     }
+    // V8.14 (Q1D fan-out) — blueprint candidates ajoutés au cluster
+    // sélectionné pour qu'un jour isolé puisse aussi proposer des
+    // must-sees iconiques (peu importe le quartier choisi).
+    final indicesSet = indices.toSet();
+    for (final bIdx in blueprintIndices) {
+      if (!indicesSet.contains(bIdx)) {
+        indices.add(bIdx);
+      }
+    }
     final clusterPool = Map.fromEntries(indices.map((i) => entries[i]));
     return [
       PlacesPromptInput(
@@ -2586,6 +2618,28 @@ List<PlacesPromptInput> _splitGroupByQuartier(
     entries: entries,
     minPool: minPoolMulti,
   );
+
+  // V8.14 (Q1D fan-out) — blueprint candidates ajoutés à TOUS les
+  // sub-clusters mergés. Sinon round-robin → jours assignés à un
+  // sub-cluster « Bang Na » ne voient jamais Grand Palace (qui est
+  // dans le sub-cluster « Old City »). Les must-sees doivent être
+  // disponibles partout — voyageur prend taxi peu importe quartier.
+  if (blueprintIndices.isNotEmpty) {
+    for (var c = 0; c < mergedClusters.length; c++) {
+      final existingSet = mergedClusters[c].toSet();
+      for (final bIdx in blueprintIndices) {
+        if (!existingSet.contains(bIdx)) {
+          mergedClusters[c].add(bIdx);
+        }
+      }
+    }
+    // ignore: avoid_print
+    print(
+      '[blueprint_fanout] candidates=${blueprintIndices.length} '
+      'clusters=${mergedClusters.length} '
+      '(must-sees added to all sub-clusters)',
+    );
+  }
 
   final byClusterIdx = <int, List<DateTime>>{};
   for (var dayIdx = 0; dayIdx < group.days.length; dayIdx++) {
