@@ -3435,6 +3435,18 @@ List<ActivitySuggestion> selectVisitsDeterministic({
       const maxLongTransitionsPerDay = 1;
       const maxSingleTransitionKm = 10.0;
       const longTransitionThresholdKm = 5.0;
+      // V8.23 (Lalith 2026-05-10 — coherence guard slot-level) — après
+      // 2 picks, le barycentre des picks du jour définit la zone du
+      // jour. Les picks suivants doivent rester dans un rayon 5 km de
+      // ce barycentre. Évite le 4ᵉ pick « rempli pour remplir » qui
+      // casse la cohérence éditoriale (cas observé Bangkok 06-28 :
+      // Chinatown + ICONSIAM + Asiatique + Wat Bang Na Nok à 9.6 km
+      // hors zone). 5 km aligne avec le seuil long-transition.
+      // Le 1er et 2ᵉ pick ne sont pas contraints par centroid (le
+      // hard cap distance 10 km de l'anti-zigzag s'applique).
+      final dayPickLats = <double>[];
+      final dayPickLngs = <double>[];
+      const dayCoherenceRadiusKm = 5.0;
       final usedThisDay = <String>{};
       var wellnessCountThisDay = 0;
       var eventsCountThisDay = 0;
@@ -3484,6 +3496,19 @@ List<ActivitySuggestion> selectVisitsDeterministic({
                 dKm > longTransitionThresholdKm) {
               return false;
             }
+          }
+          // V8.23 (coherence guard) — après 2 picks, le candidat doit
+          // rester dans 5 km du barycentre du jour. Évite Wat Bang Na
+          // Nok à 9.6 km de la zone Chinatown/ICONSIAM/Asiatique.
+          if (dayPickLats.length >= 2) {
+            final centroidLat = dayPickLats.reduce((a, b) => a + b) /
+                dayPickLats.length;
+            final centroidLng = dayPickLngs.reduce((a, b) => a + b) /
+                dayPickLngs.length;
+            final dCentroidKm = _haversineKmBetween(
+              centroidLat, centroidLng, c.latitude, c.longitude,
+            );
+            if (dCentroidKm > dayCoherenceRadiusKm) return false;
           }
           if (!_isAppropriateForTime(
             c,
@@ -3581,6 +3606,7 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           var rejectDup = 0, rejectWellness = 0, rejectEvents = 0;
           var rejectDayPack = 0;
           var rejectAntiZigzag = 0;
+          var rejectCoherenceGuard = 0;
           for (final e in entries) {
             final c = e.value.candidate;
             // V8.20 (Day Builder) — comptabilise les rejets par filtre pack.
@@ -3600,6 +3626,20 @@ List<ActivitySuggestion> selectVisitsDeterministic({
                   (longTransitionsThisDay >= maxLongTransitionsPerDay &&
                       dKm > longTransitionThresholdKm)) {
                 rejectAntiZigzag++;
+                continue;
+              }
+            }
+            // V8.23 (coherence guard) — miroir du filtre.
+            if (dayPickLats.length >= 2) {
+              final centroidLat = dayPickLats.reduce((a, b) => a + b) /
+                  dayPickLats.length;
+              final centroidLng = dayPickLngs.reduce((a, b) => a + b) /
+                  dayPickLngs.length;
+              final dCentroidKm = _haversineKmBetween(
+                centroidLat, centroidLng, c.latitude, c.longitude,
+              );
+              if (dCentroidKm > dayCoherenceRadiusKm) {
+                rejectCoherenceGuard++;
                 continue;
               }
             }
@@ -3689,6 +3729,7 @@ List<ActivitySuggestion> selectVisitsDeterministic({
             'rejected_by_events_cap': rejectEvents,
             'rejected_by_day_pack': rejectDayPack,
             'rejected_by_anti_zigzag': rejectAntiZigzag,
+            'rejected_by_coherence_guard': rejectCoherenceGuard,
           };
           final sortedRejects = rejects.entries.where((e) => e.value > 0).toList()
             ..sort((a, b) => b.value.compareTo(a.value));
@@ -3955,6 +3996,10 @@ List<ActivitySuggestion> selectVisitsDeterministic({
             longTransitionsThisDay += 1;
           }
         }
+        // V8.23 (coherence guard) — append coords pour recalculer le
+        // barycentre du jour à la prochaine itération du slot loop.
+        dayPickLats.add(pick.latitude);
+        dayPickLngs.add(pick.longitude);
         lastActivity = out.last;
       }
     }
