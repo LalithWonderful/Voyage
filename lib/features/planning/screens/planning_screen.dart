@@ -445,7 +445,7 @@ class PlanningScreen extends ConsumerWidget {
             ..sort((a, b) => a.startTime.compareTo(b.startTime));
           if (list.isEmpty) {
             debugPrint(
-              '[places_test] $key (${dayCandidate.center.source}) : 🚨 AUCUNE ACTIVITÉ',
+              '[places_test] $key (${dayCandidate.center.source}) : Journée libre (aucune suggestion fiable)',
             );
             continue;
           }
@@ -2871,7 +2871,16 @@ class _DayHeader extends ConsumerWidget {
         Expanded(
           child: Text('📅 $title', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
         ),
-        Text('$count activité${count > 1 ? 's' : ''}', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+        // V8.9 (Lalith 2026-05-10 — Q1B) — count=0 affiché comme
+        // « Journée libre » et non « 0 activités » (ressemble à une
+        // erreur). Un jour sans suggestion fiable est un jour libre,
+        // pas un bug.
+        Text(
+          count == 0
+              ? 'Journée libre'
+              : '$count activité${count > 1 ? 's' : ''}',
+          style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+        ),
         if (dayAmount > 0) ...[
           const SizedBox(width: 6),
           Text(

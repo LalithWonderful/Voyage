@@ -767,6 +767,63 @@ final RegExp _qualityFinalBlockedNamePattern = RegExp(
 /// sélectionné en Shopping. 5 avis = signal minimal de réalité.
 const int _qualityFinalMinReviewsTravelSafe = 5;
 
+/// V8.9 (Lalith 2026-05-10 — Q1B low-confidence) — types « strong »
+/// qui légitiment un candidat à reviews entre [10, 30[. Cas observés
+/// `ป่าสงวนแห่งชาติ ★4.0 (10 avis)`, `Entrance to National Park ★4.1
+/// (7 avis)` étaient acceptés via `_qualityTravelSafeTypes` (large
+/// liste). Sous 30 avis on durcit : seules ces catégories de
+/// destination iconique passent.
+const Set<String> _qualityStrongTravelTypesStrict = <String>{
+  'tourist_attraction',
+  'historical_landmark',
+  'historical_place',
+  'museum',
+  'art_museum',
+  'history_museum',
+  'national_park',
+  'state_park',
+  'beach',
+  'scenic_spot',
+  'viewpoint',
+  'monument',
+};
+
+/// V8.9 (Lalith 2026-05-10 — Q1B volume cap) — seuil reviews qui
+/// définit un « major » iconique (Statue of Liberty ~140k, Eiffel
+/// Tower ~400k, etc.). Cap 2/jour pour éviter les journées sur-
+/// chargées de must-see (qui demandent plus de temps + énergie).
+const int _qualityMajorReviewsThreshold = 5000;
+const int _qualityMaxMajorsPerDay = 2;
+
+/// V8.9 — types qui qualifient un place comme « major touriste »
+/// (avec reviews ≥ threshold). Mêmes types que la liste « strict »
+/// pour low-confidence — un major DOIT être un type iconique, pas
+/// un café avec 50000 avis.
+const Set<String> _qualityMajorTouristTypes = <String>{
+  'tourist_attraction',
+  'historical_landmark',
+  'historical_place',
+  'museum',
+  'art_museum',
+  'history_museum',
+  'monument',
+  'national_park',
+  'state_park',
+  'beach',
+  'castle',
+  'cathedral',
+  'basilica',
+  'observation_deck',
+  'amusement_park',
+  'theme_park',
+};
+
+bool _isMajorTouristPlace(NearbyCandidate c) {
+  final reviews = c.userRatingCount ?? 0;
+  if (reviews < _qualityMajorReviewsThreshold) return false;
+  return c.types.any(_qualityMajorTouristTypes.contains);
+}
+
 /// V8.5 / V8.6 (Lalith 2026-05-10) — primaries d'« événement » qui
 /// restent génériques sans une source d'événements datés (PredictHQ
 /// Premium future). Rejetés sauf si pairés avec un signal touristique
@@ -828,11 +885,28 @@ const int _qualityStrongLandmarkReviewsThreshold = 500;
 ///   - 'high_rating_few_reviews' : rating ≥ 4.5 mais reviews < 10.
 ///   - 'generic_poi' : point_of_interest seul.
 ///   - null si OK.
-String? _isAllowedFinalVisitCandidate(NearbyCandidate c) {
+String? _isAllowedFinalVisitCandidate(
+  NearbyCandidate c, {
+  required Set<String> tripInterests,
+}) {
   if (c.types.isEmpty) return 'generic_poi';
   final primary = c.types.first;
   final reviews = c.userRatingCount ?? 0;
   final rating = c.rating ?? 0;
+
+  // V8.9 (Lalith 2026-05-10 — Q1B) — wellness/nightlife mismatch :
+  // un place avec primary spa/public_bath/massage/etc. ne doit
+  // apparaître que si Wellness ∈ tripInterests. Idem pour
+  // bar/pub/brewpub vs Nightlife. Sinon on tagge à tort en Activité
+  // (cas Dorum Onsen&Sauna observé sur run debug Thaïlande v5).
+  if (_wellnessPrimaryTypes.contains(primary) &&
+      !tripInterests.contains('Wellness')) {
+    return 'wellness_not_in_interests';
+  }
+  if (_strictBarPrimaryTypes.contains(primary) &&
+      !tripInterests.contains('Nightlife')) {
+    return 'nightlife_not_in_interests';
+  }
 
   // V8.8 — Lodging block : si HOTEL/LODGING/MOTEL/HOSTEL/etc. apparaît
   // n'importe où dans `c.types`, on rejette. Couvre « Wellness Stay
@@ -881,18 +955,24 @@ String? _isAllowedFinalVisitCandidate(NearbyCandidate c) {
     return 'high_rating_few_reviews';
   }
 
-  // V8.8 — Min 5 avis MÊME pour les types travel-safe. Avant un
-  // `market` à 1 avis passait par bypass travel-safe ; cas observé
-  // « Chợ Chiều ★4.0 (1 avis) ». Désormais reject sous 5 avis quel
-  // que soit le type.
+  // V8.9 (Lalith 2026-05-10 — Q1B) — low-confidence durci.
+  // Cas observés à corriger : `ป่าสงวนแห่งชาติ ★4.0 (10 avis)`,
+  // `Entrance to National Park ★4.1 (7 avis)`. Acceptables
+  // techniquement mais signal trop faible.
+  //
+  // Nouvelle règle :
+  //   - reviews < 30 → reject SAUF si type dans `_qualityStrongTravelTypesStrict`
+  //     (liste réduite : tourist_attraction, museum, art_museum,
+  //     historical_landmark, beach, national_park, scenic_spot, etc.).
+  //   - Même les strong types nécessitent ≥ 5 avis (le seuil minimal
+  //     v5 reste, anti `Chợ Chiều ★4.0 (1 avis)`).
   if (reviews < _qualityFinalMinReviewsTravelSafe) {
     return 'low_reviews';
   }
-  // Reviews entre 5 et 9 : OK seulement si type explicitement
-  // travel-safe (musée à 7 avis = ok, store à 7 avis = reject).
-  if (reviews < 10) {
-    final hasTravelSafe = c.types.any(_qualityTravelSafeTypes.contains);
-    if (!hasTravelSafe) {
+  if (reviews < 30) {
+    final hasStrongTravel =
+        c.types.any(_qualityStrongTravelTypesStrict.contains);
+    if (!hasStrongTravel) {
       return 'low_reviews';
     }
   }
@@ -2443,13 +2523,20 @@ List<ActivitySuggestion> selectVisitsDeterministic({
   // les autres logs.
   const finalGateLogPerCategory = 5;
   final finalGateLogged = <String, int>{};
+  // V8.9 — tripInterests pré-calculé pour le wellness/nightlife
+  // mismatch dans `_isAllowedFinalVisitCandidate`.
+  final finalGateTripInterests =
+      (trip.interests ?? const <String>[]).toSet();
   final filteredClusters = clusters.map((cluster) {
     final newPool = <
         String,
         ({NearbyCandidate candidate, List<String> matchedInterests})>{};
     for (final entry in cluster.pool.entries) {
       final candidate = entry.value.candidate;
-      final reason = _isAllowedFinalVisitCandidate(candidate);
+      final reason = _isAllowedFinalVisitCandidate(
+        candidate,
+        tripInterests: finalGateTripInterests,
+      );
       if (reason == null) {
         newPool[entry.key] = entry.value;
         continue;
@@ -2552,6 +2639,8 @@ List<ActivitySuggestion> selectVisitsDeterministic({
   var wellnessCountTripWide = 0;
   // Compteur des rejets cap pour `[places_selector_summary]` final.
   var rejectedByWellnessCap = 0;
+  // V8.9 (Q1B volume cap) — compteur global rejets cap majors.
+  var rejectedByMajorsCap = 0;
 
   // 2026-05-08 calibrage #4 : cap densité Événements (miroir Wellness).
   // Profil non-tolérant : max 1/jour, 2/cluster.
@@ -2576,6 +2665,10 @@ List<ActivitySuggestion> selectVisitsDeterministic({
       final usedThisDay = <String>{};
       var wellnessCountThisDay = 0;
       var eventsCountThisDay = 0;
+      // V8.9 (Q1B) — cap 2 « majors » par jour. Évite la journée
+      // bourrée de must-see (Statue Liberty + Empire State + 9/11
+      // Memorial + Brooklyn Bridge à enchaîner = irréaliste).
+      var majorCountThisDay = 0;
       // Indique si la demi-journée précédente du même jour a déjà un
       // wellness pick (sert au soft penalty quand Wellness est intérêt fort).
       var lastHalfDayHadWellness = false;
@@ -2664,6 +2757,12 @@ List<ActivitySuggestion> selectVisitsDeterministic({
               rejectedByWellnessCap++;
               return false;
             }
+          }
+          // V8.9 (Q1B) — cap 2 majors par jour.
+          if (_isMajorTouristPlace(c) &&
+              majorCountThisDay >= _qualityMaxMajorsPerDay) {
+            rejectedByMajorsCap++;
+            return false;
           }
           // Cap densité Événements (miroir Wellness, 2026-05-08 #4).
           if (_isEventsPrimaryType(c)) {
@@ -2977,6 +3076,10 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           eventsCountThisDay += 1;
           eventsCountThisCluster += 1;
         }
+        // V8.9 (Q1B) — increment majors count si pick = major tourist.
+        if (_isMajorTouristPlace(pick)) {
+          majorCountThisDay += 1;
+        }
         if (_isWellnessPrimaryType(pick)) {
           wellnessCountThisDay += 1;
           wellnessCountTripWide += 1;
@@ -3004,7 +3107,7 @@ List<ActivitySuggestion> selectVisitsDeterministic({
   // Volume = 1 ligne par run.
   final finalGateTotal =
       finalGateCounts.values.fold<int>(0, (s, v) => s + v);
-  if (rejectedByWellnessCap > 0 || finalGateTotal > 0) {
+  if (rejectedByWellnessCap > 0 || finalGateTotal > 0 || rejectedByMajorsCap > 0) {
     // ignore: avoid_print
     print(
       '[places_selector_summary] tripId=${trip.id} '
@@ -3019,7 +3122,10 @@ List<ActivitySuggestion> selectVisitsDeterministic({
       'rejectedByLowReviews=${(finalGateCounts['low_reviews'] ?? 0) + (finalGateCounts['high_rating_few_reviews'] ?? 0)} '
       'rejectedByLowRating=${finalGateCounts['low_rating'] ?? 0} '
       'rejectedByGenericPoi=${finalGateCounts['generic_poi'] ?? 0} '
+      'rejectedByWellnessNotInInterests=${finalGateCounts['wellness_not_in_interests'] ?? 0} '
+      'rejectedByNightlifeNotInInterests=${finalGateCounts['nightlife_not_in_interests'] ?? 0} '
       'rejectedByWellnessCap=$rejectedByWellnessCap '
+      'rejectedByMajorsCap=$rejectedByMajorsCap '
       'tripWideWellnessCap=$tripWideWellnessCap',
     );
   }
@@ -3660,6 +3766,12 @@ String _tagFromPrimaryType(String primaryType) {
   if (primaryType == 'bar' ||
       primaryType == 'night_club' ||
       primaryType == 'pub' ||
+      // V8.9 (Lalith 2026-05-10 — Q1B) — brewpub/brewery/bar_and_grill
+      // taggés Nightlife pour aligner avec le filtre time-of-day
+      // ≥17h. Avant un Brewpub primary leakait en tag=Activité.
+      primaryType == 'brewpub' ||
+      primaryType == 'brewery' ||
+      primaryType == 'bar_and_grill' ||
       primaryType.contains('bar')) {
     return 'Nightlife';
   }
@@ -3674,6 +3786,8 @@ String _tagFromPrimaryType(String primaryType) {
   // claire Activité (à pratiquer) vs Événements (à regarder).
   if (primaryType == 'spa' ||
       primaryType == 'massage_spa' ||
+      primaryType == 'massage' ||
+      primaryType == 'public_bath' ||
       primaryType == 'wellness_center' ||
       primaryType == 'sauna' ||
       primaryType == 'hammam' ||
@@ -3936,6 +4050,11 @@ const Set<String> _wellnessPrimaryTypes = <String>{
   'sauna',
   'hammam',
   'thermal_bath',
+  // V8.9 (Lalith 2026-05-10 — Q1B) — additions retour debug Thaïlande :
+  // « Dorum Onsen&Sauna » primary `public_bath` taggé Activité au lieu
+  // de Wellness. `massage` (variante Google de massage_spa) idem.
+  'public_bath',
+  'massage',
 };
 
 bool _isWellnessPrimaryType(NearbyCandidate c) {
@@ -4060,6 +4179,16 @@ bool? _typeAllowedAtHour(String type, double hour) {
     case 'brewery':
     case 'bar_and_grill':
       return hour >= 17.0;
+    // V8.9 (Lalith 2026-05-10 — Quality-1B) — markets time-of-day.
+    // Beaucoup de marchés sont matin (farmers) ou journée. Les
+    // night markets ne sont pas tagués spécifiquement par Google v1
+    // — on couvre via le type `market` générique restreint au jour.
+    case 'farmers_market':
+      return hour >= 6.0 && hour <= 14.0;
+    case 'flea_market':
+      return hour >= 8.0 && hour <= 17.0;
+    case 'market':
+      return hour >= 7.0 && hour <= 18.0;
     // Cafés / bakeries : 7h-19h
     case 'cafe':
     case 'bakery':
