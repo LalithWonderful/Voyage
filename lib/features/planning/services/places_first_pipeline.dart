@@ -236,7 +236,125 @@ const Map<String, Set<String>> _queryStrongTypes = <String, Set<String>>{
   'boxing event': {
     'stadium', 'arena', 'event_venue', 'sports_complex',
   },
+  // ─── Quality-1C (Lalith 2026-05-10) — queries catégorielles
+  // Shopping/Culture/Nature qui rejetaient leurs candidats en lexical
+  // mismatch sur Paris. L'infra `_queryStrongTypes` accepte le lieu
+  // sur match du primary type, sans exiger le mot de la query dans
+  // le name (cas BHV Marais / Samaritaine pour "rue commerçante",
+  // Tour Saint-Jacques pour "monument historique", etc.).
+  // ─── Shopping ────────────────────────────────────────────────────
+  // NB : clés normalisées (sans accents) — `_strongTypesForQuery`
+  // applique `_normalizeForMatch` sur la query qui strip les accents
+  // (« commerçante » → « commercante »). Une seule clé par variante.
+  'rue commercante': {
+    'shopping_mall', 'department_store', 'clothing_store',
+    'shoe_store', 'gift_shop', 'jewelry_store', 'book_store',
+    'market', 'store',
+  },
+  'boutique souvenirs': {
+    'gift_shop', 'souvenir_store', 'store',
+  },
+  'magasin d': {
+    // Capture "magasin d'usine" (apostrophe normalisée selon
+    // `_normalizeForMatch`). Outlet → shopping types.
+    'shopping_mall', 'department_store', 'outlet_store', 'store',
+  },
+  'marche local': {
+    'market', 'farmers_market', 'flea_market',
+  },
+  // ─── Culture (monuments / sites historiques / etc.) ──────────────
+  'monument historique': {
+    'historical_landmark', 'historical_place', 'monument',
+    'tourist_attraction', 'cultural_landmark',
+  },
+  'site historique': {
+    'historical_landmark', 'historical_place', 'monument',
+    'tourist_attraction', 'cultural_landmark',
+  },
+  'lieu historique': {
+    'historical_landmark', 'historical_place', 'monument',
+    'tourist_attraction', 'cultural_landmark',
+  },
+  'site culturel': {
+    'cultural_center', 'tourist_attraction', 'museum',
+    'historical_landmark',
+  },
+  'patrimoine culturel': {
+    // Strict — ne s'applique que si type fort présent. Aussi marqué
+    // dans `_strictNoLexicalQueries` (lexical mismatch insuffisant,
+    // le strong type devient mandatory).
+    'historical_landmark', 'historical_place', 'monument',
+    'tourist_attraction', 'cultural_center', 'museum', 'art_museum',
+    'history_museum', 'cultural_landmark',
+  },
+  // ─── Nature / vues ──────────────────────────────────────────────
+  'point de vue': {
+    'scenic_spot', 'observation_deck', 'tourist_attraction',
+    'viewpoint',
+  },
+  'foret': {
+    'park', 'national_park', 'nature_preserve', 'natural_feature',
+  },
+  'lac': {
+    'natural_feature', 'park', 'tourist_attraction',
+  },
+  'reserve naturelle': {
+    'national_park', 'state_park', 'park', 'nature_preserve',
+    'tourist_attraction',
+  },
+  'jardin botanique': {
+    'botanical_garden', 'park', 'tourist_attraction', 'garden',
+  },
+  // ─── Plage / front de mer ──────────────────────────────────────
+  'plage': {
+    'beach', 'natural_feature', 'tourist_attraction',
+  },
+  'bord de mer': {
+    'beach', 'natural_feature', 'park', 'tourist_attraction',
+    'scenic_spot',
+  },
+  'front de mer': {
+    'beach', 'natural_feature', 'park', 'tourist_attraction',
+    'scenic_spot',
+  },
+  // ─── Randonnée / sentier ───────────────────────────────────────
+  'sentier de randonnee': {
+    'hiking_area', 'park', 'national_park', 'state_park',
+    'natural_feature', 'tourist_attraction',
+  },
+  'balade nature': {
+    'park', 'national_park', 'natural_feature', 'tourist_attraction',
+    'hiking_area',
+  },
 };
+
+/// V8.12 (Lalith 2026-05-10 — Quality-1C dangerous query gate) —
+/// queries où le LEXICAL match ne suffit PAS pour accepter un
+/// candidat. Le strong type (cf. `_queryStrongTypes`) devient
+/// mandatory.
+///
+/// Cas observé : query "patrimoine" matchait "Patrimoine et
+/// Financement" (finance) en lexical → kept même si types pas
+/// touristiques. Pour ces queries ambiguës, on force la classification
+/// par type Google.
+///
+/// Idem que `_queryStrongTypes`, le match est par substring (la clé
+/// est cherchée dans la query normalisée).
+const Set<String> _strictNoLexicalQueries = <String>{
+  'patrimoine culturel',
+  // « patrimoine » seul est trop ambigu — supprimé en upstream
+  // (cf. `interests_to_places_mapping.dart` Culture textQueries).
+};
+
+/// V8.12 — vrai si la query exige un strong type (lexical mismatch
+/// rejette même avec mots dans le name).
+bool _isStrictNoLexicalQuery(String textQuery) {
+  final norm = _normalizeForMatch(textQuery);
+  for (final marker in _strictNoLexicalQueries) {
+    if (norm.contains(marker)) return true;
+  }
+  return false;
+}
 
 /// Retourne le set de types forts associés à la query (normalisée), ou
 /// null si la query n'a pas d'override. Le matching se fait par substring
@@ -370,6 +488,10 @@ List<NearbyCandidate> _filterByQueryNameMatch(
   // (ex: "salle de spectacle" + primary=performing_arts_theater → accepté
   // même si le nom ne contient pas "salle" ou "spectacle").
   final strongTypes = _strongTypesForQuery(textQuery);
+  // V8.12 (Quality-1C) — queries strictes : le lexical mismatch
+  // rejette même avec mots dans le name. Force le strong type.
+  // Couvre les queries ambiguës (« patrimoine culturel »).
+  final isStrict = _isStrictNoLexicalQuery(textQuery);
   final kept = <NearbyCandidate>[];
   for (final c in results) {
     final nameNorm = _normalizeForMatch(c.name);
@@ -377,25 +499,39 @@ List<NearbyCandidate> _filterByQueryNameMatch(
     final primaryType = c.types.isNotEmpty ? c.types.first : '?';
     final matchedByStrongType =
         strongTypes != null && strongTypes.contains(primaryType);
-    if (matched) {
+    // Order : strong type prioritaire (categorical_query), puis lexical
+    // (sauf si strict). Strict queries ne peuvent passer QUE par strong
+    // type — un lexical mismatch ou un lexical-match-only sont rejetés.
+    if (matchedByStrongType) {
       kept.add(c);
       debugPrint(
-        '[places_first_match] interest=$interest q="$textQuery" ✓ "${c.name}" '
-        'type=$primaryType addr="${c.address}" '
+        '[places_first_match] interest=$interest q="$textQuery" ✓ '
+        'reason=strong_type ($primaryType) "${c.name}" addr="${c.address}" '
         '@${c.latitude.toStringAsFixed(4)},${c.longitude.toStringAsFixed(4)}',
       );
-    } else if (matchedByStrongType) {
+    } else if (matched && !isStrict) {
       kept.add(c);
       debugPrint(
-        '[places_first_match] interest=$interest q="$textQuery" ✓ (via type fort '
-        '$primaryType) "${c.name}" addr="${c.address}" '
+        '[places_first_match] interest=$interest q="$textQuery" ✓ '
+        'reason=lexical_match "${c.name}" type=$primaryType '
+        'addr="${c.address}" '
         '@${c.latitude.toStringAsFixed(4)},${c.longitude.toStringAsFixed(4)}',
+      );
+    } else if (matched && isStrict) {
+      // Strict : lexical seul insuffisant. On rejette pour éviter
+      // « Patrimoine et Financement » et autres faux positifs sur
+      // queries ambiguës.
+      debugPrint(
+        '[places_first_match] interest=$interest q="$textQuery" ✗ '
+        'reason=strict_no_strong_type "${c.name}" type=$primaryType '
+        '— lexical match mais query stricte exige type fort',
       );
     } else {
       debugPrint(
-        '[places_first_match] interest=$interest q="$textQuery" ✗ rejeté "${c.name}" '
-        'type=$primaryType addr="${c.address}" — aucun mot de la query '
-        '(${queryWords.join(",")}) dans le name',
+        '[places_first_match] interest=$interest q="$textQuery" ✗ '
+        'reason=lexical_mismatch "${c.name}" type=$primaryType '
+        '— aucun mot (${queryWords.join(",")}) dans le name '
+        'et pas de type fort',
       );
     }
   }
@@ -570,12 +706,15 @@ const Set<String> _qualitySoftBlocklistPrimaryTypes = <String>{
 /// `reviews < 20` (rule 3). Un musée à 15 avis reste pertinent ; un
 /// store à 15 avis est suspect. Liste fermée et conservatrice.
 ///
-/// V8.6 (Lalith 2026-05-10) — `performing_arts_theater`,
-/// `philharmonic_hall`, `concert_hall` retirés. Sans source
-/// événements datés (PredictHQ Premium future), ces lieux ne sont
-/// touristiques que s'ils ont aussi un autre signal (`tourist_attraction`,
-/// `cultural_center`, etc.) OU un volume d'avis monument-tier (≥ 500).
-/// Cf. `_qualityWeakEventPrimaryTypes` qui les couvre.
+/// V8.12 (Lalith 2026-05-10 — Quality-1C) — théâtres / concert halls
+/// / cinémas RÉINTÉGRÉS. La purge V8.6 (sortie de
+/// `performing_arts_theater`, `concert_hall`, `philharmonic_hall`)
+/// rejetait par effet de bord les vrais lieux culturels statiques
+/// (Théâtre Mogador, Olympia, Grand Rex, Salle Pleyel...) qui ont
+/// une valeur touristique propre — visites guidées, architecture,
+/// patrimoine — même sans show daté. La règle weak event garde
+/// `event_venue` / `convention_center` / `stadium` / `arena` /
+/// `sports_complex` génériques.
 const Set<String> _qualityTravelSafeTypes = <String>{
   'tourist_attraction',
   'historical_landmark', 'historical_place',
@@ -595,6 +734,9 @@ const Set<String> _qualityTravelSafeTypes = <String>{
   'waterfall', 'lighthouse',
   'amusement_park', 'theme_park',
   'market', 'farmers_market',
+  // V8.12 — venues culturels statiques (réintégrés).
+  'performing_arts_theater', 'concert_hall', 'philharmonic_hall',
+  'live_music_venue', 'comedy_club', 'opera_house', 'movie_theater',
 };
 
 /// V8.4 — types religieux. Rule 5 : ne pass que si aussi
@@ -1002,26 +1144,35 @@ Future<String> resolveDestinationLevel({
   return level;
 }
 
-/// V8.5 / V8.6 (Lalith 2026-05-10) — primaries d'« événement » qui
-/// restent génériques sans une source d'événements datés (PredictHQ
-/// Premium future). Rejetés sauf si pairés avec un signal touristique
-/// fort (cf. `_qualityTravelSafeTypes`) ou volume d'avis monument-tier
-/// (≥ 500 avis).
+/// V8.5 / V8.6 / V8.12 (Lalith 2026-05-10) — primaries d'« événement »
+/// qui restent génériques sans une source d'événements datés
+/// (PredictHQ Premium future). Rejetés sauf si pairés avec un signal
+/// touristique fort (cf. `_qualityTravelSafeTypes`) ou volume d'avis
+/// monument-tier (≥ 500 avis).
 ///
-/// V8.6 — étendu : `convention_center`, `stadium`, `arena`,
-/// `performing_arts_theater`, `philharmonic_hall`. Une halle de
-/// convention type BITEC (Bangkok) sans événement daté = juste un
-/// bâtiment vide. Une salle philharmonique sans concert daté n'est
-/// pas une activité MVP.
+/// V8.12 (Quality-1C) — révisé après validation Paris : les vrais
+/// lieux culturels statiques (Théâtre Mogador, Olympia, Grand Rex,
+/// Théâtre du Châtelet, Salle Pleyel...) ne doivent plus être bloqués
+/// uniquement parce qu'ils sont event_venue / performing_arts_theater.
+/// Ils ont une vie touristique propre (visites guidées, architecture,
+/// histoire) même sans show daté.
+///
+/// Restent rejetés (vraiment génériques sans date) :
+///   convention_center, stadium, arena, sports_complex, event_venue,
+///   wedding_venue, banquet_hall.
+///
+/// Réintégrés dans `_qualityTravelSafeTypes` :
+///   performing_arts_theater, concert_hall, philharmonic_hall,
+///   live_music_venue, comedy_club, opera_house, movie_theater
+///   (cinémas iconiques Le Grand Rex / Le Champo).
 const Set<String> _qualityWeakEventPrimaryTypes = <String>{
   'event_venue',
-  'movie_theater',
-  'concert_hall',
   'convention_center',
   'stadium',
   'arena',
-  'performing_arts_theater',
-  'philharmonic_hall',
+  'sports_complex',
+  'wedding_venue',
+  'banquet_hall',
 };
 
 /// V8.4 — seuil de reviews qui « légitime » un religieux ou un
@@ -1653,6 +1804,12 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
       // dans ce cas le name matche, le bug est côté Google) : pour ces cas le
       // logging C ci-dessous donne la visibilité pour blacklister manuellement.
       for (final tq in mergedTextQueries) {
+        // V8.12 (Lalith 2026-05-10 — Quality-1C language fix) — les
+        // textQueries de `interestPlacesQueries` sont toutes en
+        // français. Forcer `lang='fr'` pour searchText évite les
+        // résultats incohérents (q="rue commerçante" lang=en
+        // observé sur trip Paris). `searchNearby` (type-based)
+        // garde le `languageCode` user pour les noms localisés.
         calls.add(
           nearbyService
               .searchText(
@@ -1660,7 +1817,7 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
                 latitude: center.latitude,
                 longitude: center.longitude,
                 radius: radius,
-                languageCode: languageCode,
+                languageCode: 'fr',
               )
               .then(
                 (results) => _filterByQueryNameMatch(results, tq, interest),

@@ -183,7 +183,23 @@ const interestPlacesQueries = <String, InterestPlacesQuery>{
   ),
   'Culture': InterestPlacesQuery(
     includedTypes: ['museum', 'art_gallery', 'library', 'church'],
-    textQueries: ['monument historique', 'site culturel', 'patrimoine'],
+    // V8.12 (Lalith 2026-05-10 — Quality-1C) — `patrimoine` seul retiré.
+    // Trop ambigu, matchait des cabinets de finance/gestion patrimoine
+    // (« Patrimoine et Financement », « Quintus Patrimoine », « Selexium
+    // Paris — Cabinet Gestion patrimoine »...) en lexical sans signal
+    // touristique. Remplacé par des variantes plus sûres :
+    // - `site historique` + `lieu historique` couvrent la même
+    //   intention via `_queryStrongTypes` (historical_landmark, etc.).
+    // - `patrimoine culturel` reste mais est marqué strict dans
+    //   `_strictNoLexicalQueries` → exige strong type, lexical seul
+    //   rejeté.
+    textQueries: [
+      'monument historique',
+      'site historique',
+      'lieu historique',
+      'site culturel',
+      'patrimoine culturel',
+    ],
     minRating: 4.0,
     rule: 'vérifier ouverture aux horaires du créneau et durée compatible',
   ),
