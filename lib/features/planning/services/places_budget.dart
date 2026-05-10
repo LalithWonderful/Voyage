@@ -194,9 +194,15 @@ class PlacesBudget {
       'budgetSkipped=$_budgetSkipped',
       'rateLimited=$_rateLimited',
     ];
-    debugPrint(parts.join(' '));
+    // V7.1 (Lalith 2026-05-10) — `print` plutôt que `debugPrint` :
+    // sur cold cache, le pipeline emet des milliers de `[places_first_match]`
+    // qui saturent le throttle de `debugPrint` et font disparaître ce summary
+    // (ligne unique mais critique). `print` n'est pas throttlé.
+    // ignore: avoid_print
+    print(parts.join(' '));
     if (totalCalls >= _maxTotal * 0.8) {
-      debugPrint(
+      // ignore: avoid_print
+      print(
         '[places_cost_warning] calls=$totalCalls '
         'exceedsBudget=${(totalCalls * 100 / _maxTotal).toStringAsFixed(0)}% '
         'of cap $_maxTotal',
