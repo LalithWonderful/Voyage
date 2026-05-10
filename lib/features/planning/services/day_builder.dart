@@ -140,7 +140,13 @@ const _bangkok = _BuilderCity(
     'wat benchamabophit', 'wat mahathat', 'phra nakhon',
     // V8.25 — additions blueprint extension :
     'golden mount', 'golden buddha', 'marble temple', 'vimanmek',
-    'erawan shrine',
+    // V8.26 — 'erawan shrine' RETIRÉ : Erawan est à Ratchaprasong
+    // (Siam / Chit Lom), pas Old City. Le ranger dans old_city
+    // créait des packs mixed (Wat Suthat + Wat Saket + Erawan + Wat
+    // Benchamabophit). À ranger plus tard dans modernPatterns ou un
+    // futur centralPatterns. Pour l'instant pas de pattern → tombe
+    // dans fallback type-based (place_of_worship) → old_city aussi
+    // mais via fromPattern=false (exclu de arrival_light).
   ],
   riversidePatterns: [
     'iconsiam', 'icon siam', 'chao phraya', 'asiatique', 'wang lang',
@@ -182,10 +188,12 @@ const _bangkok = _BuilderCity(
     'terminal 21', 'mbk', 'emquartier', 'em district', 'emporium',
     'sky walk', 'skywalk', 'benjasiri', 'benjakitti', 'kingpower',
     'king power', 'samyan mitrtown',
-    // V8.25 — Bang Krachao (péninsule verte, parc nature) → modern
-    // (catégorie parc/nature). Géographiquement ~13.69 N, 100.59 E
-    // (en face du sud Bangkok), accessible bateau.
-    'bang krachao', 'green lung',
+    // V8.26 — 'bang krachao' / 'green lung' RETIRÉS : Bang Krachao
+    // est une excursion nature/demi-journée dédiée, pas un spot
+    // modern à mixer avec Mahanakhon ou Jim Thompson. À ranger
+    // dans un futur archétype `nature_escape_day`. Pour l'instant
+    // pas de pattern → ne tombe dans aucun pack Day Builder, reste
+    // disponible pour le slot picker fallback.
   ],
 );
 

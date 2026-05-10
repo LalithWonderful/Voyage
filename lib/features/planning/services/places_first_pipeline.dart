@@ -3447,6 +3447,13 @@ List<ActivitySuggestion> selectVisitsDeterministic({
       final dayPickLats = <double>[];
       final dayPickLngs = <double>[];
       const dayCoherenceRadiusKm = 5.0;
+      // V8.26 (Lalith 2026-05-10 — second-pick guard fallback) — quand
+      // aucun pack n'est assigné (slot picker libre), cap 5 km entre
+      // 1ᵉʳ et 2ᵉ pick. Empêche les duos incohérents type Chatuchak +
+      // Khaosan (6 km) ou Asiatique + Train Night Market Ratchada
+      // (8.4 km). En mode pack, la restriction au pack suffit (pack
+      // est déjà curé géo + archétype).
+      const secondPickRadiusFallbackKm = 5.0;
       final usedThisDay = <String>{};
       var wellnessCountThisDay = 0;
       var eventsCountThisDay = 0;
@@ -3509,6 +3516,18 @@ List<ActivitySuggestion> selectVisitsDeterministic({
               centroidLat, centroidLng, c.latitude, c.longitude,
             );
             if (dCentroidKm > dayCoherenceRadiusKm) return false;
+          }
+          // V8.26 (second-pick guard fallback) — cap 5 km depuis le
+          // 1ᵉʳ pick quand aucun pack n'est assigné. Empêche Chatuchak +
+          // Khaosan (6 km) ou Asiatique + Ratchada Train Night Market
+          // (8.4 km). En mode pack, le pack lui-même garantit la
+          // cohérence zone.
+          if (dayPickLats.length == 1 && dayPackPlaceIds == null) {
+            final dFirstKm = _haversineKmBetween(
+              dayPickLats[0], dayPickLngs[0],
+              c.latitude, c.longitude,
+            );
+            if (dFirstKm > secondPickRadiusFallbackKm) return false;
           }
           if (!_isAppropriateForTime(
             c,
@@ -3607,6 +3626,7 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           var rejectDayPack = 0;
           var rejectAntiZigzag = 0;
           var rejectCoherenceGuard = 0;
+          var rejectSecondPickGuard = 0;
           for (final e in entries) {
             final c = e.value.candidate;
             // V8.20 (Day Builder) — comptabilise les rejets par filtre pack.
@@ -3640,6 +3660,17 @@ List<ActivitySuggestion> selectVisitsDeterministic({
               );
               if (dCentroidKm > dayCoherenceRadiusKm) {
                 rejectCoherenceGuard++;
+                continue;
+              }
+            }
+            // V8.26 (second-pick guard fallback) — miroir du filtre.
+            if (dayPickLats.length == 1 && dayPackPlaceIds == null) {
+              final dFirstKm = _haversineKmBetween(
+                dayPickLats[0], dayPickLngs[0],
+                c.latitude, c.longitude,
+              );
+              if (dFirstKm > secondPickRadiusFallbackKm) {
+                rejectSecondPickGuard++;
                 continue;
               }
             }
@@ -3730,6 +3761,7 @@ List<ActivitySuggestion> selectVisitsDeterministic({
             'rejected_by_day_pack': rejectDayPack,
             'rejected_by_anti_zigzag': rejectAntiZigzag,
             'rejected_by_coherence_guard': rejectCoherenceGuard,
+            'rejected_by_second_pick_guard': rejectSecondPickGuard,
           };
           final sortedRejects = rejects.entries.where((e) => e.value > 0).toList()
             ..sort((a, b) => b.value.compareTo(a.value));
