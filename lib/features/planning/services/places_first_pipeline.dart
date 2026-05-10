@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:voyage/features/planning/models/activity_suggestion_model.dart';
 import 'package:voyage/features/planning/services/ai_suggestions_service.dart';
 import 'package:voyage/features/planning/services/day_center_service.dart';
+import 'package:voyage/features/planning/services/gemini_cache_service.dart';
 import 'package:voyage/features/planning/services/geocoding_service.dart';
 import 'package:voyage/features/planning/services/interests_to_places_mapping.dart';
 import 'package:voyage/features/planning/services/places_nearby_service.dart';
@@ -940,6 +941,67 @@ bool isBroadDestinationName(String? destination) {
   return _qualityBroadDestinationNames.contains(norm);
 }
 
+/// V8.11 (Lalith 2026-05-10 — destination resolver V1) — résolution
+/// du niveau de destination (ville vs pays/région) avec cache DB
+/// `gemini_cache` action='destination_resolve'.
+///
+/// Architecture spec Lalith :
+/// 1. Cache lookup par destination normalisée. Si hit → retourne.
+/// 2. Cache miss → classification via `isBroadDestinationName` (liste
+///    statique pays/régions). Save dans cache pour reuse cross-trip.
+/// 3. V2 backlog : remplacer le miss-path par un vrai
+///    `findPlaceFromText` Google Places qui renvoie les `types`
+///    Geocoding (`country`/`administrative_area_level_1`/`locality`/...)
+///    pour une classification authoritative. Aujourd'hui la liste
+///    statique couvre les destinations communes (FR+EN ~150 noms).
+///
+/// Logs spec :
+///   [places_center_resolve] destination="..." db=hit source=db level=...
+///   [places_center_resolve] destination="..." db=miss action=heuristic_static
+///   [places_center_resolve] destination="..." saved=true source=heuristic level=...
+///
+/// Retourne `'city'` ou `'broad'` (string pour debug-friendliness).
+Future<String> resolveDestinationLevel({
+  required String destination,
+  required GeminiCacheService cache,
+}) async {
+  final normKey = _normalizeBroadDestination(destination.trim());
+  if (normKey.isEmpty) {
+    return 'broad';
+  }
+  // 1. Cache lookup.
+  final cached = await cache.get('destination_resolve', normKey);
+  if (cached != null && cached['level'] is String) {
+    final level = cached['level'] as String;
+    // ignore: avoid_print
+    print(
+      '[places_center_resolve] destination="$destination" '
+      'db=hit source=db level=$level',
+    );
+    return level;
+  }
+  // 2. Cache miss → static heuristic (V2 = real Places lookup).
+  // ignore: avoid_print
+  print(
+    '[places_center_resolve] destination="$destination" '
+    'db=miss action=heuristic_static',
+  );
+  final isBroad = isBroadDestinationName(destination);
+  final level = isBroad ? 'broad' : 'city';
+  // 3. Save for reuse by future trips (best-effort, swallow errors).
+  await cache.put('destination_resolve', normKey, {
+    'level': level,
+    'destination_norm': normKey,
+    'classified_via': 'heuristic_static',
+  });
+  // ignore: avoid_print
+  print(
+    '[places_center_resolve] destination="$destination" '
+    'saved=true source=heuristic level=$level',
+  );
+  return level;
+}
+
 /// V8.5 / V8.6 (Lalith 2026-05-10) — primaries d'« événement » qui
 /// restent génériques sans une source d'événements datés (PredictHQ
 /// Premium future). Rejetés sauf si pairés avec un signal touristique
@@ -1688,7 +1750,22 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
   // - Détection via `isBroadDestinationName` (liste pays/région
   //   FR+EN). Default safe = broad si destination vide/inconnue.
   final tripHasSegments = trip.itinerarySegments.isNotEmpty;
-  final destinationIsBroad = isBroadDestinationName(trip.destination);
+  // V8.11 (Lalith 2026-05-10 — destination resolver V1) — résolution
+  // via cache DB (`gemini_cache` action='destination_resolve') avec
+  // fallback static `isBroadDestinationName`. Réutilisable cross-trips.
+  // Si pas de cache disponible (test offline, harness), retombe sur
+  // la heuristique seule.
+  String destinationLevel;
+  if (nearbyService.cacheService != null) {
+    destinationLevel = await resolveDestinationLevel(
+      destination: trip.destination,
+      cache: nearbyService.cacheService!,
+    );
+  } else {
+    destinationLevel =
+        isBroadDestinationName(trip.destination) ? 'broad' : 'city';
+  }
+  final destinationIsBroad = destinationLevel == 'broad';
   var orphanDaysSkipped = 0;
   final validDayCenters = dayCenters
       .where((dc) {

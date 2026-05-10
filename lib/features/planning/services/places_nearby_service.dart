@@ -113,6 +113,13 @@ class NearbyCandidate {
 class PlacesNearbyService {
   final GeminiCacheService? _cache;
 
+  /// V8.11 (Lalith 2026-05-10) — getter exposé pour le destination
+  /// resolver (`resolveDestinationLevel`) qui réutilise `gemini_cache`
+  /// avec une nouvelle action='destination_resolve'. Le service nearby
+  /// est déjà partagé partout dans le pipeline ; partager aussi son
+  /// cache évite d'ajouter un nouveau provider/paramètre à propager.
+  GeminiCacheService? get cacheService => _cache;
+
   /// V7 (Lalith 2026-05-10 — Phase Cost-1) — budget courant. Null si
   /// la run actuelle ne fait pas de tracking. Le pipeline doit appeler
   /// `startRun()` au début d'une génération de planning, puis
