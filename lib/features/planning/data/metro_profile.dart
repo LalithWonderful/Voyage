@@ -174,10 +174,197 @@ const _parisMetro = MetroProfile(
   ],
 );
 
+/// V8.28a (Lalith 2026-05-10) — 5 MetroProfiles additionnels pour
+/// les métropoles prioritaires. Patterns curated par zones. Blueprint
+/// correspondant ajouté dans `destination_blueprints.dart`.
+///
+/// Note : les zones ici sont génériques (oldCity/riverside/market/
+/// modern). Pas de split géo intra-ville (équivalent Bangkok
+/// market_chatuchak/srinagarindra). Si une simu révèle des zigzags
+/// type Tokyo Shinjuku↔Asakusa, on splittera comme Bangkok l'a été
+/// en V8.24.
+
+const _tokyoMetro = MetroProfile(
+  cityKey: 'tokyo',
+  lat: 35.6762,
+  lng: 139.6503,
+  clusterRadiusKm: 40.0,
+  disableMarketTypeFallback: false,
+  isMegaCity: true,
+  zones: [
+    MetroZone(type: DayPackType.oldCityDay, patterns: [
+      'senso-ji', 'sensoji', 'asakusa', 'meiji shrine', 'meiji jingu',
+      'imperial palace', 'yasukuni', 'kanda', 'nezu shrine',
+      'zojoji', 'gokokuji', 'kappabashi',
+    ]),
+    MetroZone(type: DayPackType.riversideDay, patterns: [
+      'sumida river', 'odaiba', 'rainbow bridge', 'kachidoki',
+      'asakusa pier', 'sumida park',
+    ]),
+    MetroZone(type: DayPackType.marketDay, patterns: [
+      'tsukiji outer market', 'tsukiji', 'ameya-yokocho',
+      'ameyoko', 'toyosu market', 'nakamise',
+    ]),
+    MetroZone(type: DayPackType.modernDay, patterns: [
+      'tokyo tower', 'tokyo skytree', 'skytree',
+      'shibuya crossing', 'shibuya', 'shinjuku gyoen', 'shinjuku',
+      'akihabara', 'roppongi', 'ginza', 'omotesando',
+      'harajuku', 'takeshita', 'teamlab',
+      'ueno park', 'yoyogi park',
+    ]),
+  ],
+);
+
+const _nycMetro = MetroProfile(
+  cityKey: 'new york',
+  lat: 40.7589,
+  lng: -73.9851,
+  clusterRadiusKm: 35.0,
+  disableMarketTypeFallback: false,
+  isMegaCity: true,
+  zones: [
+    MetroZone(type: DayPackType.oldCityDay, patterns: [
+      'wall street', 'statue of liberty', 'ellis island',
+      'battery park', '9/11 memorial', 'world trade center',
+      'trinity church', 'st patrick', 'st paul\'s chapel',
+      'federal hall',
+    ]),
+    MetroZone(type: DayPackType.riversideDay, patterns: [
+      'brooklyn bridge', 'manhattan bridge', 'pier 17',
+      'hudson yards', 'hudson river', 'east river',
+      'brooklyn bridge park', 'roosevelt island',
+    ]),
+    MetroZone(type: DayPackType.marketDay, patterns: [
+      'chelsea market', 'time out market', 'bryant park market',
+      'union square greenmarket',
+    ]),
+    MetroZone(type: DayPackType.modernDay, patterns: [
+      'empire state building', 'top of the rock', 'rockefeller',
+      'times square', 'broadway', 'central park',
+      'metropolitan museum', 'met museum', 'moma',
+      'museum of modern art', 'guggenheim', 'whitney museum',
+      'one world observatory', 'high line', 'fifth avenue',
+      'soho', 'tribeca', 'greenwich village', 'east village',
+    ]),
+  ],
+);
+
+const _londonMetro = MetroProfile(
+  cityKey: 'london',
+  lat: 51.5074,
+  lng: -0.1278,
+  clusterRadiusKm: 35.0,
+  disableMarketTypeFallback: false,
+  isMegaCity: true,
+  zones: [
+    MetroZone(type: DayPackType.oldCityDay, patterns: [
+      'tower of london', 'westminster abbey', 'buckingham palace',
+      'big ben', 'houses of parliament', 'st paul\'s cathedral',
+      'st pauls cathedral', 'kensington palace', 'hampton court',
+      'churchill war rooms',
+    ]),
+    MetroZone(type: DayPackType.riversideDay, patterns: [
+      'tower bridge', 'london eye', 'thames', 'southbank',
+      'greenwich', 'cutty sark', 'hms belfast', 'thames river cruise',
+    ]),
+    MetroZone(type: DayPackType.marketDay, patterns: [
+      'camden market', 'borough market', 'portobello road',
+      'spitalfields', 'old spitalfields', 'broadway market',
+      'leadenhall market', 'columbia road flower market',
+    ]),
+    MetroZone(type: DayPackType.modernDay, patterns: [
+      'british museum', 'national gallery', 'tate modern',
+      'tate britain', 'natural history museum', 'science museum',
+      'victoria and albert', 'v&a museum',
+      'covent garden', 'soho', 'shoreditch', 'notting hill',
+      'hyde park', 'regents park', 'st james\'s park',
+      'the shard', 'sky garden',
+    ]),
+  ],
+);
+
+const _romeMetro = MetroProfile(
+  cityKey: 'rome',
+  lat: 41.9028,
+  lng: 12.4964,
+  clusterRadiusKm: 30.0,
+  disableMarketTypeFallback: false,
+  isMegaCity: true,
+  zones: [
+    MetroZone(type: DayPackType.oldCityDay, patterns: [
+      'colosseum', 'colosseo', 'roman forum', 'foro romano',
+      'pantheon', 'trevi fountain', 'fontana di trevi',
+      'piazza navona', 'piazza di spagna', 'spanish steps',
+      'castel sant\'angelo', 'castel sant angelo',
+      'palatine hill', 'capitoline', 'campidoglio',
+      'circo massimo', 'baths of caracalla',
+    ]),
+    MetroZone(type: DayPackType.riversideDay, patterns: [
+      'tiber', 'tevere', 'ponte sant\'angelo', 'isola tiberina',
+      'lungotevere', 'trastevere',
+    ]),
+    MetroZone(type: DayPackType.marketDay, patterns: [
+      'campo de\' fiori', 'campo dei fiori', 'mercato trionfale',
+      'mercato testaccio', 'mercato di san cosimato',
+      'nuovo mercato esquilino',
+    ]),
+    MetroZone(type: DayPackType.modernDay, patterns: [
+      'vatican museums', 'st peter\'s basilica', 'st peters basilica',
+      'basilica di san pietro', 'sistine chapel', 'cappella sistina',
+      'villa borghese', 'galleria borghese', 'galleria nazionale',
+      'maxxi', 'macro',
+    ]),
+  ],
+);
+
+const _istanbulMetro = MetroProfile(
+  cityKey: 'istanbul',
+  lat: 41.0082,
+  lng: 28.9784,
+  clusterRadiusKm: 35.0,
+  disableMarketTypeFallback: false,
+  isMegaCity: true,
+  zones: [
+    MetroZone(type: DayPackType.oldCityDay, patterns: [
+      'hagia sophia', 'ayasofya', 'blue mosque', 'sultan ahmed mosque',
+      'sultanahmet', 'topkapı palace', 'topkapi palace',
+      'basilica cistern', 'yerebatan', 'süleymaniye mosque',
+      'suleymaniye mosque', 'chora church', 'kariye',
+      'hippodrome', 'sultanahmet square',
+    ]),
+    MetroZone(type: DayPackType.riversideDay, patterns: [
+      'bosphorus', 'boğaz', 'golden horn', 'haliç', 'halic',
+      'galata bridge', 'ortaköy', 'ortakoy', 'bebek',
+      'beşiktaş', 'besiktas', 'eminönü', 'eminonu',
+    ]),
+    MetroZone(type: DayPackType.marketDay, patterns: [
+      'grand bazaar', 'kapalı çarşı', 'kapali carsi',
+      'spice bazaar', 'egyptian bazaar', 'mısır çarşısı',
+      'misir carsisi', 'arasta bazaar',
+    ]),
+    MetroZone(type: DayPackType.modernDay, patterns: [
+      'galata tower', 'galata kulesi', 'istiklal avenue',
+      'istiklal caddesi', 'taksim square', 'taksim',
+      'beyoğlu', 'beyoglu', 'dolmabahçe palace', 'dolmabahce palace',
+      'çamlıca hill', 'camlica hill', 'pierre loti hill',
+      'karaköy', 'karakoy', 'kadıköy', 'kadikoy',
+    ]),
+  ],
+);
+
 /// Registre des MetroProfile actifs. V8.27 = 2 villes (Bangkok,
-/// Paris). Ajouter ici pour activer Day Builder sur de nouvelles
+/// Paris). V8.28a = +5 (Tokyo, New York, London, Rome, Istanbul).
+/// Ajouter ici pour activer Day Builder sur de nouvelles
 /// métropoles. L'ordre n'a pas d'importance (lookup par haversine).
-const metroProfiles = <MetroProfile>[_bangkokMetro, _parisMetro];
+const metroProfiles = <MetroProfile>[
+  _bangkokMetro,
+  _parisMetro,
+  _tokyoMetro,
+  _nycMetro,
+  _londonMetro,
+  _romeMetro,
+  _istanbulMetro,
+];
 
 /// Lookup MetroProfile pour un cluster donné. Retourne le 1er profile
 /// dont le centre est à ≤ `clusterRadiusKm` du `(centerLat, centerLng)`,

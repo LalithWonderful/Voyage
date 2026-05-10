@@ -154,6 +154,131 @@ const _parisBlueprint = DestinationBlueprint(
   ],
 );
 
+/// V8.28a (Lalith 2026-05-10) — 5 blueprints additionnels pour les
+/// métropoles prioritaires. Chacun = ~10 must-see + ~5 experience.
+/// Suffisant pour seed le pool Day Builder ; extensions futures si
+/// long-stay révèle des manques (cf. V8.25 Bangkok 17→28).
+
+const _tokyoBlueprint = DestinationBlueprint(
+  destinationKey: 'tokyo',
+  kind: DestinationKind.majorCity,
+  mustSeeQueries: [
+    'Senso-ji Temple Tokyo',
+    'Meiji Shrine Tokyo',
+    'Tokyo Tower',
+    'Tokyo Skytree',
+    'Imperial Palace Tokyo',
+    'Shibuya Crossing Tokyo',
+    'Shinjuku Gyoen Tokyo',
+    'Akihabara Tokyo',
+    'teamLab Planets Tokyo',
+    'Tsukiji Outer Market Tokyo',
+  ],
+  experienceQueries: [
+    'Ginza Tokyo',
+    'Harajuku Takeshita Street',
+    'Ueno Park Tokyo',
+    'Odaiba Tokyo',
+    'Roppongi Hills Tokyo',
+  ],
+);
+
+const _nycBlueprint = DestinationBlueprint(
+  destinationKey: 'new york',
+  kind: DestinationKind.majorCity,
+  mustSeeQueries: [
+    'Statue of Liberty New York',
+    'Empire State Building',
+    'Central Park New York',
+    'Times Square New York',
+    'Brooklyn Bridge',
+    '9/11 Memorial New York',
+    'Top of the Rock',
+    'Metropolitan Museum of Art',
+    'MoMA New York',
+    'Wall Street New York',
+  ],
+  experienceQueries: [
+    'Chelsea Market New York',
+    'High Line New York',
+    'Rockefeller Center New York',
+    'Bryant Park New York',
+    'Greenwich Village New York',
+  ],
+);
+
+const _londonBlueprint = DestinationBlueprint(
+  destinationKey: 'london',
+  kind: DestinationKind.majorCity,
+  mustSeeQueries: [
+    'Tower of London',
+    'Westminster Abbey',
+    'Buckingham Palace London',
+    'British Museum London',
+    'Big Ben London',
+    'London Eye',
+    'St Paul\'s Cathedral London',
+    'Tower Bridge London',
+    'Tate Modern London',
+    'National Gallery London',
+  ],
+  experienceQueries: [
+    'Camden Market London',
+    'Borough Market London',
+    'Covent Garden London',
+    'Hyde Park London',
+    'Greenwich London',
+  ],
+);
+
+const _romeBlueprint = DestinationBlueprint(
+  destinationKey: 'rome',
+  kind: DestinationKind.majorCity,
+  mustSeeQueries: [
+    'Colosseum Rome',
+    'Roman Forum Rome',
+    'Pantheon Rome',
+    'Trevi Fountain Rome',
+    'Vatican Museums Rome',
+    'St Peter\'s Basilica Rome',
+    'Piazza Navona Rome',
+    'Piazza di Spagna Rome',
+    'Castel Sant\'Angelo Rome',
+    'Villa Borghese Rome',
+  ],
+  experienceQueries: [
+    'Trastevere Rome',
+    'Campo de\' Fiori Rome',
+    'Capitoline Museums Rome',
+    'Aventine Hill Rome',
+    'Borghese Gallery Rome',
+  ],
+);
+
+const _istanbulBlueprint = DestinationBlueprint(
+  destinationKey: 'istanbul',
+  kind: DestinationKind.majorCity,
+  mustSeeQueries: [
+    'Hagia Sophia Istanbul',
+    'Blue Mosque Istanbul',
+    'Topkapı Palace Istanbul',
+    'Grand Bazaar Istanbul',
+    'Basilica Cistern Istanbul',
+    'Galata Tower Istanbul',
+    'Süleymaniye Mosque Istanbul',
+    'Bosphorus Istanbul',
+    'Spice Bazaar Istanbul',
+    'Istiklal Avenue Istanbul',
+  ],
+  experienceQueries: [
+    'Galata Bridge Istanbul',
+    'Ortaköy Istanbul',
+    'Dolmabahçe Palace Istanbul',
+    'Karaköy Istanbul',
+    'Kadıköy Istanbul',
+  ],
+);
+
 /// Normalise une destination pour le lookup blueprint :
 /// - prend le premier token avant la virgule
 /// - lowercase
@@ -179,6 +304,15 @@ String _normalizeBlueprintKey(String s) {
   if (n == 'ko samet' || n == 'samet') return 'koh samet';
   // Bangkok variants.
   if (n == 'krung thep' || n == 'bkk') return 'bangkok';
+  // V8.28a — aliases pour les nouvelles métropoles.
+  if (n == 'nyc' || n == 'new york city' || n == 'manhattan' ||
+      n == 'newyork') {
+    return 'new york';
+  }
+  if (n == 'tokio' || n == '東京') return 'tokyo';
+  if (n == 'londres' || n == 'london uk') return 'london';
+  if (n == 'roma') return 'rome';
+  if (n == 'constantinople' || n == 'istambul') return 'istanbul';
   return n;
 }
 
@@ -195,6 +329,16 @@ DestinationBlueprint? getBlueprintForDestination(String? destination) {
       return _kohSametBlueprint;
     case 'paris':
       return _parisBlueprint;
+    case 'tokyo':
+      return _tokyoBlueprint;
+    case 'new york':
+      return _nycBlueprint;
+    case 'london':
+      return _londonBlueprint;
+    case 'rome':
+      return _romeBlueprint;
+    case 'istanbul':
+      return _istanbulBlueprint;
   }
   return null;
 }

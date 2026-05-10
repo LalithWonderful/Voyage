@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:voyage/features/planning/data/destination_blueprints.dart';
+import 'package:voyage/features/planning/data/metro_profile.dart';
 import 'package:voyage/features/planning/services/day_center_service.dart';
 import 'package:voyage/features/planning/services/places_first_pipeline.dart';
 
@@ -395,6 +396,57 @@ void main() {
       // user-facing (Culture, Nature, Shopping, etc.).
       expect(blueprintMustSeeMarker.startsWith('_'), isTrue);
       expect(blueprintExperienceMarker.startsWith('_'), isTrue);
+    });
+
+    // V8.28a — sanity 5 nouvelles métropoles.
+    test('V8.28a — Tokyo blueprint kind=majorCity', () {
+      final bp = getBlueprintForDestination('Tokyo');
+      expect(bp, isNotNull);
+      expect(bp!.kind, DestinationKind.majorCity);
+      expect(bp.mustSeeQueries.length, greaterThanOrEqualTo(8));
+    });
+
+    test('V8.28a — New York blueprint avec aliases NYC / Manhattan', () {
+      final bp = getBlueprintForDestination('New York');
+      expect(bp, isNotNull);
+      expect(bp!.kind, DestinationKind.majorCity);
+      expect(getBlueprintForDestination('NYC')?.destinationKey, 'new york');
+      expect(getBlueprintForDestination('Manhattan')?.destinationKey,
+          'new york');
+      expect(getBlueprintForDestination('New York City')?.destinationKey,
+          'new york');
+    });
+
+    test('V8.28a — London / Rome / Istanbul blueprints + aliases', () {
+      expect(getBlueprintForDestination('London')?.kind,
+          DestinationKind.majorCity);
+      expect(getBlueprintForDestination('Londres')?.destinationKey,
+          'london');
+      expect(getBlueprintForDestination('Rome')?.kind,
+          DestinationKind.majorCity);
+      expect(getBlueprintForDestination('Roma')?.destinationKey, 'rome');
+      expect(getBlueprintForDestination('Istanbul')?.kind,
+          DestinationKind.majorCity);
+      expect(getBlueprintForDestination('Constantinople')?.destinationKey,
+          'istanbul');
+    });
+
+    test('V8.28a — getMetroProfileForCluster retourne le bon profile '
+        'pour chaque centre canonique', () {
+      // Tokyo : Shibuya area.
+      expect(getMetroProfileForCluster(35.6762, 139.6503)?.cityKey, 'tokyo');
+      // NYC : Times Square.
+      expect(getMetroProfileForCluster(40.7589, -73.9851)?.cityKey,
+          'new york');
+      // London : Westminster.
+      expect(getMetroProfileForCluster(51.5074, -0.1278)?.cityKey, 'london');
+      // Rome : Pantheon area.
+      expect(getMetroProfileForCluster(41.9028, 12.4964)?.cityKey, 'rome');
+      // Istanbul : Sultanahmet.
+      expect(getMetroProfileForCluster(41.0082, 28.9784)?.cityKey,
+          'istanbul');
+      // Hors zone : null.
+      expect(getMetroProfileForCluster(0.0, 0.0), isNull);
     });
   });
 }
