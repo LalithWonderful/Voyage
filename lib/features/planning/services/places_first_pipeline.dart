@@ -5,6 +5,7 @@ import 'package:voyage/features/planning/data/destination_blueprints.dart';
 import 'package:voyage/features/planning/data/segment_city_canonicals.dart';
 import 'package:voyage/features/planning/models/activity_suggestion_model.dart';
 import 'package:voyage/features/planning/services/ai_suggestions_service.dart';
+import 'package:voyage/features/planning/services/day_builder.dart';
 import 'package:voyage/features/planning/services/day_center_service.dart';
 import 'package:voyage/features/planning/services/gemini_cache_service.dart';
 import 'package:voyage/features/planning/services/geocoding_service.dart';
@@ -3308,6 +3309,15 @@ List<ActivitySuggestion> selectVisitsDeterministic({
   // différents ne se voient pas.
   final selectedDedupKeysBySegment = <String, Set<String>>{};
 
+  // V8.20 (Lalith 2026-05-10 — Day Builder pré-slot) — placeIds réservés
+  // par les packs déjà construits dans des sub-clusters du même segment.
+  // Cas Bangkok : k-means split en 2 sub-clusters, chacun avec Grand
+  // Palace dans son pool (post-fanout). Sans réservation, les 2
+  // sub-clusters tagueraient Grand Palace, le selector dédup le bloque
+  // sur le 2ᵉ → slot vide. Avec réservation, le 2ᵉ sub-cluster ne le
+  // voit plus comme disponible et compose un autre archétype.
+  final dayBuilderReservedBySegment = <String, Set<String>>{};
+
   // 3 niveaux de cap : par jour (max 1×, strict), par cluster (max 2×),
   // ET par voyage (compteur global pour pénaliser dans le scoring).
   // Le compteur global évite J6 = J1/J3 quand 2 clusters proches ont des
@@ -3388,7 +3398,33 @@ List<ActivitySuggestion> selectVisitsDeterministic({
       }
     }
 
+    // V8.20 (Day Builder) — pré-build des day packs thématiques pour
+    // les clusters dans des grandes villes (Bangkok, Paris). Disabled
+    // pour les clusters non-éligibles (islandBeach, no blueprint, etc.).
+    // Les `reservedPlaceIds` viennent des sub-clusters précédents du
+    // même segment pour éviter le double-pick cross-cluster.
+    final segmentReserved =
+        dayBuilderReservedBySegment.putIfAbsent(segmentKey, () => <String>{});
+    final dayBuilder = buildDayPacksForCluster(
+      clusterCenterLat: cluster.center.latitude,
+      clusterCenterLng: cluster.center.longitude,
+      clusterDays: cluster.days,
+      clusterPool: cluster.pool,
+      trip: trip,
+      maxPerDay: maxPerDay,
+      reservedPlaceIds: segmentReserved,
+    );
+    if (dayBuilder.enabled) {
+      for (final pack in dayBuilder.dayPackByDate.values) {
+        segmentReserved.addAll(pack.placeIds);
+      }
+    }
+
     for (final day in cluster.days) {
+      // V8.20 (Day Builder) — pack thématique éventuel pour ce jour.
+      // Si non null, restreint le pool slot picker aux placeIds du pack.
+      final dayPack = dayBuilder.dayPackByDate[day];
+      final dayPackPlaceIds = dayPack?.placeIds;
       final usedThisDay = <String>{};
       var wellnessCountThisDay = 0;
       var eventsCountThisDay = 0;
@@ -3416,6 +3452,13 @@ List<ActivitySuggestion> selectVisitsDeterministic({
         // Filtres durs (sans distance pour le moment)
         final baseCandidates = entries.where((e) {
           final c = e.value.candidate;
+          // V8.20 (Day Builder) — restreint au pack thématique du jour
+          // si un pack est assigné. Le slot picker continue d'appliquer
+          // sa logique de scoring/dedup à l'intérieur du pack restreint.
+          if (dayPackPlaceIds != null &&
+              !dayPackPlaceIds.contains(c.placeId)) {
+            return false;
+          }
           if (!_isAppropriateForTime(
             c,
             slot,
@@ -3510,8 +3553,15 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           var rejectTime = 0, rejectMeal = 0, rejectExisting = 0;
           var rejectCity = 0, rejectDay = 0, rejectReuse = 0, rejectIconic = 0;
           var rejectDup = 0, rejectWellness = 0, rejectEvents = 0;
+          var rejectDayPack = 0;
           for (final e in entries) {
             final c = e.value.candidate;
+            // V8.20 (Day Builder) — comptabilise les rejets par filtre pack.
+            if (dayPackPlaceIds != null &&
+                !dayPackPlaceIds.contains(c.placeId)) {
+              rejectDayPack++;
+              continue;
+            }
             if (!_isAppropriateForTime(
               c,
               slot,
@@ -3596,6 +3646,7 @@ List<ActivitySuggestion> selectVisitsDeterministic({
             'rejected_by_iconic_cap': rejectIconic,
             'rejected_by_wellness_cap': rejectWellness,
             'rejected_by_events_cap': rejectEvents,
+            'rejected_by_day_pack': rejectDayPack,
           };
           final sortedRejects = rejects.entries.where((e) => e.value > 0).toList()
             ..sort((a, b) => b.value.compareTo(a.value));
