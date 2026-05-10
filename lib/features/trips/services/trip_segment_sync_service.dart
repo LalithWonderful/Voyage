@@ -114,12 +114,13 @@ class TripSegmentSyncService {
     }
     try {
       await _client.from('trips').update(updateMap).eq('id', tripId);
-      // V4 (Lalith 2026-05-10) — quand l'itinéraire est ré-écrit depuis
-      // les documents, les activités GÉNÉRÉES par Lunao deviennent
-      // stale (mauvaises villes / mauvais jours). On les supprime.
-      // Préservées : activités utilisateur + imports de documents.
+      // V8 (Lalith 2026-05-10) — quand l'itinéraire est ré-écrit
+      // depuis les documents, les activités GÉNÉRÉES par Lunao
+      // n'ont plus de sens (mauvaises villes / mauvais jours).
+      // On les supprime tout de suite. Préservées : activités
+      // utilisateur + imports de documents (`suggested=false`).
       final clearedActivities =
-          await clearGeneratedActivitiesForTrip(_client, tripId);
+          await deleteGeneratedActivitiesForTrip(_client, tripId);
       final autoPlacedCount =
           diff.preservedManual.length - leftovers.length;
       debugPrint('[trip-segment-sync] timeline appliquée — '

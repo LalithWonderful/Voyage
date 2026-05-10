@@ -298,13 +298,14 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
         'arrival_transport_mode': _arrivalTransportMode,
         'local_transport_mode': _localTransportMode,
       }).eq('id', widget.trip.id);
-      // V4 — si la structure des étapes a changé (ajout/suppression/
-      // réordonnancement/durées), le planning d'activités généré est
-      // stale. On supprime ces activités, on garde celles ajoutées
-      // par l'user et celles importées de documents.
+      // V8 (2026-05-10) — si la structure des étapes a changé
+      // (ajout/suppression/réordonnancement/durées), le planning
+      // d'activités généré n'a plus de sens. On le supprime
+      // immédiatement. Les activités manuelles et les imports de
+      // documents (`suggested=false`) sont préservés.
       var clearedActivities = 0;
       if (segmentsStructurallyDiffer(originalSegments, _segments)) {
-        clearedActivities = await clearGeneratedActivitiesForTrip(
+        clearedActivities = await deleteGeneratedActivitiesForTrip(
           ref.read(supabaseProvider),
           widget.trip.id,
         );
@@ -313,11 +314,6 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
       ref.invalidate(tripByIdProvider(widget.trip.id));
       if (clearedActivities > 0) {
         ref.invalidate(tripActivitiesProvider(widget.trip.id));
-        // V6.1 — Lot E TODO 3 : les activités générées sont
-        // désormais marquées `stale` (au lieu d'être supprimées) →
-        // on invalide aussi le provider stale pour rafraîchir le
-        // bandeau « Activités obsolètes » du planning.
-        ref.invalidate(staleActivitiesProvider(widget.trip.id));
       }
       if (mounted) {
         Navigator.of(context).pop();

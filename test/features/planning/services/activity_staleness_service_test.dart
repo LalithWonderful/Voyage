@@ -4,7 +4,7 @@
 /// utilisé pour décider si on supprime les activités générées par Lunao
 /// (`suggested = true`) lors d'une mutation de l'itinéraire.
 ///
-/// Hors scope (touche Supabase) : `clearGeneratedActivitiesForTrip`.
+/// Hors scope (touche Supabase) : `deleteGeneratedActivitiesForTrip`.
 library;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -155,7 +155,7 @@ void main() {
     });
 
     test('activités générées par Lunao (suggested=true) → ignorées '
-        '(elles sont supprimées par clearGenerated)', () {
+        '(elles sont supprimées par deleteGenerated)', () {
       final segments = [_seg('Bangkok', 5)];
       final acts = [
         act(id: 'a1', dayDate: d(2026, 7, 10), suggested: true),

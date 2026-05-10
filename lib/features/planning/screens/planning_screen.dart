@@ -23,7 +23,6 @@ import 'package:voyage/features/planning/widgets/activity_create_sheet.dart';
 import 'package:voyage/features/planning/widgets/activity_detail_sheet.dart';
 import 'package:voyage/features/planning/widgets/activity_edit_sheet.dart';
 import 'package:voyage/features/planning/widgets/suggestion_detail_sheet.dart';
-import 'package:voyage/features/planning/services/activity_staleness_service.dart';
 import 'package:voyage/features/planning/services/ai_suggestions_service.dart';
 import 'package:voyage/features/planning/services/document_to_activity.dart';
 import 'package:voyage/features/planning/services/places_first_pipeline.dart';
@@ -887,11 +886,6 @@ class PlanningScreen extends ConsumerWidget {
           // l'itinéraire (ex : trip raccourci, segments réordonnés).
           // Caché si rien à signaler.
           _OrphanedActivitiesBanner(tripId: tripId),
-          // V6 (Lalith 2026-05-10 — Lot E TODO 3) — bandeau qui liste
-          // les activités GÉNÉRÉES par Lunao mais marquées obsolètes
-          // suite à une mutation structurelle de l'itinéraire. Caché
-          // si rien à signaler.
-          _StaleActivitiesBanner(tripId: tripId),
           Expanded(
             child: RefreshIndicator(
               onRefresh: () async {
@@ -1175,175 +1169,6 @@ class _OrphanedActivityPill extends StatelessWidget {
               fontWeight: FontWeight.w600,
               color: AppColors.textPrimary,
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// V6 (Lalith 2026-05-10 — Lot E TODO 3) — bandeau qui liste les
-/// activités GÉNÉRÉES par Lunao puis marquées obsolètes après une
-/// mutation structurelle de l'itinéraire. L'utilisateur peut les
-/// restaurer individuellement ou tout supprimer pour repartir d'un
-/// planning propre. Caché tant que rien n'est obsolète.
-///
-/// Visuellement gris/discret (vs orange du `_OrphanedActivitiesBanner`)
-/// pour signaler une « zone d'archives » plutôt qu'une action
-/// urgente — l'utilisateur peut juste régénérer le planning.
-class _StaleActivitiesBanner extends ConsumerWidget {
-  final String tripId;
-  const _StaleActivitiesBanner({required this.tripId});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final asyncStale = ref.watch(staleActivitiesProvider(tripId));
-    final stale = asyncStale.valueOrNull ?? const <TripActivity>[];
-    if (stale.isEmpty) return const SizedBox.shrink();
-    final n = stale.length;
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: AppColors.border,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.history,
-                  size: 14, color: AppColors.textSecondary),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  'ACTIVITÉS OBSOLÈTES ($n)',
-                  style: TextStyle(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textSecondary,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-              TextButton(
-                onPressed: () async {
-                  final messenger = ScaffoldMessenger.of(context);
-                  final client = ref.read(supabaseProvider);
-                  final count = await deleteStaleActivitiesForTrip(
-                    client,
-                    tripId,
-                  );
-                  ref.invalidate(tripActivitiesProvider(tripId));
-                  ref.invalidate(staleActivitiesProvider(tripId));
-                  if (count > 0) {
-                    messenger.showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          '$count activité${count > 1 ? "s" : ""} '
-                          'obsolète${count > 1 ? "s" : ""} '
-                          '${count > 1 ? "supprimées" : "supprimée"}.',
-                        ),
-                      ),
-                    );
-                  }
-                },
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: Text(
-                  'Tout supprimer',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Ces activités étaient générées avant ta dernière modif '
-            'd\'itinéraire. Restaure celles que tu veux garder, ou '
-            'supprime-les toutes pour repartir propre.',
-            style: TextStyle(
-              fontSize: 11.5,
-              color: AppColors.textSecondary,
-              height: 1.3,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              for (final a in stale)
-                _StaleActivityPill(
-                  activity: a,
-                  onRestore: () async {
-                    final client = ref.read(supabaseProvider);
-                    await restoreStaleActivity(client, a.id);
-                    ref.invalidate(tripActivitiesProvider(tripId));
-                    ref.invalidate(staleActivitiesProvider(tripId));
-                  },
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StaleActivityPill extends StatelessWidget {
-  final TripActivity activity;
-  final VoidCallback onRestore;
-  const _StaleActivityPill({
-    required this.activity,
-    required this.onRestore,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final d = activity.dayDate;
-    final dateLabel =
-        '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}';
-    return Material(
-      color: AppColors.background,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: onRestore,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(10, 5, 6, 5),
-          decoration: BoxDecoration(
-            border: Border.all(color: AppColors.border),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '${activity.title} · $dateLabel',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Icon(
-                Icons.refresh,
-                size: 12,
-                color: AppColors.primary,
-              ),
-            ],
           ),
         ),
       ),

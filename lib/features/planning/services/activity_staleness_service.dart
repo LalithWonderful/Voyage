@@ -1,27 +1,28 @@
-/// V4 (Lalith 2026-05-10) — gestion de la « fraîcheur » du planning
-/// d'activités quand l'itinéraire de séjour change structurellement.
+/// V8 (Lalith 2026-05-10) — politique simplifiée de fraîcheur du
+/// planning quand l'itinéraire mute structurellement.
 ///
-/// Règle produit non-négociable : un planning généré par Lunao est lié
-/// à une structure d'étapes précise (villes, ordre, durées, dates).
-/// Quand cette structure change (ajout/suppression/réordonnancement,
-/// apply d'un diff transport, etc.), le planning généré DEVIENT stale.
+/// Décision produit : les activités générées par Lunao
+/// (`suggested = true`) sont **disposable**. Quand l'itinéraire change
+/// (ajout/suppression/réordo de segment, apply timeline diff), on les
+/// SUPPRIME tout de suite — pas de bandeau « obsolètes », pas de
+/// restauration. Le voyageur régénère.
 ///
-/// Politique MVP retenue : on **supprime** les activités générées
-/// (`suggested = true`) au lieu de les marquer stale. Plus simple et
-/// suffisant pour un dirigeant produit qui veut éviter les corruptions
-/// silencieuses. Le voyageur régénère depuis l'écran planning.
-///
-/// Préservées :
+/// Préservées (jamais touchées par ce service) :
 ///  - activités créées manuellement (`suggested = false` via
 ///    `activity_create_sheet.dart`)
 ///  - activités importées d'un document daté (`suggested = false` via
 ///    `document_to_activity.dart` — billets, réservations partenaires)
 ///
-/// Hors scope MVP (peut venir plus tard) :
-///  - liste « Activités à replacer » pour les manuels qui ne fittent
-///    plus la nouvelle structure
-///  - warnings de conflit pour les imports tombés sur une étape
-///    supprimée
+/// Pour les activités utilisateur sortant des segments après mutation,
+/// voir `findOrphanedActivities` (alimente la bannière « Activités
+/// à replacer », logique séparée).
+///
+/// Historique : avant V8 on marquait `planning_status='stale'` pour
+/// permettre une restauration. Cette UX a été retirée — trop de bruit
+/// dans le planning pour peu de valeur. Les rows legacy avec
+/// `planning_status='stale'` sont aussi nettoyées par
+/// `deleteGeneratedActivitiesForTrip` (filtre `suggested=true` les
+/// couvre — elles ont toutes été générées).
 library;
 
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -58,7 +59,7 @@ bool segmentsStructurallyDiffer(List<TripSegment> a, List<TripSegment> b) {
 ///
 /// Filtres :
 ///  - on IGNORE les `suggested = true` (Lunao les a déjà supprimées
-///    via `clearGeneratedActivitiesForTrip` sur mutation structurelle).
+///    via `deleteGeneratedActivitiesForTrip` sur mutation structurelle).
 ///  - on IGNORE les activités virtuelles (ID starts with `doc:`,
 ///    cf. [virtualActivityPrefix]) — leur visibilité dépend du doc
 ///    parent, géré par `document_consistency.dart`.
@@ -99,48 +100,21 @@ List<TripActivity> findOrphanedActivities({
 
 DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
-/// V6 (Lalith 2026-05-10 — Lot E TODO 3) — marque les activités
-/// GÉNÉRÉES par Lunao comme `stale` (au lieu de les SUPPRIMER comme
-/// dans le MVP V4). Les activités utilisateur et les imports de
-/// documents (`suggested = false`) sont préservés tels quels.
+/// V8 (Lalith 2026-05-10) — supprime DÉFINITIVEMENT les activités
+/// générées par Lunao pour un voyage donné. À appeler à chaque
+/// mutation structurelle de l'itinéraire (cf. `trip_edit_sheet.dart`,
+/// `trip_segment_sync_service.dart`).
 ///
-/// Avantage : l'utilisateur peut consulter les activités obsolètes
-/// dans une section dédiée (planning_screen) et les restaurer
-/// individuellement si la mutation d'itinéraire les a invalidées à
-/// tort. Un bouton « Régénérer le planning » les supprime
-/// définitivement et lance une nouvelle suggestion.
+/// SAFETY : filtre strict `suggested = true`. Les activités créées
+/// manuellement par l'utilisateur (`suggested = false`) et les
+/// imports de documents (`suggested = false`) ne sont JAMAIS
+/// touchés par cette fonction.
 ///
-/// Pré-requis DB : la colonne `planning_status` doit exister
-/// (cf. supabase/sql/trip_activities_planning_status.sql).
+/// Couvre aussi les rows legacy avec `planning_status = 'stale'`
+/// (V6 → V7) : elles ont toutes `suggested = true` par construction.
 ///
-/// Retourne le nombre de lignes marquées (= signal pour la snackbar).
-Future<int> markGeneratedActivitiesStale(
-  SupabaseClient client,
-  String tripId,
-) async {
-  final updated = await client
-      .from('trip_activities')
-      .update({'planning_status': 'stale'})
-      .eq('trip_id', tripId)
-      .eq('suggested', true)
-      .neq('planning_status', 'stale')
-      .select();
-  return (updated as List).length;
-}
-
-/// Alias rétrocompat pour le code non encore migré. À retirer dans une
-/// session de cleanup ultérieure.
-@Deprecated('Use markGeneratedActivitiesStale instead (V6 Lot E TODO 3)')
-Future<int> clearGeneratedActivitiesForTrip(
-  SupabaseClient client,
-  String tripId,
-) =>
-    markGeneratedActivitiesStale(client, tripId);
-
-/// Supprime DÉFINITIVEMENT les activités stale d'un voyage. Appelé
-/// quand l'utilisateur clique « Régénérer le planning » ou « Tout
-/// supprimer » dans la section « Activités obsolètes ».
-Future<int> deleteStaleActivitiesForTrip(
+/// Retourne le nombre de lignes supprimées (= signal pour la snackbar).
+Future<int> deleteGeneratedActivitiesForTrip(
   SupabaseClient client,
   String tripId,
 ) async {
@@ -148,20 +122,7 @@ Future<int> deleteStaleActivitiesForTrip(
       .from('trip_activities')
       .delete()
       .eq('trip_id', tripId)
-      .eq('planning_status', 'stale')
+      .eq('suggested', true)
       .select();
   return (deleted as List).length;
-}
-
-/// Restore une activité stale en `planned`. Appelé quand l'utilisateur
-/// clique « Restaurer » sur une activité obsolète qu'il veut récupérer.
-Future<void> restoreStaleActivity(
-  SupabaseClient client,
-  String activityId,
-) async {
-  await client
-      .from('trip_activities')
-      .update({'planning_status': 'planned'})
-      .eq('id', activityId)
-      .eq('planning_status', 'stale');
 }

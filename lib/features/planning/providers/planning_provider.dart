@@ -71,16 +71,19 @@ bool isActivityLocked(TripActivity activity, Set<String> unlocked) {
 /// (l'user n'a pas consulté ce voyage avant la coupure réseau), on retourne
 /// une liste vide silencieuse — l'écran affichera "Aucune activité" + le
 /// bandeau offline. Plus user-friendly qu'une erreur tech en plein écran.
-/// V6 (Lalith 2026-05-10 — Lot E TODO 3) — `tripActivitiesProvider`
-/// retourne uniquement les activités au statut `planned` (= utilisable
-/// par le planning principal). Les `stale` sont remontées séparément
-/// via `staleActivitiesProvider`.
 ///
 /// V6.1 (bug fix 2026-05-10) — fetch direct (pas de chaînage via un
 /// provider interne) : `ref.invalidate(tripActivitiesProvider)` doit
 /// déclencher un re-fetch Supabase, sinon les nouvelles activités
 /// restent invisibles après un Save (cas observé : « Suggérer
 /// planning » → 142 activités → planning blanc).
+///
+/// V8 (Lalith 2026-05-10) — UX simplifiée : les générées qui auraient
+/// été marquées `stale` sont désormais SUPPRIMÉES tout de suite par
+/// `deleteGeneratedActivitiesForTrip`. Le filtre `!isStale` reste en
+/// défense pour les rows legacy (V6→V7) qui pourraient encore exister
+/// avec `planning_status='stale'` dans la base — invisibles à l'UI,
+/// elles seront nettoyées à la prochaine mutation d'itinéraire.
 final tripActivitiesProvider = FutureProvider.family<List<TripActivity>, String>((ref, tripId) async {
   final client = ref.watch(supabaseProvider);
   final cache = await ref.watch(localTripsCacheServiceProvider.future);
@@ -101,31 +104,6 @@ final tripActivitiesProvider = FutureProvider.family<List<TripActivity>, String>
     ref.read(isOfflineProvider.notifier).state = true;
     final cached = cache.readActivities(tripId);
     return cached.where((a) => !a.isStale).toList();
-  }
-});
-
-/// V6 (Lalith 2026-05-10 — Lot E TODO 3) — activités générées par
-/// Lunao puis marquées `stale` après une mutation structurelle de
-/// l'itinéraire. Affichées dans la section dédiée du planning, l'user
-/// peut les restaurer individuellement ou les supprimer.
-///
-/// Fetch direct sur Supabase avec filtre `planning_status='stale'`
-/// (utilise l'index composite `(trip_id, planning_status)`).
-final staleActivitiesProvider = FutureProvider.family<List<TripActivity>, String>((ref, tripId) async {
-  final client = ref.watch(supabaseProvider);
-  try {
-    final data = await client
-        .from('trip_activities')
-        .select()
-        .eq('trip_id', tripId)
-        .eq('planning_status', 'stale')
-        .order('day_date', ascending: true);
-    final rows = (data as List).whereType<Map<String, dynamic>>().toList();
-    return rows.map((e) => TripActivity.fromJson(e)).toList();
-  } catch (e) {
-    // Best-effort : si offline, on retourne vide. Les stale ne sont
-    // pas critiques (zone d'archives), inutile de bloquer le planning.
-    return const [];
   }
 });
 
@@ -223,7 +201,7 @@ final planningTimelineProvider = FutureProvider.family<List<TripActivity>, Strin
 /// dîner ajouté manuellement le 26/06 se retrouve hors plage.
 ///
 /// Source : `findOrphanedActivities` filtre les `suggested=true`
-/// (déjà supprimées par `clearGeneratedActivitiesForTrip`) et les
+/// (déjà supprimées par `deleteGeneratedActivitiesForTrip`) et les
 /// virtuelles (id `doc:…`, gérées par `document_consistency`).
 ///
 /// La liste alimente la bannière « Activités à replacer » dans le
