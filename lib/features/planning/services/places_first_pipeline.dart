@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:voyage/features/planning/data/destination_blueprints.dart';
+import 'package:voyage/features/planning/data/segment_city_canonicals.dart';
 import 'package:voyage/features/planning/models/activity_suggestion_model.dart';
 import 'package:voyage/features/planning/services/ai_suggestions_service.dart';
 import 'package:voyage/features/planning/services/day_center_service.dart';
@@ -2177,6 +2178,100 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
       'blueprintExperience=${blueprintExperiences.length} '
       'nearbyAfterInject=$nearbyTotal',
     );
+  }
+
+  // V8.19 (Lalith 2026-05-10 — Q1D segment pool guard) — fallback
+  // fetch pour les groupes segment_city dont le pool reste quasi
+  // vide après gather étape 3 + blueprint injection. Cas observé :
+  // « Hoi An » résolu canonical à 15.88,108.34 (commit 61f2fdb)
+  // mais étape 3 ne trouve rien (cache miss + budget cramé sur trip
+  // 46j multi-segments). Résultat : Hoi An days raw=0.
+  //
+  // Le guard : pour chaque group avec poolSize < 3 ET segment_city
+  // source ET canonical avec queryHints, fetch les hints autour du
+  // canonical center avec cascade radius 3km/8km/15km. Tag les
+  // résultats `_BlueprintMustSee` (boost +100 — hints curated par
+  // Lalith = iconiques segment).
+  const segmentPoolGuardThreshold = 3;
+  const segmentPoolGuardRadiiCascade = [3000, 8000, 15000];
+  for (final entry in groups.entries) {
+    final sig = entry.key;
+    final groupCenter = entry.value.center;
+    if (groupCenter.source != 'segment_city') continue;
+    final byInterest = poolBySig[sig];
+    if (byInterest == null) continue;
+    final poolSize =
+        byInterest.values.fold<int>(0, (s, l) => s + l.length);
+    if (poolSize >= segmentPoolGuardThreshold) continue;
+
+    // Trouver le canonical correspondant à ce group via les segments
+    // du voyage. On match par distance haversine entre canonical
+    // center et group center (< 5 km tolérance).
+    SegmentCanonicalCity? canonical;
+    String? matchedCity;
+    for (final seg in trip.itinerarySegments) {
+      final c = getCanonicalSegmentCity(seg.city, country: seg.country);
+      if (c == null || c.queryHints.isEmpty) continue;
+      final dKm = _haversineKmBetween(
+        c.expectedLat, c.expectedLng,
+        groupCenter.latitude, groupCenter.longitude,
+      );
+      if (dKm < 5.0) {
+        canonical = c;
+        matchedCity = seg.city;
+        break;
+      }
+    }
+    if (canonical == null) continue;
+
+    // ignore: avoid_print
+    print(
+      '[segment_pool_guard] city="$matchedCity" '
+      'center=${groupCenter.latitude.toStringAsFixed(4)},'
+      '${groupCenter.longitude.toStringAsFixed(4)} '
+      'pool=$poolSize action=fallback_fetch',
+    );
+
+    // Cascade radius : commence petit (3km), élargit si pool < 5.
+    final fallbackResults = <NearbyCandidate>[];
+    final seenIds = <String>{};
+    var radiusUsed = 0;
+    for (final radius in segmentPoolGuardRadiiCascade) {
+      radiusUsed = radius;
+      for (final hint in canonical.queryHints) {
+        final results = await nearbyService.searchText(
+          textQuery: hint,
+          latitude: canonical.expectedLat,
+          longitude: canonical.expectedLng,
+          radius: radius,
+          languageCode: 'fr',
+        );
+        for (final c in results.take(2)) {
+          if (seenIds.contains(c.placeId)) continue;
+          if ((c.rating ?? 0) < 4.0) continue;
+          fallbackResults.add(c);
+          seenIds.add(c.placeId);
+        }
+      }
+      if (fallbackResults.length >= 5) break;
+    }
+
+    // ignore: avoid_print
+    print(
+      '[segment_pool_guard_result] city="$matchedCity" '
+      'fetched=${fallbackResults.length} radius=$radiusUsed',
+    );
+
+    if (fallbackResults.isNotEmpty) {
+      // Tag must-see (boost +100 dans le selector). Merge avec
+      // blueprint must-sees existants si déjà présents.
+      final existing =
+          byInterest[blueprintMustSeeMarker] ?? <NearbyCandidate>[];
+      byInterest[blueprintMustSeeMarker] = [
+        ...existing,
+        ...fallbackResults,
+      ];
+    }
   }
 
   // Étape 4 : assemblage `List<DayCandidates>`. Chaque jour récupère la

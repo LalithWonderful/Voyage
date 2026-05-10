@@ -33,11 +33,22 @@ class SegmentCanonicalCity {
   /// Code pays ISO-2 (lowercase) pour `regionHint`.
   final String? countryCode;
 
+  /// V8.19 (Lalith 2026-05-10 — Q1D segment pool guard) — query hints
+  /// curated, utilisés en fallback quand le pool gather d'un segment
+  /// reste vide (cache miss + budget Cost-1 cramé). Identique aux
+  /// `mustSeeQueries` des blueprints destinations mais à une
+  /// granularité segment (sub-city). Vide = pas de fallback.
+  ///
+  /// Tier implicite : `_BlueprintMustSee` (+100 boost) puisque
+  /// curated. Le curator (Lalith) liste les iconiques segment.
+  final List<String> queryHints;
+
   const SegmentCanonicalCity({
     required this.canonicalQuery,
     required this.expectedLat,
     required this.expectedLng,
     this.countryCode,
+    this.queryHints = const [],
   });
 }
 
@@ -49,23 +60,51 @@ const Map<String, SegmentCanonicalCity> _canonicalCities =
   // ─── Vietnam ─────────────────────────────────────────────────────
   // « Hoi An » résout sur Hoi An, An Giang sans contexte province.
   // Forcer la cité historique de Quảng Nam.
+  // V8.19 — queryHints curated pour fallback si pool gather vide.
   'hoi an': SegmentCanonicalCity(
     canonicalQuery: 'Hội An, Quảng Nam, Vietnam',
     expectedLat: 15.8801,
     expectedLng: 108.3380,
     countryCode: 'vn',
+    queryHints: [
+      'Hoi An Ancient Town',
+      'Japanese Covered Bridge Hoi An',
+      'Hoi An Night Market',
+      'An Bang Beach',
+      'Tra Que Vegetable Village',
+      'Thanh Ha Pottery Village',
+      'Precious Heritage Art Gallery Museum Hoi An',
+    ],
   ),
   'hoi an, vietnam': SegmentCanonicalCity(
     canonicalQuery: 'Hội An, Quảng Nam, Vietnam',
     expectedLat: 15.8801,
     expectedLng: 108.3380,
     countryCode: 'vn',
+    queryHints: [
+      'Hoi An Ancient Town',
+      'Japanese Covered Bridge Hoi An',
+      'Hoi An Night Market',
+      'An Bang Beach',
+      'Tra Que Vegetable Village',
+      'Thanh Ha Pottery Village',
+      'Precious Heritage Art Gallery Museum Hoi An',
+    ],
   ),
   'hội an': SegmentCanonicalCity(
     canonicalQuery: 'Hội An, Quảng Nam, Vietnam',
     expectedLat: 15.8801,
     expectedLng: 108.3380,
     countryCode: 'vn',
+    queryHints: [
+      'Hoi An Ancient Town',
+      'Japanese Covered Bridge Hoi An',
+      'Hoi An Night Market',
+      'An Bang Beach',
+      'Tra Que Vegetable Village',
+      'Thanh Ha Pottery Village',
+      'Precious Heritage Art Gallery Museum Hoi An',
+    ],
   ),
   // « Da Nang » est rarement ambigu, mais on canonicalise pour
   // cohérence (même formulation que Hoi An permet diff < 50km).
