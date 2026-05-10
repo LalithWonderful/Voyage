@@ -46,6 +46,33 @@ class MetroZone {
   const MetroZone({required this.type, required this.patterns});
 }
 
+/// V8.28d (Lalith 2026-05-10) — ancre tourisme curated. Centre
+/// géographique d'une zone touristique reconnue (Shibuya, Asakusa,
+/// Ginza pour Tokyo ; Westminster, Camden pour Londres ; etc.).
+///
+/// Utilisée par `gatherCandidatesForTrip` pour enrichir le pool
+/// quand la destination géocodée tombe sur un point résidentiel
+/// (cas Tokyo : geocoder retourne 35.676/139.650 = Setagaya, loin
+/// des hotspots tourisme). Pour chaque ancre, un `searchNearby`
+/// avec types `tourist_attraction/museum/historical_landmark/
+/// monument/place_of_worship/park` est lancé → injection au pool
+/// global.
+class TouristAnchor {
+  final String label;
+  final double lat;
+  final double lng;
+  /// Rayon `searchNearby` en mètres. Default 1500 m couvre un
+  /// quartier (Shibuya, Sultanahmet…). Augmenter pour les zones
+  /// étendues (Central Park 3000 m).
+  final int radiusMeters;
+  const TouristAnchor({
+    required this.label,
+    required this.lat,
+    required this.lng,
+    this.radiusMeters = 1500,
+  });
+}
+
 /// Description d'une ville Day-Builder enabled.
 ///
 /// `clusterRadiusKm` : distance max haversine entre `cluster.center`
@@ -69,6 +96,13 @@ class MetroProfile {
   final bool disableMarketTypeFallback;
   final bool isMegaCity;
   final List<MetroZone> zones;
+  /// V8.28d — ancres tourisme curated. `gatherCandidatesForTrip`
+  /// lance un `searchNearby` autour de chaque ancre quand un
+  /// MetroProfile match le cluster. Évite que le geocoder
+  /// résidentiel (Tokyo 35.676 = Setagaya, loin de Shibuya/Asakusa)
+  /// tire le pool vers le local. Liste vide = pas de fan-out
+  /// (compatible villes non-mégalopoles).
+  final List<TouristAnchor> touristAnchors;
 
   const MetroProfile({
     required this.cityKey,
@@ -78,6 +112,7 @@ class MetroProfile {
     this.disableMarketTypeFallback = false,
     this.isMegaCity = false,
     required this.zones,
+    this.touristAnchors = const [],
   });
 }
 
@@ -88,6 +123,21 @@ const _bangkokMetro = MetroProfile(
   clusterRadiusKm: 35.0,
   disableMarketTypeFallback: true,
   isMegaCity: true,
+  touristAnchors: [
+    TouristAnchor(label: 'Grand Palace / Phra Nakhon',
+        lat: 13.7499, lng: 100.4916),
+    TouristAnchor(label: 'Wat Pho', lat: 13.7464, lng: 100.4928),
+    TouristAnchor(label: 'Wat Arun', lat: 13.7437, lng: 100.4889),
+    TouristAnchor(label: 'Khao San', lat: 13.7589, lng: 100.4977),
+    TouristAnchor(label: 'Chinatown / Yaowarat',
+        lat: 13.7414, lng: 100.5103),
+    TouristAnchor(label: 'Siam', lat: 13.7460, lng: 100.5340),
+    TouristAnchor(label: 'Sukhumvit / Asoke',
+        lat: 13.7480, lng: 100.5602),
+    TouristAnchor(label: 'Chatuchak', lat: 13.7997, lng: 100.5505),
+    TouristAnchor(label: 'IconSiam riverside',
+        lat: 13.7262, lng: 100.5106),
+  ],
   zones: [
     MetroZone(type: DayPackType.oldCityDay, patterns: [
       'grand palace', 'wat pho', 'wat arun',
@@ -141,6 +191,20 @@ const _parisMetro = MetroProfile(
   clusterRadiusKm: 35.0,
   disableMarketTypeFallback: false,
   isMegaCity: true,
+  touristAnchors: [
+    TouristAnchor(label: 'Tour Eiffel', lat: 48.8584, lng: 2.2945),
+    TouristAnchor(label: 'Louvre', lat: 48.8606, lng: 2.3376),
+    TouristAnchor(label: 'Notre-Dame / Île de la Cité',
+        lat: 48.8530, lng: 2.3499),
+    TouristAnchor(label: 'Montmartre / Sacré-Cœur',
+        lat: 48.8867, lng: 2.3431),
+    TouristAnchor(label: 'Le Marais', lat: 48.8566, lng: 2.3622),
+    TouristAnchor(label: 'Quartier Latin / Panthéon',
+        lat: 48.8462, lng: 2.3460),
+    TouristAnchor(label: 'Trocadéro', lat: 48.8625, lng: 2.2870),
+    TouristAnchor(label: 'Champs-Élysées / Arc de Triomphe',
+        lat: 48.8738, lng: 2.2950),
+  ],
   zones: [
     MetroZone(type: DayPackType.oldCityDay, patterns: [
       'notre-dame', 'notre dame', 'sainte-chapelle', 'sainte chapelle',
@@ -186,11 +250,35 @@ const _parisMetro = MetroProfile(
 
 const _tokyoMetro = MetroProfile(
   cityKey: 'tokyo',
-  lat: 35.6762,
-  lng: 139.6503,
+  // V8.28d — centre canonique recalé sur Tokyo Station (au lieu de
+  // 35.6762/139.6503 = Setagaya/Yoyogi-Hachiman résidentiel, où le
+  // geocoder "Tokyo, Japan" tombe parfois). Le lookup haversine
+  // tolère bien les deux puisque le clusterRadiusKm = 40 km couvre
+  // tout l'intra-Yamanote.
+  lat: 35.6812,
+  lng: 139.7671,
   clusterRadiusKm: 40.0,
   disableMarketTypeFallback: false,
   isMegaCity: true,
+  // V8.28d — 9 ancres tourisme couvrant les hotspots Tokyo. Le
+  // geocoder "Tokyo, Japan" tombe souvent sur Setagaya/Yoyogi
+  // (35.676/139.650), loin de Shibuya/Asakusa/Ginza. Sans ces
+  // ancres, le searchNearby autour du centre récolte du local
+  // résidentiel.
+  touristAnchors: [
+    TouristAnchor(label: 'Asakusa (Senso-ji)',
+        lat: 35.7148, lng: 139.7967),
+    TouristAnchor(label: 'Shibuya', lat: 35.6580, lng: 139.7016),
+    TouristAnchor(label: 'Shinjuku', lat: 35.6896, lng: 139.7006),
+    TouristAnchor(label: 'Harajuku / Meiji Jingu',
+        lat: 35.6716, lng: 139.7030),
+    TouristAnchor(label: 'Ginza', lat: 35.6717, lng: 139.7650),
+    TouristAnchor(label: 'Akihabara', lat: 35.7022, lng: 139.7745),
+    TouristAnchor(label: 'Ueno', lat: 35.7141, lng: 139.7774),
+    TouristAnchor(label: 'Roppongi', lat: 35.6628, lng: 139.7314),
+    TouristAnchor(label: 'Tokyo Station / Marunouchi',
+        lat: 35.6812, lng: 139.7671),
+  ],
   zones: [
     MetroZone(type: DayPackType.oldCityDay, patterns: [
       'senso-ji', 'sensoji', 'asakusa', 'meiji shrine', 'meiji jingu',
@@ -222,6 +310,23 @@ const _nycMetro = MetroProfile(
   clusterRadiusKm: 35.0,
   disableMarketTypeFallback: false,
   isMegaCity: true,
+  touristAnchors: [
+    TouristAnchor(label: 'Times Square', lat: 40.7589, lng: -73.9851),
+    TouristAnchor(label: 'Empire State Building',
+        lat: 40.7484, lng: -73.9857),
+    TouristAnchor(label: 'Central Park',
+        lat: 40.7829, lng: -73.9654, radiusMeters: 3000),
+    TouristAnchor(label: 'Statue of Liberty / Battery Park',
+        lat: 40.6892, lng: -74.0445),
+    TouristAnchor(label: 'Brooklyn Bridge / DUMBO',
+        lat: 40.7061, lng: -73.9969),
+    TouristAnchor(label: '9/11 Memorial / WTC',
+        lat: 40.7115, lng: -74.0134),
+    TouristAnchor(label: 'High Line / Chelsea',
+        lat: 40.7480, lng: -74.0048),
+    TouristAnchor(label: 'Greenwich Village / Soho',
+        lat: 40.7336, lng: -74.0028),
+  ],
   zones: [
     MetroZone(type: DayPackType.oldCityDay, patterns: [
       'wall street', 'statue of liberty', 'ellis island',
@@ -256,6 +361,22 @@ const _londonMetro = MetroProfile(
   clusterRadiusKm: 35.0,
   disableMarketTypeFallback: false,
   isMegaCity: true,
+  touristAnchors: [
+    TouristAnchor(label: 'Westminster / Big Ben',
+        lat: 51.4994, lng: -0.1245),
+    TouristAnchor(label: 'Tower of London / Tower Bridge',
+        lat: 51.5081, lng: -0.0759),
+    TouristAnchor(label: 'Buckingham Palace',
+        lat: 51.5014, lng: -0.1419),
+    TouristAnchor(label: 'British Museum / Bloomsbury',
+        lat: 51.5194, lng: -0.1270),
+    TouristAnchor(label: 'Camden Town', lat: 51.5414, lng: -0.1444),
+    TouristAnchor(label: 'Borough Market / South Bank',
+        lat: 51.5055, lng: -0.0908),
+    TouristAnchor(label: 'Greenwich', lat: 51.4826, lng: 0.0077),
+    TouristAnchor(label: 'Soho / Covent Garden',
+        lat: 51.5142, lng: -0.1330),
+  ],
   zones: [
     MetroZone(type: DayPackType.oldCityDay, patterns: [
       'tower of london', 'westminster abbey', 'buckingham palace',
@@ -290,6 +411,21 @@ const _romeMetro = MetroProfile(
   clusterRadiusKm: 30.0,
   disableMarketTypeFallback: false,
   isMegaCity: true,
+  touristAnchors: [
+    TouristAnchor(label: 'Colosseo / Foro Romano',
+        lat: 41.8902, lng: 12.4922),
+    TouristAnchor(label: 'Pantheon', lat: 41.8986, lng: 12.4769),
+    TouristAnchor(label: 'Vatican / St Peter',
+        lat: 41.9022, lng: 12.4534),
+    TouristAnchor(label: 'Trevi / Piazza di Spagna',
+        lat: 41.9009, lng: 12.4833),
+    TouristAnchor(label: 'Piazza Navona', lat: 41.8992, lng: 12.4731),
+    TouristAnchor(label: 'Trastevere', lat: 41.8896, lng: 12.4683),
+    TouristAnchor(label: 'Villa Borghese',
+        lat: 41.9134, lng: 12.4861, radiusMeters: 2500),
+    TouristAnchor(label: 'Castel Sant\'Angelo',
+        lat: 41.9031, lng: 12.4663),
+  ],
   zones: [
     MetroZone(type: DayPackType.oldCityDay, patterns: [
       'colosseum', 'colosseo', 'roman forum', 'foro romano',
@@ -324,6 +460,22 @@ const _istanbulMetro = MetroProfile(
   clusterRadiusKm: 35.0,
   disableMarketTypeFallback: false,
   isMegaCity: true,
+  touristAnchors: [
+    TouristAnchor(label: 'Sultanahmet / Hagia Sophia',
+        lat: 41.0086, lng: 28.9802),
+    TouristAnchor(label: 'Eminönü / Spice Bazaar',
+        lat: 41.0163, lng: 28.9700),
+    TouristAnchor(label: 'Galata Tower',
+        lat: 41.0257, lng: 28.9740),
+    TouristAnchor(label: 'Beyoğlu / Istiklal',
+        lat: 41.0319, lng: 28.9778),
+    TouristAnchor(label: 'Taksim Square',
+        lat: 41.0367, lng: 28.9851),
+    TouristAnchor(label: 'Ortaköy / Bosphorus',
+        lat: 41.0476, lng: 29.0269),
+    TouristAnchor(label: 'Karaköy', lat: 41.0245, lng: 28.9794),
+    TouristAnchor(label: 'Kadıköy', lat: 40.9909, lng: 29.0260),
+  ],
   zones: [
     MetroZone(type: DayPackType.oldCityDay, patterns: [
       'hagia sophia', 'ayasofya', 'blue mosque', 'sultan ahmed mosque',

@@ -349,3 +349,12 @@ DestinationBlueprint? getBlueprintForDestination(String? destination) {
 /// `tripInterests` (qui contient des noms d'intérêts user-facing).
 const String blueprintMustSeeMarker = '_BlueprintMustSee';
 const String blueprintExperienceMarker = '_BlueprintExperience';
+
+/// V8.28d — marker injecté pour les candidats issus du fan-out
+/// `TouristAnchor` autour des hotspots curated d'une mégalopole
+/// MetroProfile. Pas de score boost (contrairement aux blueprint
+/// markers) — sert juste à enrichir le pool avec des candidats
+/// touristiques quand le geocoder de la destination tombe sur un
+/// quartier résidentiel (cas Tokyo Setagaya 35.676/139.650).
+/// Les patterns du MetroProfile font le tri archétype ensuite.
+const String metroAnchorMarker = '_MetroAnchor';

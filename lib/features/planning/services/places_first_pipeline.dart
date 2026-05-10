@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:voyage/features/planning/data/destination_blueprints.dart';
+import 'package:voyage/features/planning/data/metro_profile.dart';
 import 'package:voyage/features/planning/data/segment_city_canonicals.dart';
 import 'package:voyage/features/planning/models/activity_suggestion_model.dart';
 import 'package:voyage/features/planning/services/ai_suggestions_service.dart';
@@ -2179,6 +2180,94 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
       'blueprintExperience=${blueprintExperiences.length} '
       'nearbyAfterInject=$nearbyTotal',
     );
+  }
+
+  // V8.28d (Lalith 2026-05-10 — tourist anchor fan-out pour
+  // MetroProfile mégalopoles) — le geocoder "Tokyo, Japan" tombe
+  // parfois sur Setagaya/Yoyogi-Hachiman (35.676/139.650), loin
+  // des hotspots Shibuya/Asakusa/Ginza. Sans ce fan-out, le
+  // per-day searchNearby autour de ce centre résidentiel récolte
+  // du local non-touristique (Shimotakaido Park, Sasazuka Bowl,
+  // etc.). On lance un `searchNearby` autour de chaque
+  // `TouristAnchor` du MetroProfile avec types tourisme stricts.
+  // Les résultats sont dédupliqués par placeId et injectés dans
+  // tous les `poolBySig` à <= 50km du biasCenter (même critère que
+  // le blueprint fanout V8.16).
+  if (validDayCenters.isNotEmpty) {
+    final biasCenter = validDayCenters.first.center;
+    final metroProfile = getMetroProfileForCluster(
+        biasCenter.latitude, biasCenter.longitude);
+    if (metroProfile != null &&
+        metroProfile.isMegaCity &&
+        metroProfile.touristAnchors.isNotEmpty) {
+      const anchorIncludedTypes = <String>[
+        'tourist_attraction', 'museum', 'historical_landmark',
+        'monument', 'place_of_worship', 'park', 'art_gallery',
+      ];
+      final anchorResults = <String, NearbyCandidate>{};
+      for (final anchor in metroProfile.touristAnchors) {
+        try {
+          final results = await nearbyService.searchNearby(
+            latitude: anchor.lat,
+            longitude: anchor.lng,
+            includedTypes: anchorIncludedTypes,
+            radius: anchor.radiusMeters,
+            languageCode: languageCode,
+          );
+          for (final c in results) {
+            anchorResults[c.placeId] ??= c;
+          }
+          // ignore: avoid_print
+          print(
+            '[metro_anchor_fetch] city=${metroProfile.cityKey} '
+            'anchor="${anchor.label}" '
+            'lat=${anchor.lat.toStringAsFixed(4)},'
+            'lng=${anchor.lng.toStringAsFixed(4)} '
+            'radius=${anchor.radiusMeters}m '
+            'results=${results.length}',
+          );
+        } catch (_) {
+          // Budget Cost-1 cap ou erreur API → on continue.
+        }
+      }
+      if (anchorResults.isNotEmpty) {
+        const anchorFanoutMaxKm = 50.0;
+        final anchorList = anchorResults.values.toList();
+        var injectedClusters = 0;
+        var skippedClusters = 0;
+        for (final entry in groups.entries) {
+          final sig = entry.key;
+          final groupCenter = entry.value.center;
+          final byInterest = poolBySig[sig];
+          if (byInterest == null) continue;
+          final distKm = _haversineKmBetween(
+            biasCenter.latitude, biasCenter.longitude,
+            groupCenter.latitude, groupCenter.longitude,
+          );
+          if (distKm > anchorFanoutMaxKm) {
+            skippedClusters++;
+            continue;
+          }
+          byInterest[metroAnchorMarker] = anchorList;
+          injectedClusters++;
+        }
+        // ignore: avoid_print
+        print(
+          '[metro_anchor_fanout] city=${metroProfile.cityKey} '
+          'totalUnique=${anchorResults.length} '
+          'anchorsLaunched=${metroProfile.touristAnchors.length} '
+          'injectedClusters=$injectedClusters '
+          'skippedClusters=$skippedClusters '
+          '(maxKm=${anchorFanoutMaxKm.toInt()})',
+        );
+      } else {
+        // ignore: avoid_print
+        print(
+          '[metro_anchor_fanout] city=${metroProfile.cityKey} '
+          'totalUnique=0 reason=all_anchors_empty_or_budget_skip',
+        );
+      }
+    }
   }
 
   // V8.19 (Lalith 2026-05-10 — Q1D segment pool guard) — fallback
