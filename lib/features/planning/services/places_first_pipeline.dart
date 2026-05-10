@@ -521,16 +521,19 @@ const Set<String> _hardExcludedAnyTypes = <String>{
 /// Beauty` ou un `Studio Conectar` (gym).
 const Set<String> _qualityHardBlocklistPrimaryTypes = <String>{
   // Médical / paramédical
-  'chiropractor', 'foot_care', 'health',
+  'chiropractor', 'foot_care', 'health', 'optician', 'skin_care_clinic',
   // Commerce service-y
   'jewelry_store', 'drugstore', 'cosmetics_store',
   'electronics_store', 'hardware_store', 'wholesaler',
+  'furniture_store',
   // Sport personnel (pas un loisir touristique)
   'gym', 'fitness_center', 'sports_school', 'sports_coaching',
   // Bureaux / services
   'corporate_office', 'finance', 'accounting',
   'service', 'non_profit_organization',
-  // V8.5 (Lalith 2026-05-10) — additions sur retour test Brésil :
+  // Service de proximité (artisans / utilitaires)
+  'plumber', 'electrician', 'laundry',
+  // V8.5 — additions retour test Brésil :
   // - `manufacturer` : usine, ne se visite pas (sauf cas niche genre
   //   chocolaterie touristique qui auront `tourist_attraction`).
   // - `hair_care` : variante Google de hair_salon (déjà couvert dans
@@ -565,6 +568,13 @@ const Set<String> _qualitySoftBlocklistPrimaryTypes = <String>{
 /// V8.4 — types « strong travel-safe » qui bypass la règle
 /// `reviews < 20` (rule 3). Un musée à 15 avis reste pertinent ; un
 /// store à 15 avis est suspect. Liste fermée et conservatrice.
+///
+/// V8.6 (Lalith 2026-05-10) — `performing_arts_theater`,
+/// `philharmonic_hall`, `concert_hall` retirés. Sans source
+/// événements datés (PredictHQ Premium future), ces lieux ne sont
+/// touristiques que s'ils ont aussi un autre signal (`tourist_attraction`,
+/// `cultural_center`, etc.) OU un volume d'avis monument-tier (≥ 500).
+/// Cf. `_qualityWeakEventPrimaryTypes` qui les couvre.
 const Set<String> _qualityTravelSafeTypes = <String>{
   'tourist_attraction',
   'historical_landmark', 'historical_place',
@@ -576,7 +586,6 @@ const Set<String> _qualityTravelSafeTypes = <String>{
   'aquarium', 'zoo',
   'art_gallery',
   'cultural_center',
-  'performing_arts_theater', 'philharmonic_hall', 'concert_hall',
   'cathedral', 'basilica',
   'castle', 'fort',
   'plaza',
@@ -596,21 +605,38 @@ const Set<String> _qualityReligiousTypes = <String>{
   'buddhist_temple', 'hindu_temple', 'shinto_shrine',
 };
 
-/// V8.5 (Lalith 2026-05-10) — primaries d'« événement » qui restent
-/// génériques sans une source d'événements datés (PredictHQ Premium
-/// future). Rejetés sauf si pairés avec un signal touristique fort
-/// (cf. `_qualityTravelSafeTypes`) ou volume d'avis monument-tier.
+/// V8.5 / V8.6 (Lalith 2026-05-10) — primaries d'« événement » qui
+/// restent génériques sans une source d'événements datés (PredictHQ
+/// Premium future). Rejetés sauf si pairés avec un signal touristique
+/// fort (cf. `_qualityTravelSafeTypes`) ou volume d'avis monument-tier
+/// (≥ 500 avis).
+///
+/// V8.6 — étendu : `convention_center`, `stadium`, `arena`,
+/// `performing_arts_theater`, `philharmonic_hall`. Une halle de
+/// convention type BITEC (Bangkok) sans événement daté = juste un
+/// bâtiment vide. Une salle philharmonique sans concert daté n'est
+/// pas une activité MVP.
 const Set<String> _qualityWeakEventPrimaryTypes = <String>{
   'event_venue',
   'movie_theater',
   'concert_hall',
+  'convention_center',
+  'stadium',
+  'arena',
+  'performing_arts_theater',
+  'philharmonic_hall',
 };
 
 /// V8.4 — seuil de reviews qui « légitime » un religieux ou un
-/// event_venue sans signal touristique secondaire. Empirique : une
-/// cathédrale célèbre dépasse facilement 1000 avis ; à 200+ c'est
-/// déjà une étape touristique reconnue.
-const int _qualityStrongLandmarkReviewsThreshold = 200;
+/// event_venue sans signal touristique secondaire.
+///
+/// V8.6 (Lalith 2026-05-10) — bumpé 200 → 500 sur retour test debug
+/// Thaïlande. Constat : à 200 avis, des temples/églises de quartier
+/// remontaient encore (ex: Igreja Adventista 298 avis, Festa de
+/// San Gennaro 377 avis). À 500+, on cible les vraies étapes
+/// touristiques (cathédrales connues, basiliques historiques,
+/// monuments événementiels reconnus).
+const int _qualityStrongLandmarkReviewsThreshold = 500;
 
 /// V8.4 — règle de qualité voyage. Retourne le nom du motif de rejet
 /// (string court, machine-friendly pour les logs `[places_quality_*]`)
@@ -1339,6 +1365,11 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
   };
   var qualityRejectedByType = 0;
   var qualityRejectedByReviews = 0;
+  // V8.6 — exposer event_venue séparément pour faciliter le scan
+  // des logs : c'est le motif sous lequel on rejette les BITEC,
+  // halls de convention, stadiums, etc.
+  final qualityRejectedByEventVenue =
+      qualityRejectCounts['weak_event_venue_no_dated_source'] ?? 0;
   qualityRejectCounts.forEach((k, v) {
     if (byTypeKeys.contains(k)) {
       qualityRejectedByType += v;
@@ -1356,7 +1387,8 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
       'raw=$qualityRawCount kept=$qualityKeptCount '
       'rejectedByType=$qualityRejectedByType '
       'rejectedByReviews=$qualityRejectedByReviews '
-      'rejectedByLowRating=$qualityRejectedByLowRating '
+      'rejectedByRating=$qualityRejectedByLowRating '
+      'rejectedByEventVenue=$qualityRejectedByEventVenue '
       'rejectedByOtherFilter=$qualityRejectedByOtherFilter '
       'orphanDaysSkipped=$orphanDaysSkipped '
       'breakdown={${breakdown.map((e) => "${e.key}:${e.value}").join(",")}}',
@@ -2167,25 +2199,25 @@ List<ActivitySuggestion> selectVisitsDeterministic({
   const maxReusePerCluster = 2;
   final useCountAcrossTrip = <String, int>{};
 
-  // Cap densité Wellness — test Lalith 2026-05-08 (Essaouira) : sans cap,
-  // 4 wellness en 3 jours (Sidi Magdoul + Hammam Kenza puis Spa Cocooning +
-  // Spa Zen) alors que Wellness n'était pas un intérêt fort.
+  // V8.6 (Lalith 2026-05-10 — Phase Quality-1A v3) — wellness cap
+  // durci suite retour debug Thaïlande 45j. Spec Lalith :
+  //   - max 1 wellness par jour (jamais 2, même profil tolérant).
+  //   - max 1 wellness par 7 jours de voyage.
+  //   - hard cap 3 wellness pour tout voyage (long trip ne dépasse pas).
   //
-  // 2026-05-08 calibrage #2 : ajout d'un hard cap aussi pour profil
-  // tolérant (Voyage pro 20/05 avait 4 wellness + 2 repas = 100% monotone
-  // malgré le soft penalty -25). On ne bypass plus le cap pour les
-  // tolérants — on l'élargit seulement.
+  // Formule trip-wide : `min(3, max(1, durationDays/7))`. Donne :
+  //   - 5j → 1, 7j → 1, 14j → 2, 21j → 3, 30j+ → 3 (capped).
   //
-  // Règles :
-  // - Wellness PAS dans tripInterests (par défaut) :
-  //   max 1/jour ET max 2/cluster (= segment_city).
-  // - Wellness DANS tripInterests (tolérant) :
-  //   max 2/jour, cluster illimité (Grand luxe 6j peut avoir 1 spa/jour).
-  //   + soft penalty -25 si demi-journée précédente avait wellness.
+  // Le profil tolérant (Wellness ∈ interests) NE bypass plus le cap :
+  // cohérent avec « mieux vaut vide que mauvais ». Le voyageur peut
+  // ajouter manuellement plus de spas s'il le veut.
   final wellnessIsStrongInterest = tripInterests.contains('Wellness');
-  const maxWellnessPerDayLight = 1;
-  const maxWellnessPerDayTolerant = 2;
-  const maxWellnessPerClusterLight = 2;
+  const maxWellnessPerDay = 1;
+  final tripWideWellnessCap =
+      math.min(3, math.max(1, (trip.durationDays / 7).floor()));
+  var wellnessCountTripWide = 0;
+  // Compteur des rejets cap pour `[places_selector_summary]` final.
+  var rejectedByWellnessCap = 0;
 
   // 2026-05-08 calibrage #4 : cap densité Événements (miroir Wellness).
   // Profil non-tolérant : max 1/jour, 2/cluster.
@@ -2203,7 +2235,7 @@ List<ActivitySuggestion> selectVisitsDeterministic({
   for (final cluster in clusters) {
     final useCountThisCluster = <String, int>{};
     final entries = cluster.pool.entries.toList();
-    var wellnessCountThisCluster = 0;
+    // V8.6 — wellness cap est désormais trip-wide, plus per-cluster.
     var eventsCountThisCluster = 0;
 
     for (final day in cluster.days) {
@@ -2284,17 +2316,18 @@ List<ActivitySuggestion> selectVisitsDeterministic({
               (useCountAcrossTrip[n] ?? 0) >= 1) {
             return false;
           }
-          // Cap densité Wellness :
-          // - Profil non-tolérant : max 1/jour, 2/cluster.
-          // - Profil tolérant (Wellness ∈ interests) : max 2/jour
-          //   (cluster illimité, soft penalty -25 si consécutif).
+          // V8.6 — Cap densité Wellness durci :
+          //   - 1/jour (jamais 2, même profil tolérant).
+          //   - max 1 wellness par 7 jours de voyage.
+          //   - hard cap 3 trip-wide.
+          // Cf. `tripWideWellnessCap` calculé en début de fonction.
           if (_isWellnessPrimaryType(c)) {
-            final dayCap = wellnessIsStrongInterest
-                ? maxWellnessPerDayTolerant
-                : maxWellnessPerDayLight;
-            if (wellnessCountThisDay >= dayCap) return false;
-            if (!wellnessIsStrongInterest &&
-                wellnessCountThisCluster >= maxWellnessPerClusterLight) {
+            if (wellnessCountThisDay >= maxWellnessPerDay) {
+              rejectedByWellnessCap++;
+              return false;
+            }
+            if (wellnessCountTripWide >= tripWideWellnessCap) {
+              rejectedByWellnessCap++;
               return false;
             }
           }
@@ -2370,12 +2403,9 @@ List<ActivitySuggestion> selectVisitsDeterministic({
               continue;
             }
             if (_isWellnessPrimaryType(c)) {
-              final dayCap = wellnessIsStrongInterest
-                  ? maxWellnessPerDayTolerant
-                  : maxWellnessPerDayLight;
-              final clusterExceeded = !wellnessIsStrongInterest &&
-                  wellnessCountThisCluster >= maxWellnessPerClusterLight;
-              if (wellnessCountThisDay >= dayCap || clusterExceeded) {
+              // V8.6 — diagnostic miroir du cap durci ci-dessus.
+              if (wellnessCountThisDay >= maxWellnessPerDay ||
+                  wellnessCountTripWide >= tripWideWellnessCap) {
                 rejectWellness++;
                 continue;
               }
@@ -2615,7 +2645,7 @@ List<ActivitySuggestion> selectVisitsDeterministic({
         }
         if (_isWellnessPrimaryType(pick)) {
           wellnessCountThisDay += 1;
-          wellnessCountThisCluster += 1;
+          wellnessCountTripWide += 1;
           // Demi-journée matin = avant 13h, aprem = après. On marque le
           // flag actif si le pick courant est wellness pour pénaliser le
           // pick suivant *du même jour* (le flag est reset à chaque jour
@@ -2635,6 +2665,18 @@ List<ActivitySuggestion> selectVisitsDeterministic({
     '[places_first] Sélecteur déterministe : ${out.length} visites sélectionnées '
     '(${clusters.length} clusters × max $maxPerDay/jour)',
   );
+  // V8.6 (Lalith 2026-05-10) — log selector pour les rejets liés
+  // aux caps déterministes (wellness, event). `print` non throttlé.
+  // Volume = 1 ligne par run.
+  if (rejectedByWellnessCap > 0) {
+    // ignore: avoid_print
+    print(
+      '[places_selector_summary] tripId=${trip.id} '
+      'selected=${out.length} '
+      'rejectedByWellnessCap=$rejectedByWellnessCap '
+      'tripWideWellnessCap=$tripWideWellnessCap',
+    );
+  }
   return out;
 }
 

@@ -419,22 +419,16 @@ class PlanningScreen extends ConsumerWidget {
           '[places_test] === SÉLECTEUR DÉTERMINISTE : ${visits.length} visites en ${stopwatchSelect.elapsedMilliseconds}ms ===',
         );
 
-        // Insertion déterministe des repas
-        final stopwatchMeals = Stopwatch()..start();
-        final meals = await insertDeterministicMeals(
-          activities: visits,
-          pool: pool,
-          nearbyService: nearbyService,
-          travelerProfile: travelerProfile,
-          tripInterests: trip.interests ?? const <String>[],
-          languageCode: languageCode,
-        );
-        stopwatchMeals.stop();
-        debugPrint(
-          '[places_test] === INSERTION REPAS : ${meals.length} repas en ${stopwatchMeals.elapsedMilliseconds}ms ===',
-        );
-
-        final all = [...visits, ...meals];
+        // V8.6 (Lalith 2026-05-10) — restos retirés du flow debug.
+        // Cohérent avec la décision produit (commit 0e24288) : les
+        // restos ne sont pas dans le scope auto-gen, ils seront
+        // gérés par un CTA day-level on-demand. Le bouton debug ne
+        // doit donc plus insérer de repas — sinon il pollue le
+        // diagnostic avec des données qui ne sortiront jamais en
+        // prod. Si on a besoin de re-tester `insertDeterministicMeals`
+        // un jour (PR review, regression hunt), il faudra remettre
+        // l'appel derrière un flag explicite.
+        final all = [...visits];
 
         // Affichage par jour, trié chronologiquement avec distances
         debugPrint('[places_test] === PLANNING COMPLET PAR JOUR ===');
@@ -484,7 +478,7 @@ class PlanningScreen extends ConsumerWidget {
           }
         }
         debugPrint(
-          '[places_test] === RÉSUMÉ : ${visits.length} visites + ${meals.length} repas = ${all.length} entrées sur ${pool.length} jours ===',
+          '[places_test] === RÉSUMÉ : ${visits.length} visites (repas hors scope) sur ${pool.length} jours ===',
         );
       }
       final totalUnique = pool.fold<int>(0, (sum, d) => sum + d.uniqueCandidates);
