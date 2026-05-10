@@ -3303,6 +3303,36 @@ Future<List<SuggestionGroup>> runCoPilotPlacesFirst({
   /// Langue Places (BCP-47). Cf. `gatherCandidatesForTrip`.
   String? languageCode,
 }) async {
+  // V7 (Lalith 2026-05-10 — Phase Cost-1) — démarre un budget pour
+  // tracker les appels Places de cette génération. Tous les
+  // searchNearby/searchText du pipeline passeront par les guards
+  // (dedup intra-run, hard cap, bail-out 429). Le summary log est
+  // posé dans le `finally` même en cas d'erreur.
+  nearbyService.startRun(tripId: trip.id);
+  try {
+    return await _runCoPilotPlacesFirstBody(
+      trip: trip,
+      hotels: hotels,
+      geocoder: geocoder,
+      nearbyService: nearbyService,
+      aiService: aiService,
+      existingTitlesNormalized: existingTitlesNormalized,
+      languageCode: languageCode,
+    );
+  } finally {
+    nearbyService.endRun(context: 'coPilot');
+  }
+}
+
+Future<List<SuggestionGroup>> _runCoPilotPlacesFirstBody({
+  required Trip trip,
+  required List<TripDocument> hotels,
+  required GeocodingService geocoder,
+  required PlacesNearbyService nearbyService,
+  required AiSuggestionsService aiService,
+  Set<String> existingTitlesNormalized = const {},
+  String? languageCode,
+}) async {
   final pool = await gatherCandidatesForTrip(
     trip: trip,
     hotels: hotels,
@@ -3671,6 +3701,35 @@ Future<List<ActivitySuggestion>> runAutoPlacesFirst({
   Set<String> existingTitlesNormalized = const {},
 
   /// Langue Places (BCP-47). Cf. `gatherCandidatesForTrip`.
+  String? languageCode,
+}) async {
+  // V7 (Lalith 2026-05-10 — Phase Cost-1) — budget Places scopé à la
+  // run. Cf. runCoPilotPlacesFirst pour la motivation.
+  nearbyService.startRun(tripId: trip.id);
+  try {
+    return await _runAutoPlacesFirstBody(
+      trip: trip,
+      hotels: hotels,
+      geocoder: geocoder,
+      nearbyService: nearbyService,
+      aiService: aiService,
+      category: category,
+      existingTitlesNormalized: existingTitlesNormalized,
+      languageCode: languageCode,
+    );
+  } finally {
+    nearbyService.endRun(context: 'auto/${category.name}');
+  }
+}
+
+Future<List<ActivitySuggestion>> _runAutoPlacesFirstBody({
+  required Trip trip,
+  required List<TripDocument> hotels,
+  required GeocodingService geocoder,
+  required PlacesNearbyService nearbyService,
+  required AiSuggestionsService aiService,
+  required SuggestionCategory category,
+  Set<String> existingTitlesNormalized = const {},
   String? languageCode,
 }) async {
   List<String>? interestsOverride;

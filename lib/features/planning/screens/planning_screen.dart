@@ -251,10 +251,11 @@ class PlanningScreen extends ConsumerWidget {
       const SnackBar(content: Text('🧪 Test Places-first lancé — voir la console (places_test)')),
     );
 
+    final nearbyService = ref.read(placesNearbyServiceProvider);
+    nearbyService.startRun(tripId: trip.id);
     try {
       final hotels = await ref.read(tripHotelsProvider(tripId).future);
       final geocoder = ref.read(geocodingServiceProvider);
-      final nearbyService = ref.read(placesNearbyServiceProvider);
 
       debugPrint('[places_test] === PLACES-FIRST TEST (gather all days) ===');
       final travelerProfile = trip.travelerType != null
@@ -426,7 +427,6 @@ class PlanningScreen extends ConsumerWidget {
 
         // Insertion déterministe des repas
         final stopwatchMeals = Stopwatch()..start();
-        final nearbyService = ref.read(placesNearbyServiceProvider);
         final meals = await insertDeterministicMeals(
           activities: visits,
           pool: pool,
@@ -509,6 +509,8 @@ class PlanningScreen extends ConsumerWidget {
           SnackBar(content: Text('❌ Erreur test : $e')),
         );
       }
+    } finally {
+      nearbyService.endRun(context: 'placesTestDebug');
     }
   }
 

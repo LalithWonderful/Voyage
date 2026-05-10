@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:voyage/core/constants/ai_constants.dart';
 import 'package:voyage/core/services/location_service.dart';
 import 'package:voyage/features/planning/services/gemini_cache_service.dart';
+import 'package:voyage/features/planning/services/places_budget.dart';
 
 /// Un candidat retourné par Places Nearby Search ou Text Search v1.
 /// Contient tout ce dont on a besoin pour le filtrage post-fetch (rating,
@@ -112,6 +113,30 @@ class NearbyCandidate {
 class PlacesNearbyService {
   final GeminiCacheService? _cache;
 
+  /// V7 (Lalith 2026-05-10 — Phase Cost-1) — budget courant. Null si
+  /// la run actuelle ne fait pas de tracking. Le pipeline doit appeler
+  /// `startRun()` au début d'une génération de planning, puis
+  /// `endRun()` à la fin pour logger le summary. Hors d'une run, le
+  /// service se comporte comme avant (pas d'enforcement, pas de log).
+  PlacesBudget? _budget;
+
+  PlacesBudget? get currentBudget => _budget;
+
+  /// Démarre une run : instancie un budget frais, écrase l'éventuel
+  /// précédent (le snapshot peut être lu via `endRun` avant).
+  void startRun({String? tripId, PlacesBudget? customBudget}) {
+    _budget = customBudget ?? PlacesBudget(tripId: tripId);
+  }
+
+  /// Termine la run : log le summary et retourne le snapshot. Le
+  /// budget interne est nettoyé pour ne pas leaker entre runs.
+  PlacesBudget? endRun({String? context}) {
+    final b = _budget;
+    b?.logSummary(context: context);
+    _budget = null;
+    return b;
+  }
+
   PlacesNearbyService({GeminiCacheService? cache}) : _cache = cache;
 
   static const _fieldMask =
@@ -146,6 +171,17 @@ class PlacesNearbyService {
       maxResults: maxResults,
       languageCode: languageCode,
     );
+    // V7 — clé dedup partagée avec le budget. Le hash arrondit lat/lng
+    // à 3 décimales pour bénéficier du dedup même si le centre du jour
+    // bouge légèrement entre 2 jours d'un même segment.
+    final dedupKey = placesDedupKey(
+      kind: 'nearby',
+      lat: latitude,
+      lng: longitude,
+      querySignature: includedTypes.join(','),
+      radius: radius,
+      languageCode: languageCode,
+    );
     final cached = await _cache?.get('places_search', cacheKey);
     if (cached != null) {
       final list = cached['places'] as List?;
@@ -154,12 +190,24 @@ class PlacesNearbyService {
             .whereType<Map<String, dynamic>>()
             .map(NearbyCandidate.fromCacheJson)
             .toList();
+        _budget?.recordCacheHit(dedupKey);
         debugPrint(
           '[places_nearby] cache HIT searchNearby types=$includedTypes '
           'r=${radius}m → ${results.length} candidats',
         );
         return results;
       }
+    }
+
+    // V7 — vérification budget AVANT l'appel API. Si la run a été
+    // rate-limited ou si on a atteint un cap, on retourne vide plutôt
+    // que d'aggraver le 429.
+    if (_budget?.shouldSkip(
+          kind: PlacesCallKind.nearby,
+          dedupKey: dedupKey,
+        ) ??
+        false) {
+      return const [];
     }
 
     try {
@@ -185,12 +233,21 @@ class PlacesNearbyService {
         body: body,
       );
       if (resp.statusCode != 200) {
+        // V7 — détection du rate-limit pour bail-out global de la run.
+        if (PlacesBudgetConfig.rateLimitedHttpCodes
+            .contains(resp.statusCode)) {
+          _budget?.markRateLimited(
+            kind: PlacesCallKind.nearby,
+            httpCode: resp.statusCode,
+          );
+        }
         debugPrint(
           '[places_nearby] HTTP ${resp.statusCode} searchNearby types=$includedTypes '
           'body="${resp.body}"',
         );
         return [];
       }
+      _budget?.recordCall(PlacesCallKind.nearby, dedupKey);
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
       final places = (data['places'] as List?) ?? const [];
       final results = places
@@ -241,6 +298,15 @@ class PlacesNearbyService {
       maxResults: maxResults,
       languageCode: languageCode,
     );
+    // V7 — clé dedup partagée avec le budget.
+    final dedupKey = placesDedupKey(
+      kind: 'searchText',
+      lat: latitude,
+      lng: longitude,
+      querySignature: query.toLowerCase(),
+      radius: radius,
+      languageCode: languageCode,
+    );
     final cached = await _cache?.get('places_search', cacheKey);
     if (cached != null) {
       final list = cached['places'] as List?;
@@ -249,12 +315,22 @@ class PlacesNearbyService {
             .whereType<Map<String, dynamic>>()
             .map(NearbyCandidate.fromCacheJson)
             .toList();
+        _budget?.recordCacheHit(dedupKey);
         debugPrint(
           '[places_nearby] cache HIT searchText q="$query" r=${radius}m '
           '→ ${results.length} candidats',
         );
         return results;
       }
+    }
+
+    // V7 — vérification budget AVANT l'appel API.
+    if (_budget?.shouldSkip(
+          kind: PlacesCallKind.searchText,
+          dedupKey: dedupKey,
+        ) ??
+        false) {
+      return const [];
     }
 
     try {
@@ -288,12 +364,21 @@ class PlacesNearbyService {
         body: body,
       );
       if (resp.statusCode != 200) {
+        // V7 — détection rate-limit pour bail-out global.
+        if (PlacesBudgetConfig.rateLimitedHttpCodes
+            .contains(resp.statusCode)) {
+          _budget?.markRateLimited(
+            kind: PlacesCallKind.searchText,
+            httpCode: resp.statusCode,
+          );
+        }
         debugPrint(
           '[places_nearby] HTTP ${resp.statusCode} searchText q="$query" '
           'body="${resp.body}"',
         );
         return [];
       }
+      _budget?.recordCall(PlacesCallKind.searchText, dedupKey);
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
       final places = (data['places'] as List?) ?? const [];
       final raw = places
