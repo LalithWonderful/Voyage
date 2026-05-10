@@ -1974,6 +1974,83 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
     }
   }
 
+  // V8.15 (Lalith 2026-05-10 — Quality-1D budget priority fix) —
+  // blueprint fetch DÉPLACÉ AVANT l'étape 3. Sans ce déplacement,
+  // l'étape 3 (per-group interest fetch) brûle les 80 calls du
+  // budget Cost-1 sur les voyages multi-villes (8 groupes Bangkok
+  // hotel + Rayong + Koh Samet + Phu Quoc + Tam Coc + Hanoi + Hoi
+  // An + destination = ~100+ tentatives). Les blueprint queries
+  // qui suivaient retombaient sur `shouldSkip=true` (skip=545
+  // observé sur Bangkok 46j) → pool sans must-sees → selector pick
+  // nearby filler.
+  //
+  // Maintenant : ~17 blueprint calls réservés en priorité, ~63
+  // calls restants pour gather. Sur cold cache long trip, gather
+  // peut hit le cap mais blueprint a son budget garanti.
+  final blueprint = getBlueprintForDestination(trip.destination);
+  final blueprintMustSees = <NearbyCandidate>[];
+  final blueprintExperiences = <NearbyCandidate>[];
+  if (blueprint != null) {
+    // ignore: avoid_print
+    print(
+      '[destination_blueprint] destination="${trip.destination}" '
+      'found=true kind=${blueprint.kind.name} '
+      'mustSee=${blueprint.mustSeeQueries.length} '
+      'experience=${blueprint.experienceQueries.length}',
+    );
+    if (validDayCenters.isNotEmpty) {
+      final biasCenter = validDayCenters.first.center;
+      Future<void> resolveBlueprintQuery(
+        String query,
+        String tier,
+        List<NearbyCandidate> destination,
+      ) async {
+        final results = await nearbyService.searchText(
+          textQuery: query,
+          latitude: biasCenter.latitude,
+          longitude: biasCenter.longitude,
+          // Rayon généreux : les blueprint queries sont city-wide
+          // (« Grand Palace Bangkok » résout à n'importe quel
+          // hotel Bangkok via geo-bias Google). 50km couvre métro
+          // + day-trips proches.
+          radius: 50000,
+          languageCode: 'fr',
+        );
+        if (results.isEmpty) {
+          // ignore: avoid_print
+          print(
+            '[blueprint_resolve] query="$query" status=miss tier=$tier',
+          );
+          return;
+        }
+        final topPick = results.firstWhere(
+          (c) => (c.rating ?? 0) >= 4.0,
+          orElse: () => results.first,
+        );
+        destination.add(topPick);
+        // ignore: avoid_print
+        print(
+          '[blueprint_resolve] query="$query" status=hit '
+          'place="${topPick.name}" rating=${topPick.rating ?? "?"} '
+          'tier=$tier',
+        );
+      }
+
+      for (final query in blueprint.mustSeeQueries) {
+        await resolveBlueprintQuery(query, 'must_see', blueprintMustSees);
+      }
+      for (final query in blueprint.experienceQueries) {
+        await resolveBlueprintQuery(
+            query, 'experience', blueprintExperiences);
+      }
+    }
+  } else if (trip.destination.trim().isNotEmpty) {
+    // ignore: avoid_print
+    print(
+      '[destination_blueprint] destination="${trip.destination}" found=false',
+    );
+  }
+
   // Étape 3 : pool unique par groupe (séquentiel pour limiter la race
   // per-kind du budget Cost-1). Map sig → byInterest mergé walk+transit.
   final poolBySig = <String, Map<String, List<NearbyCandidate>>>{};
@@ -2031,106 +2108,11 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
     poolBySig[sig] = byInterest;
   }
 
-  // V8.13 (Lalith 2026-05-10 — Quality-1D destination blueprints) —
-  // seed la pool avec les must-sees / experiences curated du
-  // destination (Bangkok → Grand Palace, Wat Pho, IconSiam... ;
-  // Paris → Louvre, Eiffel Tower, Notre-Dame...). Sans ce seeding,
-  // la pool est dominée par les places nearby de l'hôtel (e.g.
-  // Bang Na malls pour Bangkok) au lieu des must-sees iconiques.
-  //
-  // Fetch UNE seule fois par run via `searchText` (queries
-  // hautement cacheables — « Grand Palace Bangkok » ne change
-  // jamais → cache TTL 90j de Cost-3 amortit dès la 2ᵉ run).
-  // Les markers synthétiques `_BlueprintMustSee` /
-  // `_BlueprintExperience` dans `byInterest` propagent l'info au
-  // selector qui appliquera +100 / +70 score boost (Phase 3).
-  final blueprint = getBlueprintForDestination(trip.destination);
-  final blueprintMustSees = <NearbyCandidate>[];
-  final blueprintExperiences = <NearbyCandidate>[];
-  if (blueprint != null) {
-    // ignore: avoid_print
-    print(
-      '[destination_blueprint] destination="${trip.destination}" '
-      'found=true kind=${blueprint.kind.name} '
-      'mustSee=${blueprint.mustSeeQueries.length} '
-      'experience=${blueprint.experienceQueries.length}',
-    );
-    if (validDayCenters.isNotEmpty) {
-      final biasCenter = validDayCenters.first.center;
-      // Helper inline — évite de dupliquer le pattern
-      // fetch + top-pick + log par tier.
-      Future<void> resolveBlueprintQuery(
-        String query,
-        String tier,
-        List<NearbyCandidate> destination,
-      ) async {
-        final results = await nearbyService.searchText(
-          textQuery: query,
-          latitude: biasCenter.latitude,
-          longitude: biasCenter.longitude,
-          // Rayon généreux : les blueprint queries sont city-wide
-          // (« Grand Palace Bangkok » résout à n'importe quel
-          // hotel Bangkok via geo-bias Google). 50km couvre métro
-          // + day-trips proches.
-          radius: 50000,
-          languageCode: 'fr',
-        );
-        if (results.isEmpty) {
-          // ignore: avoid_print
-          print(
-            '[blueprint_resolve] query="$query" status=miss tier=$tier',
-          );
-          return;
-        }
-        // Top match avec rating décent — protège contre les faux
-        // positifs Places (un homonyme « Grand Palace » à 3.2★).
-        final topPick = results.firstWhere(
-          (c) => (c.rating ?? 0) >= 4.0,
-          orElse: () => results.first,
-        );
-        destination.add(topPick);
-        // ignore: avoid_print
-        print(
-          '[blueprint_resolve] query="$query" status=hit '
-          'place="${topPick.name}" rating=${topPick.rating ?? "?"} '
-          'tier=$tier',
-        );
-      }
-
-      for (final query in blueprint.mustSeeQueries) {
-        await resolveBlueprintQuery(query, 'must_see', blueprintMustSees);
-      }
-      for (final query in blueprint.experienceQueries) {
-        await resolveBlueprintQuery(
-            query, 'experience', blueprintExperiences);
-      }
-      final nearbyTotal = poolBySig.values.fold<int>(
-        0,
-        (sum, byInt) =>
-            sum + byInt.values.fold(0, (s, list) => s + list.length),
-      );
-      // ignore: avoid_print
-      print(
-        '[places_pool] blueprintMustSee=${blueprintMustSees.length} '
-        'blueprintExperience=${blueprintExperiences.length} '
-        'nearby=$nearbyTotal '
-        'total=${nearbyTotal + blueprintMustSees.length + blueprintExperiences.length}',
-      );
-    }
-  } else if (trip.destination.trim().isNotEmpty) {
-    // ignore: avoid_print
-    print(
-      '[destination_blueprint] destination="${trip.destination}" found=false',
-    );
-  }
-
-  // Inject les blueprint candidates dans CHAQUE groupe sous des
-  // synthetic interest keys. Le selector détecte ces markers pour
-  // appliquer le score boost (cf. Phase 3 dans `selectVisitsDeterministic`).
+  // V8.15 — Inject les blueprint candidates (déjà fetched AVANT
+  // l'étape 3) dans CHAQUE groupe sous des synthetic interest keys.
+  // Le selector détecte ces markers pour appliquer le score boost.
   // Partagé via référence — toutes les `DayCandidates` issues d'un
-  // même groupe verront la même liste. Ce qui est OK : les
-  // must-sees du voyage s'appliquent identiquement à tous les jours
-  // de la même ville.
+  // même groupe verront la même liste.
   if (blueprintMustSees.isNotEmpty || blueprintExperiences.isNotEmpty) {
     for (final byInterest in poolBySig.values) {
       if (blueprintMustSees.isNotEmpty) {
@@ -2140,6 +2122,18 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
         byInterest[blueprintExperienceMarker] = blueprintExperiences;
       }
     }
+    final nearbyTotal = poolBySig.values.fold<int>(
+      0,
+      (sum, byInt) =>
+          sum + byInt.values.fold(0, (s, list) => s + list.length),
+    );
+    // ignore: avoid_print
+    print(
+      '[places_pool] blueprintMustSee=${blueprintMustSees.length} '
+      'blueprintExperience=${blueprintExperiences.length} '
+      'nearby=${nearbyTotal - blueprintMustSees.length - blueprintExperiences.length} '
+      'total=$nearbyTotal',
+    );
   }
 
   // Étape 4 : assemblage `List<DayCandidates>`. Chaque jour récupère la
