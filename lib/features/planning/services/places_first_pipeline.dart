@@ -920,70 +920,170 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
     return byInterest;
   }
 
-  // Traitement parallèle par jour. Le cache places_search dédoublonne les
-  // appels redondants quand plusieurs jours partagent le même centre.
-  final results = await Future.wait(
-    days.map((day) async {
-      final center = await centerForDay(
-        trip: trip,
-        day: day,
-        hotels: hotels,
-        geocoder: geocoder,
-      );
-      if (center == null) {
-        debugPrint('Jour ${_iso(day)} : centre non géocodable, skip');
-        return null;
-      }
+  // V8 (Lalith 2026-05-10 — Phase Cost-2) — pool par centre, plus par jour.
+  // Stratégie : un voyage 8 jours avec 2 villes (4 + 4 jours) faisait 8
+  // récoltes complètes (8 × M intérêts × ~1+T calls). Désormais on groupe
+  // les jours par signature de centre (lat_3dec, lng_3dec, walkRadius,
+  // langue) et on construit la pool UNE seule fois par groupe. Les jours
+  // d'un même centre réutilisent le pool. Économie attendue : ~75% des
+  // searchText et nearby sur cold cache (vs Cost-1 seul).
+  //
+  // Ordre :
+  // 1. Boucle 1 (sans API) : calcul du `DayCenter` pour chaque jour.
+  // 2. Groupement par signature pure → 1 groupe par centre distinct.
+  // 3. Boucle 2 séquentielle : pour chaque groupe, on collecte la pool
+  //    (walk + cascade transit) UNE SEULE FOIS. Logue `[places_pool_build]`.
+  // 4. Boucle 3 : on assemble le `List<DayCandidates>` final en
+  //    réplicant la pool du groupe sur chaque jour qu'il couvre.
+  //    Logue `[places_pool_reuse]`.
+  //
+  // La séquentialité (vs `Future.wait(days.map…)` avant) réduit aussi
+  // la race per-kind du budget Cost-1 : moins d'appels concurrents
+  // qui passent simultanément `shouldSkip` avant que l'un ait incrémenté.
 
-      // 1. Récolte walking (zone de marche prioritaire)
-      final byInterest = await collectByInterest(center, walkRadius);
-
-      // 2. Cascade transit TOUJOURS appliquée (Lalith 26/04) : sans ça, des
-      // attractions majeures comme Musée de l'Image Épinal (~1km du centre) ou
-      // Imagerie d'Épinal (~2km) sont absentes de la pool. Les lieux walking
-      // restent prioritaires via le scoring distance ; transit ne fait
-      // qu'enrichir avec des candidats plus distants (utiles si profil sans
-      // contrainte stricte ou si pool walking pauvre culturellement).
-      if (transitRadius != null) {
-        final walkUniqueCount = byInterest.values
-            .expand((l) => l)
-            .map((c) => c.placeId)
-            .toSet()
-            .length;
-        final byInterestTransit = await collectByInterest(
-          center,
-          transitRadius,
-        );
-        for (final entry in byInterestTransit.entries) {
-          final walkList = byInterest[entry.key] ?? const <NearbyCandidate>[];
-          final walkIds = walkList.map((c) => c.placeId).toSet();
-          final added = entry.value
-              .where((c) => !walkIds.contains(c.placeId))
-              .toList();
-          if (added.isNotEmpty) {
-            byInterest[entry.key] = [...walkList, ...added];
-          }
-        }
-        final totalAfter = byInterest.values
-            .expand((l) => l)
-            .map((c) => c.placeId)
-            .toSet()
-            .length;
-        debugPrint(
-          '[places_first] ${_iso(day)} : walk=$walkUniqueCount → +${totalAfter - walkUniqueCount} via transit (${transitRadius}m)',
-        );
-      }
-
-      return DayCandidates(day: day, center: center, byInterest: byInterest);
-    }),
+  // Étape 1 : centres par jour, sans API Places.
+  final dayCenters = await Future.wait(
+    days.map((day) async => (day: day, center: await centerForDay(
+          trip: trip,
+          day: day,
+          hotels: hotels,
+          geocoder: geocoder,
+        ))),
   );
+  final validDayCenters = dayCenters
+      .where((dc) {
+        if (dc.center == null) {
+          debugPrint('Jour ${_iso(dc.day)} : centre non géocodable, skip');
+          return false;
+        }
+        return true;
+      })
+      .map((dc) => (day: dc.day, center: dc.center!))
+      .toList();
 
-  final pool = results.whereType<DayCandidates>().toList();
+  // Étape 2 : groupement par signature (lat_3dec, lng_3dec, walkRadius, lang).
+  // Le rayon transit n'entre PAS dans la signature : il dérive du profil et
+  // s'applique uniformément à un même `walkRadius`. Pas besoin de séparer.
+  final groups = <String, ({DayCenter center, List<DateTime> days})>{};
+  for (final dc in validDayCenters) {
+    final sig = placesPoolSignature(
+      center: dc.center,
+      radius: walkRadius,
+      languageCode: languageCode,
+    );
+    final existing = groups[sig];
+    if (existing == null) {
+      groups[sig] = (center: dc.center, days: [dc.day]);
+    } else {
+      existing.days.add(dc.day);
+    }
+  }
+
+  // Étape 3 : pool unique par groupe (séquentiel pour limiter la race
+  // per-kind du budget Cost-1). Map sig → byInterest mergé walk+transit.
+  final poolBySig = <String, Map<String, List<NearbyCandidate>>>{};
+  for (final entry in groups.entries) {
+    final sig = entry.key;
+    final group = entry.value;
+    final byInterest = await collectByInterest(group.center, walkRadius);
+    if (transitRadius != null) {
+      final walkUniqueCount = byInterest.values
+          .expand((l) => l)
+          .map((c) => c.placeId)
+          .toSet()
+          .length;
+      final byInterestTransit =
+          await collectByInterest(group.center, transitRadius);
+      for (final tEntry in byInterestTransit.entries) {
+        final walkList =
+            byInterest[tEntry.key] ?? const <NearbyCandidate>[];
+        final walkIds = walkList.map((c) => c.placeId).toSet();
+        final added =
+            tEntry.value.where((c) => !walkIds.contains(c.placeId)).toList();
+        if (added.isNotEmpty) {
+          byInterest[tEntry.key] = [...walkList, ...added];
+        }
+      }
+      final totalAfter = byInterest.values
+          .expand((l) => l)
+          .map((c) => c.placeId)
+          .toSet()
+          .length;
+      debugPrint(
+        '[places_pool_build] sig=$sig source=${group.center.source} '
+        'days=${group.days.length} walk=$walkUniqueCount '
+        'transit=+${totalAfter - walkUniqueCount} (${transitRadius}m)',
+      );
+    } else {
+      final unique = byInterest.values
+          .expand((l) => l)
+          .map((c) => c.placeId)
+          .toSet()
+          .length;
+      debugPrint(
+        '[places_pool_build] sig=$sig source=${group.center.source} '
+        'days=${group.days.length} walk=$unique (${walkRadius}m)',
+      );
+    }
+    poolBySig[sig] = byInterest;
+  }
+
+  // Étape 4 : assemblage `List<DayCandidates>`. Chaque jour récupère la
+  // pool de son groupe — partage de référence, lecture seule en aval
+  // (`selectVisitsDeterministic` / `partitionByQuartier` ne mutent pas).
+  final pool = <DayCandidates>[];
+  for (final dc in validDayCenters) {
+    final sig = placesPoolSignature(
+      center: dc.center,
+      radius: walkRadius,
+      languageCode: languageCode,
+    );
+    final byInterest = poolBySig[sig];
+    if (byInterest == null) continue;
+    pool.add(DayCandidates(
+      day: dc.day,
+      center: dc.center,
+      byInterest: byInterest,
+    ));
+    final unique = byInterest.values
+        .expand((l) => l)
+        .map((c) => c.placeId)
+        .toSet()
+        .length;
+    debugPrint(
+      '[places_pool_reuse] sig=$sig day=${_iso(dc.day)} → $unique candidats',
+    );
+  }
+
   final totalUnique = pool.fold<int>(0, (sum, d) => sum + d.uniqueCandidates);
   debugPrint(
-    '[places_first] Récolte terminée : ${pool.length} jours, $totalUnique lieux uniques cumulés',
+    '[places_first] Récolte terminée : ${pool.length} jours, '
+    '${groups.length} groupe(s) de centres, '
+    '$totalUnique lieux uniques cumulés',
   );
   return pool;
+}
+
+/// V8 (Lalith 2026-05-10 — Phase Cost-2) — signature pure d'un centre
+/// pour grouper les jours qui partageront la même pool Places.
+///
+/// Format : `lat_3dec,lng_3dec|r=<radius>|l=<lang>`. Lat/lng arrondis à
+/// 3 décimales (~110m) pour collapse les jitters d'hôtels proches. Le
+/// rayon de marche entre dans la signature parce que deux centres très
+/// proches mais avec des rayons différents (changement de profil voyageur
+/// mid-trip — théorique, mais défensif) ne peuvent PAS partager la pool.
+/// La langue Places idem (résultats `name` localisés).
+///
+/// Pure et testable. Pas de side-effect, pas d'I/O.
+@visibleForTesting
+String placesPoolSignature({
+  required DayCenter center,
+  required int radius,
+  required String? languageCode,
+}) {
+  return '${center.latitude.toStringAsFixed(3)},'
+      '${center.longitude.toStringAsFixed(3)}'
+      '|r=$radius|l=${languageCode ?? "_"}';
 }
 
 String _iso(DateTime d) => d.toIso8601String().split('T').first;
