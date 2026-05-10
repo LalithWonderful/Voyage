@@ -25,6 +25,7 @@ library;
 
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:voyage/features/planning/data/destination_blueprints.dart';
 import 'package:voyage/features/planning/services/places_nearby_service.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
@@ -50,6 +51,7 @@ class DayPack {
   final DayPackType type;
   final List<NearbyCandidate> places;
   final double totalDistanceKm;
+  final double maxTransitionKm;
   final int longTransitions;
   final double score;
 
@@ -57,6 +59,7 @@ class DayPack {
     required this.type,
     required this.places,
     required this.totalDistanceKm,
+    required this.maxTransitionKm,
     required this.longTransitions,
     required this.score,
   });
@@ -192,6 +195,16 @@ const double _kLongTransitionKm = 5.0;
 /// 1 long hop OK (ex: hôtel → Old City), 2+ rejette le pack.
 const int _kMaxLongTransitionsPerPack = 1;
 
+/// Hard cap maxTransition (km) pour un pack non-arrival. Au-delà, le
+/// pack est rejeté quel que soit le nombre de long transitions
+/// (Chatuchak↔Srinagarindra à 16km déclenche).
+const double _kMaxTransitionPerPackKm = 10.0;
+
+/// Hard cap maxTransition (km) pour un pack arrival_light_day. Plus
+/// strict (5km) car jour d'arrivée doit rester compact autour du
+/// hôtel/cluster, pas d'enchaînement type Asiatique→Bang Na (9.6km).
+const double _kMaxTransitionArrivalLightKm = 5.0;
+
 /// Days minimum pour activer Day Builder. À 1 jour, le slot picker
 /// suffit (pas de re-distribution thématique nécessaire).
 const int _kMinDaysForBuilder = 2;
@@ -236,11 +249,22 @@ _BuilderCity? _detectBuilderCity(double centerLat, double centerLng) {
   return null;
 }
 
+class _ArchetypeMatch {
+  final Set<DayPackType> archetypes;
+  /// True si au moins un archétype vient d'un pattern nominal curated.
+  /// False si TOUS les archétypes proviennent du fallback type Google
+  /// (ex: Wat Bang Na Nok tagué old_city via `place_of_worship`).
+  /// arrival_light_day n'accepte que `fromPattern=true` pour éviter
+  /// les enchaînements de temples Bang Na locaux non-iconiques.
+  final bool fromPattern;
+  const _ArchetypeMatch(this.archetypes, this.fromPattern);
+}
+
 /// Classifie un candidat en 0..N archétypes. Pattern match sur le nom
 /// (priorité absolue), puis fallback type Google Places. Un place
 /// peut matcher plusieurs archétypes (ex: market à proximité du fleuve)
 /// — il sera disponible pour les deux types lors du build pack.
-Set<DayPackType> _archetypesForCandidate(NearbyCandidate cand, _BuilderCity city) {
+_ArchetypeMatch _archetypesForCandidate(NearbyCandidate cand, _BuilderCity city) {
   final out = <DayPackType>{};
   final n = _normName(cand.name);
   bool matchAny(List<String> patterns) =>
@@ -249,7 +273,7 @@ Set<DayPackType> _archetypesForCandidate(NearbyCandidate cand, _BuilderCity city
   if (matchAny(city.riversidePatterns)) out.add(DayPackType.riversideDay);
   if (matchAny(city.marketPatterns)) out.add(DayPackType.marketDay);
   if (matchAny(city.modernPatterns)) out.add(DayPackType.modernDay);
-  if (out.isNotEmpty) return out;
+  if (out.isNotEmpty) return _ArchetypeMatch(out, true);
   // Fallback type-based pour les candidats sans match nom.
   final types = cand.types.toSet();
   if (types.contains('hindu_temple') ||
@@ -271,7 +295,7 @@ Set<DayPackType> _archetypesForCandidate(NearbyCandidate cand, _BuilderCity city
       types.contains('art_gallery')) {
     out.add(DayPackType.modernDay);
   }
-  return out;
+  return _ArchetypeMatch(out, false);
 }
 
 bool _hasMustSeeMarker(List<String> matchedInterests) =>
@@ -298,10 +322,11 @@ class _Tagged {
   final NearbyCandidate candidate;
   final List<String> matchedInterests;
   final Set<DayPackType> archetypes;
+  final bool fromPattern;
   final double baseScore;
 
   _Tagged(this.placeId, this.candidate, this.matchedInterests,
-      this.archetypes, this.baseScore);
+      this.archetypes, this.fromPattern, this.baseScore);
 
   bool get isMustSee => _hasMustSeeMarker(matchedInterests);
 }
@@ -309,14 +334,16 @@ class _Tagged {
 class _PackMetrics {
   final double totalDistanceKm;
   final int longTransitions;
-  const _PackMetrics(this.totalDistanceKm, this.longTransitions);
+  final double maxTransitionKm;
+  const _PackMetrics(this.totalDistanceKm, this.longTransitions, this.maxTransitionKm);
 }
 
 _PackMetrics _packMetrics(
     List<_Tagged> ordered, double anchorLat, double anchorLng) {
-  if (ordered.isEmpty) return const _PackMetrics(0, 0);
+  if (ordered.isEmpty) return const _PackMetrics(0, 0, 0);
   double total = 0;
   int longs = 0;
+  double maxHop = 0;
   double prevLat = anchorLat;
   double prevLng = anchorLng;
   for (final t in ordered) {
@@ -324,10 +351,11 @@ _PackMetrics _packMetrics(
         prevLat, prevLng, t.candidate.latitude, t.candidate.longitude);
     total += d;
     if (d > _kLongTransitionKm) longs += 1;
+    if (d > maxHop) maxHop = d;
     prevLat = t.candidate.latitude;
     prevLng = t.candidate.longitude;
   }
-  return _PackMetrics(total, longs);
+  return _PackMetrics(total, longs, maxHop);
 }
 
 List<_Tagged> _nearestNeighborOrder(
@@ -368,9 +396,18 @@ DayPack _buildDayPack(DayPackType type, List<_Tagged> ordered, _PackMetrics m) {
     type: type,
     places: ordered.map((t) => t.candidate).toList(),
     totalDistanceKm: m.totalDistanceKm,
+    maxTransitionKm: m.maxTransitionKm,
     longTransitions: m.longTransitions,
     score: score,
   );
+}
+
+bool _packMetricsAcceptable(_PackMetrics m, {
+  required int maxLongTransitions,
+  required double maxTransitionKmCap,
+}) {
+  return m.longTransitions <= maxLongTransitions &&
+      m.maxTransitionKm <= maxTransitionKmCap;
 }
 
 DayPack? _buildPackForType({
@@ -380,6 +417,7 @@ DayPack? _buildPackForType({
   required double centerLng,
   required int maxPlaces,
   required int maxLongTransitions,
+  required double maxTransitionKmCap,
 }) {
   if (available.length < _kMinPackSize) return null;
   final sorted = [...available]
@@ -388,12 +426,16 @@ DayPack? _buildPackForType({
   var picked = sorted.take(maxPlaces).toList();
   var ordered = _nearestNeighborOrder(picked, centerLat, centerLng);
   var metrics = _packMetrics(ordered, centerLat, centerLng);
-  if (metrics.longTransitions <= maxLongTransitions) {
+  if (_packMetricsAcceptable(metrics,
+      maxLongTransitions: maxLongTransitions,
+      maxTransitionKmCap: maxTransitionKmCap)) {
     return _buildDayPack(type, ordered, metrics);
   }
   // Shrink retry : drop la place la plus éloignée du centre, retest.
   while (picked.length > _kMinPackSize &&
-      metrics.longTransitions > maxLongTransitions) {
+      !_packMetricsAcceptable(metrics,
+          maxLongTransitions: maxLongTransitions,
+          maxTransitionKmCap: maxTransitionKmCap)) {
     _Tagged? worst;
     double worstD = -1;
     for (final p in picked) {
@@ -409,7 +451,11 @@ DayPack? _buildPackForType({
     ordered = _nearestNeighborOrder(picked, centerLat, centerLng);
     metrics = _packMetrics(ordered, centerLat, centerLng);
   }
-  if (metrics.longTransitions > maxLongTransitions) return null;
+  if (!_packMetricsAcceptable(metrics,
+      maxLongTransitions: maxLongTransitions,
+      maxTransitionKmCap: maxTransitionKmCap)) {
+    return null;
+  }
   if (ordered.length < _kMinPackSize) return null;
   return _buildDayPack(type, ordered, metrics);
 }
@@ -420,11 +466,19 @@ DayPack? _buildArrivalLightPack({
   required double centerLng,
   required int maxPlaces,
 }) {
-  // Compose depuis modern + riverside + old_city, MAIS exclut les
-  // must-sees iconiques (préservés pour les packs thématiques où ils
-  // brilleront vraiment — un must-see sur jour d'arrivée gaspille un
-  // highlight et tend à enchaîner des temples lourds = ce qu'on évite
-  // par spec « no heavy temple chain »).
+  // Strict pattern-only : exclut les fallbacks type Google Places
+  // (place_of_worship, market type sans pattern). Évite les
+  // enchaînements Wat Bang Na Nok / Wat Bang Nam Phueng Nok = temples
+  // Bang Na locaux non-iconiques. Doit ressembler à du curated, pas
+  // à du proximité brute.
+  //
+  // Exclut aussi les must-sees iconiques (préservés pour les vrais
+  // packs thématiques) — la journée d'arrivée doit rester compacte
+  // autour du hôtel/cluster, pas faire de 9 km pour un must-see.
+  //
+  // Si le pool insuffisant (< 3), arrival_light est rejeté → fall
+  // through vers old_city/modern/market dans le caller. Mieux vaut
+  // une journée Old City compacte qu'un arrival_light mal composé.
   final pool = <_Tagged>[];
   final seen = <String>{};
   for (final type in [
@@ -433,22 +487,11 @@ DayPack? _buildArrivalLightPack({
     DayPackType.oldCityDay,
   ]) {
     for (final t in available[type] ?? const <_Tagged>[]) {
+      if (!t.fromPattern) continue;
       if (t.isMustSee) continue;
       if (seen.contains(t.placeId)) continue;
       seen.add(t.placeId);
       pool.add(t);
-    }
-  }
-  // Fallback : si le pool non-must-see est trop maigre, on ré-inclut
-  // les must-sees modern + riverside (mais toujours pas le Old City
-  // pour respecter l'esprit « no heavy temple chain »).
-  if (pool.length < _kMinPackSize) {
-    for (final type in [DayPackType.modernDay, DayPackType.riversideDay]) {
-      for (final t in available[type] ?? const <_Tagged>[]) {
-        if (seen.contains(t.placeId)) continue;
-        seen.add(t.placeId);
-        pool.add(t);
-      }
     }
   }
   if (pool.length < _kMinPackSize) return null;
@@ -465,8 +508,14 @@ DayPack? _buildArrivalLightPack({
   if (picked.length < _kMinPackSize) return null;
   final ordered = _nearestNeighborOrder(picked, centerLat, centerLng);
   final metrics = _packMetrics(ordered, centerLat, centerLng);
-  // arrival_light tolère 1 long hop max (hôtel → 1 spot iconique).
-  if (metrics.longTransitions > 1) return null;
+  // Hard cap 5 km maxTransition pour arrival_light_day (spec user :
+  // « low distance, no >5km transition »). Cap aussi longTransitions
+  // ≤ 1 (hôtel → 1ʳᵉ activité tolère 1 long hop modéré).
+  if (!_packMetricsAcceptable(metrics,
+      maxLongTransitions: 1,
+      maxTransitionKmCap: _kMaxTransitionArrivalLightKm)) {
+    return null;
+  }
   return _buildDayPack(DayPackType.arrivalLightDay, ordered, metrics);
 }
 
@@ -511,14 +560,14 @@ DayBuilderResult buildDayPacksForCluster({
     if (reservedPlaceIds.contains(entry.key)) continue;
     final c = entry.value.candidate;
     final mi = entry.value.matchedInterests;
-    final archs = _archetypesForCandidate(c, city);
-    if (archs.isEmpty) continue;
-    tagged.add(_Tagged(entry.key, c, mi, archs, _candidateBaseScore(c, mi)));
+    final match = _archetypesForCandidate(c, city);
+    if (match.archetypes.isEmpty) continue;
+    tagged.add(_Tagged(entry.key, c, mi, match.archetypes,
+        match.fromPattern, _candidateBaseScore(c, mi)));
   }
 
   if (tagged.length < _kMinPoolForBuilder) {
-    // ignore: avoid_print
-    print('[day_builder] city=${city.key} days=${clusterDays.length} '
+    debugPrint('[day_builder] city=${city.key} days=${clusterDays.length} '
         'pool=${clusterPool.length} taggedPool=${tagged.length} '
         'enabled=false reason=not_enough_archetype_matches');
     return DayBuilderResult.disabled;
@@ -535,8 +584,7 @@ DayBuilderResult buildDayPacksForCluster({
 
   final maxPlacesPerDay = math.min(maxPerDay, _kMaxPlacesPerPackHardCap);
 
-  // ignore: avoid_print
-  print(
+  debugPrint(
     '[day_builder] city=${city.key} days=${clusterDays.length} '
     'pool=${clusterPool.length} enabled=true '
     'taggedPool=${tagged.length} '
@@ -575,6 +623,11 @@ DayBuilderResult buildDayPacksForCluster({
       );
       if (pack != null) {
         attemptedType = DayPackType.arrivalLightDay;
+      } else {
+        debugPrint(
+          '[day_pack_reject] date=${_iso(day)} type=arrival_light_day '
+          'reason=insufficient_pattern_pool_or_maxTransition_over_5km',
+        );
       }
     }
 
@@ -608,13 +661,14 @@ DayBuilderResult buildDayPacksForCluster({
           centerLng: clusterCenterLng,
           maxPlaces: maxPlacesPerDay,
           maxLongTransitions: _kMaxLongTransitionsPerPack,
+          maxTransitionKmCap: _kMaxTransitionPerPackKm,
         );
         if (attempt != null) {
-          // ignore: avoid_print
-          print(
+          debugPrint(
             '[day_pack_candidate] date=${_iso(day)} type=${t.label} '
             'places=[${attempt.places.map((c) => '"${c.name}"').join(",")}] '
             'totalDistKm=${attempt.totalDistanceKm.toStringAsFixed(1)} '
+            'maxTransitionKm=${attempt.maxTransitionKm.toStringAsFixed(1)} '
             'longTransitions=${attempt.longTransitions} '
             'score=${attempt.score.toStringAsFixed(0)}',
           );
@@ -622,10 +676,9 @@ DayBuilderResult buildDayPacksForCluster({
           attemptedType = t;
           break;
         } else {
-          // ignore: avoid_print
-          print(
+          debugPrint(
             '[day_pack_reject] date=${_iso(day)} type=${t.label} '
-            'reason=too_many_long_transitions_or_pool_too_small '
+            'reason=pool_too_small_or_maxTransition_over_10km_or_too_many_long_hops '
             'poolSize=${pool.length}',
           );
         }
@@ -636,17 +689,16 @@ DayBuilderResult buildDayPacksForCluster({
       result[day] = pack;
       usedPlaceIds.addAll(pack.placeIds);
       typeUseCount[attemptedType] = (typeUseCount[attemptedType] ?? 0) + 1;
-      // ignore: avoid_print
-      print(
+      debugPrint(
         '[day_pack_selected] date=${_iso(day)} type=${pack.type.label} '
         'places=[${pack.places.map((c) => '"${c.name}"').join(",")}] '
         'totalDistKm=${pack.totalDistanceKm.toStringAsFixed(1)} '
+        'maxTransitionKm=${pack.maxTransitionKm.toStringAsFixed(1)} '
         'longTransitions=${pack.longTransitions} '
         'score=${pack.score.toStringAsFixed(0)}',
       );
     } else {
-      // ignore: avoid_print
-      print('[day_pack_reject] date=${_iso(day)} '
+      debugPrint('[day_pack_reject] date=${_iso(day)} '
           'reason=no_archetype_pool_sufficient');
     }
   }

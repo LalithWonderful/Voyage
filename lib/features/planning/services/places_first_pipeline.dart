@@ -3425,6 +3425,16 @@ List<ActivitySuggestion> selectVisitsDeterministic({
       // Si non null, restreint le pool slot picker aux placeIds du pack.
       final dayPack = dayBuilder.dayPackByDate[day];
       final dayPackPlaceIds = dayPack?.placeIds;
+      // V8.21 (anti-zigzag slot-level) — compteur de transitions longues
+      // depuis lastActivity. Hard cap 1 par jour (>5 km) + cap dur 10 km
+      // sur un seul hop (Chatuchak↔Srinagarindra à 16 km bloqué).
+      // S'applique TOUJOURS, même quand Day Builder n'a pas assigné de
+      // pack (cas central cluster Bangkok où archétypes rejetés). Ne
+      // s'active qu'après la 1ʳᵉ activité du jour (lastActivity != null).
+      var longTransitionsThisDay = 0;
+      const maxLongTransitionsPerDay = 1;
+      const maxSingleTransitionKm = 10.0;
+      const longTransitionThresholdKm = 5.0;
       final usedThisDay = <String>{};
       var wellnessCountThisDay = 0;
       var eventsCountThisDay = 0;
@@ -3458,6 +3468,22 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           if (dayPackPlaceIds != null &&
               !dayPackPlaceIds.contains(c.placeId)) {
             return false;
+          }
+          // V8.21 (anti-zigzag slot-level) — hard cap depuis la dernière
+          // activité du jour. Empêche Chatuchak (13.80, 100.55) suivi
+          // de Train Night Market Srinagarindra (13.69, 100.65) à 16 km.
+          // Et empêche un 2ᵉ long hop si le 1er a déjà eu lieu.
+          final lastLat = lastActivity?.latitude;
+          final lastLng = lastActivity?.longitude;
+          if (lastLat != null && lastLng != null) {
+            final dKm = _haversineKmBetween(
+              lastLat, lastLng, c.latitude, c.longitude,
+            );
+            if (dKm > maxSingleTransitionKm) return false;
+            if (longTransitionsThisDay >= maxLongTransitionsPerDay &&
+                dKm > longTransitionThresholdKm) {
+              return false;
+            }
           }
           if (!_isAppropriateForTime(
             c,
@@ -3554,6 +3580,7 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           var rejectCity = 0, rejectDay = 0, rejectReuse = 0, rejectIconic = 0;
           var rejectDup = 0, rejectWellness = 0, rejectEvents = 0;
           var rejectDayPack = 0;
+          var rejectAntiZigzag = 0;
           for (final e in entries) {
             final c = e.value.candidate;
             // V8.20 (Day Builder) — comptabilise les rejets par filtre pack.
@@ -3561,6 +3588,20 @@ List<ActivitySuggestion> selectVisitsDeterministic({
                 !dayPackPlaceIds.contains(c.placeId)) {
               rejectDayPack++;
               continue;
+            }
+            // V8.21 (anti-zigzag slot-level) — miroir du filtre.
+            final lastLat = lastActivity?.latitude;
+            final lastLng = lastActivity?.longitude;
+            if (lastLat != null && lastLng != null) {
+              final dKm = _haversineKmBetween(
+                lastLat, lastLng, c.latitude, c.longitude,
+              );
+              if (dKm > maxSingleTransitionKm ||
+                  (longTransitionsThisDay >= maxLongTransitionsPerDay &&
+                      dKm > longTransitionThresholdKm)) {
+                rejectAntiZigzag++;
+                continue;
+              }
             }
             if (!_isAppropriateForTime(
               c,
@@ -3647,6 +3688,7 @@ List<ActivitySuggestion> selectVisitsDeterministic({
             'rejected_by_wellness_cap': rejectWellness,
             'rejected_by_events_cap': rejectEvents,
             'rejected_by_day_pack': rejectDayPack,
+            'rejected_by_anti_zigzag': rejectAntiZigzag,
           };
           final sortedRejects = rejects.entries.where((e) => e.value > 0).toList()
             ..sort((a, b) => b.value.compareTo(a.value));
@@ -3899,6 +3941,19 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           // prochain wellness éventuel passer sans pénalité dans la
           // demi-journée suivante.
           lastHalfDayHadWellness = false;
+        }
+        // V8.21 (anti-zigzag) — incrémente le compteur du jour si le hop
+        // depuis l'activité précédente dépasse le seuil long. Compteur
+        // strictement croissant, jamais reset intra-jour.
+        final lastLatBefore = lastActivity?.latitude;
+        final lastLngBefore = lastActivity?.longitude;
+        if (lastLatBefore != null && lastLngBefore != null) {
+          final hopKm = _haversineKmBetween(
+            lastLatBefore, lastLngBefore, pick.latitude, pick.longitude,
+          );
+          if (hopKm > longTransitionThresholdKm) {
+            longTransitionsThisDay += 1;
+          }
         }
         lastActivity = out.last;
       }

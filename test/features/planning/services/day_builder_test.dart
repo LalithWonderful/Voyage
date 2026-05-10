@@ -322,7 +322,8 @@ void main() {
       }
     });
 
-    test('first day (= trip.startDate) → arrival_light_day si possible', () {
+    test('first day (= trip.startDate) → arrival_light_day OU old_city_day '
+        '(spec : "Old City compact OR arrival_light_day")', () {
       final result = buildDayPacksForCluster(
         clusterCenterLat: 13.7563,
         clusterCenterLng: 100.5018,
@@ -336,9 +337,21 @@ void main() {
       );
       final j1Pack = result.dayPackByDate[DateTime(2026, 6, 22)];
       expect(j1Pack, isNotNull);
-      expect(j1Pack!.type, DayPackType.arrivalLightDay);
-      // arrival_light_day cap = 3 places.
-      expect(j1Pack.places.length, lessThanOrEqualTo(3));
+      // V8.21 — arrival_light est strict (pattern-only, 5km cap). Si
+      // le pool non-must-see compact est insuffisant, fall-through vers
+      // old_city_day est acceptable (spec user 2026-05-10 PM).
+      expect(
+        j1Pack!.type,
+        anyOf(DayPackType.arrivalLightDay, DayPackType.oldCityDay),
+      );
+      // Quel que soit le type, le pack J1 doit respecter les caps de
+      // transition (arrival_light ≤5km, old_city ≤10km).
+      if (j1Pack.type == DayPackType.arrivalLightDay) {
+        expect(j1Pack.maxTransitionKm, lessThanOrEqualTo(5.0));
+        expect(j1Pack.places.length, lessThanOrEqualTo(3));
+      } else {
+        expect(j1Pack.maxTransitionKm, lessThanOrEqualTo(10.0));
+      }
     });
 
     test('Pack restreint à max 4 places', () {
@@ -377,6 +390,104 @@ void main() {
       };
       // 'bn1' = Imperial World Bang Na, sans match archétype.
       expect(allPlaceIds, isNot(contains('bn1')));
+    });
+  });
+
+  group('Day Builder transition caps V8.21', () {
+    test('Pack non-arrival rejette si maxTransition > 10km '
+        '(Chatuchak↔Srinagarindra protégé)', () {
+      final result = buildDayPacksForCluster(
+        clusterCenterLat: 13.7563,
+        clusterCenterLng: 100.5018,
+        clusterDays: [
+          DateTime(2026, 6, 22),
+          DateTime(2026, 6, 25),
+          DateTime(2026, 6, 28),
+        ],
+        clusterPool: bangkokPool(),
+        trip: bangkokTrip,
+        maxPerDay: 4,
+      );
+      for (final pack in result.dayPackByDate.values) {
+        expect(pack.maxTransitionKm, lessThanOrEqualTo(10.0),
+            reason: 'pack ${pack.type.label} dépasse cap 10km');
+      }
+    });
+
+    test('arrival_light_day rejette si maxTransition > 5km '
+        '(Asiatique→Bang Na 9.6km protégé)', () {
+      final result = buildDayPacksForCluster(
+        clusterCenterLat: 13.7563,
+        clusterCenterLng: 100.5018,
+        clusterDays: [
+          DateTime(2026, 6, 22),
+          DateTime(2026, 6, 25),
+        ],
+        clusterPool: bangkokPool(),
+        trip: bangkokTrip,
+        maxPerDay: 4,
+      );
+      final j1 = result.dayPackByDate[DateTime(2026, 6, 22)];
+      if (j1 != null && j1.type == DayPackType.arrivalLightDay) {
+        expect(j1.maxTransitionKm, lessThanOrEqualTo(5.0),
+            reason: 'arrival_light_day doit avoir maxTransition ≤ 5km');
+      }
+    });
+
+    test('Bang Na local temple (place_of_worship sans pattern) '
+        'n\'est PAS dans arrival_light_day', () {
+      // Pool avec uniquement le strict nécessaire + 2 Bang Na temples
+      // (type place_of_worship/buddhist_temple, NO pattern match).
+      final localPool = <
+          String,
+          ({NearbyCandidate candidate, List<String> matchedInterests})>{};
+      // Add local Bang Na temples (no pattern, type fallback only)
+      localPool['bnnok'] = (
+        candidate: NearbyCandidate(
+          placeId: 'bnnok',
+          name: 'Wat Bang Na Nok',
+          latitude: 13.6765,
+          longitude: 100.5876,
+          rating: 4.5,
+          userRatingCount: 1500,
+          types: ['buddhist_temple', 'tourist_attraction', 'place_of_worship'],
+        ),
+        matchedInterests: const <String>[],
+      );
+      localPool['bnphueng'] = (
+        candidate: NearbyCandidate(
+          placeId: 'bnphueng',
+          name: 'Wat Bang Nam Phueng Nok',
+          latitude: 13.6828,
+          longitude: 100.5865,
+          rating: 4.4,
+          userRatingCount: 1200,
+          types: ['buddhist_temple', 'tourist_attraction', 'place_of_worship'],
+        ),
+        matchedInterests: const <String>[],
+      );
+      // Add iconic blueprint must-sees pour atteindre minPool
+      localPool.addAll(bangkokPool());
+
+      final result = buildDayPacksForCluster(
+        clusterCenterLat: 13.6700,
+        clusterCenterLng: 100.6000, // Bang Na hotel
+        clusterDays: [
+          DateTime(2026, 6, 22),
+          DateTime(2026, 6, 25),
+        ],
+        clusterPool: localPool,
+        trip: bangkokTrip,
+        maxPerDay: 4,
+      );
+      final j1 = result.dayPackByDate[DateTime(2026, 6, 22)];
+      if (j1 != null && j1.type == DayPackType.arrivalLightDay) {
+        final names = j1.places.map((c) => c.name).toList();
+        expect(names, isNot(contains('Wat Bang Na Nok')),
+            reason: 'temple Bang Na local ne doit jamais entrer en '
+                'arrival_light (type fallback seulement, pas de pattern)');
+        expect(names, isNot(contains('Wat Bang Nam Phueng Nok')));
+      }
     });
   });
 
