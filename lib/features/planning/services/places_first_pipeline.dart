@@ -3194,14 +3194,24 @@ List<ActivitySuggestion> selectVisitsDeterministic({
 
   final out = <ActivitySuggestion>[];
 
-  // Set de clés de dédup global au voyage : un même lieu (placeId, ou
-  // fallback name+coords arrondies) ne peut apparaître qu'une seule fois
-  // dans tout l'itinéraire. Évite les doublons entre clusters non
-  // connectés par le `useCountThisCluster` (cas observé Lalith
-  // 2026-05-08 : Plage d'Essaouira / Hammam Kenza / Sidi Magdoul Hammam
-  // pickés à la fois le 15/05 et le 17/05 dans le même cluster mais
-  // qui s'évite via cluster — et pareil entre 2 clusters Essaouira).
-  final selectedDedupKeys = <String>{};
+  // V8.17 (Lalith 2026-05-10 — Quality-1D segment isolation) —
+  // dédup par SEGMENT au lieu de trip-wide. Avant : un place pické
+  // à Bangkok bloquait sa réapparition à Koh Samet (même si pool
+  // disjoint, défensif). Cas observé Bangkok+Koh Samet : day 2
+  // Koh Samet trouvait raw=12 mais filtered=0 reason=rejected_by_dedup
+  // car des Bangkok blueprints étaient encore dans le pool Koh Samet
+  // (pré-fix 2ad1144) ET déjà iconic-capped depuis Bangkok days.
+  //
+  // Maintenant : la clé segmentaire est dérivée du cluster.center
+  // arrondi à 2 décimales (~10-100km résolution selon latitude).
+  // Bangkok hotel area (~13.6, 100.5-100.6) → tous mêmes segment.
+  // Koh Samet (12.5, 101.4) → segment distinct. Hanoi (21.0, 105.8)
+  // → segment distinct.
+  //
+  // Mêmes règles intra-segment qu'avant (1 place / 1 fois max). Les
+  // clusters d'un même segment partagent le set, ceux de segments
+  // différents ne se voient pas.
+  final selectedDedupKeysBySegment = <String, Set<String>>{};
 
   // 3 niveaux de cap : par jour (max 1×, strict), par cluster (max 2×),
   // ET par voyage (compteur global pour pénaliser dans le scoring).
@@ -3250,6 +3260,38 @@ List<ActivitySuggestion> selectVisitsDeterministic({
     final entries = cluster.pool.entries.toList();
     // V8.6 — wellness cap est désormais trip-wide, plus per-cluster.
     var eventsCountThisCluster = 0;
+
+    // V8.17 (Q1D segment isolation) — clé segmentaire du cluster.
+    // Précision 2 décimales (~10-100km selon latitude). Bangkok area
+    // ≈ 13.7,100.5 / Koh Samet ≈ 12.6,101.4 / Hanoi ≈ 21.0,105.8.
+    // Le set de dédup pour ce segment est materialisé à la demande.
+    final segmentKey = '${cluster.center.latitude.toStringAsFixed(2)},'
+        '${cluster.center.longitude.toStringAsFixed(2)}';
+    final selectedDedupKeys =
+        selectedDedupKeysBySegment.putIfAbsent(segmentKey, () => <String>{});
+
+    // V8.17 — guard radius cluster. Si la spread du pool dépasse 50km,
+    // on log un warning : signal de mix cross-segment. La récolte
+    // gather + city-scoped fanout (commit 2ad1144) doit normalement
+    // empêcher ça, mais le warning permet de détecter les régressions.
+    if (entries.isNotEmpty) {
+      var maxDistKm = 0.0;
+      for (final e in entries) {
+        final d = _haversineKmBetween(
+          cluster.center.latitude, cluster.center.longitude,
+          e.value.candidate.latitude, e.value.candidate.longitude,
+        );
+        if (d > maxDistKm) maxDistKm = d;
+      }
+      if (maxDistKm > 50.0) {
+        // ignore: avoid_print
+        print(
+          '[cluster_guard] radiusTooLarge=${maxDistKm.toStringAsFixed(0)}km '
+          'segmentKey=$segmentKey poolSize=${entries.length} '
+          'reason=cross_segment_or_cross_country_mix',
+        );
+      }
+    }
 
     for (final day in cluster.days) {
       final usedThisDay = <String>{};
