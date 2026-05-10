@@ -2108,19 +2108,57 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
     poolBySig[sig] = byInterest;
   }
 
-  // V8.15 — Inject les blueprint candidates (déjà fetched AVANT
-  // l'étape 3) dans CHAQUE groupe sous des synthetic interest keys.
-  // Le selector détecte ces markers pour appliquer le score boost.
-  // Partagé via référence — toutes les `DayCandidates` issues d'un
-  // même groupe verront la même liste.
+  // V8.16 (Lalith 2026-05-10 — Quality-1D city-scoped fanout) —
+  // injection blueprint LIMITÉE aux groupes géographiquement proches
+  // de la `biasCenter` (1ʳᵉ jour, qui définit la ville du blueprint).
+  //
+  // Bug observé multi-villes Thaïlande+Vietnam : les blueprints
+  // Bangkok (Grand Palace, Wat Pho...) étaient injectés dans TOUS
+  // les `poolBySig` y compris Hanoi (~1500km), Phu Quoc (~700km),
+  // Hoi An (~700km). K-means partitionnait ensuite ces pools mixés
+  // → cluster avec centroïde (13.1489, 101.3990) et radius=428km
+  // qui agrège Bangkok must-sees + Vietnam nearby.
+  //
+  // Fix : seuil 50km (haversine) entre biasCenter et group.center.
+  // Au-delà → skip injection. Bangkok blueprint reste dans les
+  // groupes Bangkok area (hôtel Bang Na, hotel central, segment
+  // Bangkok Pattaya day-trip jusqu'à 150km est rejeté — mais c'est
+  // acceptable car les must-sees Bangkok ne sont pas relevant pour
+  // une journée Pattaya).
   if (blueprintMustSees.isNotEmpty || blueprintExperiences.isNotEmpty) {
-    for (final byInterest in poolBySig.values) {
+    const blueprintFanoutMaxKm = 50.0;
+    final biasCenter = validDayCenters.first.center;
+    var injectedClusters = 0;
+    var skippedClusters = 0;
+    for (final entry in groups.entries) {
+      final sig = entry.key;
+      final groupCenter = entry.value.center;
+      final byInterest = poolBySig[sig];
+      if (byInterest == null) continue;
+      // Haversine inline (small).
+      final distKm = _haversineKmBetween(
+        biasCenter.latitude, biasCenter.longitude,
+        groupCenter.latitude, groupCenter.longitude,
+      );
+      if (distKm > blueprintFanoutMaxKm) {
+        skippedClusters++;
+        // ignore: avoid_print
+        print(
+          '[blueprint_fanout_skip] '
+          'clusterCenter=${groupCenter.latitude.toStringAsFixed(3)},'
+          '${groupCenter.longitude.toStringAsFixed(3)} '
+          'distKm=${distKm.toStringAsFixed(1)} '
+          'reason=city_mismatch (>${blueprintFanoutMaxKm.toInt()}km from biasCenter)',
+        );
+        continue;
+      }
       if (blueprintMustSees.isNotEmpty) {
         byInterest[blueprintMustSeeMarker] = blueprintMustSees;
       }
       if (blueprintExperiences.isNotEmpty) {
         byInterest[blueprintExperienceMarker] = blueprintExperiences;
       }
+      injectedClusters++;
     }
     final nearbyTotal = poolBySig.values.fold<int>(
       0,
@@ -2129,10 +2167,15 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
     );
     // ignore: avoid_print
     print(
+      '[blueprint_fanout] city=${blueprint?.destinationKey ?? "?"} '
+      'injectedClusters=$injectedClusters skippedClusters=$skippedClusters '
+      '(maxKm=${blueprintFanoutMaxKm.toInt()})',
+    );
+    // ignore: avoid_print
+    print(
       '[places_pool] blueprintMustSee=${blueprintMustSees.length} '
       'blueprintExperience=${blueprintExperiences.length} '
-      'nearby=${nearbyTotal - blueprintMustSees.length - blueprintExperiences.length} '
-      'total=$nearbyTotal',
+      'nearbyAfterInject=$nearbyTotal',
     );
   }
 
@@ -2260,6 +2303,28 @@ String placesPoolSignature({
 }
 
 String _iso(DateTime d) => d.toIso8601String().split('T').first;
+
+/// V8.16 (Lalith 2026-05-10 — Q1D city-scoped fanout) — haversine
+/// km entre 2 points lat/lng. Utilisé pour décider si un blueprint
+/// candidate doit être injecté dans un cluster (selon distance au
+/// biasCenter de la ville). Pas de précision inférieure au km
+/// nécessaire pour ce cas — conversion entière OK.
+double _haversineKmBetween(
+  double lat1,
+  double lng1,
+  double lat2,
+  double lng2,
+) {
+  const earthKm = 6371.0;
+  final dLat = (lat2 - lat1) * math.pi / 180.0;
+  final dLng = (lng2 - lng1) * math.pi / 180.0;
+  final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+      math.cos(lat1 * math.pi / 180.0) *
+          math.cos(lat2 * math.pi / 180.0) *
+          math.sin(dLng / 2) *
+          math.sin(dLng / 2);
+  return earthKm * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+}
 
 /// Groupe de jours partageant le même centre (= mono-ville complète, ou un
 /// segment d'une multi-villes). Un même `PlacesPromptInput` permet d'envoyer
