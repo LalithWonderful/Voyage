@@ -1,4 +1,6 @@
 import 'dart:developer' as developer;
+import 'dart:math' as math;
+import 'package:voyage/features/planning/data/segment_city_canonicals.dart';
 import 'package:voyage/features/planning/services/geocoding_service.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/wallet/models/document_model.dart';
@@ -94,18 +96,82 @@ Future<DayCenter?> centerForDay({
   if (segmentCity.isNotEmpty && segmentCity != trip.destination) {
     final segment = trip.segmentForDay(day);
     final segCountry = segment?.country?.trim() ?? '';
-    final query = segCountry.isNotEmpty
-        ? '$segmentCity, $segCountry'
-        : segmentCity;
-    final regionHint = trip.destinationCountryCode?.trim().toLowerCase();
+    // V8.18 (Lalith 2026-05-10 — Q1D segment city resolution) —
+    // canonical aliases pour les villes ambiguës (« Hoi An » résout
+    // sur Hoi An An Giang au lieu de Hội An Quảng Nam, « Koh Samet »
+    // peut tomber sur Rayong continent, etc.). Le canonical définit :
+    // - une query enrichie province + country pour le geocoder.
+    // - des coords expectedLat/Lng pour validation post-geocode.
+    // Si le geocoder dérive (>50km de l'expected), on force les
+    // coords canoniques — la map est authoritative pour ces villes.
+    final canonical =
+        getCanonicalSegmentCity(segmentCity, country: segCountry);
+    final query = canonical?.canonicalQuery ??
+        (segCountry.isNotEmpty ? '$segmentCity, $segCountry' : segmentCity);
+    final regionHint = canonical?.countryCode ??
+        trip.destinationCountryCode?.trim().toLowerCase();
     final geo = await geocoder.geocode(query, regionHint: regionHint);
     if (geo != null) {
+      // V8.18 — validation contre coords canoniques.
+      if (canonical != null) {
+        final dKm = _haversineKmDayCenter(
+          geo.latitude, geo.longitude,
+          canonical.expectedLat, canonical.expectedLng,
+        );
+        if (dKm > 50.0) {
+          // Geocoder a dérivé (homonyme régional) — override avec
+          // les coords canoniques.
+          // ignore: avoid_print
+          print(
+            '[segment_resolve_reject] input="$segmentCity" '
+            'rejected=(${geo.latitude.toStringAsFixed(3)},'
+            '${geo.longitude.toStringAsFixed(3)}) '
+            'distFromCanonical=${dKm.toStringAsFixed(0)}km '
+            'reason=wrong_region '
+            'expected="${canonical.canonicalQuery}" '
+            '(${canonical.expectedLat},${canonical.expectedLng})',
+          );
+          // ignore: avoid_print
+          print(
+            '[segment_resolve] input="$segmentCity" country="$segCountry" '
+            'resolved="${canonical.canonicalQuery}" '
+            'lat=${canonical.expectedLat} lng=${canonical.expectedLng} '
+            'source=canonical_override',
+          );
+          return DayCenter(
+            latitude: canonical.expectedLat,
+            longitude: canonical.expectedLng,
+            source: 'segment_city',
+          );
+        }
+        // ignore: avoid_print
+        print(
+          '[segment_resolve] input="$segmentCity" country="$segCountry" '
+          'resolved="$query" lat=${geo.latitude} lng=${geo.longitude} '
+          'source=canonical_alias',
+        );
+      }
       developer.log(
         'Centre du jour ${_iso(day)} = ville segment "$query" '
         '(region=$regionHint) → ${geo.latitude},${geo.longitude}',
         name: 'day_center',
       );
       return DayCenter(latitude: geo.latitude, longitude: geo.longitude, source: 'segment_city');
+    }
+    // V8.18 — geocoder a échoué mais on a un canonical → fallback hard.
+    if (canonical != null) {
+      // ignore: avoid_print
+      print(
+        '[segment_resolve] input="$segmentCity" country="$segCountry" '
+        'resolved="${canonical.canonicalQuery}" '
+        'lat=${canonical.expectedLat} lng=${canonical.expectedLng} '
+        'source=canonical_fallback (geocoder=null)',
+      );
+      return DayCenter(
+        latitude: canonical.expectedLat,
+        longitude: canonical.expectedLng,
+        source: 'segment_city',
+      );
     }
   }
 
@@ -126,3 +192,24 @@ Future<DayCenter?> centerForDay({
 }
 
 String _iso(DateTime d) => d.toIso8601String().split('T').first;
+
+/// V8.18 (Lalith 2026-05-10) — haversine km utilisé pour valider la
+/// résolution canonical des segment cities. Identique à
+/// `_haversineKmBetween` de places_first_pipeline mais isolé ici
+/// pour éviter une dépendance circulaire.
+double _haversineKmDayCenter(
+  double lat1,
+  double lng1,
+  double lat2,
+  double lng2,
+) {
+  const earthKm = 6371.0;
+  final dLat = (lat2 - lat1) * math.pi / 180.0;
+  final dLng = (lng2 - lng1) * math.pi / 180.0;
+  final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+      math.cos(lat1 * math.pi / 180.0) *
+          math.cos(lat2 * math.pi / 180.0) *
+          math.sin(dLng / 2) *
+          math.sin(dLng / 2);
+  return earthKm * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+}
