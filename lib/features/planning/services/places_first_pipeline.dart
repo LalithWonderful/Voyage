@@ -605,6 +605,96 @@ const Set<String> _qualityReligiousTypes = <String>{
   'buddhist_temple', 'hindu_temple', 'shinto_shrine',
 };
 
+/// V8.7 (Lalith 2026-05-10 — Quality-1A v4 final gate) — types
+/// PRIMARY ou SECONDARY qui interdisent absolument la sélection comme
+/// activité touristique, peu importe les autres signaux. Plus
+/// exhaustif que `_qualityHardBlocklistPrimaryTypes` (gather-level)
+/// car appliqué à TOUS les types du candidat (`c.types.any(...)`),
+/// pas juste primary. Couvre les leaks observés sur run debug
+/// Thaïlande 45j (Lalith) où des places passaient le gather mais
+/// pollutaient quand même la sélection finale.
+///
+/// Inclut ce qui était dans `_qualityHardBlocklistPrimaryTypes` +
+/// medical_clinic, painter, general_contractor, tire_shop,
+/// auto_parts_store, car_dealer, car_repair, car_wash, car_rental,
+/// gas_station, dentist, hospital, physiotherapist, atm, lawyer,
+/// roofing_contractor, insurance_agency, real_estate_agency,
+/// cannabis_store, weed_dispensary, bus_station, transit_station,
+/// train_station, supermarket, hypermarket, grocery_store.
+const Set<String> _qualityFinalBlockedTypes = <String>{
+  // Médical / paramédical
+  'medical_clinic', 'dentist', 'doctor', 'hospital', 'physiotherapist',
+  'optician', 'chiropractor', 'foot_care', 'skin_care_clinic',
+  'pharmacy', 'drugstore', 'health',
+  // Auto / transport personnel
+  'tire_shop', 'auto_parts_store', 'car_repair', 'car_dealer',
+  'car_wash', 'car_rental', 'gas_station',
+  // Construction / utilitaires
+  'painter', 'general_contractor', 'electrician', 'plumber',
+  'roofing_contractor', 'hardware_store', 'home_goods_store',
+  'furniture_store',
+  // Bureaux / finance / juridique
+  'real_estate_agency', 'insurance_agency', 'finance', 'bank', 'atm',
+  'accounting', 'lawyer', 'corporate_office', 'manufacturer',
+  'wholesaler', 'service', 'non_profit_organization',
+  // Commerce service-y
+  'jewelry_store', 'electronics_store', 'cosmetics_store',
+  // Sport personnel
+  'gym', 'fitness_center', 'sports_school', 'sports_coaching',
+  // Substances réglementées (UX trip planning ≠ recommander cannabis)
+  'cannabis_store', 'weed_dispensary',
+  // Transit (point de transit, pas une destination touristique)
+  'bus_station', 'transit_station', 'train_station', 'subway_station',
+  'taxi_stand', 'transit_depot',
+  // Alimentaire de masse (pas une activité touristique)
+  'supermarket', 'hypermarket', 'grocery_store', 'asian_grocery_store',
+  'convenience_store', 'food_store',
+  // Hair/beauty (déjà dans `_excludedPlaceTypes` mais on ré-affirme
+  // en final gate pour les leaks via secondary types)
+  'hair_care', 'hair_salon', 'beauty_salon', 'barber_shop', 'nail_salon',
+  // Laverie etc.
+  'laundry',
+};
+
+/// V8.7 — types de restauration / nourriture. Hors scope « visites
+/// auto » (les restos sont gérés on-demand, cf. project_restaurant_ux).
+/// Exception : un `market` (déjà touristique-safe) peut avoir ces
+/// types en secondaire — voir `_isAllowedFinalVisitCandidate`.
+const Set<String> _qualityFinalFoodTypes = <String>{
+  'restaurant',
+  'cafe',
+  'bakery',
+  'deli',
+  'food_court',
+  'meal_takeaway',
+  'meal_delivery',
+  'noodle_shop',
+  'coffee_shop',
+  'ice_cream_shop',
+  'dessert_shop',
+  'juice_shop',
+  'tea_house',
+  'food', // type générique Google
+  // `*_restaurant` (italian_restaurant, sushi_restaurant, etc.)
+  // détecté par suffixe dans `_isAllowedFinalVisitCandidate`.
+};
+
+/// V8.7 — types qui légitiment un `market` même s'il est aussi
+/// `food`/`grocery`. Les marchés alimentaires emblématiques sont des
+/// activités touristiques (Smorgasburg, Borough Market, marchés
+/// flottants). Sans ces types secondaires, un food market reste
+/// food-only.
+const Set<String> _qualityMarketTravelTypes = <String>{
+  'tourist_attraction',
+  'market',
+  'farmers_market',
+  'flea_market',
+  // Note : `night_market`, `food_market`, `floating_market` ne sont
+  // pas dans la v1 Google Places API standard mais on les liste pour
+  // cohérence si un jour ils sortent.
+  'night_market', 'food_market', 'floating_market',
+};
+
 /// V8.5 / V8.6 (Lalith 2026-05-10) — primaries d'« événement » qui
 /// restent génériques sans une source d'événements datés (PredictHQ
 /// Premium future). Rejetés sauf si pairés avec un signal touristique
@@ -637,6 +727,104 @@ const Set<String> _qualityWeakEventPrimaryTypes = <String>{
 /// touristiques (cathédrales connues, basiliques historiques,
 /// monuments événementiels reconnus).
 const int _qualityStrongLandmarkReviewsThreshold = 500;
+
+/// V8.7 (Lalith 2026-05-10 — Quality-1A v4 final gate) — gate
+/// strict appliqué AVANT chaque sélection dans
+/// `selectVisitsDeterministic`. Complément du filtre gather-time
+/// (`_isQualityRejected`) pour attraper les leaks observés sur run
+/// debug Thaïlande : painter, medical_clinic, tire_shop,
+/// noodle_shop sélectionné en Shopping, BITEC convention center,
+/// supermarchés Makro, etc.
+///
+/// Différence avec `_isQualityRejected` :
+/// - Vérifie `_qualityFinalBlockedTypes` sur **TOUS les types** (pas
+///   juste primary). Couvre les places où un type rédhibitoire est
+///   en secondaire (ex: Benjamin Moore primary=painter, secondary=
+///   home_goods_store).
+/// - Bloque les types food (`_qualityFinalFoodTypes` + suffixe
+///   `_restaurant`) — cohérent avec la décision restos out-of-scope.
+/// - Durcit les weak event venues : nécessite signal touristique fort
+///   ET reviews ≥ 500 (avant : OR).
+/// - Rejette point_of_interest seul (sans autre type qualifiant).
+///
+/// Retourne :
+///   - 'blocked_type' : type bloqué dans n'importe quelle position.
+///   - 'restaurant_out_of_scope' : type food sans contexte market.
+///   - 'weak_event' : event venue sans signal touristique fort + reviews.
+///   - 'low_reviews' : reviews < 10 et type non travel-safe.
+///   - 'low_rating' : rating < 4.0 ou null.
+///   - 'high_rating_few_reviews' : rating ≥ 4.5 mais reviews < 10.
+///   - 'generic_poi' : point_of_interest seul.
+///   - null si OK.
+String? _isAllowedFinalVisitCandidate(NearbyCandidate c) {
+  if (c.types.isEmpty) return 'generic_poi';
+  final primary = c.types.first;
+  final reviews = c.userRatingCount ?? 0;
+  final rating = c.rating ?? 0;
+
+  // Hard blocked sur TOUS les types (primary OR secondary).
+  if (c.types.any(_qualityFinalBlockedTypes.contains)) {
+    return 'blocked_type';
+  }
+
+  // Food types : restos/cafes/bakeries/etc. hors scope visites auto.
+  // Exception : market emblématique (food_market + tourist_attraction).
+  final isFoodType = _qualityFinalFoodTypes.contains(primary) ||
+      primary.endsWith('_restaurant');
+  if (isFoodType) {
+    final hasMarketContext = c.types.any(_qualityMarketTravelTypes.contains);
+    if (!hasMarketContext) {
+      return 'restaurant_out_of_scope';
+    }
+  }
+
+  // Rating < 4.0 toujours rejeté.
+  if (rating < 4.0) {
+    return 'low_rating';
+  }
+
+  // Rating ≥ 4.5 + reviews < 10 = bruit (anti review-stuffing).
+  if (rating >= 4.5 && reviews < 10) {
+    return 'high_rating_few_reviews';
+  }
+
+  // Reviews < 10 sauf si type explicitement travel-safe.
+  if (reviews < 10) {
+    final hasTravelSafe = c.types.any(_qualityTravelSafeTypes.contains);
+    if (!hasTravelSafe) {
+      return 'low_reviews';
+    }
+  }
+
+  // Weak event venues (event_venue, convention_center, stadium, etc.)
+  // doivent avoir UN signal cultural fort ET ≥ 500 avis. Plus strict
+  // que `_isQualityRejected` qui acceptait OR.
+  if (_qualityWeakEventPrimaryTypes.contains(primary)) {
+    final hasStrongCulturalSignal = c.types.any((t) =>
+        t == 'tourist_attraction' ||
+        t == 'historical_landmark' ||
+        t == 'historical_place' ||
+        t == 'museum' ||
+        t == 'art_museum' ||
+        t == 'history_museum' ||
+        t == 'cultural_center' ||
+        t == 'live_music_venue' ||
+        t == 'monument');
+    if (!hasStrongCulturalSignal ||
+        reviews < _qualityStrongLandmarkReviewsThreshold) {
+      return 'weak_event';
+    }
+  }
+
+  // Generic POI : `point_of_interest` seul ou avec types trop
+  // génériques (`establishment`, `place_of_worship` sans signal
+  // touristique). Couvre les data-bugs Google.
+  if (c.types.length == 1 && primary == 'point_of_interest') {
+    return 'generic_poi';
+  }
+
+  return null;
+}
 
 /// V8.4 — règle de qualité voyage. Retourne le nom du motif de rejet
 /// (string court, machine-friendly pour les logs `[places_quality_*]`)
@@ -2142,6 +2330,51 @@ List<ActivitySuggestion> selectVisitsDeterministic({
   required TravelerPlacesProfile? travelerProfile,
   Set<String> existingTitlesNormalized = const {},
 }) {
+  // V8.7 (Lalith 2026-05-10 — Quality-1A v4 final gate) — pré-filtre
+  // strict des candidats AVANT toute logique de sélection. Couvre les
+  // leaks observés sur run debug Thaïlande (painter, medical_clinic,
+  // tire_shop, noodle_shop, BITEC, supermarchés, etc.) qui passaient
+  // le gather mais pollutaient les visites finales. Tracking par
+  // catégorie de rejet pour le `[places_selector_summary]`.
+  final finalGateCounts = <String, int>{};
+  // Cap log volume : on logue uniquement les N premières rejections
+  // par catégorie, sinon les pools cold cache de 700+ candidats noient
+  // les autres logs.
+  const finalGateLogPerCategory = 5;
+  final finalGateLogged = <String, int>{};
+  final filteredClusters = clusters.map((cluster) {
+    final newPool = <
+        String,
+        ({NearbyCandidate candidate, List<String> matchedInterests})>{};
+    for (final entry in cluster.pool.entries) {
+      final candidate = entry.value.candidate;
+      final reason = _isAllowedFinalVisitCandidate(candidate);
+      if (reason == null) {
+        newPool[entry.key] = entry.value;
+        continue;
+      }
+      finalGateCounts[reason] = (finalGateCounts[reason] ?? 0) + 1;
+      final loggedSoFar = finalGateLogged[reason] ?? 0;
+      if (loggedSoFar < finalGateLogPerCategory) {
+        finalGateLogged[reason] = loggedSoFar + 1;
+        // ignore: avoid_print
+        print(
+          '[places_final_quality_reject] '
+          'name="${candidate.name}" '
+          'types=${candidate.types.take(3).join(",")} '
+          'rating=${candidate.rating ?? "?"} '
+          'reviews=${candidate.userRatingCount ?? 0} '
+          'reason=$reason',
+        );
+      }
+    }
+    return PlacesPromptInput(
+      center: cluster.center,
+      days: cluster.days,
+      pool: newPool,
+    );
+  }).toList();
+
   final maxPerDay = travelerProfile?.maxActivitiesPerDay ?? 4;
   final slots = _visitSlotsForCount(maxPerDay);
   // Distance max entre 2 activités successives. Croise profil voyageur ET
@@ -2232,7 +2465,7 @@ List<ActivitySuggestion> selectVisitsDeterministic({
   const maxEventsPerDayTolerant = 3;
   const maxEventsPerClusterLight = 2;
 
-  for (final cluster in clusters) {
+  for (final cluster in filteredClusters) {
     final useCountThisCluster = <String, int>{};
     final entries = cluster.pool.entries.toList();
     // V8.6 — wellness cap est désormais trip-wide, plus per-cluster.
@@ -2663,16 +2896,25 @@ List<ActivitySuggestion> selectVisitsDeterministic({
   }
   debugPrint(
     '[places_first] Sélecteur déterministe : ${out.length} visites sélectionnées '
-    '(${clusters.length} clusters × max $maxPerDay/jour)',
+    '(${filteredClusters.length} clusters × max $maxPerDay/jour)',
   );
-  // V8.6 (Lalith 2026-05-10) — log selector pour les rejets liés
-  // aux caps déterministes (wellness, event). `print` non throttlé.
+  // V8.7 (Lalith 2026-05-10 — Quality-1A v4) — selector summary
+  // enrichi avec la ventilation du final gate. `print` non throttlé.
   // Volume = 1 ligne par run.
-  if (rejectedByWellnessCap > 0) {
+  final finalGateTotal =
+      finalGateCounts.values.fold<int>(0, (s, v) => s + v);
+  if (rejectedByWellnessCap > 0 || finalGateTotal > 0) {
     // ignore: avoid_print
     print(
       '[places_selector_summary] tripId=${trip.id} '
       'selected=${out.length} '
+      'rejectedByFinalQuality=$finalGateTotal '
+      'rejectedByBlockedType=${finalGateCounts['blocked_type'] ?? 0} '
+      'rejectedByRestaurantOutOfScope=${finalGateCounts['restaurant_out_of_scope'] ?? 0} '
+      'rejectedByWeakEvent=${finalGateCounts['weak_event'] ?? 0} '
+      'rejectedByLowReviews=${(finalGateCounts['low_reviews'] ?? 0) + (finalGateCounts['high_rating_few_reviews'] ?? 0)} '
+      'rejectedByLowRating=${finalGateCounts['low_rating'] ?? 0} '
+      'rejectedByGenericPoi=${finalGateCounts['generic_poi'] ?? 0} '
       'rejectedByWellnessCap=$rejectedByWellnessCap '
       'tripWideWellnessCap=$tripWideWellnessCap',
     );
