@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
+import 'package:voyage/features/planning/data/destination_blueprints.dart';
 import 'package:voyage/features/planning/models/activity_suggestion_model.dart';
 import 'package:voyage/features/planning/services/ai_suggestions_service.dart';
 import 'package:voyage/features/planning/services/day_center_service.dart';
@@ -2030,6 +2031,117 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
     poolBySig[sig] = byInterest;
   }
 
+  // V8.13 (Lalith 2026-05-10 — Quality-1D destination blueprints) —
+  // seed la pool avec les must-sees / experiences curated du
+  // destination (Bangkok → Grand Palace, Wat Pho, IconSiam... ;
+  // Paris → Louvre, Eiffel Tower, Notre-Dame...). Sans ce seeding,
+  // la pool est dominée par les places nearby de l'hôtel (e.g.
+  // Bang Na malls pour Bangkok) au lieu des must-sees iconiques.
+  //
+  // Fetch UNE seule fois par run via `searchText` (queries
+  // hautement cacheables — « Grand Palace Bangkok » ne change
+  // jamais → cache TTL 90j de Cost-3 amortit dès la 2ᵉ run).
+  // Les markers synthétiques `_BlueprintMustSee` /
+  // `_BlueprintExperience` dans `byInterest` propagent l'info au
+  // selector qui appliquera +100 / +70 score boost (Phase 3).
+  final blueprint = getBlueprintForDestination(trip.destination);
+  final blueprintMustSees = <NearbyCandidate>[];
+  final blueprintExperiences = <NearbyCandidate>[];
+  if (blueprint != null) {
+    // ignore: avoid_print
+    print(
+      '[destination_blueprint] destination="${trip.destination}" '
+      'found=true kind=${blueprint.kind.name} '
+      'mustSee=${blueprint.mustSeeQueries.length} '
+      'experience=${blueprint.experienceQueries.length}',
+    );
+    if (validDayCenters.isNotEmpty) {
+      final biasCenter = validDayCenters.first.center;
+      // Helper inline — évite de dupliquer le pattern
+      // fetch + top-pick + log par tier.
+      Future<void> resolveBlueprintQuery(
+        String query,
+        String tier,
+        List<NearbyCandidate> destination,
+      ) async {
+        final results = await nearbyService.searchText(
+          textQuery: query,
+          latitude: biasCenter.latitude,
+          longitude: biasCenter.longitude,
+          // Rayon généreux : les blueprint queries sont city-wide
+          // (« Grand Palace Bangkok » résout à n'importe quel
+          // hotel Bangkok via geo-bias Google). 50km couvre métro
+          // + day-trips proches.
+          radius: 50000,
+          languageCode: 'fr',
+        );
+        if (results.isEmpty) {
+          // ignore: avoid_print
+          print(
+            '[blueprint_resolve] query="$query" status=miss tier=$tier',
+          );
+          return;
+        }
+        // Top match avec rating décent — protège contre les faux
+        // positifs Places (un homonyme « Grand Palace » à 3.2★).
+        final topPick = results.firstWhere(
+          (c) => (c.rating ?? 0) >= 4.0,
+          orElse: () => results.first,
+        );
+        destination.add(topPick);
+        // ignore: avoid_print
+        print(
+          '[blueprint_resolve] query="$query" status=hit '
+          'place="${topPick.name}" rating=${topPick.rating ?? "?"} '
+          'tier=$tier',
+        );
+      }
+
+      for (final query in blueprint.mustSeeQueries) {
+        await resolveBlueprintQuery(query, 'must_see', blueprintMustSees);
+      }
+      for (final query in blueprint.experienceQueries) {
+        await resolveBlueprintQuery(
+            query, 'experience', blueprintExperiences);
+      }
+      final nearbyTotal = poolBySig.values.fold<int>(
+        0,
+        (sum, byInt) =>
+            sum + byInt.values.fold(0, (s, list) => s + list.length),
+      );
+      // ignore: avoid_print
+      print(
+        '[places_pool] blueprintMustSee=${blueprintMustSees.length} '
+        'blueprintExperience=${blueprintExperiences.length} '
+        'nearby=$nearbyTotal '
+        'total=${nearbyTotal + blueprintMustSees.length + blueprintExperiences.length}',
+      );
+    }
+  } else if (trip.destination.trim().isNotEmpty) {
+    // ignore: avoid_print
+    print(
+      '[destination_blueprint] destination="${trip.destination}" found=false',
+    );
+  }
+
+  // Inject les blueprint candidates dans CHAQUE groupe sous des
+  // synthetic interest keys. Le selector détecte ces markers pour
+  // appliquer le score boost (cf. Phase 3 dans `selectVisitsDeterministic`).
+  // Partagé via référence — toutes les `DayCandidates` issues d'un
+  // même groupe verront la même liste. Ce qui est OK : les
+  // must-sees du voyage s'appliquent identiquement à tous les jours
+  // de la même ville.
+  if (blueprintMustSees.isNotEmpty || blueprintExperiences.isNotEmpty) {
+    for (final byInterest in poolBySig.values) {
+      if (blueprintMustSees.isNotEmpty) {
+        byInterest[blueprintMustSeeMarker] = blueprintMustSees;
+      }
+      if (blueprintExperiences.isNotEmpty) {
+        byInterest[blueprintExperienceMarker] = blueprintExperiences;
+      }
+    }
+  }
+
   // Étape 4 : assemblage `List<DayCandidates>`. Chaque jour récupère la
   // pool de son groupe — partage de référence, lecture seule en aval
   // (`selectVisitsDeterministic` / `partitionByQuartier` ne mutent pas).
@@ -3286,10 +3398,27 @@ List<ActivitySuggestion> selectVisitsDeterministic({
               (lat: anchorLat, lng: anchorLng),
             ),
           );
+          // V8.13 (Quality-1D) — détection blueprint must-see/experience
+          // depuis les markers synthétiques injectés en gather (réutilise
+          // `matchSet` calculé au-dessus pour `interestBonus`). Sert au
+          // score boost ET à plafonner la distance penalty (sinon un
+          // must-see iconique à 4 km perdrait vs un filler à 200 m).
+          final isBlueprintMustSee = matchSet.contains(blueprintMustSeeMarker);
+          final isBlueprintExperience =
+              matchSet.contains(blueprintExperienceMarker);
           // Distance penalty renforcée — décourage les transitions longues.
           // 2026-05-08 calibrage #3 : multiplicateur dérivé du
           // transportDistanceFactor (walk ≈ ×11.4, taxi ≈ ×5.3, etc.).
-          final distancePenalty = (d / maxConsec) * distancePenaltyMultiplier;
+          // V8.13 — must-sees iconiques cappées à 30 (ne peuvent pas
+          // être éliminés par la seule distance). Experiences gardent
+          // 50% de la pénalité (priorisées mais sensibles à la distance
+          // pour un meilleur clustering géo).
+          var distancePenalty = (d / maxConsec) * distancePenaltyMultiplier;
+          if (isBlueprintMustSee) {
+            distancePenalty = math.min(distancePenalty, 30.0);
+          } else if (isBlueprintExperience) {
+            distancePenalty = distancePenalty * 0.5;
+          }
           final keyN = norm(c.name);
           final clusterUseCount = useCountThisCluster[keyN] ?? 0;
           final tripUseCount = useCountAcrossTrip[keyN] ?? 0;
@@ -3338,10 +3467,21 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           );
           final sameTagCountInDay = tagCountThisDay[candidateTag] ?? 0;
           final tagDiversityPenalty = sameTagCountInDay * 10.0;
+          // V8.13 (Quality-1D) — bonus blueprint must-see/experience.
+          // Échelle pensée pour DOMINER les autres signaux :
+          //   +100 must-see > tout filler nearby (un must-see à
+          //   rating 4 / 1000 reviews fait ~28 base score → avec +100
+          //   = 128 vs un filler à rating 4.5 / 5000 reviews ~38).
+          //   +70 experience reste largement au-dessus mais cède
+          //   place aux must-sees iconiques de la même journée.
+          final blueprintBonus = isBlueprintMustSee
+              ? 100.0
+              : (isBlueprintExperience ? 70.0 : 0.0);
           return qualityScore +
               interestBonus +
               iconicMuseumBonus +
-              iconicTouristBonus -
+              iconicTouristBonus +
+              blueprintBonus -
               distancePenalty -
               diversityPenalty -
               wellnessConsecutivePenalty -

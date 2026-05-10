@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:voyage/features/planning/data/destination_blueprints.dart';
 import 'package:voyage/features/planning/services/day_center_service.dart';
 import 'package:voyage/features/planning/services/places_first_pipeline.dart';
 
@@ -298,6 +299,102 @@ void main() {
     test('whitespace autour → trim correctement', () {
       expect(isBroadDestinationName('  Paris  '), isFalse);
       expect(isBroadDestinationName('  France  '), isTrue);
+    });
+  });
+
+  // V8.13 (Lalith 2026-05-10 — Quality-1D destination blueprints) —
+  // verrouille le lookup blueprint. Le résultat drive le seeding de
+  // la pool avec must-sees/experiences avant la génération du planning,
+  // donc la stabilité de cette résolution est critique.
+  group('getBlueprintForDestination — Q1D blueprints lookup', () {
+    test('Bangkok variants → bangkok blueprint', () {
+      final b = getBlueprintForDestination('Bangkok');
+      expect(b, isNotNull);
+      expect(b!.destinationKey, 'bangkok');
+      expect(b.kind, DestinationKind.majorCity);
+      expect(b.mustSeeQueries, isNotEmpty);
+      expect(b.mustSeeQueries.any((q) => q.contains('Grand Palace')), isTrue);
+    });
+
+    test('« Bangkok, Thailand » → bangkok via first token', () {
+      final b = getBlueprintForDestination('Bangkok, Thailand');
+      expect(b?.destinationKey, 'bangkok');
+    });
+
+    test('« Krung Thep » → bangkok (variant)', () {
+      // Nom officiel thaï de Bangkok.
+      final b = getBlueprintForDestination('Krung Thep');
+      expect(b?.destinationKey, 'bangkok');
+    });
+
+    test('« BKK » abréviation → bangkok', () {
+      final b = getBlueprintForDestination('BKK');
+      expect(b?.destinationKey, 'bangkok');
+    });
+
+    test('Koh Samet variants → koh samet blueprint', () {
+      expect(getBlueprintForDestination('Koh Samet')?.destinationKey,
+          'koh samet');
+      expect(getBlueprintForDestination('Ko Samet')?.destinationKey,
+          'koh samet');
+      expect(
+          getBlueprintForDestination('Samet')?.destinationKey, 'koh samet');
+    });
+
+    test('Koh Samet → islandBeach kind', () {
+      final b = getBlueprintForDestination('Koh Samet');
+      expect(b?.kind, DestinationKind.islandBeach);
+    });
+
+    test('Paris variants → paris blueprint', () {
+      expect(getBlueprintForDestination('Paris')?.destinationKey, 'paris');
+      expect(getBlueprintForDestination('Paris, France')?.destinationKey,
+          'paris');
+      expect(getBlueprintForDestination('paris')?.destinationKey, 'paris');
+      expect(getBlueprintForDestination('PARIS')?.destinationKey, 'paris');
+    });
+
+    test('Paris must-sees contiennent les iconiques', () {
+      final b = getBlueprintForDestination('Paris');
+      expect(b, isNotNull);
+      expect(b!.mustSeeQueries.any((q) => q.contains('Louvre')), isTrue);
+      expect(b.mustSeeQueries.any((q) => q.contains('Eiffel Tower')), isTrue);
+      expect(b.mustSeeQueries.any((q) => q.contains('Notre-Dame')), isTrue);
+    });
+
+    test('insensible accents — « Marseillé » non match (city pas blueprint)', () {
+      // Marseille n'est PAS dans les blueprints V1 → null.
+      // Utile pour vérifier que le default null fonctionne.
+      expect(getBlueprintForDestination('Marseille'), isNull);
+    });
+
+    test('destinations broad (pays) → null (pas de blueprint pays)', () {
+      expect(getBlueprintForDestination('France'), isNull);
+      expect(getBlueprintForDestination('Thailand'), isNull);
+      expect(getBlueprintForDestination('Brazil'), isNull);
+    });
+
+    test('null / vide → null', () {
+      expect(getBlueprintForDestination(null), isNull);
+      expect(getBlueprintForDestination(''), isNull);
+      expect(getBlueprintForDestination('   '), isNull);
+    });
+
+    test('destination inconnue → null', () {
+      expect(getBlueprintForDestination('Vladivostok'), isNull);
+      expect(getBlueprintForDestination('Random City XYZ'), isNull);
+    });
+
+    test('markers blueprint sont distincts et non vides', () {
+      // Évite les régressions style « les deux markers retournent
+      // la même string » (silencieux mais kill le boost).
+      expect(blueprintMustSeeMarker, isNotEmpty);
+      expect(blueprintExperienceMarker, isNotEmpty);
+      expect(blueprintMustSeeMarker == blueprintExperienceMarker, isFalse);
+      // Préfixe `_` garantit non-collision avec les vrais intérêts
+      // user-facing (Culture, Nature, Shopping, etc.).
+      expect(blueprintMustSeeMarker.startsWith('_'), isTrue);
+      expect(blueprintExperienceMarker.startsWith('_'), isTrue);
     });
   });
 }
