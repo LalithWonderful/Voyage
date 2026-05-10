@@ -399,13 +399,17 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
       // bloquer indéfiniment (HTTP socket sans timeout par défaut). Le
       // timeout fait throw une `TimeoutException` qui tombe dans le catch
       // → fermeture du loader + toast graceful + retombe sur Cas 2.
+      // V8.4 (Lalith 2026-05-10) — flow turnkey passe en
+      // `category=activities` pour s'aligner sur la décision produit
+      // 0e24288 (restos retirés de l'auto-gen). Le turnkey ne doit
+      // pas insérer de repas non plus, sinon on contourne la décision.
       final suggestions = await runAutoPlacesFirst(
         trip: freshTrip,
         hotels: hotels,
         geocoder: ref.read(geocodingServiceProvider),
         nearbyService: ref.read(placesNearbyServiceProvider),
         aiService: ref.read(aiSuggestionsServiceProvider),
-        category: SuggestionCategory.all,
+        category: SuggestionCategory.activities,
         existingTitlesNormalized: existingTitlesNormalized,
         languageCode: 'fr',
       ).timeout(const Duration(seconds: 60));

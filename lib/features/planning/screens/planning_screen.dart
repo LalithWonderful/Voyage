@@ -535,7 +535,11 @@ class PlanningScreen extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     Trip trip, {
-    SuggestionCategory category = SuggestionCategory.all,
+    // V8.4 (Lalith 2026-05-10) — défaut bumpé `all` → `activities`
+    // pour s'aligner sur la décision produit (commit 0e24288, restos
+    // retirés de l'auto-gen). Tous les call sites prod passent
+    // explicitement `.activities` ; le défaut ici est un filet.
+    SuggestionCategory category = SuggestionCategory.activities,
     required PlanningMode mode,
   }) async {
     final navigator = Navigator.of(context, rootNavigator: true);

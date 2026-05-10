@@ -510,6 +510,160 @@ const Set<String> _hardExcludedAnyTypes = <String>{
   'strip_club',
 };
 
+/// V8.4 (Lalith 2026-05-10 — Phase Quality-1A) — types **purement
+/// services/commerce** sans dimension touristique possible. Rejet
+/// hard sur le primary, sans exception (vs `_excludedPlaceTypes`
+/// qui a une porte de sortie via `_touristicSignals`).
+///
+/// Observés dans les pools voyages réels : bijouteries, parfumeries,
+/// pharmacies, salles de sport, chiropracteurs, électroménager,
+/// quincailleries... Aucun voyageur ne tour a une `Loretta Farma &
+/// Beauty` ou un `Studio Conectar` (gym).
+const Set<String> _qualityHardBlocklistPrimaryTypes = <String>{
+  // Médical / paramédical
+  'chiropractor', 'foot_care', 'health',
+  // Commerce service-y
+  'jewelry_store', 'drugstore', 'cosmetics_store',
+  'electronics_store', 'hardware_store', 'wholesaler',
+  // Sport personnel (pas un loisir touristique)
+  'gym', 'fitness_center', 'sports_school',
+  // Bureaux / services
+  'corporate_office', 'finance', 'accounting',
+  'service', 'non_profit_organization',
+};
+
+/// V8.4 (Lalith 2026-05-10 — Phase Quality-1A) — types **commerciaux
+/// génériques** rejetés sauf si pairé avec un signal touristique
+/// (`_touristicSignals`). Couvre les cas où Google met `store` /
+/// `clothing_store` en primary mais le lieu est aussi un monument /
+/// market traditionnel / centre commercial historique.
+///
+/// Exemples valides : « Pernambucanas » primary `department_store`
+/// sans signal touristique → rejet. Mais une concept-store dans un
+/// monument ancien avec `tourist_attraction` secondaire → garde.
+const Set<String> _qualitySoftBlocklistPrimaryTypes = <String>{
+  'store',
+  'clothing_store',
+  'department_store',
+  'shoe_store',
+  'home_goods_store',
+  'sporting_goods_store',
+  'pet_store',
+  'toy_store',
+  'gift_shop', // sauf si tourist_attraction (cas placita Olvera Mexico)
+  'food_store', 'grocery_store', 'asian_grocery_store', 'convenience_store',
+  // Logements de fortune (ne devraient pas remonter mais Google parfois...)
+  'private_guest_room',
+};
+
+/// V8.4 — types « strong travel-safe » qui bypass la règle
+/// `reviews < 20` (rule 3). Un musée à 15 avis reste pertinent ; un
+/// store à 15 avis est suspect. Liste fermée et conservatrice.
+const Set<String> _qualityTravelSafeTypes = <String>{
+  'tourist_attraction',
+  'historical_landmark', 'historical_place',
+  'museum', 'art_museum', 'history_museum', 'science_museum',
+  'monument', 'sculpture',
+  'national_park', 'state_park', 'park', 'city_park',
+  'beach',
+  'viewpoint', 'scenic_spot',
+  'aquarium', 'zoo',
+  'art_gallery',
+  'cultural_center',
+  'performing_arts_theater', 'philharmonic_hall', 'concert_hall',
+  'cathedral', 'basilica',
+  'castle', 'fort',
+  'plaza',
+  'observation_deck',
+  'bridge',
+  'waterfall', 'lighthouse',
+  'amusement_park', 'theme_park',
+  'market', 'farmers_market',
+};
+
+/// V8.4 — types religieux. Rule 5 : ne pass que si aussi
+/// `_touristicSignals` OU reviews ≥ 200 (cathédrale connue, basilique
+/// historique). Une église de quartier à 24 avis n'est pas une
+/// activité touristique.
+const Set<String> _qualityReligiousTypes = <String>{
+  'church', 'place_of_worship', 'mosque', 'synagogue',
+  'buddhist_temple', 'hindu_temple', 'shinto_shrine',
+};
+
+/// V8.4 — seuil de reviews qui « légitime » un religieux ou un
+/// event_venue sans signal touristique secondaire. Empirique : une
+/// cathédrale célèbre dépasse facilement 1000 avis ; à 200+ c'est
+/// déjà une étape touristique reconnue.
+const int _qualityStrongLandmarkReviewsThreshold = 200;
+
+/// V8.4 — règle de qualité voyage. Retourne le nom du motif de rejet
+/// (string court, machine-friendly pour les logs `[places_quality_*]`)
+/// ou null si le candidat passe.
+///
+/// Appliqué APRÈS `_isExcludedPlace` (qui couvre les exclusions
+/// historiques). Filtre supplémentaire centré sur la pertinence
+/// **touristique** d'un lieu : éviter pharmacies, jewelry stores,
+/// salles de sport, lieux à 1-9 avis, etc., qui passent les autres
+/// filtres mais polluent les pools observés sur trips réels (Brésil,
+/// USA, Floride 2026-05-10).
+String? _isQualityRejected(NearbyCandidate c) {
+  if (c.types.isEmpty) return null;
+  final primary = c.types.first;
+  final reviews = c.userRatingCount ?? 0;
+  final rating = c.rating ?? 0;
+
+  // Rule 1a — hard blocklist primary, pas d'exception.
+  if (_qualityHardBlocklistPrimaryTypes.contains(primary)) {
+    return 'hard_blocklist_primary';
+  }
+
+  // Rule 1b — soft blocklist : primary commercial générique sans
+  // signal touristique sur un autre type → rejet.
+  if (_qualitySoftBlocklistPrimaryTypes.contains(primary) &&
+      !c.types.any(_touristicSignals.contains)) {
+    return 'soft_blocklist_no_touristic_signal';
+  }
+
+  // Rule 2 — high rating + low reviews = bruit (★5.0 1-5 avis = poubelle).
+  if (rating >= 4.5 && reviews < 10) {
+    return 'high_rating_too_few_reviews';
+  }
+
+  // Rule 3 — < 20 reviews sauf si type strongly travel-safe.
+  if (reviews < 20) {
+    final hasTravelSafe = c.types.any(_qualityTravelSafeTypes.contains);
+    if (!hasTravelSafe) {
+      return 'low_reviews_not_travel_safe';
+    }
+  }
+
+  // Rule 5 — religieux : doit avoir signal touristique OU ≥ 200 avis.
+  if (c.types.any(_qualityReligiousTypes.contains)) {
+    final hasTourSignal = c.types.any(_touristicSignals.contains);
+    if (!hasTourSignal && reviews < _qualityStrongLandmarkReviewsThreshold) {
+      return 'weak_religious_no_touristic_signal';
+    }
+  }
+
+  // Rule 4 — event_venue (primary) sans signal cultural fort →
+  // rejeté. Sans source événements datés (PredictHQ Premium future,
+  // cf. project_predicthq_premium), un event_venue générique = juste
+  // un bâtiment. On garde uniquement ceux qui sont aussi des lieux
+  // culturels reconnus (cf. `_qualityTravelSafeTypes`) OU qui ont
+  // un volume d'avis « monument-tier ».
+  if (primary == 'event_venue') {
+    final hasStrongSignal = c.types.any(_qualityTravelSafeTypes.contains) ||
+        c.types.contains('cultural_center') ||
+        c.types.contains('performing_arts_theater');
+    if (!hasStrongSignal &&
+        reviews < _qualityStrongLandmarkReviewsThreshold) {
+      return 'weak_event_venue_no_dated_source';
+    }
+  }
+
+  return null;
+}
+
 /// Vrai si le lieu doit être exclu de la pool. 3 niveaux :
 /// - Hard ANY : N'IMPORTE QUEL type matche `_hardExcludedAnyTypes` → rejet
 ///   (body_art_service, karaoke en secondaire ne sont pas sauvés).
@@ -822,6 +976,13 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
     '${transitRadius != null ? ", transit=${transitRadius}m (cascade si pool<$minPoolCascade)" : ""}',
   );
 
+  // V8.4 (Lalith 2026-05-10 — Phase Quality-1A) — compteur par motif
+  // de rejet qualité. Alimente `[places_quality_summary]` en fin de
+  // gather pour diagnostiquer ce qui a été filtré (ex: combien de
+  // jewelry stores rejetées, combien d'event venues sans signal).
+  // Déclaré ici pour être capturé par la closure `collectByInterest`.
+  final qualityRejectCounts = <String, int>{};
+
   // Récolte par intérêt avec un radius donné. Factorisé pour la cascade
   // walk→transit : on appelle d'abord avec walkRadius, et si la pool d'un jour
   // est trop maigre, on rappelle avec transitRadius en mergant les nouveaux
@@ -913,6 +1074,14 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
         if (r == null || r < placesGlobalMinRating) return false;
         if (!query.matchesFilters(c)) return false;
         if (_isExcludedPlace(c)) return false;
+        // V8.4 (Phase Quality-1A) — filtre travel-quality post
+        // exclusions historiques. Tracker les rejets par motif pour
+        // alimenter `[places_quality_summary]`.
+        final qReason = _isQualityRejected(c);
+        if (qReason != null) {
+          qualityRejectCounts[qReason] = (qualityRejectCounts[qReason] ?? 0) + 1;
+          return false;
+        }
         return true;
       }).toList();
       byInterest[interest] = filtered;
@@ -950,10 +1119,32 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
           geocoder: geocoder,
         ))),
   );
+  // V8.4 (Lalith 2026-05-10 — Phase Quality-1A, rule 6) — skip les
+  // jours orphelins. Si le voyage a des segments définis MAIS un
+  // jour donné n'est couvert par aucun (et pas d'hôtel non plus),
+  // `centerForDay` retombe sur `source='destination'` qui est trop
+  // large (centre géographique du pays, ex: Brésil = -14.235,-51.925).
+  // Générer du contenu là-dessus = filler de mauvaise qualité.
+  // Acceptance criteria : « Planning can be lighter instead of
+  // filling bad slots ». Le jour reste dans le voyage mais sans
+  // suggestion auto.
+  // Garde le fallback `destination` quand le voyage n'a AUCUN
+  // segment (cas trip fraîchement créé) — sinon on vide tout.
+  final tripHasSegments = trip.itinerarySegments.isNotEmpty;
+  var orphanDaysSkipped = 0;
   final validDayCenters = dayCenters
       .where((dc) {
         if (dc.center == null) {
           debugPrint('Jour ${_iso(dc.day)} : centre non géocodable, skip');
+          return false;
+        }
+        if (tripHasSegments && dc.center!.source == 'destination') {
+          debugPrint(
+            '[places_quality] ${_iso(dc.day)} : jour orphelin '
+            '(source=destination malgré segments présents) — skip pour '
+            'éviter le filler depuis le centre large du pays',
+          );
+          orphanDaysSkipped++;
           return false;
         }
         return true;
@@ -1072,6 +1263,24 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
     '${groups.length} groupe(s) de centres, '
     '$totalUnique lieux uniques cumulés',
   );
+
+  // V8.4 (Lalith 2026-05-10 — Phase Quality-1A) — summary des rejets
+  // qualité. `print` (pas debugPrint) pour échapper au throttle qui
+  // ferait disparaître la ligne sur cold cache verbeux. Volume = 1
+  // ligne par run, breakdown lisible pour diagnostiquer les filtres.
+  if (qualityRejectCounts.isNotEmpty || orphanDaysSkipped > 0) {
+    final breakdown = qualityRejectCounts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final total =
+        qualityRejectCounts.values.fold<int>(0, (s, v) => s + v);
+    // ignore: avoid_print
+    print(
+      '[places_quality_summary] tripId=${trip.id} '
+      'rejected=$total '
+      'orphanDaysSkipped=$orphanDaysSkipped '
+      'breakdown={${breakdown.map((e) => "${e.key}:${e.value}").join(",")}}',
+    );
+  }
   return pool;
 }
 
