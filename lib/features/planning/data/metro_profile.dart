@@ -323,18 +323,32 @@ const _tokyoMetro = MetroProfile(
       'hamarikyu', 'hama-rikyu', 'hama rikyu',
       'yasukuni',
     ]),
-    // W Tokyo + S central : Shibuya / Shinjuku / Meiji / Harajuku /
-    // Yoyogi / Roppongi / Tokyo Tower / Mori Tower / Azabudai.
-    // Shinjuku ↔ Tokyo Tower 5.3 km → cap 5 km rejette ce pack-là,
-    // mais Shibuya ↔ Tower 3.6 km accepté. Builder shrink fait le tri.
-    MetroZone(type: DayPackType.modernDay, patterns: [
-      'shibuya crossing', 'shibuya',
+    // V8.28d2 — split modernDay Tokyo en 2 zones géo distinctes. La
+    // simu 2026-05-11 a montré Shibuya Crossing + Shinjuku Gyoen +
+    // Tokyo Tower acceptés ensemble (maxTransitionKm=4.4, sous cap)
+    // mais ce n'est pas un vrai pack compact. Tokyo Tower appartient
+    // au cluster Roppongi/Minato (S central), pas à l'axe
+    // Shibuya/Harajuku/Shinjuku (W).
+    //
+    // W Tokyo : Shibuya / Shinjuku / Meiji / Harajuku / Yoyogi
+    // (axe Yamanote ouest). Inter-pick max ~3.5 km.
+    MetroZone(type: DayPackType.modernWestDay, patterns: [
+      'shibuya crossing', 'shibuya sky', 'shibuya scramble',
+      'hachiko', 'shibuya',
       'shinjuku gyoen', 'shinjuku',
       'meiji shrine', 'meiji jingu', 'meiji-jingu', 'meiji jingū',
       'harajuku', 'takeshita', 'omotesando',
-      'yoyogi park',
+      'yoyogi park', 'yoyogi',
+      'golden gai',
+      'tokyo metropolitan government',
+    ]),
+    // S central : Roppongi / Tokyo Tower / Mori Tower / Azabudai.
+    // Cluster compact <1.5 km autour de 35.66/139.74.
+    MetroZone(type: DayPackType.roppongiMinatoDay, patterns: [
+      'roppongi hills', 'roppongi',
       'tokyo tower', 'zojoji',
-      'roppongi', 'mori tower', 'azabudai',
+      'mori tower', 'tokyo city view',
+      'azabudai', 'azabu', 'minato',
     ]),
   ],
 );

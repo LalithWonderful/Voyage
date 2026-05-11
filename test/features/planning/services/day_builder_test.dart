@@ -747,6 +747,195 @@ void main() {
     });
   });
 
+  group('Day Builder V8.28d2 Tokyo zone separation', () {
+    // Tokyo trip — séparation géo des zones modernes. La simu
+    // 2026-05-11 montrait Shibuya + Shinjuku + Tokyo Tower groupés
+    // (techniquement ≤5 km sous cap V8.28d-fix) mais incohérent en
+    // expérience voyageur. Split en `modernWestDay` (W : Shibuya/
+    // Shinjuku/Meiji/Harajuku) et `roppongiMinatoDay` (S central :
+    // Tokyo Tower / Roppongi / Mori). Ces 2 archétypes ne doivent
+    // jamais se mélanger dans le même pack.
+    late Trip tokyoTrip;
+
+    setUp(() {
+      tokyoTrip = Trip(
+        id: 'trip3',
+        userId: 'u1',
+        title: 'Tokyo',
+        destination: 'Tokyo, Japan',
+        startDate: DateTime(2026, 5, 14),
+        endDate: DateTime(2026, 5, 20),
+        createdAt: DateTime(2026, 5, 10),
+      );
+    });
+
+    Map<String, ({NearbyCandidate candidate, List<String> matchedInterests})>
+        tokyoPool() {
+      final pool = <String,
+          ({NearbyCandidate candidate, List<String> matchedInterests})>{};
+      void add(String id, String name, double lat, double lng, int reviews,
+          List<String> types, List<String> mi) {
+        pool[id] = (
+          candidate: NearbyCandidate(
+            placeId: id,
+            name: name,
+            latitude: lat,
+            longitude: lng,
+            rating: 4.5,
+            userRatingCount: reviews,
+            types: types,
+          ),
+          matchedInterests: mi,
+        );
+      }
+
+      // NE Tokyo : Asakusa / Skytree / Ueno / Akihabara — oldCityDay.
+      add('senso', 'Sanctuaire Asakusa', 35.7148, 139.7967, 80000,
+          ['tourist_attraction', 'historical_landmark'],
+          [blueprintMustSeeMarker]);
+      add('skytree', 'Tokyo Skytree', 35.7101, 139.8107, 70000,
+          ['tourist_attraction'], [blueprintMustSeeMarker]);
+      add('ueno', 'Ueno Park', 35.7148, 139.7745, 50000,
+          ['park', 'tourist_attraction'], [blueprintMustSeeMarker]);
+      add('akihabara', 'Akihabara Electric Town', 35.7022, 139.7745, 30000,
+          ['tourist_attraction'], const []);
+      // W Tokyo : Shibuya / Shinjuku / Meiji / Harajuku — modernWestDay.
+      add('shibuya', 'Shibuya Crossing', 35.6595, 139.7004, 90000,
+          ['tourist_attraction'], [blueprintMustSeeMarker]);
+      add('shinjuku', 'Shinjuku Gyoen Park', 35.6852, 139.7100, 40000,
+          ['park'], [blueprintMustSeeMarker]);
+      add('meiji', 'Meiji-jingū', 35.6764, 139.6993, 60000,
+          ['tourist_attraction', 'historical_landmark'],
+          [blueprintMustSeeMarker]);
+      add('harajuku', 'Takeshita Street Harajuku', 35.6710, 139.7032, 25000,
+          ['tourist_attraction'], const []);
+      // S central : Tokyo Tower / Roppongi / Mori — roppongiMinatoDay.
+      add('tower', 'La Tour de Tokyo', 35.6586, 139.7454, 70000,
+          ['tourist_attraction'], [blueprintMustSeeMarker]);
+      add('roppongi', 'Roppongi Hills', 35.6606, 139.7298, 40000,
+          ['tourist_attraction'], [blueprintMustSeeMarker]);
+      add('mori', 'Roppongi Hills Mori Tower', 35.6604, 139.7293, 15000,
+          ['tourist_attraction'], const []);
+      // SE coast : Odaiba — riversideDay (padding).
+      add('odaiba', 'Odaiba Seaside Park', 35.6307, 139.7780, 20000,
+          ['park'], const []);
+      return pool;
+    }
+
+    test('Tokyo modernWestDay : Shibuya + Shinjuku + Meiji peuvent '
+        'être groupés', () {
+      final result = buildDayPacksForCluster(
+        clusterCenterLat: 35.6812,
+        clusterCenterLng: 139.7671,
+        clusterDays: [
+          DateTime(2026, 5, 16),
+          DateTime(2026, 5, 17),
+          DateTime(2026, 5, 18),
+        ],
+        clusterPool: tokyoPool(),
+        trip: tokyoTrip,
+        maxPerDay: 4,
+      );
+      expect(result.enabled, isTrue,
+          reason: 'Tokyo cluster doit activer Day Builder');
+      // Au moins 1 pack doit contenir 2+ places parmi
+      // {Shibuya, Shinjuku, Meiji} (cluster W).
+      final westIds = {'shibuya', 'shinjuku', 'meiji'};
+      final hasWestPack = result.dayPackByDate.values.any((pack) {
+        final overlap = pack.placeIds.intersection(westIds);
+        return overlap.length >= 2;
+      });
+      expect(hasWestPack, isTrue,
+          reason: 'attendu au moins 1 pack avec ≥2 places W Tokyo, '
+              'obtenu : ${result.dayPackByDate.values.map((p) =>
+                  '${p.type.label}=${p.placeIds}').join(' | ')}');
+    });
+
+    test('Tokyo roppongiMinatoDay : Tower + Roppongi + Mori peuvent '
+        'être groupés', () {
+      final result = buildDayPacksForCluster(
+        clusterCenterLat: 35.6812,
+        clusterCenterLng: 139.7671,
+        clusterDays: [
+          DateTime(2026, 5, 16),
+          DateTime(2026, 5, 17),
+          DateTime(2026, 5, 18),
+        ],
+        clusterPool: tokyoPool(),
+        trip: tokyoTrip,
+        maxPerDay: 4,
+      );
+      // Tokyo Tower, Roppongi, Mori sont 3 candidats compacts (~1 km).
+      // Si le greedy en place 2+ dans le même pack, ce doit être
+      // roppongiMinatoDay.
+      final roppongiIds = {'tower', 'roppongi', 'mori'};
+      for (final pack in result.dayPackByDate.values) {
+        final overlap = pack.placeIds.intersection(roppongiIds);
+        if (overlap.length >= 2) {
+          expect(pack.type, DayPackType.roppongiMinatoDay,
+              reason: '${overlap.length} places Roppongi/Tower groupées '
+                  'dans pack ${pack.type.label} (attendu : '
+                  'roppongi_minato_day)');
+        }
+      }
+    });
+
+    test('Tokyo : Tokyo Tower JAMAIS groupé avec Shinjuku Gyoen '
+        '(zones modernes distinctes)', () {
+      final result = buildDayPacksForCluster(
+        clusterCenterLat: 35.6812,
+        clusterCenterLng: 139.7671,
+        clusterDays: [
+          DateTime(2026, 5, 16),
+          DateTime(2026, 5, 17),
+          DateTime(2026, 5, 18),
+        ],
+        clusterPool: tokyoPool(),
+        trip: tokyoTrip,
+        maxPerDay: 4,
+      );
+      for (final pack in result.dayPackByDate.values) {
+        final ids = pack.placeIds;
+        expect(ids.contains('tower') && ids.contains('shinjuku'), isFalse,
+            reason: 'pack ${pack.type.label} mélange Tokyo Tower '
+                '(S central) et Shinjuku Gyoen (W) — interdit V8.28d2');
+        expect(ids.contains('tower') && ids.contains('shibuya'), isFalse,
+            reason: 'pack ${pack.type.label} mélange Tokyo Tower '
+                '(S central) et Shibuya (W) — interdit V8.28d2');
+      }
+    });
+
+    test('Tokyo oldCityDay NE : Asakusa + Skytree + Ueno peuvent '
+        'être groupés', () {
+      final result = buildDayPacksForCluster(
+        clusterCenterLat: 35.6812,
+        clusterCenterLng: 139.7671,
+        clusterDays: [
+          DateTime(2026, 5, 16),
+          DateTime(2026, 5, 17),
+          DateTime(2026, 5, 18),
+        ],
+        clusterPool: tokyoPool(),
+        trip: tokyoTrip,
+        maxPerDay: 4,
+      );
+      final neIds = {'senso', 'skytree', 'ueno'};
+      final hasNePack = result.dayPackByDate.values.any((pack) {
+        if (pack.type != DayPackType.oldCityDay) return false;
+        return pack.placeIds.intersection(neIds).length >= 2;
+      });
+      expect(hasNePack, isTrue,
+          reason: 'attendu ≥1 oldCityDay pack avec ≥2 NE Tokyo places, '
+              'obtenu : ${result.dayPackByDate.values.map((p) =>
+                  '${p.type.label}=${p.placeIds}').join(' | ')}');
+    });
+
+    test('Tokyo : enum labels exposés', () {
+      expect(DayPackType.modernWestDay.label, 'modern_west_day');
+      expect(DayPackType.roppongiMinatoDay.label, 'roppongi_minato_day');
+    });
+  });
+
   group('Day Builder cross-cluster reservation', () {
     test('reservedPlaceIds exclut les places déjà prises par autre cluster',
         () {

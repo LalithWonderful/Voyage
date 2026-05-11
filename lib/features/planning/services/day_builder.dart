@@ -21,6 +21,18 @@
 ///
 /// Extension : ajouter une `_BuilderCity` à `_builderCities` + créer le
 /// `DestinationBlueprint` correspondant (kind=majorCity) pour activer.
+///
+/// TODO (V8.28-future) — same-complex deduplication. Simu Tokyo
+/// 2026-05-11 a montré des packs Roppongi avec « Roppongi Hills
+/// Mori Tower » + « Roppongi Hills - Tokyo City View » (= même
+/// bâtiment, observation deck dans la tour). Idem Skytree avec
+/// « Tokyo Skytree » + « SKYTREE GALLERY » + « Tokyo Skytree Town ».
+/// Pas catastrophique mais ressemble à du remplissage artificiel.
+/// Fix proposé : règle « parent complex » détectée via prefix nominal
+/// (« Roppongi Hills », « Tokyo Skytree ») → garder 1 entrée par
+/// complexe, préférer le sous-lieu le plus iconique (observation deck
+/// > parent). À implémenter dans le slot picker (post-pack) ou
+/// directement dans la composition Day Builder.
 library;
 
 import 'dart:math' as math;
@@ -48,6 +60,15 @@ enum DayPackType {
   marketChatuchakDay('market_chatuchak_day'),
   marketSrinagarindraDay('market_srinagarindra_day'),
   modernDay('modern_day'),
+  // V8.28d2 (Lalith 2026-05-11) — split `modernDay` Tokyo en 2 zones
+  // géo distinctes. Simu Tokyo 2026-05-11 a montré que Shibuya
+  // Crossing + Shinjuku Gyoen + Tokyo Tower passait avec
+  // maxTransitionKm=4.4 (sous cap 5 km) mais ce n'est pas un vrai
+  // pack compact. Tokyo Tower appartient à Roppongi/Minato, pas à
+  // l'axe Shibuya/Harajuku/Shinjuku. Précédent : Bangkok marketDay
+  // splitté en marketOldCity/Chatuchak/Srinagarindra.
+  modernWestDay('modern_west_day'),
+  roppongiMinatoDay('roppongi_minato_day'),
   arrivalLightDay('arrival_light_day');
 
   final String label;
@@ -436,6 +457,11 @@ DayPack? _buildArrivalLightPack({
   final seen = <String>{};
   for (final type in [
     DayPackType.modernDay,
+    // V8.28d2 — arrival pool inclut aussi les modern zones Tokyo
+    // splittées. Garde le caractère « pattern non-must-see proche »
+    // pour le J1 compact autour de l'hôtel.
+    DayPackType.modernWestDay,
+    DayPackType.roppongiMinatoDay,
     DayPackType.riversideDay,
     DayPackType.oldCityDay,
   ]) {
@@ -614,6 +640,9 @@ DayBuilderResult buildDayPacksForCluster({
               DayPackType.marketSrinagarindraDay,
               DayPackType.riversideDay,
               DayPackType.modernDay,
+              // V8.28d2 — zones modernes Tokyo (split géo).
+              DayPackType.modernWestDay,
+              DayPackType.roppongiMinatoDay,
             ];
       for (final type in candidateTypes) {
         final pool = av[type]!;
