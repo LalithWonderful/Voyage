@@ -603,8 +603,301 @@ const _istanbulMetro = MetroProfile(
   ],
 );
 
+/// V8.28b (Lalith 2026-05-11) — +5 MetroProfiles : Séoul, Barcelone,
+/// Lisbonne, Ho Chi Minh City, Singapour. Zones génériques
+/// (oldCity/riverside/market/modern). Split géo intra-ville à
+/// envisager plus tard si simu révèle des zigzags (cas Bangkok V8.24
+/// ou Tokyo V8.28d2/d3).
+
+const _seoulMetro = MetroProfile(
+  cityKey: 'seoul',
+  lat: 37.5665,
+  lng: 126.9780,
+  clusterRadiusKm: 35.0,
+  disableMarketTypeFallback: false,
+  isMegaCity: true,
+  touristAnchors: [
+    TouristAnchor(label: 'Gyeongbokgung / Bukchon',
+        lat: 37.5796, lng: 126.9770),
+    TouristAnchor(label: 'Myeongdong', lat: 37.5636, lng: 126.9869),
+    TouristAnchor(label: 'Insadong', lat: 37.5747, lng: 126.9853),
+    TouristAnchor(label: 'Hongdae', lat: 37.5563, lng: 126.9236),
+    TouristAnchor(label: 'Gangnam', lat: 37.4979, lng: 127.0276),
+    TouristAnchor(label: 'N Seoul Tower / Namsan',
+        lat: 37.5512, lng: 126.9882),
+    TouristAnchor(label: 'Itaewon', lat: 37.5345, lng: 126.9947),
+    TouristAnchor(label: 'Dongdaemun', lat: 37.5664, lng: 127.0091),
+    TouristAnchor(label: 'Yeouido / Han River',
+        lat: 37.5285, lng: 126.9326, radiusMeters: 2500),
+  ],
+  zones: [
+    MetroZone(type: DayPackType.oldCityDay, patterns: [
+      'gyeongbokgung', 'changdeokgung', 'changgyeonggung',
+      'deoksugung', 'bukchon hanok', 'bukchon', 'insadong',
+      'jongmyo', 'jogyesa', 'seonjeongneung', 'unhyeongung',
+      'gwanghwamun',
+    ]),
+    MetroZone(type: DayPackType.riversideDay, patterns: [
+      'han river', 'hangang', 'yeouido', 'banpo bridge',
+      'banpo rainbow', 'seoul forest',
+    ]),
+    MetroZone(type: DayPackType.marketDay, patterns: [
+      'gwangjang market', 'namdaemun market', 'tongin market',
+      'mangwon market', 'gyeongdong market', 'noryangjin',
+      'dongdaemun market',
+    ]),
+    MetroZone(type: DayPackType.modernDay, patterns: [
+      'myeongdong', 'hongdae', 'hongik', 'gangnam', 'apgujeong',
+      'sinsa-dong', 'sinsadong', 'garosu-gil', 'garosugil',
+      'itaewon', 'coex', 'lotte world tower', 'lotte world',
+      'n seoul tower', 'namsan', 'dongdaemun design plaza',
+      'ddp', 'cheonggyecheon', 'seoul plaza',
+    ]),
+  ],
+);
+
+const _barcelonaMetro = MetroProfile(
+  cityKey: 'barcelona',
+  lat: 41.3851,
+  lng: 2.1734,
+  clusterRadiusKm: 30.0,
+  disableMarketTypeFallback: false,
+  isMegaCity: true,
+  touristAnchors: [
+    TouristAnchor(label: 'Sagrada Família',
+        lat: 41.4036, lng: 2.1744),
+    TouristAnchor(label: 'Park Güell',
+        lat: 41.4145, lng: 2.1527, radiusMeters: 2000),
+    TouristAnchor(label: 'Gothic Quarter / Las Ramblas',
+        lat: 41.3818, lng: 2.1731),
+    TouristAnchor(label: 'Passeig de Gràcia / Casa Batlló',
+        lat: 41.3919, lng: 2.1649),
+    TouristAnchor(label: 'Barceloneta', lat: 41.3789, lng: 2.1925),
+    TouristAnchor(label: 'Montjuïc',
+        lat: 41.3636, lng: 2.1655, radiusMeters: 2500),
+    TouristAnchor(label: 'El Born', lat: 41.3838, lng: 2.1809),
+    TouristAnchor(label: 'Camp Nou', lat: 41.3809, lng: 2.1228),
+  ],
+  zones: [
+    MetroZone(type: DayPackType.oldCityDay, patterns: [
+      'gothic quarter', 'barri gòtic', 'barri gotic',
+      'las ramblas', 'la rambla',
+      'barcelona cathedral', 'catedral de barcelona',
+      'plaça reial', 'placa reial',
+      'el born', 'born', 'palau de la música',
+      'palau de la musica', 'santa maria del mar',
+      'picasso museum', 'museu picasso',
+    ]),
+    MetroZone(type: DayPackType.riversideDay, patterns: [
+      'barceloneta', 'port vell', 'maremagnum',
+      'platja de la barceloneta', 'port olímpic', 'port olimpic',
+      'platja del bogatell',
+    ]),
+    MetroZone(type: DayPackType.marketDay, patterns: [
+      'la boqueria', 'mercat de la boqueria',
+      'mercat de sant antoni', 'mercat de la concepció',
+      'mercat de la concepcio', 'mercat de santa caterina',
+      'mercat dels encants',
+    ]),
+    MetroZone(type: DayPackType.modernDay, patterns: [
+      'sagrada familia', 'sagrada família',
+      'park güell', 'park guell',
+      'casa batlló', 'casa batllo',
+      'casa milà', 'casa mila', 'la pedrera',
+      'passeig de gràcia', 'passeig de gracia',
+      'plaça catalunya', 'placa catalunya',
+      'montjuïc', 'montjuic', 'magic fountain',
+      'camp nou', 'tibidabo', 'bunkers del carmel',
+      'park de la ciutadella', 'arc de triomf',
+    ]),
+  ],
+);
+
+const _lisbonMetro = MetroProfile(
+  cityKey: 'lisbon',
+  lat: 38.7223,
+  lng: -9.1393,
+  clusterRadiusKm: 30.0,
+  disableMarketTypeFallback: false,
+  isMegaCity: true,
+  touristAnchors: [
+    TouristAnchor(label: 'Belém / Torre de Belém',
+        lat: 38.6916, lng: -9.2160),
+    TouristAnchor(label: 'Alfama / Castelo',
+        lat: 38.7115, lng: -9.1300),
+    TouristAnchor(label: 'Bairro Alto / Chiado',
+        lat: 38.7110, lng: -9.1430),
+    TouristAnchor(label: 'Baixa / Praça do Comércio',
+        lat: 38.7077, lng: -9.1366),
+    TouristAnchor(label: 'Sé / Cathedral',
+        lat: 38.7098, lng: -9.1329),
+    TouristAnchor(label: 'LX Factory', lat: 38.7036, lng: -9.1799),
+    TouristAnchor(label: 'Parque das Nações',
+        lat: 38.7681, lng: -9.0942),
+    TouristAnchor(label: 'Gulbenkian / Eduardo VII',
+        lat: 38.7367, lng: -9.1538),
+  ],
+  zones: [
+    MetroZone(type: DayPackType.oldCityDay, patterns: [
+      'alfama', 'castelo de são jorge', 'castelo de sao jorge',
+      'são jorge castle', 'sao jorge castle',
+      'sé de lisboa', 'se de lisboa', 'sé cathedral', 'se cathedral',
+      'baixa', 'praça do comércio', 'praca do comercio',
+      'chiado', 'rossio', 'praça do rossio', 'praca do rossio',
+      'mouraria', 'graça', 'graca',
+      'miradouro santa luzia', 'miradouro das portas do sol',
+    ]),
+    MetroZone(type: DayPackType.riversideDay, patterns: [
+      'tagus', 'tejo', 'torre de belém', 'torre de belem',
+      'belém tower', 'belem tower',
+      'padrão dos descobrimentos', 'padrao dos descobrimentos',
+      'monument of the discoveries',
+      'cais do sodré', 'cais do sodre',
+      'doca de santo amaro', 'ponte 25 de abril',
+    ]),
+    MetroZone(type: DayPackType.marketDay, patterns: [
+      'time out market lisboa', 'time out market',
+      'mercado da ribeira',
+      'mercado de campo de ourique',
+      'feira da ladra',
+    ]),
+    MetroZone(type: DayPackType.modernDay, patterns: [
+      'mosteiro dos jerónimos', 'mosteiro dos jeronimos',
+      'jerónimos monastery', 'jeronimos monastery',
+      'maat', 'museu coleção berardo', 'berardo museum',
+      'bairro alto', 'príncipe real', 'principe real',
+      'lx factory', 'parque das nações', 'parque das nacoes',
+      'oceanário', 'oceanario', 'gulbenkian',
+      'eduardo vii', 'avenida da liberdade',
+      'miradouro santa catarina', 'miradouro de são pedro',
+      'miradouro de sao pedro',
+      'tram 28', 'elétrico 28', 'electrico 28',
+    ]),
+  ],
+);
+
+const _hoChiMinhMetro = MetroProfile(
+  cityKey: 'ho chi minh',
+  lat: 10.7769,
+  lng: 106.7009,
+  clusterRadiusKm: 30.0,
+  disableMarketTypeFallback: false,
+  isMegaCity: true,
+  touristAnchors: [
+    TouristAnchor(label: 'Notre-Dame Cathedral / Post Office',
+        lat: 10.7798, lng: 106.6989),
+    TouristAnchor(label: 'Ben Thanh Market',
+        lat: 10.7724, lng: 106.6981),
+    TouristAnchor(label: 'Reunification Palace',
+        lat: 10.7770, lng: 106.6953),
+    TouristAnchor(label: 'War Remnants Museum',
+        lat: 10.7794, lng: 106.6920),
+    TouristAnchor(label: 'Bitexco Financial Tower',
+        lat: 10.7716, lng: 106.7045),
+    TouristAnchor(label: 'Bui Vien / Pham Ngu Lao',
+        lat: 10.7666, lng: 106.6929),
+    TouristAnchor(label: 'Dong Khoi / Opera House',
+        lat: 10.7770, lng: 106.7037),
+    TouristAnchor(label: 'Cho Lon / Chinatown',
+        lat: 10.7541, lng: 106.6589),
+  ],
+  zones: [
+    MetroZone(type: DayPackType.oldCityDay, patterns: [
+      'notre-dame cathedral', 'notre dame cathedral basilica',
+      'saigon central post office', 'saigon post office',
+      'reunification palace', 'independence palace',
+      'saigon opera house', 'municipal theatre',
+      'people\'s committee', 'city hall ho chi minh',
+      'jade emperor pagoda', 'phuoc hai tu',
+      'mariamman temple', 'thien hau temple',
+      'cha tam church',
+    ]),
+    MetroZone(type: DayPackType.riversideDay, patterns: [
+      'saigon river', 'song sai gon', 'bach dang wharf',
+      'bach dang park', 'thu thiem', 'phu my bridge',
+      'nha rong wharf',
+    ]),
+    MetroZone(type: DayPackType.marketDay, patterns: [
+      'ben thanh market', 'cho ben thanh',
+      'binh tay market', 'cho binh tay',
+      'an dong market', 'cho an dong',
+      'tan dinh market', 'cho lon',
+    ]),
+    MetroZone(type: DayPackType.modernDay, patterns: [
+      'bitexco financial tower', 'saigon skydeck',
+      'landmark 81', 'landmark81',
+      'bui vien', 'pham ngu lao',
+      'dong khoi', 'nguyen hue walking street',
+      'war remnants museum', 'fine arts museum ho chi minh',
+      'tao dan park', 'september 23 park',
+      'vincom center', 'diamond plaza',
+    ]),
+  ],
+);
+
+const _singaporeMetro = MetroProfile(
+  cityKey: 'singapore',
+  lat: 1.3521,
+  lng: 103.8198,
+  clusterRadiusKm: 35.0,
+  disableMarketTypeFallback: false,
+  isMegaCity: true,
+  touristAnchors: [
+    TouristAnchor(label: 'Marina Bay Sands',
+        lat: 1.2834, lng: 103.8607),
+    TouristAnchor(label: 'Gardens by the Bay',
+        lat: 1.2816, lng: 103.8636, radiusMeters: 2500),
+    TouristAnchor(label: 'Sentosa',
+        lat: 1.2494, lng: 103.8303, radiusMeters: 3000),
+    TouristAnchor(label: 'Chinatown', lat: 1.2842, lng: 103.8439),
+    TouristAnchor(label: 'Little India', lat: 1.3066, lng: 103.8520),
+    TouristAnchor(label: 'Kampong Glam / Arab Street',
+        lat: 1.3019, lng: 103.8590),
+    TouristAnchor(label: 'Orchard Road', lat: 1.3050, lng: 103.8327),
+    TouristAnchor(label: 'Clarke Quay / Boat Quay',
+        lat: 1.2904, lng: 103.8467),
+    TouristAnchor(label: 'Singapore Botanic Gardens',
+        lat: 1.3138, lng: 103.8159, radiusMeters: 2500),
+  ],
+  zones: [
+    MetroZone(type: DayPackType.oldCityDay, patterns: [
+      'chinatown singapore', 'chinatown heritage centre',
+      'sri mariamman temple', 'buddha tooth relic temple',
+      'thian hock keng', 'kampong glam',
+      'sultan mosque', 'masjid sultan',
+      'haji lane', 'little india singapore',
+      'sri veeramakaliamman', 'sri srinivasa perumal',
+      'civic district singapore', 'fort canning',
+    ]),
+    MetroZone(type: DayPackType.riversideDay, patterns: [
+      'singapore river', 'clarke quay', 'boat quay',
+      'robertson quay', 'merlion park', 'merlion',
+      'esplanade theatres', 'esplanade',
+      'helix bridge', 'jubilee bridge',
+    ]),
+    MetroZone(type: DayPackType.marketDay, patterns: [
+      'lau pa sat', 'maxwell food centre', 'maxwell hawker',
+      'tekka centre', 'tekka market',
+      'chinatown food street', 'old airport road food centre',
+      'newton food centre', 'tiong bahru market',
+    ]),
+    MetroZone(type: DayPackType.modernDay, patterns: [
+      'marina bay sands', 'gardens by the bay', 'supertree grove',
+      'cloud forest singapore', 'flower dome',
+      'artscience museum',
+      'sentosa', 'universal studios singapore', 'usss',
+      'singapore flyer', 'national gallery singapore',
+      'national museum singapore',
+      'orchard road', 'ion orchard',
+      'singapore botanic gardens', 'botanic gardens singapore',
+      'mount faber', 'pinnacle@duxton',
+    ]),
+  ],
+);
+
 /// Registre des MetroProfile actifs. V8.27 = 2 villes (Bangkok,
 /// Paris). V8.28a = +5 (Tokyo, New York, London, Rome, Istanbul).
+/// V8.28b = +5 (Séoul, Barcelone, Lisbonne, HCM, Singapour).
 /// Ajouter ici pour activer Day Builder sur de nouvelles
 /// métropoles. L'ordre n'a pas d'importance (lookup par haversine).
 const metroProfiles = <MetroProfile>[
@@ -615,6 +908,11 @@ const metroProfiles = <MetroProfile>[
   _londonMetro,
   _romeMetro,
   _istanbulMetro,
+  _seoulMetro,
+  _barcelonaMetro,
+  _lisbonMetro,
+  _hoChiMinhMetro,
+  _singaporeMetro,
 ];
 
 /// Lookup MetroProfile pour un cluster donné. Retourne le 1er profile

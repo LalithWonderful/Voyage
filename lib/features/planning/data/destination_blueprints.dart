@@ -279,6 +279,133 @@ const _istanbulBlueprint = DestinationBlueprint(
   ],
 );
 
+/// V8.28b (Lalith 2026-05-11) — +5 villes mégalopoles : Séoul,
+/// Barcelone, Lisbonne, Ho Chi Minh City, Singapour. Précédent V8.28a
+/// = Tokyo/NYC/London/Rome/Istanbul. Chaque blueprint contient 10
+/// must-see + 5 experience curés sur les iconiques touristiques.
+/// MetroProfile correspondant ajouté dans `metro_profile.dart`
+/// (zones + 8-9 tourist anchors par ville).
+
+const _seoulBlueprint = DestinationBlueprint(
+  destinationKey: 'seoul',
+  kind: DestinationKind.majorCity,
+  mustSeeQueries: [
+    'Gyeongbokgung Palace Seoul',
+    'N Seoul Tower Namsan',
+    'Bukchon Hanok Village Seoul',
+    'Changdeokgung Palace Seoul',
+    'Myeongdong Seoul',
+    'Insadong Seoul',
+    'Gwangjang Market Seoul',
+    'Dongdaemun Design Plaza Seoul',
+    'Lotte World Tower Seoul',
+    'Hongdae walking street Seoul',
+  ],
+  experienceQueries: [
+    'Han River park Seoul',
+    'Gangnam Seoul',
+    'Cheonggyecheon stream Seoul',
+    'Itaewon Seoul',
+    'Namsan cable car Seoul',
+  ],
+);
+
+const _barcelonaBlueprint = DestinationBlueprint(
+  destinationKey: 'barcelona',
+  kind: DestinationKind.majorCity,
+  mustSeeQueries: [
+    'Sagrada Familia Barcelona',
+    'Park Güell Barcelona',
+    'Casa Batlló Barcelona',
+    'Casa Milà La Pedrera Barcelona',
+    'Gothic Quarter Barcelona',
+    'Las Ramblas Barcelona',
+    'La Boqueria market Barcelona',
+    'Picasso Museum Barcelona',
+    'Montjuïc Castle Barcelona',
+    'Barceloneta beach Barcelona',
+  ],
+  experienceQueries: [
+    'Camp Nou Barcelona',
+    'El Born Barcelona',
+    'Tibidabo Barcelona',
+    'Magic Fountain Montjuïc',
+    'Bunkers del Carmel Barcelona',
+  ],
+);
+
+const _lisbonBlueprint = DestinationBlueprint(
+  destinationKey: 'lisbon',
+  kind: DestinationKind.majorCity,
+  mustSeeQueries: [
+    'Torre de Belém Lisbon',
+    'Mosteiro dos Jerónimos Lisbon',
+    'Castelo de São Jorge Lisbon',
+    'Alfama Lisbon',
+    'Praça do Comércio Lisbon',
+    'Padrão dos Descobrimentos Lisbon',
+    'Tram 28 Lisbon',
+    'Bairro Alto Lisbon',
+    'Sé Cathedral Lisbon',
+    'Praça do Rossio Lisbon',
+  ],
+  experienceQueries: [
+    'Time Out Market Lisboa',
+    'LX Factory Lisbon',
+    'Pastéis de Belém Lisbon',
+    'Fado Alfama Lisbon',
+    'Miradouro de Santa Catarina Lisbon',
+  ],
+);
+
+const _hoChiMinhBlueprint = DestinationBlueprint(
+  destinationKey: 'ho chi minh',
+  kind: DestinationKind.majorCity,
+  mustSeeQueries: [
+    'Notre-Dame Cathedral Saigon',
+    'Saigon Central Post Office',
+    'War Remnants Museum Ho Chi Minh',
+    'Reunification Palace Ho Chi Minh',
+    'Ben Thanh Market Ho Chi Minh',
+    'Bitexco Financial Tower Saigon',
+    'Saigon Opera House',
+    'Jade Emperor Pagoda Ho Chi Minh',
+    'Landmark 81 Vietnam',
+    'Cho Lon Chinatown Saigon',
+  ],
+  experienceQueries: [
+    'Bui Vien walking street Saigon',
+    'Saigon River cruise',
+    'Dong Khoi Street Saigon',
+    'Cu Chi tunnels day trip',
+    'banh mi street food Saigon',
+  ],
+);
+
+const _singaporeBlueprint = DestinationBlueprint(
+  destinationKey: 'singapore',
+  kind: DestinationKind.majorCity,
+  mustSeeQueries: [
+    'Marina Bay Sands Singapore',
+    'Gardens by the Bay Supertree',
+    'Sentosa Island Singapore',
+    'Chinatown Singapore',
+    'Little India Singapore',
+    'Singapore Botanic Gardens',
+    'Merlion Park Singapore',
+    'Orchard Road Singapore',
+    'ArtScience Museum Singapore',
+    'Buddha Tooth Relic Temple Singapore',
+  ],
+  experienceQueries: [
+    'Clarke Quay Singapore night',
+    'Lau Pa Sat hawker centre',
+    'Maxwell Food Centre Singapore',
+    'Singapore Flyer',
+    'Kampong Glam Arab Street',
+  ],
+);
+
 /// Normalise une destination pour le lookup blueprint :
 /// - prend le premier token avant la virgule
 /// - lowercase
@@ -313,6 +440,27 @@ String _normalizeBlueprintKey(String s) {
   if (n == 'londres' || n == 'london uk') return 'london';
   if (n == 'roma') return 'rome';
   if (n == 'constantinople' || n == 'istambul') return 'istanbul';
+  // V8.28b — aliases pour les 5 nouvelles métropoles.
+  if (n == 'seul' || n == 'soul' || n == 'sŏul') return 'seoul';
+  if (n == 'barcelone' || n == 'barca' || n == 'barça' ||
+      n == 'bcn') {
+    return 'barcelona';
+  }
+  if (n == 'lisbonne' || n == 'lisboa' || n == 'lissabon') {
+    return 'lisbon';
+  }
+  if (n == 'ho chi minh city' ||
+      n == 'ho chi minh ville' ||
+      n == 'hcm' ||
+      n == 'hcmc' ||
+      n == 'saigon' ||
+      n == 'sai gon' ||
+      n == 'thanh pho ho chi minh') {
+    return 'ho chi minh';
+  }
+  if (n == 'singapour' || n == 'singapura' || n == 'sg') {
+    return 'singapore';
+  }
   return n;
 }
 
@@ -339,6 +487,17 @@ DestinationBlueprint? getBlueprintForDestination(String? destination) {
       return _romeBlueprint;
     case 'istanbul':
       return _istanbulBlueprint;
+    // V8.28b — +5 villes mégalopoles.
+    case 'seoul':
+      return _seoulBlueprint;
+    case 'barcelona':
+      return _barcelonaBlueprint;
+    case 'lisbon':
+      return _lisbonBlueprint;
+    case 'ho chi minh':
+      return _hoChiMinhBlueprint;
+    case 'singapore':
+      return _singaporeBlueprint;
   }
   return null;
 }

@@ -449,6 +449,101 @@ void main() {
       // Hors zone : null.
       expect(getMetroProfileForCluster(0.0, 0.0), isNull);
     });
+
+    // V8.28b — sanity +5 villes mégalopoles.
+    test('V8.28b — Séoul blueprint + aliases', () {
+      final bp = getBlueprintForDestination('Seoul');
+      expect(bp, isNotNull);
+      expect(bp!.kind, DestinationKind.majorCity);
+      expect(bp.destinationKey, 'seoul');
+      expect(bp.mustSeeQueries.length, greaterThanOrEqualTo(8));
+      expect(getBlueprintForDestination('Séoul')?.destinationKey, 'seoul');
+      expect(getBlueprintForDestination('Seul')?.destinationKey, 'seoul');
+    });
+
+    test('V8.28b — Barcelone blueprint + aliases', () {
+      final bp = getBlueprintForDestination('Barcelona');
+      expect(bp, isNotNull);
+      expect(bp!.destinationKey, 'barcelona');
+      expect(bp.kind, DestinationKind.majorCity);
+      expect(getBlueprintForDestination('Barcelone')?.destinationKey,
+          'barcelona');
+      expect(getBlueprintForDestination('BCN')?.destinationKey, 'barcelona');
+      expect(getBlueprintForDestination('Barça')?.destinationKey,
+          'barcelona');
+    });
+
+    test('V8.28b — Lisbonne blueprint + aliases', () {
+      final bp = getBlueprintForDestination('Lisbon');
+      expect(bp, isNotNull);
+      expect(bp!.destinationKey, 'lisbon');
+      expect(bp.kind, DestinationKind.majorCity);
+      expect(getBlueprintForDestination('Lisbonne')?.destinationKey,
+          'lisbon');
+      expect(getBlueprintForDestination('Lisboa')?.destinationKey, 'lisbon');
+    });
+
+    test('V8.28b — Ho Chi Minh blueprint + aliases (Saigon / HCM / HCMC)',
+        () {
+      final bp = getBlueprintForDestination('Ho Chi Minh');
+      expect(bp, isNotNull);
+      expect(bp!.destinationKey, 'ho chi minh');
+      expect(bp.kind, DestinationKind.majorCity);
+      expect(getBlueprintForDestination('Ho Chi Minh City')?.destinationKey,
+          'ho chi minh');
+      expect(getBlueprintForDestination('Saigon')?.destinationKey,
+          'ho chi minh');
+      expect(getBlueprintForDestination('HCMC')?.destinationKey,
+          'ho chi minh');
+      expect(getBlueprintForDestination('HCM')?.destinationKey,
+          'ho chi minh');
+    });
+
+    test('V8.28b — Singapour blueprint + aliases', () {
+      final bp = getBlueprintForDestination('Singapore');
+      expect(bp, isNotNull);
+      expect(bp!.destinationKey, 'singapore');
+      expect(bp.kind, DestinationKind.majorCity);
+      expect(getBlueprintForDestination('Singapour')?.destinationKey,
+          'singapore');
+      expect(getBlueprintForDestination('SG')?.destinationKey, 'singapore');
+    });
+
+    test('V8.28b — getMetroProfileForCluster pour les 5 nouvelles villes',
+        () {
+      // Séoul : Gyeongbokgung area.
+      expect(getMetroProfileForCluster(37.5665, 126.9780)?.cityKey,
+          'seoul');
+      // Barcelone : centre.
+      expect(getMetroProfileForCluster(41.3851, 2.1734)?.cityKey,
+          'barcelona');
+      // Lisbonne : Praça do Comércio area.
+      expect(getMetroProfileForCluster(38.7223, -9.1393)?.cityKey,
+          'lisbon');
+      // HCM : District 1.
+      expect(getMetroProfileForCluster(10.7769, 106.7009)?.cityKey,
+          'ho chi minh');
+      // Singapour : Marina Bay area.
+      expect(getMetroProfileForCluster(1.3521, 103.8198)?.cityKey,
+          'singapore');
+    });
+
+    test('V8.28b — MetroProfile.isMegaCity=true pour les 5 nouvelles',
+        () {
+      for (final city in [
+        'seoul', 'barcelona', 'lisbon', 'ho chi minh', 'singapore',
+      ]) {
+        final profile = metroProfiles.firstWhere((p) => p.cityKey == city);
+        expect(profile.isMegaCity, isTrue,
+            reason: '$city doit être isMegaCity=true (cap 5 km '
+                'maxTransitionKm activé)');
+        expect(profile.zones.length, greaterThanOrEqualTo(4),
+            reason: '$city doit avoir ≥4 zones (oldCity/riverside/'
+                'market/modern)');
+        expect(profile.touristAnchors.length, greaterThanOrEqualTo(7),
+            reason: '$city doit avoir ≥7 tourist anchors curated');
+      }
+    });
   });
 
   group('V8.28f2 isRestaurantDisguisedForVisit', () {
