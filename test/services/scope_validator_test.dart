@@ -518,7 +518,296 @@ void main() {
     });
   });
 
-  // ─── 7. Robustesse null / vide ───────────────────────────────────────
+  // ─── 7. blockedNeighborRegions (Phase 3 / Tâche 3.2) ─────────────────
+
+  group('blockedNeighborRegions — DI driven', () {
+    // Singapour avec blockedNeighborRegions explicitement renseigné.
+    DestinationIntelligence sgWithRegions() => DestinationIntelligence(
+          destinationKey: 'singapore',
+          canonicalCenter: const GeoPoint(lat: 1.3521, lng: 103.8198),
+          countryCode: 'SG',
+          allowedCountryCodes: const ['SG'],
+          blockedCountryCodes: const ['MY', 'ID'],
+          blockedNeighborRegions: const [
+            'johor bahru',
+            'johor',
+            'ksl city',
+            'komtar',
+            'jbcc',
+            'batam',
+            'bintan',
+            'lagoi',
+            'tanjung pinang',
+            'kepri',
+          ],
+          borderSensitivity: BorderSensitivity.high,
+          tripMode: TripMode.megaCity,
+          zones: [
+            const TouristZone(
+              name: 'Marina Bay',
+              center: GeoPoint(lat: 1.283, lng: 103.860),
+              radiusKm: 2,
+              theme: 'waterfront',
+            ),
+          ],
+          anchors: [
+            const DestinationAnchor(
+              name: 'Gardens',
+              placeQueries: ['Gardens'],
+              importance: 5,
+              recommendedDuration: Duration(minutes: 180),
+            ),
+          ],
+          transportRules: const TransportRules(
+            maxTransitionKm: 5,
+            dominantMode: 'public_transport',
+            hasMetro: true,
+            hasMetroAnchorLogic: true,
+          ),
+        );
+
+    test('Address "KSL City Mall, Johor Bahru" → rejet '
+        'blockedNeighborRegion (matche ksl city OU johor bahru)', () {
+      final r = validatePlaceInScope(
+        const ScopeValidationPlace(
+            address: 'KSL City Mall, Johor Bahru, Malaysia'),
+        sgWithRegions(),
+      );
+      expect(r.isInScope, isFalse);
+      expect(r.rejectionReason,
+          equals(ScopeRejectionReason.blockedNeighborRegion));
+      expect(r.confidence, equals(ScopeConfidence.medium));
+    });
+
+    test('Address "Batam, Indonesia" rejeté via blockedNeighborRegions',
+        () {
+      final r = validatePlaceInScope(
+        const ScopeValidationPlace(
+            address: 'Mega Mall, Batam, Indonesia'),
+        sgWithRegions(),
+      );
+      expect(r.isInScope, isFalse);
+      expect(r.rejectionReason,
+          equals(ScopeRejectionReason.blockedNeighborRegion));
+      expect(r.matchedEvidence, equals('batam'));
+    });
+
+    test('Address "Tanjung Pinang, Kepri" rejeté', () {
+      final r = validatePlaceInScope(
+        const ScopeValidationPlace(
+            address: 'Hotel, Tanjung Pinang, Kepri Province'),
+        sgWithRegions(),
+      );
+      expect(r.isInScope, isFalse);
+      expect(r.rejectionReason,
+          equals(ScopeRejectionReason.blockedNeighborRegion));
+    });
+
+    test('Address "Lagoi, Bintan" rejeté', () {
+      final r = validatePlaceInScope(
+        const ScopeValidationPlace(
+            address: 'Bintan Resort, Lagoi Bay'),
+        sgWithRegions(),
+      );
+      expect(r.isInScope, isFalse);
+      expect(r.rejectionReason,
+          equals(ScopeRejectionReason.blockedNeighborRegion));
+    });
+
+    test('Name contient "Komtar" sans address → rejet via name', () {
+      final r = validatePlaceInScope(
+        const ScopeValidationPlace(name: 'Komtar JBCC Shopping'),
+        sgWithRegions(),
+      );
+      expect(r.isInScope, isFalse);
+      expect(r.rejectionReason,
+          equals(ScopeRejectionReason.blockedNeighborRegion));
+    });
+
+    test('Address "Marina Bay Sands, Singapore" reste accepté MEDIUM '
+        '(pas de match dans blockedNeighborRegions)', () {
+      final r = validatePlaceInScope(
+        const ScopeValidationPlace(
+            address: '10 Bayfront Avenue, Singapore'),
+        sgWithRegions(),
+      );
+      expect(r.isInScope, isTrue);
+      expect(r.confidence, equals(ScopeConfidence.medium));
+      // matched via country hints (allowed), pas via region
+      expect(r.matchedEvidence, equals('singapore'));
+    });
+
+    test('CountryCode SG explicite prime sur blockedNeighborRegions '
+        '(Étape 1 court-circuite Étape 2)', () {
+      // Cas pathologique : Place explicitement en SG mais avec
+      // une adresse mentionnant "Johor". Le countryCode étant
+      // une preuve forte, on accepte HIGH sans vérifier les
+      // régions bloquées.
+      final r = validatePlaceInScope(
+        const ScopeValidationPlace(
+            countryCode: 'SG',
+            address: 'Strange Place near Johor border, Singapore'),
+        sgWithRegions(),
+      );
+      expect(r.isInScope, isTrue);
+      expect(r.confidence, equals(ScopeConfidence.high));
+      expect(r.matchedEvidence, equals('SG'));
+    });
+
+    test('Singapour DI sans blockedNeighborRegions → fallback aux '
+        'country hints (Étape 3)', () {
+      final sgNoRegions = DestinationIntelligence(
+        destinationKey: 'singapore',
+        canonicalCenter: const GeoPoint(lat: 1.3521, lng: 103.8198),
+        countryCode: 'SG',
+        allowedCountryCodes: const ['SG'],
+        blockedCountryCodes: const ['MY', 'ID'],
+        // blockedNeighborRegions intentionnellement vide
+        borderSensitivity: BorderSensitivity.high,
+        tripMode: TripMode.megaCity,
+        zones: [
+          const TouristZone(
+            name: 'Z',
+            center: GeoPoint(lat: 0, lng: 0),
+            radiusKm: 1,
+            theme: 'generic',
+          ),
+        ],
+        anchors: [
+          const DestinationAnchor(
+            name: 'A',
+            placeQueries: ['A'],
+            importance: 3,
+            recommendedDuration: Duration(minutes: 60),
+          ),
+        ],
+        transportRules: const TransportRules(
+          maxTransitionKm: 5,
+          dominantMode: 'walk',
+          hasMetro: false,
+          hasMetroAnchorLogic: false,
+        ),
+      );
+      // Adresse contient "ksl city" qui n'est PAS dans
+      // _kCountryHints → fallback aux hints génériques MY → match
+      // sur "malaysia" si présent dans l'adresse.
+      final r = validatePlaceInScope(
+        const ScopeValidationPlace(
+            address: 'KSL City Mall, Johor Bahru, Malaysia'),
+        sgNoRegions,
+      );
+      // Match sur 'malaysia' OU 'johor bahru' via _kCountryHints
+      expect(r.isInScope, isFalse);
+      expect(r.rejectionReason,
+          equals(ScopeRejectionReason.blockedNeighborRegion));
+    });
+  });
+
+  // ─── 8. Dubai avec blockedNeighborRegions — résolution point ouvert 3.1
+
+  group('Dubai DI avec blockedNeighborRegions (résolution 3.1)', () {
+    // Phase 3 / Tâche 3.2 — l'abstraction `blockedNeighborRegions`
+    // permet enfin de bloquer Abu Dhabi / Sharjah / Ajman tout en
+    // gardant `AE` allowed. Aucune logique custom dans le service.
+    DestinationIntelligence dubaiWithRegions() =>
+        DestinationIntelligence(
+          destinationKey: 'dubai',
+          canonicalCenter: const GeoPoint(lat: 25.276, lng: 55.296),
+          countryCode: 'AE',
+          allowedCountryCodes: const ['AE'],
+          blockedCountryCodes: const [],
+          blockedNeighborRegions: const [
+            'abu dhabi',
+            'sharjah',
+            'ajman',
+          ],
+          borderSensitivity: BorderSensitivity.medium,
+          tripMode: TripMode.megaCity,
+          zones: [
+            const TouristZone(
+              name: 'Downtown',
+              center: GeoPoint(lat: 25.197, lng: 55.274),
+              radiusKm: 2,
+              theme: 'urban_core',
+            ),
+          ],
+          anchors: [
+            const DestinationAnchor(
+              name: 'Burj Khalifa',
+              placeQueries: ['Burj Khalifa'],
+              importance: 5,
+              recommendedDuration: Duration(minutes: 120),
+            ),
+          ],
+          transportRules: const TransportRules(
+            maxTransitionKm: 10,
+            dominantMode: 'taxi',
+            hasMetro: true,
+            hasMetroAnchorLogic: false,
+          ),
+        );
+
+    test('Address "Burj Khalifa, Dubai" accepté MEDIUM', () {
+      final r = validatePlaceInScope(
+        const ScopeValidationPlace(
+            address: 'Sheikh Mohammed bin Rashid Blvd, Dubai'),
+        dubaiWithRegions(),
+      );
+      expect(r.isInScope, isTrue);
+      // Match via country hint allowed
+      expect(r.confidence, equals(ScopeConfidence.medium));
+    });
+
+    test('Address "Sheikh Zayed Grand Mosque, Abu Dhabi" rejeté '
+        'blockedNeighborRegion (résolution point ouvert 3.1)', () {
+      final r = validatePlaceInScope(
+        const ScopeValidationPlace(
+            address: 'Sheikh Zayed Grand Mosque, Abu Dhabi'),
+        dubaiWithRegions(),
+      );
+      expect(r.isInScope, isFalse);
+      expect(r.rejectionReason,
+          equals(ScopeRejectionReason.blockedNeighborRegion));
+      expect(r.matchedEvidence, equals('abu dhabi'));
+    });
+
+    test('Address "Mall of Sharjah, Sharjah" rejeté '
+        'blockedNeighborRegion', () {
+      final r = validatePlaceInScope(
+        const ScopeValidationPlace(
+            address: 'Mall of Sharjah, Sharjah, UAE'),
+        dubaiWithRegions(),
+      );
+      expect(r.isInScope, isFalse);
+      expect(r.rejectionReason,
+          equals(ScopeRejectionReason.blockedNeighborRegion));
+    });
+
+    test('Address "Ajman City Centre" rejeté', () {
+      final r = validatePlaceInScope(
+        const ScopeValidationPlace(address: 'Ajman City Centre, UAE'),
+        dubaiWithRegions(),
+      );
+      expect(r.isInScope, isFalse);
+      expect(r.rejectionReason,
+          equals(ScopeRejectionReason.blockedNeighborRegion));
+    });
+
+    test('CountryCode AE explicite → accept HIGH même si address '
+        'mentionne Abu Dhabi (countryCode prime)', () {
+      final r = validatePlaceInScope(
+        const ScopeValidationPlace(
+            countryCode: 'AE',
+            address: 'Touristic spot near Abu Dhabi border'),
+        dubaiWithRegions(),
+      );
+      // CountryCode explicite (Étape 1) court-circuite tout.
+      expect(r.isInScope, isTrue);
+      expect(r.confidence, equals(ScopeConfidence.high));
+    });
+  });
+
+  // ─── 9. Robustesse null / vide ───────────────────────────────────────
 
   group('Robustesse null / vide', () {
     final di = _singaporeDi();

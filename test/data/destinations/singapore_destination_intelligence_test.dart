@@ -362,4 +362,72 @@ void main() {
               'Anchors doivent couvrir ≥5 catégories sémantiques distinctes');
     });
   });
+
+  // ─── Phase 3 / Tâche 3.2 — blockedNeighborRegions ────────────────────
+
+  group('Singapore blockedNeighborRegions (Phase 3 / Tâche 3.2)', () {
+    final singapore = buildSingaporeDestinationIntelligence();
+    final regions = singapore.blockedNeighborRegions
+        .map((e) => e.toLowerCase().trim())
+        .toSet();
+
+    test('Liste non vide', () {
+      expect(singapore.blockedNeighborRegions, isNotEmpty);
+    });
+
+    test('Contient les indices Malaysia side : johor bahru / ksl city / '
+        'komtar / jbcc / johor', () {
+      expect(regions, containsAll(<String>[
+        'johor bahru',
+        'johor',
+        'ksl city',
+        'komtar',
+        'jbcc',
+      ]));
+    });
+
+    test('Contient les indices Indonésie side : batam / bintan / '
+        'lagoi / tanjung pinang / kepri', () {
+      expect(regions, containsAll(<String>[
+        'batam',
+        'bintan',
+        'lagoi',
+        'tanjung pinang',
+        'kepri',
+      ]));
+    });
+
+    test('Au moins 10 entrées (5 MY + 5 ID au minimum)', () {
+      expect(singapore.blockedNeighborRegions.length,
+          greaterThanOrEqualTo(10));
+    });
+
+    test('Aucune entrée vide après trim', () {
+      for (final r in singapore.blockedNeighborRegions) {
+        expect(r.trim(), isNotEmpty,
+            reason: 'Entrée "$r" ne doit pas être vide');
+      }
+    });
+
+    test('Aucun doublon après normalisation', () {
+      final normalized = singapore.blockedNeighborRegions
+          .map((e) => e.trim().toLowerCase())
+          .toList();
+      expect(normalized.toSet().length, equals(normalized.length),
+          reason: 'Doublons détectés : $normalized');
+    });
+
+    test('Ne contient pas les country names (déjà dans '
+        'blockedCountryCodes)', () {
+      // MY / ID sont dans blockedCountryCodes (codes ISO). Les
+      // strings "malaysia" / "indonesia" ne doivent pas dupliquer
+      // (séparation des responsabilités code pays vs région).
+      expect(regions, isNot(contains('malaysia')));
+      expect(regions, isNot(contains('indonesia')));
+    });
+
+    test('Singapore DI reste valide avec le nouveau champ', () {
+      expect(singapore.validate(), isEmpty);
+    });
+  });
 }

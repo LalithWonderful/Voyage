@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:voyage/config/feature_flags.dart';
 import 'package:voyage/data/complexes/complex_registry.dart';
+import 'package:voyage/data/destinations/destination_intelligence_registry.dart';
 import 'package:voyage/features/planning/data/destination_blueprints.dart';
 import 'package:voyage/features/planning/data/metro_profile.dart';
 import 'package:voyage/features/planning/data/segment_city_canonicals.dart';
@@ -17,9 +18,12 @@ import 'package:voyage/features/planning/services/places_nearby_service.dart';
 import 'package:voyage/features/planning/services/traveler_to_places_mapping.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/wallet/models/document_model.dart';
+import 'package:voyage/models/destination_intelligence.dart';
 import 'package:voyage/models/same_complex_group.dart';
 import 'package:voyage/services/complex_matcher.dart';
+import 'package:voyage/services/destination_scope_rejection.dart';
 import 'package:voyage/services/same_complex_rejection.dart';
+import 'package:voyage/services/scope_validator.dart';
 
 /// Champs UX/profil **pas encore exploités** par le pipeline de suggestion
 /// (audit Niveau A 2026-05-08, à creuser plus tard) :
@@ -3536,12 +3540,28 @@ List<ActivitySuggestion> selectVisitsDeterministic({
   /// Si non null, **chaque rejet** y est appendé. Production passe
   /// `null` → aucune allocation, aucun overhead.
   List<SameComplexRejection>? sameComplexRejectionsOut,
+  // Phase 3 / Tâche 3.2 — scope validation derrière flag.
+  // Default OFF par construction : si l'appelant ne passe rien,
+  // le comportement reste strictement identique à pré-3.2.
+  bool useDestinationScope = false,
+  DestinationIntelligence? destinationIntelligence,
+  /// Journal optionnel de rejets `destination_scope` (pour tests).
+  /// Si non null, **chaque rejet** y est appendé. Production passe
+  /// `null` → aucune allocation, aucun overhead.
+  List<DestinationScopeRejection>? destinationScopeRejectionsOut,
 }) {
   // Phase 2 / Tâche 2.4 — la dédup complexe est active uniquement
   // quand le flag ET la liste sont non vides. Une de ces 2
   // conditions seule = no-op (cas destination sans groupes connus).
   final complexDedupActive =
       useSameComplexDedup && complexGroups.isNotEmpty;
+
+  // Phase 3 / Tâche 3.2 — scope validation active uniquement
+  // quand le flag ET la DI sont fournis. Une de ces 2 conditions
+  // seule = no-op (cas destination sans DI connue → fallback au
+  // filtre legacy `blockedAddressPatterns`).
+  final destinationScopeActive =
+      useDestinationScope && destinationIntelligence != null;
 
   // Compteurs trip-wide par `complex_key` (init une seule fois pour
   // tout le voyage, indépendant du cluster).
@@ -3614,6 +3634,56 @@ List<ActivitySuggestion> selectVisitsDeterministic({
         visitBlockedNamePatterns: visitBlockedNamePatterns,
       );
       if (reason == null) {
+        // Phase 3 / Tâche 3.2 — scope validation (flag-gated).
+        // Strictement court-circuité quand `destinationScopeActive
+        // == false` → comportement pré-3.2 préservé. Quand
+        // actif, applique le validator en ADDITION du filtre
+        // legacy (AND logique) : un candidat doit passer les
+        // deux. Le filtre legacy reste actif en flag OFF pour
+        // les destinations sans DI dans la registry.
+        if (destinationScopeActive) {
+          final scopeResult = validatePlaceInScope(
+            ScopeValidationPlace(
+              name: candidate.name,
+              address: candidate.address,
+              // `NearbyCandidate` n'expose pas de countryCode
+              // côté Google Places New v1 → toujours null.
+              // Validator tombera sur l'étape 2/3 (regions /
+              // hints adresse).
+              countryCode: null,
+              lat: candidate.latitude,
+              lng: candidate.longitude,
+            ),
+            destinationIntelligence,
+          );
+          if (!scopeResult.isInScope) {
+            final rej = DestinationScopeRejection(
+              candidateTitle: candidate.name,
+              candidateAddress: candidate.address,
+              reason: scopeResult.rejectionReason!,
+              confidence: scopeResult.confidence,
+              matchedEvidence: scopeResult.matchedEvidence,
+            );
+            destinationScopeRejectionsOut?.add(rej);
+            final scopeReason = rej.pipelineReason;
+            finalGateCounts[scopeReason] =
+                (finalGateCounts[scopeReason] ?? 0) + 1;
+            final loggedSoFar = finalGateLogged[scopeReason] ?? 0;
+            if (loggedSoFar < finalGateLogPerCategory) {
+              finalGateLogged[scopeReason] = loggedSoFar + 1;
+              // ignore: avoid_print
+              print(
+                '[places_destination_scope_reject] '
+                'name="${candidate.name}" '
+                'addr="${candidate.address}" '
+                'reason=$scopeReason '
+                'confidence=${scopeResult.confidence.name} '
+                'evidence=${scopeResult.matchedEvidence}',
+              );
+            }
+            continue;
+          }
+        }
         newPool[entry.key] = entry.value;
         continue;
       }
@@ -6334,15 +6404,18 @@ Future<List<ActivitySuggestion>> _runAutoPlacesFirstBody({
     '(sélecteur déterministe — 0 Gemini)',
   );
 
-  // Phase 2 / Tâche 2.4 — flag-aware câblage. Default OFF (cf.
-  // `FeatureFlags.defaults()` + `_parseBoolString('') == null`).
-  // Activable via `--dart-define=USE_SAME_COMPLEX_DEDUP=true` ;
-  // future activation via override Supabase suit la même
-  // signature. Lookup registry **toujours fait** (no-op si flag
-  // OFF, court-circuité dans le sélecteur).
+  // Phase 2 / Tâche 2.4 + Phase 3 / Tâche 3.2 — flag-aware
+  // câblage. Default tout OFF (cf. `FeatureFlags.defaults()`).
+  // Activables via :
+  //   --dart-define=USE_SAME_COMPLEX_DEDUP=true
+  //   --dart-define=USE_DESTINATION_SCOPE=true
+  // Lookups registry **toujours faits** (no-op si flag OFF,
+  // court-circuité dans le sélecteur).
   final featureFlags = FeatureFlags.fromEnvironment();
   final complexGroupsForTrip =
       loadLocalComplexGroupsForDestination(trip.destination);
+  final destinationIntelligenceForTrip =
+      lookupLocalDestinationIntelligence(trip.destination);
   final visits = selectVisitsDeterministic(
     clusters: clustersForVisits,
     trip: trip,
@@ -6350,6 +6423,8 @@ Future<List<ActivitySuggestion>> _runAutoPlacesFirstBody({
     existingTitlesNormalized: existingTitlesNormalized,
     useSameComplexDedup: featureFlags.useSameComplexDedup,
     complexGroups: complexGroupsForTrip,
+    useDestinationScope: featureFlags.useDestinationScope,
+    destinationIntelligence: destinationIntelligenceForTrip,
   );
   debugPrint(
     '[places_first] Auto Places-first : ${visits.length} visites sélectionnées',

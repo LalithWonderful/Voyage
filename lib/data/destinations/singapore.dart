@@ -122,6 +122,35 @@ DestinationIntelligence buildSingaporeDestinationIntelligence() {
     countryCode: 'SG',
     allowedCountryCodes: const ['SG'],
     blockedCountryCodes: const ['MY', 'ID'],
+    // Phase 3 / Tâche 3.2 — régions / quartiers / zones bloquées
+    // à grain plus fin que les country codes. Migration des
+    // `blockedAddressPatterns` legacy de `_singaporeMetro`
+    // (`metro_profile.dart`) hors des country names (déjà
+    // couverts par `blockedCountryCodes`).
+    //
+    //   - Malaysia side (Johor) : ville voisine + termes fréquents
+    //     (mall, station bus, etc.) qui apparaissent dans les
+    //     adresses Google même quand le countryCode est absent.
+    //   - Indonésie side (Bintan / Batam) : îles et province.
+    //
+    // Format : lowercase, sans trailing whitespace. Le matching se
+    // fait via `String.contains` (substring case-insensitive)
+    // côté `ScopeValidator`, cohérent avec
+    // `isCandidateAddressBlocked` legacy.
+    blockedNeighborRegions: const [
+      // MY side
+      'johor bahru',
+      'johor',
+      'ksl city',
+      'komtar',
+      'jbcc',
+      // ID side
+      'batam',
+      'bintan',
+      'lagoi',
+      'tanjung pinang',
+      'kepri',
+    ],
     borderSensitivity: BorderSensitivity.high,
     tripMode: TripMode.megaCity,
     zones: [

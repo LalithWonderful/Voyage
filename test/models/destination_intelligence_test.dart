@@ -89,6 +89,8 @@ void main() {
       expect(json, contains('country_code'));
       expect(json, contains('allowed_country_codes'));
       expect(json, contains('blocked_country_codes'));
+      // Phase 3 / Tâche 3.2 — nouveau champ
+      expect(json, contains('blocked_neighbor_regions'));
       expect(json, contains('border_sensitivity'));
       expect(json, contains('trip_mode'));
       expect(json, contains('zones'));
@@ -654,6 +656,120 @@ void main() {
       // Ne doit pas crash — fallback empty list.
       final decoded = DestinationIntelligence.fromJson(json);
       expect(decoded.blockedCountryCodes, isEmpty);
+    });
+  });
+
+  // ─── 11. Phase 3 / Tâche 3.2 — blockedNeighborRegions ─────────────────
+
+  group('blockedNeighborRegions (Phase 3 / Tâche 3.2)', () {
+    DestinationIntelligence withRegions(List<String> regions) =>
+        DestinationIntelligence(
+          destinationKey: 'test',
+          canonicalCenter: const GeoPoint(lat: 0, lng: 0),
+          countryCode: 'SG',
+          allowedCountryCodes: const ['SG'],
+          blockedCountryCodes: const ['MY'],
+          blockedNeighborRegions: regions,
+          borderSensitivity: BorderSensitivity.medium,
+          tripMode: TripMode.megaCity,
+          zones: [
+            const TouristZone(
+              name: 'Z',
+              center: GeoPoint(lat: 0, lng: 0),
+              radiusKm: 1,
+              theme: 'generic',
+            ),
+          ],
+          anchors: [
+            const DestinationAnchor(
+              name: 'A',
+              placeQueries: ['A'],
+              importance: 3,
+              recommendedDuration: Duration(minutes: 60),
+            ),
+          ],
+          transportRules: const TransportRules(
+            maxTransitionKm: 5,
+            dominantMode: 'walk',
+            hasMetro: false,
+            hasMetroAnchorLogic: false,
+          ),
+        );
+
+    test('Default vide quand non renseigné dans le constructeur', () {
+      final model = withRegions(const []);
+      expect(model.blockedNeighborRegions, isEmpty);
+      expect(model.validate(), isEmpty);
+    });
+
+    test('Liste non vide validée si entrées non vides + sans doublons',
+        () {
+      final model = withRegions(const [
+        'johor bahru',
+        'batam',
+        'lagoi',
+      ]);
+      expect(model.validate(), isEmpty);
+      expect(model.blockedNeighborRegions, hasLength(3));
+    });
+
+    test('Entrée vide après trim rejetée', () {
+      final model = withRegions(const ['johor bahru', '   ', 'batam']);
+      expect(
+        model.validate().any(
+            (e) => e.startsWith('blocked_neighbor_regions[1] must be '
+                'non-empty')),
+        isTrue,
+      );
+    });
+
+    test('Doublon après normalisation lowercase rejeté', () {
+      final model = withRegions(const [
+        'Johor Bahru',
+        'johor bahru', // doublon après normalisation
+      ]);
+      expect(
+        model.validate().any((e) => e.contains('duplicates a previous '
+            'entry')),
+        isTrue,
+      );
+    });
+
+    test('Doublon via whitespace rejeté', () {
+      final model = withRegions(const ['johor', '  johor  ']);
+      expect(
+        model.validate().any((e) => e.contains('duplicates')),
+        isTrue,
+      );
+    });
+
+    test('Round-trip JSON conserve les valeurs', () {
+      final original = withRegions(const [
+        'johor bahru',
+        'ksl city',
+        'batam',
+      ]);
+      final json = original.toJson();
+      expect(json['blocked_neighbor_regions'],
+          equals(['johor bahru', 'ksl city', 'batam']));
+      final decoded = DestinationIntelligence.fromJson(json);
+      expect(decoded.blockedNeighborRegions,
+          equals(original.blockedNeighborRegions));
+      expect(decoded.validate(), isEmpty);
+    });
+
+    test('JSON sans la clé → fallback liste vide (backward-compat)', () {
+      final json = withRegions(const []).toJson();
+      json.remove('blocked_neighbor_regions');
+      final decoded = DestinationIntelligence.fromJson(json);
+      expect(decoded.blockedNeighborRegions, isEmpty);
+    });
+
+    test('JSON avec clé non-liste → fallback liste vide', () {
+      final json = withRegions(const []).toJson();
+      json['blocked_neighbor_regions'] = 'not a list';
+      final decoded = DestinationIntelligence.fromJson(json);
+      expect(decoded.blockedNeighborRegions, isEmpty);
     });
   });
 }

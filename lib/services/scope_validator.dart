@@ -34,19 +34,35 @@
 ///      - allowed → accept HIGH
 ///      - sinon → reject `outOfCountry`, HIGH
 ///
-///   2. **Fallback `address`** (preuve heuristique) :
+///   2. **`di.blockedNeighborRegions`** (Phase 3 / Tâche 3.2) :
+///      - matching substring lowercase sur **`address`** ET **`name`**
+///        du candidat (cohérent avec spec 3.2 et l'esprit de
+///        `isCandidateAddressBlocked` legacy)
+///      - permet de bloquer des régions / quartiers / zones plus
+///        fines que les country codes (Johor Bahru dans MY, Abu
+///        Dhabi dans AE, etc.)
+///      - hit → reject `blockedNeighborRegion`, MEDIUM
+///
+///   3. **Fallback `address` via `_kCountryHints`** (preuve
+///      heuristique générique) :
 ///      - normalisation lowercase + whitespace
-///      - match contre les hints (table `_kCountryHints`)
-///      - hint d'un pays bloqué → reject (`blockedCountry` ou
-///        `blockedNeighborRegion`), MEDIUM
+///      - hint d'un pays bloqué → reject `blockedNeighborRegion`,
+///        MEDIUM
 ///      - hint d'un pays autorisé → accept MEDIUM
 ///
-///   3. **Aucune preuve** :
+///   4. **Aucune preuve** :
 ///      - accept avec confidence LOW (cf. spec : "Ne pas rejeter
 ///        arbitrairement un lieu uniquement parce que la destination
 ///        est high sensitivity et que le countryCode manque").
 ///      - `borderSensitivity` est informationnel ; ne déclenche pas
 ///        de rejet sans preuve concrète.
+///
+/// L'étape 2 prime sur l'étape 3 : si un caller met `johor bahru`
+/// dans `blockedNeighborRegions`, le validator reject immédiatement
+/// sans tomber sur la table générique. Permet aussi aux callers de
+/// **bloquer des régions dans un pays autorisé** (Dubai : `AE`
+/// allowed, mais `abu dhabi` dans `blockedNeighborRegions` → reject
+/// MEDIUM même quand le countryCode candidat = AE est inconnu).
 ///
 /// ## Pourquoi pas de rejet agressif par border sensitivity ?
 ///
@@ -238,7 +254,36 @@ ScopeValidationResult validatePlaceInScope(
     );
   }
 
-  // ── 2. Fallback adresse (preuve heuristique) ──────────────────────
+  // ── 2. blockedNeighborRegions de la DI (Phase 3 / Tâche 3.2) ──────
+  // Substring lowercase sur address ET name. Permet de bloquer
+  // des régions / quartiers / zones plus fines que les country
+  // codes (Johor Bahru pour Singapour, Abu Dhabi pour Dubai).
+  // Sémantique : reject `blockedNeighborRegion` MEDIUM.
+  if (di.blockedNeighborRegions.isNotEmpty) {
+    final addressLower = place.address?.toLowerCase();
+    final nameLower = place.name?.toLowerCase();
+    if ((addressLower != null && addressLower.isNotEmpty) ||
+        (nameLower != null && nameLower.isNotEmpty)) {
+      for (final raw in di.blockedNeighborRegions) {
+        final hint = raw.trim().toLowerCase();
+        if (hint.isEmpty) continue;
+        final inAddress =
+            addressLower != null && addressLower.contains(hint);
+        final inName = nameLower != null && nameLower.contains(hint);
+        if (inAddress || inName) {
+          return ScopeValidationResult(
+            isInScope: false,
+            rejectionReason:
+                ScopeRejectionReason.blockedNeighborRegion,
+            confidence: ScopeConfidence.medium,
+            matchedEvidence: hint,
+          );
+        }
+      }
+    }
+  }
+
+  // ── 3. Fallback adresse via _kCountryHints (preuve heuristique) ───
   final rawAddress = place.address?.trim();
   if (rawAddress != null && rawAddress.isNotEmpty) {
     final normalized = rawAddress.toLowerCase().replaceAll(
@@ -283,7 +328,7 @@ ScopeValidationResult validatePlaceInScope(
     }
   }
 
-  // ── 3. Aucune preuve concrète ─────────────────────────────────────
+  // ── 4. Aucune preuve concrète ─────────────────────────────────────
   // Default safe : accept en LOW (cf. doc de tête).
   // `borderSensitivity` ne change pas le verdict — uniquement la
   // confidence reportée reste LOW pour signaler au caller futur

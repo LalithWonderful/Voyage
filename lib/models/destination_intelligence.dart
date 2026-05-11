@@ -426,6 +426,33 @@ class DestinationIntelligence {
   /// Peut être vide pour les destinations sans frontière sensible.
   final List<String> blockedCountryCodes;
 
+  /// Phase 3 / Tâche 3.2 — régions, villes, quartiers, zones
+  /// frontalières ou indices textuels à bloquer dans les adresses
+  /// / noms des candidats. **Générique par destination** ;
+  /// consommée par `ScopeValidator` quand le flag
+  /// `useDestinationScope` est ON.
+  ///
+  /// Granularité plus fine que `blockedCountryCodes` (ISO 3166-1).
+  /// Permet de bloquer :
+  /// - villes voisines à l'intérieur d'un même pays bloqué
+  ///   (`johor bahru`, `johor` pour Singapour) ;
+  /// - villes voisines à l'intérieur d'un pays **autorisé** (cas
+  ///   Dubai : émirat de Dubai vs `abu dhabi`, `sharjah`, `ajman`
+  ///   tous AE) — résout le point ouvert Tâche 3.1.
+  ///
+  /// **Convention** : chaque entrée est une string lowercase, sans
+  /// trailing whitespace, idéalement déjà normalisée façon
+  /// `address.toLowerCase()`. Le matching s'effectue via
+  /// `String.contains` (substring case-insensitive) — cohérent avec
+  /// le filtre `isCandidateAddressBlocked` legacy de
+  /// `places_first_pipeline.dart`.
+  ///
+  /// Default `[]` : la destination ne déclare aucune zone bloquée
+  /// fine (la plupart des cas). Champ ajouté en Tâche 3.2 sans
+  /// breaking change : les anciens JSON sans cette clé sont
+  /// désérialisés avec une liste vide.
+  final List<String> blockedNeighborRegions;
+
   final BorderSensitivity borderSensitivity;
   final TripMode tripMode;
 
@@ -448,6 +475,9 @@ class DestinationIntelligence {
     required this.zones,
     required this.anchors,
     required this.transportRules,
+    // Phase 3 / Tâche 3.2 — default `[]` pour non-breaking sur les
+    // appelants existants (Tâche 1.2 Singapour).
+    this.blockedNeighborRegions = const <String>[],
   });
 
   /// Valide tous les champs et sous-modèles. Retourne la liste des
@@ -477,6 +507,24 @@ class DestinationIntelligence {
     for (var i = 0; i < anchors.length; i++) {
       errors.addAll(anchors[i].validate(prefix: 'anchors[$i]'));
     }
+    // Phase 3 / Tâche 3.2 — blockedNeighborRegions :
+    //   - liste optionnelle (peut être vide) ;
+    //   - aucune entrée vide après trim ;
+    //   - pas de doublons après normalisation lowercase + trim.
+    final seenRegions = <String>{};
+    for (var i = 0; i < blockedNeighborRegions.length; i++) {
+      final raw = blockedNeighborRegions[i];
+      final normalized = raw.trim().toLowerCase();
+      if (normalized.isEmpty) {
+        errors.add('blocked_neighbor_regions[$i] must be non-empty');
+        continue;
+      }
+      if (!seenRegions.add(normalized)) {
+        errors.add(
+            'blocked_neighbor_regions[$i] duplicates a previous entry '
+            '("$normalized")');
+      }
+    }
     errors.addAll(transportRules.validate(prefix: 'transport_rules'));
     return errors;
   }
@@ -490,6 +538,7 @@ class DestinationIntelligence {
         'country_code': countryCode,
         'allowed_country_codes': allowedCountryCodes,
         'blocked_country_codes': blockedCountryCodes,
+        'blocked_neighbor_regions': blockedNeighborRegions,
         'border_sensitivity': borderSensitivity.toJsonString(),
         'trip_mode': tripMode.toJsonString(),
         'zones': zones.map((z) => z.toJson()).toList(),
@@ -545,6 +594,9 @@ class DestinationIntelligence {
           'DestinationIntelligence.transport_rules must be an object');
     }
 
+    // Phase 3 / Tâche 3.2 — clé optionnelle, default `[]` pour
+    // backward-compat (JSON pré-3.2 ne contient pas cette clé).
+    final neighborsRaw = json['blocked_neighbor_regions'];
     return DestinationIntelligence(
       destinationKey: destKey,
       canonicalCenter:
@@ -553,6 +605,9 @@ class DestinationIntelligence {
       allowedCountryCodes: allowedRaw.whereType<String>().toList(),
       blockedCountryCodes: blockedRaw is List
           ? blockedRaw.whereType<String>().toList()
+          : const <String>[],
+      blockedNeighborRegions: neighborsRaw is List
+          ? neighborsRaw.whereType<String>().toList()
           : const <String>[],
       borderSensitivity: BorderSensitivity.fromJsonString(borderRaw),
       tripMode: TripMode.fromJsonString(tripModeRaw),
