@@ -19,11 +19,11 @@
 
 | Score | Baseline | Current | Delta | Status |
 |---|---:|---:|---:|:---:|
-| overall | 82.0 | 82.0 | +0.0 | OK |
-| coherence | 82.3 | 82.3 | +0.0 | OK |
-| diversity | 35.5 | 35.5 | +0.0 | OK |
+| overall | 81.5 | 81.5 | +0.0 | OK |
+| coherence | 82.1 | 82.1 | +0.0 | OK |
+| diversity | 33.1 | 33.1 | +0.0 | OK |
 | repetition | 100.0 | 100.0 | +0.0 | OK |
-| transition | 92.2 | 92.2 | +0.0 | OK |
+| transition | 92.1 | 92.1 | +0.0 | OK |
 | coverage | 100.0 | 100.0 | +0.0 | OK |
 
 ## Places
@@ -38,7 +38,7 @@
 
 | Metric | Baseline | Current | Delta |
 |---|---:|---:|---:|
-| Avg inter-slot (m) | 1303.3 | 1303.3 | +0.0 |
+| Avg inter-slot (m) | 1457.2 | 1457.2 | +0.0 |
 | Max inter-slot (m) | 10554.7 | 10554.7 | +0.0 |
 
 ## Days
