@@ -104,6 +104,19 @@ class MetroProfile {
   /// (compatible villes non-mégalopoles).
   final List<TouristAnchor> touristAnchors;
 
+  /// V8.28d3 (Lalith 2026-05-11) — archétypes legacy désactivés pour
+  /// cette ville. Le builder n'utilise ni la zone ni le fallback type
+  /// associés. Cas Tokyo : `modernDay` est désactivé au profit des
+  /// 2 zones géo-séparées `modernWestDay` (W) et `roppongiMinatoDay`
+  /// (S central). Sans ce flag, le fallback `park`/`art_gallery` →
+  /// `modernDay` ré-injecte Hibiya Park, Mitsubishi Ichigokan Museum,
+  /// Parc d'Ueno (non-matched FR) dans des packs `modernDay` Tokyo
+  /// qui mélangent Tokyo Tower + Ueno + Marunouchi.
+  ///
+  /// Bangkok / Paris / NYC / London / Rome / Istanbul : default
+  /// empty set → comportement V8.28d2 préservé.
+  final Set<DayPackType> disabledArchetypes;
+
   const MetroProfile({
     required this.cityKey,
     required this.lat,
@@ -113,6 +126,7 @@ class MetroProfile {
     this.isMegaCity = false,
     required this.zones,
     this.touristAnchors = const [],
+    this.disabledArchetypes = const <DayPackType>{},
   });
 }
 
@@ -260,6 +274,14 @@ const _tokyoMetro = MetroProfile(
   clusterRadiusKm: 40.0,
   disableMarketTypeFallback: false,
   isMegaCity: true,
+  // V8.28d3 — désactive `modernDay` legacy pour Tokyo. Sans ce
+  // filtre, le fallback type-based `park`/`art_gallery` → modernDay
+  // ré-injectait Hibiya Park / Mitsubishi Ichigokan / Parc d'Ueno
+  // (FR non matché) dans des packs `modernDay` Tokyo qui mélangeaient
+  // Tokyo Tower + Ueno + Marunouchi. Tokyo doit utiliser uniquement
+  // oldCityDay / marketDay / riversideDay / modernWestDay /
+  // roppongiMinatoDay.
+  disabledArchetypes: {DayPackType.modernDay},
   // V8.28d — 9 ancres tourisme couvrant les hotspots Tokyo. Le
   // geocoder "Tokyo, Japan" tombe souvent sur Setagaya/Yoyogi
   // (35.676/139.650), loin de Shibuya/Asakusa/Ginza. Sans ces
@@ -297,10 +319,14 @@ const _tokyoMetro = MetroProfile(
   zones: [
     // NE Tokyo : Asakusa cluster + Ueno + Skytree + Akihabara.
     // Toutes <5 km de Senso-ji (35.7148/139.7967).
+    // V8.28d3 — variantes FR : "Parc d'Ueno", "Sanctuaire Asakusa"
+    // (Google Places renvoie souvent les labels traduits selon
+    // languageCode=fr).
     MetroZone(type: DayPackType.oldCityDay, patterns: [
-      'senso-ji', 'sensoji', 'asakusa', 'nakamise',
+      'senso-ji', 'sensoji', 'sanctuaire asakusa', 'asakusa', 'nakamise',
       'tokyo skytree', 'skytree',
       'ueno park', 'ueno zoo', 'ueno toshogu',
+      "parc d'ueno", 'parc ueno', 'ueno-koen',
       'ameya-yokocho', 'ameyoko',
       'akihabara',
       'kappabashi', 'kanda', 'nezu shrine', 'gokokuji',
@@ -332,23 +358,38 @@ const _tokyoMetro = MetroProfile(
     //
     // W Tokyo : Shibuya / Shinjuku / Meiji / Harajuku / Yoyogi
     // (axe Yamanote ouest). Inter-pick max ~3.5 km.
+    // V8.28d3 — patterns enrichis (variantes nom + macrons stripped
+    // par _normName : meiji jingū → meiji jingu).
     MetroZone(type: DayPackType.modernWestDay, patterns: [
-      'shibuya crossing', 'shibuya sky', 'shibuya scramble',
+      'shibuya crossing', 'shibuya scramble', 'shibuya sky',
       'hachiko', 'shibuya',
       'shinjuku gyoen', 'shinjuku',
-      'meiji shrine', 'meiji jingu', 'meiji-jingu', 'meiji jingū',
-      'harajuku', 'takeshita', 'omotesando',
-      'yoyogi park', 'yoyogi',
-      'golden gai',
+      'meiji shrine', 'meiji jingu', 'meiji-jingu',
+      'sanctuaire meiji',
+      'harajuku',
+      'takeshita street', 'takeshita-dori', 'takeshita',
+      'omotesando',
+      'yoyogi park', 'parc yoyogi', 'yoyogi',
+      'shinjuku golden-gai', 'golden gai', 'golden-gai',
+      'tokyo metropolitan government building',
       'tokyo metropolitan government',
+      'gouvernement metropolitain de tokyo',
     ]),
     // S central : Roppongi / Tokyo Tower / Mori Tower / Azabudai.
     // Cluster compact <1.5 km autour de 35.66/139.74.
+    // V8.28d3 — landmarks Roppongi/Minato listés (Mori Art Museum,
+    // National Art Center, 21_21 Design Sight, Azabudai Hills) +
+    // variantes FR "La Tour de Tokyo" / "Tour de Tokyo".
     MetroZone(type: DayPackType.roppongiMinatoDay, patterns: [
       'roppongi hills', 'roppongi',
-      'tokyo tower', 'zojoji',
-      'mori tower', 'tokyo city view',
-      'azabudai', 'azabu', 'minato',
+      'tokyo tower', 'tour de tokyo', 'la tour de tokyo',
+      'zojo-ji', 'zojoji',
+      'mori tower', 'tokyo city view', 'mori art museum',
+      'azabudai hills', 'azabudai', 'azabu',
+      'the national art center', 'national art center tokyo',
+      'national art centre tokyo',
+      '21_21 design sight', '21 21 design sight', 'design sight',
+      'minato',
     ]),
   ],
 );

@@ -936,6 +936,271 @@ void main() {
     });
   });
 
+  group('Day Builder V8.28d3 Tokyo modernDay disabled + FR/macron patterns',
+      () {
+    // V8.28d3 — bug observé simu 2026-05-11 post V8.28d2 : Tokyo
+    // produisait encore des packs `modern_day` legacy mélangeant
+    // Tokyo Tower + Ueno + Marunouchi (Hibiya Park / Mitsubishi
+    // Ichigokan / Parc d'Ueno injectés via fallback type `park` ou
+    // `art_gallery` → modernDay). Plus : macrons japonais
+    // (Meiji-jingū, Hachikō, Zōjō-ji) et labels FR (La Tour de
+    // Tokyo, Parc d'Ueno) rataient les patterns Tokyo. Fix :
+    // disabledArchetypes + macron normName + patterns FR.
+    late Trip tokyoTrip;
+
+    setUp(() {
+      tokyoTrip = Trip(
+        id: 'trip3',
+        userId: 'u1',
+        title: 'Tokyo',
+        destination: 'Tokyo, Japan',
+        startDate: DateTime(2026, 5, 14),
+        endDate: DateTime(2026, 5, 20),
+        createdAt: DateTime(2026, 5, 10),
+      );
+    });
+
+    // Pool stress test : noms FR + macrons + fallback type bait
+    // (Hibiya Park, Mitsubishi Ichigokan Museum) qui doivent NE PLUS
+    // ressortir en modernDay sur Tokyo.
+    Map<String, ({NearbyCandidate candidate, List<String> matchedInterests})>
+        tokyoStressPool() {
+      final pool = <String,
+          ({NearbyCandidate candidate, List<String> matchedInterests})>{};
+      void add(String id, String name, double lat, double lng, int reviews,
+          List<String> types, List<String> mi) {
+        pool[id] = (
+          candidate: NearbyCandidate(
+            placeId: id,
+            name: name,
+            latitude: lat,
+            longitude: lng,
+            rating: 4.5,
+            userRatingCount: reviews,
+            types: types,
+          ),
+          matchedInterests: mi,
+        );
+      }
+
+      // NE : noms FR/macron — Sanctuaire Asakusa, Parc d'Ueno,
+      // Tokyo Skytree.
+      add('senso', 'Sanctuaire Asakusa', 35.7148, 139.7967, 80000,
+          ['tourist_attraction', 'historical_landmark'],
+          [blueprintMustSeeMarker]);
+      add('skytree', 'Tokyo Skytree', 35.7101, 139.8107, 70000,
+          ['tourist_attraction'], [blueprintMustSeeMarker]);
+      add('ueno', "Parc d'Ueno", 35.7148, 139.7745, 50000,
+          ['park', 'tourist_attraction'], [blueprintMustSeeMarker]);
+      // W : macrons (Meiji-jingū, Hachikō) — doivent matcher
+      // modernWestDay via normalisation.
+      add('shibuya', 'Shibuya Crossing', 35.6595, 139.7004, 90000,
+          ['tourist_attraction'], [blueprintMustSeeMarker]);
+      add('shinjuku', 'Shinjuku Gyoen', 35.6852, 139.7100, 40000,
+          ['park'], [blueprintMustSeeMarker]);
+      add('meiji', 'Meiji-jingū', 35.6764, 139.6993, 60000,
+          ['tourist_attraction', 'historical_landmark'],
+          [blueprintMustSeeMarker]);
+      add('hachiko', 'Hachikō Statue', 35.6590, 139.7005, 20000,
+          ['tourist_attraction'], const []);
+      // S central : FR (La Tour de Tokyo) + landmarks (Mori Art
+      // Museum, National Art Center, 21_21 Design Sight,
+      // Azabudai Hills) + macron Zōjō-ji.
+      add('tower', 'La Tour de Tokyo', 35.6586, 139.7454, 70000,
+          ['tourist_attraction'], [blueprintMustSeeMarker]);
+      add('roppongi', 'Roppongi Hills', 35.6606, 139.7298, 40000,
+          ['tourist_attraction'], [blueprintMustSeeMarker]);
+      add('mori_art', 'Mori Art Museum', 35.6602, 139.7295, 15000,
+          ['museum', 'art_gallery'], const []);
+      add('city_view', 'Tokyo City View', 35.6604, 139.7293, 12000,
+          ['tourist_attraction'], const []);
+      add('nat_art', 'The National Art Center, Tokyo', 35.6655, 139.7264, 18000,
+          ['museum', 'art_gallery'], const []);
+      add('design_sight', '21_21 Design Sight', 35.6657, 139.7290, 10000,
+          ['museum'], const []);
+      add('azabudai', 'Azabudai Hills', 35.6608, 139.7414, 8000,
+          ['tourist_attraction'], const []);
+      add('zojoji', 'Zōjō-ji', 35.6577, 139.7485, 15000,
+          ['place_of_worship', 'tourist_attraction'], const []);
+      // Fallback bait : park / art_gallery sans pattern → AVANT
+      // V8.28d3, ces 3 tombaient en modernDay et mélangeaient
+      // Tower + Marunouchi + Ueno dans un pack absurde.
+      add('hibiya', 'Hibiya Park', 35.6745, 139.7588, 20000,
+          ['park'], const []);
+      add('ichigokan', 'Mitsubishi Ichigokan Museum', 35.6794, 139.7634, 8000,
+          ['museum', 'art_gallery'], const []);
+      add('imperial_garden', 'Imperial East Garden', 35.6852, 139.7575, 10000,
+          ['park'], const []);
+      return pool;
+    }
+
+    test('Tokyo : aucun candidat ne se retrouve dans un pack modernDay '
+        'legacy (disabled)', () {
+      final result = buildDayPacksForCluster(
+        clusterCenterLat: 35.6812,
+        clusterCenterLng: 139.7671,
+        clusterDays: [
+          DateTime(2026, 5, 16),
+          DateTime(2026, 5, 17),
+          DateTime(2026, 5, 18),
+          DateTime(2026, 5, 19),
+          DateTime(2026, 5, 20),
+        ],
+        clusterPool: tokyoStressPool(),
+        trip: tokyoTrip,
+        maxPerDay: 4,
+      );
+      expect(result.enabled, isTrue);
+      for (final pack in result.dayPackByDate.values) {
+        expect(pack.type, isNot(DayPackType.modernDay),
+            reason: 'pack ${pack.placeIds} a type=modernDay sur Tokyo : '
+                'doit être disabled par MetroProfile V8.28d3');
+      }
+    });
+
+    test('Tokyo : Tour de Tokyo (FR) + Parc d\'Ueno (FR) jamais dans le '
+        'même pack', () {
+      final result = buildDayPacksForCluster(
+        clusterCenterLat: 35.6812,
+        clusterCenterLng: 139.7671,
+        clusterDays: [
+          DateTime(2026, 5, 16),
+          DateTime(2026, 5, 17),
+          DateTime(2026, 5, 18),
+          DateTime(2026, 5, 19),
+        ],
+        clusterPool: tokyoStressPool(),
+        trip: tokyoTrip,
+        maxPerDay: 4,
+      );
+      for (final pack in result.dayPackByDate.values) {
+        final ids = pack.placeIds;
+        expect(ids.contains('tower') && ids.contains('ueno'), isFalse,
+            reason: 'pack ${pack.type.label} mélange Tour de Tokyo (FR, '
+                'S central) et Parc d\'Ueno (FR, NE) — interdit V8.28d3');
+      }
+    });
+
+    test('Tokyo : Shibuya Crossing + Shinjuku Gyoen + Meiji-jingū '
+        '→ modernWestDay (macron + FR)', () {
+      final result = buildDayPacksForCluster(
+        clusterCenterLat: 35.6812,
+        clusterCenterLng: 139.7671,
+        clusterDays: [
+          DateTime(2026, 5, 16),
+          DateTime(2026, 5, 17),
+          DateTime(2026, 5, 18),
+          DateTime(2026, 5, 19),
+        ],
+        clusterPool: tokyoStressPool(),
+        trip: tokyoTrip,
+        maxPerDay: 4,
+      );
+      final westIds = {'shibuya', 'shinjuku', 'meiji'};
+      // Si ≥2 W places groupées dans un pack, ce doit être modernWestDay.
+      for (final pack in result.dayPackByDate.values) {
+        final overlap = pack.placeIds.intersection(westIds);
+        if (overlap.length >= 2) {
+          expect(pack.type, DayPackType.modernWestDay,
+              reason: '${overlap.length} places W Tokyo dans pack '
+                  '${pack.type.label} (attendu : modern_west_day)');
+        }
+      }
+      // Au moins 1 pack modernWestDay doit exister vu le pool.
+      final hasWest = result.dayPackByDate.values.any(
+          (p) => p.type == DayPackType.modernWestDay);
+      expect(hasWest, isTrue,
+          reason: 'attendu ≥1 modernWestDay pack avec Shibuya/Shinjuku/Meiji');
+    });
+
+    test('Tokyo : Tower + Roppongi Hills + Mori Art Museum '
+        '→ roppongiMinatoDay (FR + landmarks listés)', () {
+      final result = buildDayPacksForCluster(
+        clusterCenterLat: 35.6812,
+        clusterCenterLng: 139.7671,
+        clusterDays: [
+          DateTime(2026, 5, 16),
+          DateTime(2026, 5, 17),
+          DateTime(2026, 5, 18),
+          DateTime(2026, 5, 19),
+        ],
+        clusterPool: tokyoStressPool(),
+        trip: tokyoTrip,
+        maxPerDay: 4,
+      );
+      final roppongiIds = {
+        'tower', 'roppongi', 'mori_art', 'city_view', 'nat_art',
+        'design_sight', 'azabudai', 'zojoji',
+      };
+      for (final pack in result.dayPackByDate.values) {
+        final overlap = pack.placeIds.intersection(roppongiIds);
+        if (overlap.length >= 2) {
+          expect(pack.type, DayPackType.roppongiMinatoDay,
+              reason: '${overlap.length} places Roppongi/Minato dans pack '
+                  '${pack.type.label} (attendu : roppongi_minato_day) — '
+                  'places=$overlap');
+        }
+      }
+      final hasRoppongi = result.dayPackByDate.values.any(
+          (p) => p.type == DayPackType.roppongiMinatoDay);
+      expect(hasRoppongi, isTrue,
+          reason: 'attendu ≥1 roppongiMinatoDay pack');
+    });
+
+    test('Tokyo : fallback park/art_gallery NE crée PAS de pack '
+        '(Hibiya/Ichigokan unassigned)', () {
+      final result = buildDayPacksForCluster(
+        clusterCenterLat: 35.6812,
+        clusterCenterLng: 139.7671,
+        clusterDays: [
+          DateTime(2026, 5, 16),
+          DateTime(2026, 5, 17),
+          DateTime(2026, 5, 18),
+        ],
+        clusterPool: tokyoStressPool(),
+        trip: tokyoTrip,
+        maxPerDay: 4,
+      );
+      // Hibiya Park + Mitsubishi Ichigokan + Imperial East Garden
+      // n'ont aucun pattern Tokyo. Avant V8.28d3, le fallback type
+      // park/art_gallery les taggait modernDay → pack
+      // modernDay incohérent. Après V8.28d3 (modernDay disabled
+      // pour Tokyo), ils restent unassigned et n'apparaissent dans
+      // aucun pack.
+      const fallbackBait = {'hibiya', 'ichigokan', 'imperial_garden'};
+      for (final pack in result.dayPackByDate.values) {
+        final overlap = pack.placeIds.intersection(fallbackBait);
+        expect(overlap, isEmpty,
+            reason: 'pack ${pack.type.label} contient un fallback bait '
+                '$overlap (Tokyo modernDay disabled — bait doit rester '
+                'unassigned)');
+      }
+    });
+
+    test('Bangkok : modernDay legacy reste actif (régression non-Tokyo)',
+        () {
+      // Régression : disabledArchetypes par défaut est vide pour
+      // Bangkok, donc Jim Thompson + Lumphini + Mahanakhon doivent
+      // toujours pouvoir former un pack modernDay.
+      final result = buildDayPacksForCluster(
+        clusterCenterLat: 13.7563,
+        clusterCenterLng: 100.5018,
+        clusterDays: [
+          DateTime(2026, 6, 25),
+          DateTime(2026, 6, 26),
+        ],
+        clusterPool: bangkokPool(),
+        trip: bangkokTrip,
+        maxPerDay: 4,
+      );
+      final hasModern = result.dayPackByDate.values.any(
+          (p) => p.type == DayPackType.modernDay);
+      expect(hasModern, isTrue,
+          reason: 'Bangkok doit toujours autoriser modernDay legacy '
+              '(disabledArchetypes par défaut empty)');
+    });
+  });
+
   group('Day Builder cross-cluster reservation', () {
     test('reservedPlaceIds exclut les places déjà prises par autre cluster',
         () {

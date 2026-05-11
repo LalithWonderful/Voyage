@@ -179,12 +179,17 @@ double _haversineKm(double lat1, double lng1, double lat2, double lng2) {
 
 String _normName(String s) {
   var n = s.toLowerCase().trim();
+  // V8.28d3 — macrons japonais (ō/ū/ā/ē/ī) ajoutés. Sans cette
+  // normalisation, "Meiji-jingū", "Zōjō-ji", "Hachikō",
+  // "Takeshita-dōri" rataient les patterns Tokyo (rédigés en
+  // romaji stripped) et tombaient en fallback `modernDay`.
   const r = <String, String>{
     'á': 'a', 'à': 'a', 'â': 'a', 'ä': 'a', 'ã': 'a', 'å': 'a',
-    'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
-    'í': 'i', 'ì': 'i', 'î': 'i', 'ï': 'i',
-    'ó': 'o', 'ò': 'o', 'ô': 'o', 'ö': 'o', 'õ': 'o',
-    'ú': 'u', 'ù': 'u', 'û': 'u', 'ü': 'u',
+    'ā': 'a',
+    'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e', 'ē': 'e',
+    'í': 'i', 'ì': 'i', 'î': 'i', 'ï': 'i', 'ī': 'i',
+    'ó': 'o', 'ò': 'o', 'ô': 'o', 'ö': 'o', 'õ': 'o', 'ō': 'o',
+    'ú': 'u', 'ù': 'u', 'û': 'u', 'ü': 'u', 'ū': 'u',
     'ç': 'c', 'đ': 'd', 'ñ': 'n', 'ý': 'y',
   };
   r.forEach((k, v) {
@@ -218,13 +223,23 @@ _ArchetypeMatch _archetypesForCandidate(
   for (final zone in profile.zones) {
     if (matchAny(zone.patterns)) out.add(zone.type);
   }
+  // V8.28d3 — filtre les archétypes désactivés pour cette ville
+  // (Tokyo désactive `modernDay` au profit des 2 zones géo W +
+  // Roppongi). Sans ce filtre, un place qui matcherait à la fois
+  // une zone explicite ET un legacy (peu probable mais possible
+  // via patterns trop larges) garderait le legacy.
+  final disabled = profile.disabledArchetypes;
+  if (disabled.isNotEmpty) {
+    out.removeWhere(disabled.contains);
+  }
   if (out.isNotEmpty) return _ArchetypeMatch(out, true);
   // Fallback type-based pour les candidats sans match nom.
   final types = cand.types.toSet();
-  if (types.contains('hindu_temple') ||
-      types.contains('place_of_worship') ||
-      types.contains('church') ||
-      types.contains('mosque')) {
+  if ((types.contains('hindu_temple') ||
+          types.contains('place_of_worship') ||
+          types.contains('church') ||
+          types.contains('mosque')) &&
+      !disabled.contains(DayPackType.oldCityDay)) {
     out.add(DayPackType.oldCityDay);
   }
   // V8.24 — fallback `market` désactivé pour les villes avec
@@ -232,7 +247,9 @@ _ArchetypeMatch _archetypesForCandidate(
   // sinon Indy Market / Trok Mor / Imperial World tomberaient
   // à tort dans une zone arbitraire et casseraient la cohérence).
   // Pour Paris (1 zone marketDay), fallback actif.
-  if (types.contains('market') && !profile.disableMarketTypeFallback) {
+  if (types.contains('market') &&
+      !profile.disableMarketTypeFallback &&
+      !disabled.contains(DayPackType.marketDay)) {
     // Ajout au seul DayPackType de type marketDay générique présent
     // dans les zones de la ville (s'il existe).
     for (final zone in profile.zones) {
@@ -246,10 +263,16 @@ _ArchetypeMatch _archetypesForCandidate(
   // World Bang Na, Cloud 11, Mega Bangna) n'est PAS Bangkok-iconique,
   // les malls iconiques (IconSiam, Centralworld, Terminal 21) sont
   // déjà capturés par patterns nominaux.
-  if (types.contains('park') ||
-      types.contains('national_park') ||
-      types.contains('botanical_garden') ||
-      types.contains('art_gallery')) {
+  //
+  // V8.28d3 — `modernDay` fallback bloqué pour Tokyo (`disabled`
+  // contient modernDay). Évite Hibiya Park + Mitsubishi Ichigokan
+  // Museum + Parc d'Ueno (FR non-matched) de retomber dans modernDay.
+  // Les candidats sans pattern match deviennent unassigned → skip.
+  if ((types.contains('park') ||
+          types.contains('national_park') ||
+          types.contains('botanical_garden') ||
+          types.contains('art_gallery')) &&
+      !disabled.contains(DayPackType.modernDay)) {
     out.add(DayPackType.modernDay);
   }
   return _ArchetypeMatch(out, false);
