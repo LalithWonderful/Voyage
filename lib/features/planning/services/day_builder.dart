@@ -235,13 +235,19 @@ _ArchetypeMatch _archetypesForCandidate(
   if (out.isNotEmpty) return _ArchetypeMatch(out, true);
   // Fallback type-based pour les candidats sans match nom.
   final types = cand.types.toSet();
-  if ((types.contains('hindu_temple') ||
-          types.contains('place_of_worship') ||
-          types.contains('church') ||
-          types.contains('mosque')) &&
-      !disabled.contains(DayPackType.oldCityDay)) {
-    out.add(DayPackType.oldCityDay);
-  }
+  // V8.28f (Lalith 2026-05-11) — fallback religieux retiré.
+  // Auparavant : `hindu_temple` / `place_of_worship` / `church` /
+  // `mosque` → DayPackType.oldCityDay automatiquement. Symptômes :
+  //   1. Erawan Shrine (hindu_temple à Ratchaprasong) tagué oldCityDay
+  //      alors qu'il appartient à Siam/Ratchaprasong (modernDay).
+  //   2. Wat Bang Na Nok / Wat Bang Nam Phueng Nok (temples Bang Na
+  //      locaux non-iconiques) taggés oldCityDay → fillers dans des
+  //      packs Bangkok hôtel Bang Na.
+  // Les temples/églises iconiques doivent passer par :
+  //   - blueprintMustSeeMarker / blueprintExperienceMarker (curated)
+  //   - pattern explicite dans une MetroZone (curated)
+  // Sans cela, ils restent unassigned → le quality floor V8.28f les
+  // rejette en mode fallback slot picker mégalopole.
   // V8.24 — fallback `market` désactivé pour les villes avec
   // `disableMarketTypeFallback=true` (Bangkok = 3 zones marché ;
   // sinon Indy Market / Trok Mor / Imperial World tomberaient
@@ -282,6 +288,49 @@ bool _hasMustSeeMarker(List<String> matchedInterests) =>
     matchedInterests.contains(blueprintMustSeeMarker);
 bool _hasExperienceMarker(List<String> matchedInterests) =>
     matchedInterests.contains(blueprintExperienceMarker);
+bool _hasMetroAnchorMarker(List<String> matchedInterests) =>
+    matchedInterests.contains(metroAnchorMarker);
+
+/// V8.28f (Lalith 2026-05-11) — quality floor pour le slot picker en
+/// mode fallback (sans Day Builder pack). Un candidat est « qualifié »
+/// pour une mégalopole (`MetroProfile`) UNIQUEMENT si :
+///   - il porte un marker blueprint curated
+///     (`_BlueprintMustSee` / `_BlueprintExperience`), ou
+///   - il porte le marker `_MetroAnchor` (V8.28d, enrichissement
+///     contrôlé), ou
+///   - il match un pattern explicite d'une zone du `MetroProfile`.
+///
+/// Sinon → rejet, log `[places_first_skip_visit] reason=
+/// rejected_by_quality_floor`. Effet produit : Kimono Hazuki,
+/// Private Thai Massage Salon, yuenbettei daita, petits parcs de
+/// quartier, boutiques sans signal touristique fort, temples locaux
+/// non-iconiques ne sont plus picked en fallback (cluster hôtel
+/// Bang Na, jours hors Day Builder pack, etc.). User explicit
+/// acceptance « journée libre plutôt qu'incohérente ».
+///
+/// IMPORTANT : ce floor s'applique uniquement quand
+/// `clusterMetroProfile != null` (mégalopole avec curation forte) ET
+/// quand le slot picker est en mode fallback (`dayPackPlaceIds ==
+/// null`). Hors mégalopole (Phu Quoc / Hoi An / Koh Samet / Hanoi)
+/// → pas de floor (pas de curation pour comparer). En mode pack
+/// (Day Builder enabled) → pas de floor (le pack est déjà curé).
+bool isMetroQualifiedCandidate(
+  NearbyCandidate candidate,
+  MetroProfile profile,
+  List<String> matchedInterests,
+) {
+  if (_hasMustSeeMarker(matchedInterests)) return true;
+  if (_hasExperienceMarker(matchedInterests)) return true;
+  if (_hasMetroAnchorMarker(matchedInterests)) return true;
+  // Pattern match explicite dans une zone MetroProfile.
+  final n = _normName(candidate.name);
+  for (final zone in profile.zones) {
+    for (final p in zone.patterns) {
+      if (n.contains(p)) return true;
+    }
+  }
+  return false;
+}
 
 /// Score de base d'un candidat dans le contexte Day Builder. Réutilise
 /// la formule du slot picker (qualité × log reviews + blueprint boost)

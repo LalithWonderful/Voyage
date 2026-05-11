@@ -187,6 +187,13 @@ const _bangkokMetro = MetroProfile(
       'train night market srinagarindra', 'srinagarindra',
       'seacon square', 'paradise park srinagarindra',
     ]),
+    // V8.28f (Lalith 2026-05-11) — `erawan shrine` + `ratchaprasong`
+    // + `chit lom` ajoutés. Sans ce pattern explicite, Erawan
+    // (`hindu_temple` à 13.744/100.540, près de Siam) était capturé
+    // par le fallback `hindu_temple` → oldCityDay (FAUX : Erawan est
+    // à Ratchaprasong, pas Old City). V8.28f retire ce fallback ;
+    // Erawan doit donc être capturé soit via blueprintMustSeeMarker
+    // (déjà dans blueprint Bangkok V8.25), soit via ce pattern.
     MetroZone(type: DayPackType.modernDay, patterns: [
       'jim thompson', 'mahanakhon', 'lumpini', 'lumphini',
       'siam paragon', 'siam center', 'siam discovery', 'centralworld',
@@ -194,6 +201,7 @@ const _bangkokMetro = MetroProfile(
       'em district', 'emporium', 'sky walk', 'skywalk',
       'benjasiri', 'benjakitti', 'kingpower', 'king power',
       'samyan mitrtown',
+      'erawan shrine', 'ratchaprasong', 'chit lom', 'chitlom',
     ]),
   ],
 );

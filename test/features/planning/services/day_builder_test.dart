@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:voyage/features/planning/data/destination_blueprints.dart';
+import 'package:voyage/features/planning/data/metro_profile.dart';
 import 'package:voyage/features/planning/services/day_builder.dart';
 import 'package:voyage/features/planning/services/places_nearby_service.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
@@ -1198,6 +1199,304 @@ void main() {
       expect(hasModern, isTrue,
           reason: 'Bangkok doit toujours autoriser modernDay legacy '
               '(disabledArchetypes par défaut empty)');
+    });
+  });
+
+  group('Day Builder V8.28f — Erawan + religious fallback removed', () {
+    // V8.28f Lot A : fallback `hindu_temple` / `place_of_worship` /
+    // `church` / `mosque` → oldCityDay retiré. Erawan Shrine doit
+    // matcher Bangkok modernDay via pattern explicite (V8.28f),
+    // PAS oldCityDay via fallback. Wat Bang Na Nok (temple Bang Na
+    // local, sans pattern, sans marker) doit rester unassigned →
+    // exclu du builder.
+
+    NearbyCandidate erawan() => NearbyCandidate(
+          placeId: 'erawan',
+          name: 'Erawan Shrine',
+          latitude: 13.7440,
+          longitude: 100.5408,
+          rating: 4.4,
+          userRatingCount: 30000,
+          types: const ['hindu_temple', 'tourist_attraction'],
+        );
+    NearbyCandidate watBangNaNok() => NearbyCandidate(
+          placeId: 'wbnn',
+          name: 'Wat Bang Na Nok',
+          latitude: 13.6720,
+          longitude: 100.6034,
+          rating: 4.2,
+          userRatingCount: 800,
+          types: const ['place_of_worship'],
+        );
+
+    test('Erawan Shrine (hindu_temple) ne tombe PAS dans oldCityDay '
+        'via fallback', () {
+      // Pool avec Erawan + 8 padding modernes pour atteindre minPool=8.
+      final pool = <String,
+          ({NearbyCandidate candidate, List<String> matchedInterests})>{
+        'erawan': (
+          candidate: erawan(),
+          matchedInterests: const ['Culture'],
+        ),
+      };
+      void pad(String id, String name, double lat, double lng, int reviews,
+          List<String> types, List<String> mi) {
+        pool[id] = (
+          candidate: NearbyCandidate(
+            placeId: id,
+            name: name,
+            latitude: lat,
+            longitude: lng,
+            rating: 4.5,
+            userRatingCount: reviews,
+            types: types,
+          ),
+          matchedInterests: mi,
+        );
+      }
+
+      // Padding modernDay (zone Siam/Ratchaprasong) — patterns
+      // explicites, doivent matcher modernDay aussi.
+      pad('jt', 'Jim Thompson House Museum', 13.7494, 100.5294, 10000,
+          ['museum'], [blueprintMustSeeMarker]);
+      pad('mn', 'Mahanakhon SkyWalk', 13.7232, 100.5287, 8000,
+          ['tourist_attraction'], [blueprintMustSeeMarker]);
+      pad('lp', 'Lumphini Park', 13.7307, 100.5418, 30000,
+          ['park'], [blueprintMustSeeMarker]);
+      pad('cw', 'CentralWorld', 13.7470, 100.5396, 25000,
+          ['shopping_mall', 'tourist_attraction'], const []);
+      pad('sp', 'Siam Paragon', 13.7466, 100.5343, 30000,
+          ['shopping_mall'], const []);
+      // Padding old city pour atteindre minPool
+      pad('gp', 'Grand Palace', 13.7500, 100.4914, 100000,
+          ['tourist_attraction'], [blueprintMustSeeMarker]);
+      pad('wp', 'Wat Pho', 13.7465, 100.4927, 50000,
+          ['place_of_worship'], [blueprintMustSeeMarker]);
+
+      final result = buildDayPacksForCluster(
+        clusterCenterLat: 13.7563,
+        clusterCenterLng: 100.5018,
+        clusterDays: [
+          DateTime(2026, 6, 25),
+          DateTime(2026, 6, 26),
+          DateTime(2026, 6, 27),
+        ],
+        clusterPool: pool,
+        trip: bangkokTrip,
+        maxPerDay: 4,
+      );
+      // Si Erawan est picked, ça doit être dans un pack modernDay
+      // (Ratchaprasong/Siam), JAMAIS oldCityDay (qui contient Grand
+      // Palace + Wat Pho, à 5 km).
+      for (final pack in result.dayPackByDate.values) {
+        if (pack.placeIds.contains('erawan')) {
+          expect(pack.type, DayPackType.modernDay,
+              reason: 'Erawan Shrine tagué ${pack.type.label} au lieu '
+                  'de modernDay — fallback hindu_temple non retiré ?');
+        }
+      }
+    });
+
+    test('Wat Bang Na Nok (place_of_worship, sans pattern Bangkok) '
+        'reste unassigned (fallback religieux retiré)', () {
+      final pool = <String,
+          ({NearbyCandidate candidate, List<String> matchedInterests})>{
+        'wbnn': (
+          candidate: watBangNaNok(),
+          matchedInterests: const [],
+        ),
+      };
+      // Padding pour atteindre minPool=8.
+      void pad(String id, String name, double lat, double lng, int reviews,
+          List<String> types, List<String> mi) {
+        pool[id] = (
+          candidate: NearbyCandidate(
+            placeId: id,
+            name: name,
+            latitude: lat,
+            longitude: lng,
+            rating: 4.5,
+            userRatingCount: reviews,
+            types: types,
+          ),
+          matchedInterests: mi,
+        );
+      }
+
+      pad('gp', 'Grand Palace', 13.7500, 100.4914, 100000,
+          ['tourist_attraction'], [blueprintMustSeeMarker]);
+      pad('wp', 'Wat Pho', 13.7465, 100.4927, 50000,
+          ['place_of_worship'], [blueprintMustSeeMarker]);
+      pad('wa', 'Wat Arun', 13.7437, 100.4889, 40000,
+          ['place_of_worship'], [blueprintMustSeeMarker]);
+      pad('ks', 'Khao San Road', 13.7589, 100.4977, 20000,
+          ['tourist_attraction'], [blueprintExperienceMarker]);
+      pad('jt', 'Jim Thompson House Museum', 13.7494, 100.5294, 10000,
+          ['museum'], [blueprintMustSeeMarker]);
+      pad('mn', 'Mahanakhon SkyWalk', 13.7232, 100.5287, 8000,
+          ['tourist_attraction'], [blueprintMustSeeMarker]);
+      pad('lp', 'Lumphini Park', 13.7307, 100.5418, 30000,
+          ['park'], [blueprintMustSeeMarker]);
+
+      final result = buildDayPacksForCluster(
+        clusterCenterLat: 13.7563,
+        clusterCenterLng: 100.5018,
+        clusterDays: [
+          DateTime(2026, 6, 25),
+          DateTime(2026, 6, 26),
+          DateTime(2026, 6, 27),
+        ],
+        clusterPool: pool,
+        trip: bangkokTrip,
+        maxPerDay: 4,
+      );
+      // Wat Bang Na Nok ne match aucun pattern Bangkok (pas dans
+      // zones) et son seul type est `place_of_worship` (fallback
+      // V8.28f retiré). Doit rester unassigned → jamais dans un pack.
+      for (final pack in result.dayPackByDate.values) {
+        expect(pack.placeIds.contains('wbnn'), isFalse,
+            reason: 'Wat Bang Na Nok dans pack ${pack.type.label} : '
+                'fallback religieux V8.28f non retiré ?');
+      }
+    });
+  });
+
+  group('Day Builder V8.28f — isMetroQualifiedCandidate', () {
+    // V8.28f Lot B : quality floor public helper.
+
+    final bangkokProfile = getMetroProfileForCluster(13.7563, 100.5018)!;
+    final tokyoProfile = getMetroProfileForCluster(35.6812, 139.7671)!;
+
+    test('blueprintMustSeeMarker → true', () {
+      final c = NearbyCandidate(
+        placeId: 'x',
+        name: 'random name no pattern',
+        latitude: 13.75,
+        longitude: 100.50,
+        types: const ['tourist_attraction'],
+      );
+      expect(
+          isMetroQualifiedCandidate(c, bangkokProfile,
+              const [blueprintMustSeeMarker]),
+          isTrue);
+    });
+
+    test('blueprintExperienceMarker → true', () {
+      final c = NearbyCandidate(
+        placeId: 'x',
+        name: 'random name no pattern',
+        latitude: 13.75,
+        longitude: 100.50,
+        types: const ['tourist_attraction'],
+      );
+      expect(
+          isMetroQualifiedCandidate(c, bangkokProfile,
+              const [blueprintExperienceMarker]),
+          isTrue);
+    });
+
+    test('metroAnchorMarker → true (enrichissement V8.28d contrôlé)', () {
+      final c = NearbyCandidate(
+        placeId: 'x',
+        name: 'random Tokyo name no zone pattern',
+        latitude: 35.68,
+        longitude: 139.77,
+        types: const ['tourist_attraction'],
+      );
+      expect(
+          isMetroQualifiedCandidate(c, tokyoProfile,
+              const [metroAnchorMarker]),
+          isTrue,
+          reason: 'V8.28f doit accepter _MetroAnchor même sans pattern, '
+              'sinon les bons lieux du fan-out V8.28d sont rejetés');
+    });
+
+    test('Pattern match zone explicite (Erawan Shrine Bangkok modernDay) '
+        '→ true', () {
+      final c = NearbyCandidate(
+        placeId: 'erawan',
+        name: 'Erawan Shrine',
+        latitude: 13.744,
+        longitude: 100.541,
+        types: const ['hindu_temple'],
+      );
+      expect(isMetroQualifiedCandidate(c, bangkokProfile, const []),
+          isTrue,
+          reason: 'Erawan Shrine match pattern modernDay V8.28f');
+    });
+
+    test('Pattern match macron Tokyo (Meiji-jingū) → true', () {
+      // Macron ū doit être normalisé via _normName V8.28d3.
+      final c = NearbyCandidate(
+        placeId: 'meiji',
+        name: 'Meiji-jingū',
+        latitude: 35.6764,
+        longitude: 139.6993,
+        types: const ['tourist_attraction'],
+      );
+      expect(isMetroQualifiedCandidate(c, tokyoProfile, const []), isTrue);
+    });
+
+    test('Pattern match FR Tokyo (La Tour de Tokyo) → true', () {
+      final c = NearbyCandidate(
+        placeId: 'tower',
+        name: 'La Tour de Tokyo',
+        latitude: 35.6586,
+        longitude: 139.7454,
+        types: const ['tourist_attraction'],
+      );
+      expect(isMetroQualifiedCandidate(c, tokyoProfile, const []), isTrue);
+    });
+
+    test('Kimono Hazuki sur Tokyo (sans marker, sans pattern) → false', () {
+      final c = NearbyCandidate(
+        placeId: 'kh',
+        name: 'Kimono Hazuki',
+        latitude: 35.66,
+        longitude: 139.70,
+        types: const ['clothing_store'],
+      );
+      expect(isMetroQualifiedCandidate(c, tokyoProfile, const []), isFalse,
+          reason: 'Kimono Hazuki doit être rejeté par quality floor '
+              'sur Tokyo (boutique, pas de signal touristique)');
+    });
+
+    test('Wat Bang Na Nok sur Bangkok (sans marker, sans pattern) → false',
+        () {
+      final c = NearbyCandidate(
+        placeId: 'wbnn',
+        name: 'Wat Bang Na Nok',
+        latitude: 13.672,
+        longitude: 100.603,
+        types: const ['place_of_worship'],
+      );
+      expect(isMetroQualifiedCandidate(c, bangkokProfile, const []),
+          isFalse,
+          reason: 'Wat Bang Na Nok temple local Bang Na sans pattern '
+              '→ rejeté en fallback Bangkok');
+    });
+
+    test('Private Thai Massage sur Bangkok (sans marker, sans pattern) '
+        '→ false', () {
+      final c = NearbyCandidate(
+        placeId: 'ptm',
+        name: 'Private Thai Massage Salon Hatheu',
+        latitude: 13.69,
+        longitude: 100.60,
+        types: const ['spa'],
+      );
+      expect(isMetroQualifiedCandidate(c, bangkokProfile, const []),
+          isFalse);
+    });
+
+    test('Hors mégalopole : getMetroProfileForCluster retourne null '
+        '(Phu Quoc / Hoi An) → quality floor ne s\'applique pas', () {
+      // Phu Quoc (10.22/103.96) et Hoi An (15.88/108.33) hors MetroProfile.
+      expect(getMetroProfileForCluster(10.22, 103.96), isNull,
+          reason: 'Phu Quoc ne doit pas matcher un MetroProfile');
+      expect(getMetroProfileForCluster(15.88, 108.33), isNull,
+          reason: 'Hoi An ne doit pas matcher un MetroProfile');
+      // → en pipeline, clusterMetroProfile==null → pas de quality floor.
     });
   });
 

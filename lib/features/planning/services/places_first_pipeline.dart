@@ -3538,6 +3538,19 @@ List<ActivitySuggestion> selectVisitsDeterministic({
       }
     }
 
+    // V8.28f (Lalith 2026-05-11) — quality floor fallback. Calcule
+    // le MetroProfile du cluster une fois pour tous les jours. Sera
+    // utilisé dans le slot picker en mode fallback (sans day pack)
+    // pour rejeter les candidats non-qualifiés (sans marker blueprint,
+    // sans marker metro anchor, sans pattern match). Effet : Kimono
+    // Hazuki / Private Thai Massage / yuenbettei daita / fillers
+    // Bang Na n'apparaissent plus dans les picks fallback Bangkok ou
+    // Tokyo. Hors mégalopole (Phu Quoc/Hoi An/Hanoi/Koh Samet),
+    // `clusterMetroProfile == null` → pas de floor (pas de curation
+    // pour comparer).
+    final clusterMetroProfile = getMetroProfileForCluster(
+        cluster.center.latitude, cluster.center.longitude);
+
     for (final day in cluster.days) {
       // V8.20 (Day Builder) — pack thématique éventuel pour ce jour.
       // Si non null, restreint le pool slot picker aux placeIds du pack.
@@ -3605,6 +3618,23 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           if (dayPackPlaceIds != null &&
               !dayPackPlaceIds.contains(c.placeId)) {
             return false;
+          }
+          // V8.28f (Lalith 2026-05-11) — quality floor fallback. En
+          // mode fallback (pas de day pack), sur mégalopole avec
+          // MetroProfile curated, exige qu'un candidat soit
+          // « qualifié » : marker blueprint (must-see/experience) OU
+          // marker metro anchor OU pattern match d'une zone du
+          // MetroProfile. Sinon → reject. Empêche fillers Bang Na
+          // (Imperial World, Ton Sai Market, Wat Bang Na Nok),
+          // Tokyo locaux (Kimono Hazuki, Private Thai Massage,
+          // yuenbettei daita, petits parcs) de remonter dans les
+          // jours sans pack. User explicit : « journée libre plutôt
+          // qu'incohérente ».
+          if (dayPackPlaceIds == null && clusterMetroProfile != null) {
+            if (!isMetroQualifiedCandidate(
+                c, clusterMetroProfile, e.value.matchedInterests)) {
+              return false;
+            }
           }
           // V8.21 (anti-zigzag slot-level) — hard cap depuis la dernière
           // activité du jour. Empêche Chatuchak (13.80, 100.55) suivi
@@ -3745,6 +3775,7 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           var rejectAntiZigzag = 0;
           var rejectCoherenceGuard = 0;
           var rejectSecondPickGuard = 0;
+          var rejectQualityFloor = 0;
           for (final e in entries) {
             final c = e.value.candidate;
             // V8.20 (Day Builder) — comptabilise les rejets par filtre pack.
@@ -3752,6 +3783,14 @@ List<ActivitySuggestion> selectVisitsDeterministic({
                 !dayPackPlaceIds.contains(c.placeId)) {
               rejectDayPack++;
               continue;
+            }
+            // V8.28f (quality floor fallback) — miroir du filtre.
+            if (dayPackPlaceIds == null && clusterMetroProfile != null) {
+              if (!isMetroQualifiedCandidate(
+                  c, clusterMetroProfile, e.value.matchedInterests)) {
+                rejectQualityFloor++;
+                continue;
+              }
             }
             // V8.21 (anti-zigzag slot-level) — miroir du filtre.
             final lastLat = lastActivity?.latitude;
@@ -3880,6 +3919,7 @@ List<ActivitySuggestion> selectVisitsDeterministic({
             'rejected_by_anti_zigzag': rejectAntiZigzag,
             'rejected_by_coherence_guard': rejectCoherenceGuard,
             'rejected_by_second_pick_guard': rejectSecondPickGuard,
+            'rejected_by_quality_floor': rejectQualityFloor,
           };
           final sortedRejects = rejects.entries.where((e) => e.value > 0).toList()
             ..sort((a, b) => b.value.compareTo(a.value));
