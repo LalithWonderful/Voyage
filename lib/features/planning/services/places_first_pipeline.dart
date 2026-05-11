@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
+import 'package:voyage/config/feature_flags.dart';
+import 'package:voyage/data/complexes/complex_registry.dart';
 import 'package:voyage/features/planning/data/destination_blueprints.dart';
 import 'package:voyage/features/planning/data/metro_profile.dart';
 import 'package:voyage/features/planning/data/segment_city_canonicals.dart';
@@ -15,6 +17,9 @@ import 'package:voyage/features/planning/services/places_nearby_service.dart';
 import 'package:voyage/features/planning/services/traveler_to_places_mapping.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/wallet/models/document_model.dart';
+import 'package:voyage/models/same_complex_group.dart';
+import 'package:voyage/services/complex_matcher.dart';
+import 'package:voyage/services/same_complex_rejection.dart';
 
 /// Champs UX/profil **pas encore exploités** par le pipeline de suggestion
 /// (audit Niveau A 2026-05-08, à creuser plus tard) :
@@ -3522,7 +3527,25 @@ List<ActivitySuggestion> selectVisitsDeterministic({
   required Trip trip,
   required TravelerPlacesProfile? travelerProfile,
   Set<String> existingTitlesNormalized = const {},
+  // Phase 2 / Tâche 2.4 — dédup `SameComplexGroup` derrière flag.
+  // Default OFF par construction : si l'appelant ne passe rien, le
+  // comportement reste strictement identique à pré-2.4.
+  bool useSameComplexDedup = false,
+  List<SameComplexGroup> complexGroups = const <SameComplexGroup>[],
+  /// Journal optionnel de rejets `same_complex_cap` (pour tests).
+  /// Si non null, **chaque rejet** y est appendé. Production passe
+  /// `null` → aucune allocation, aucun overhead.
+  List<SameComplexRejection>? sameComplexRejectionsOut,
 }) {
+  // Phase 2 / Tâche 2.4 — la dédup complexe est active uniquement
+  // quand le flag ET la liste sont non vides. Une de ces 2
+  // conditions seule = no-op (cas destination sans groupes connus).
+  final complexDedupActive =
+      useSameComplexDedup && complexGroups.isNotEmpty;
+
+  // Compteurs trip-wide par `complex_key` (init une seule fois pour
+  // tout le voyage, indépendant du cluster).
+  final complexCountAcrossTrip = <String, int>{};
   // V8.7 (Lalith 2026-05-10 — Quality-1A v4 final gate) — pré-filtre
   // strict des candidats AVANT toute logique de sélection. Couvre les
   // leaks observés sur run debug Thaïlande (painter, medical_clinic,
@@ -3870,6 +3893,10 @@ List<ActivitySuggestion> selectVisitsDeterministic({
       // bourrée de must-see (Statue Liberty + Empire State + 9/11
       // Memorial + Brooklyn Bridge à enchaîner = irréaliste).
       var majorCountThisDay = 0;
+      // Phase 2 / Tâche 2.4 — compteur `same_complex` par jour
+      // (reset à chaque nouveau jour). Trip-wide compteur initialisé
+      // en haut de fonction (`complexCountAcrossTrip`).
+      final complexCountThisDay = <String, int>{};
       // Indique si la demi-journée précédente du même jour a déjà un
       // wellness pick (sert au soft penalty quand Wellness est intérêt fort).
       var lastHalfDayHadWellness = false;
@@ -4055,6 +4082,70 @@ List<ActivitySuggestion> selectVisitsDeterministic({
               return false;
             }
           }
+          // Phase 2 / Tâche 2.4 — cap `SameComplexGroup` (flag-gated).
+          // Quand le flag est OFF ou que la liste est vide, ce bloc
+          // est totalement court-circuité (`complexDedupActive ==
+          // false`) → comportement identique au pré-2.4.
+          if (complexDedupActive) {
+            final complexMatch = matchComplexDetailed(
+              name: c.name,
+              placeId: c.placeId,
+              groups: complexGroups,
+            );
+            if (complexMatch != null) {
+              final groupForCandidate = complexGroups.firstWhere(
+                (g) => g.complexKey == complexMatch.complexKey,
+              );
+              final currentDayCount =
+                  complexCountThisDay[complexMatch.complexKey] ?? 0;
+              if (currentDayCount >= groupForCandidate.maxPerDay) {
+                final rej = SameComplexRejection(
+                  candidateTitle: c.name,
+                  complexKey: complexMatch.complexKey,
+                  reason: SameComplexRejection.reasonCapDay,
+                  dayDate: day,
+                  currentCount: currentDayCount,
+                  maxAllowed: groupForCandidate.maxPerDay,
+                );
+                sameComplexRejectionsOut?.add(rej);
+                // ignore: avoid_print
+                print(
+                  '[places_complex_dedup_reject] '
+                  'name="${c.name}" '
+                  'complex=${complexMatch.complexKey} '
+                  'strategy=${complexMatch.strategy.name} '
+                  'reason=${rej.reason} '
+                  'day=${day.toIso8601String().split("T").first} '
+                  'count=$currentDayCount/${groupForCandidate.maxPerDay}',
+                );
+                return false;
+              }
+              final currentTripCount =
+                  complexCountAcrossTrip[complexMatch.complexKey] ?? 0;
+              if (currentTripCount >= groupForCandidate.maxPerTrip) {
+                final rej = SameComplexRejection(
+                  candidateTitle: c.name,
+                  complexKey: complexMatch.complexKey,
+                  reason: SameComplexRejection.reasonCapTrip,
+                  dayDate: day,
+                  currentCount: currentTripCount,
+                  maxAllowed: groupForCandidate.maxPerTrip,
+                );
+                sameComplexRejectionsOut?.add(rej);
+                // ignore: avoid_print
+                print(
+                  '[places_complex_dedup_reject] '
+                  'name="${c.name}" '
+                  'complex=${complexMatch.complexKey} '
+                  'strategy=${complexMatch.strategy.name} '
+                  'reason=${rej.reason} '
+                  'day=${day.toIso8601String().split("T").first} '
+                  'count=$currentTripCount/${groupForCandidate.maxPerTrip}',
+                );
+                return false;
+              }
+            }
+          }
           return true;
         }).toList();
 
@@ -4069,6 +4160,7 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           var rejectSecondPickGuard = 0;
           var rejectQualityFloor = 0;
           var rejectIconicTripDedup = 0;
+          var rejectSameComplexCap = 0;
           for (final e in entries) {
             final c = e.value.candidate;
             // V8.20 (Day Builder) — comptabilise les rejets par filtre pack.
@@ -4201,6 +4293,28 @@ List<ActivitySuggestion> selectVisitsDeterministic({
                 continue;
               }
             }
+            // Phase 2 / Tâche 2.4 — miroir du cap SameComplexGroup.
+            if (complexDedupActive) {
+              final complexMatch = matchComplexDetailed(
+                name: c.name,
+                placeId: c.placeId,
+                groups: complexGroups,
+              );
+              if (complexMatch != null) {
+                final groupForCandidate = complexGroups.firstWhere(
+                  (g) => g.complexKey == complexMatch.complexKey,
+                );
+                final dayCount =
+                    complexCountThisDay[complexMatch.complexKey] ?? 0;
+                final tripCount =
+                    complexCountAcrossTrip[complexMatch.complexKey] ?? 0;
+                if (dayCount >= groupForCandidate.maxPerDay ||
+                    tripCount >= groupForCandidate.maxPerTrip) {
+                  rejectSameComplexCap++;
+                  continue;
+                }
+              }
+            }
           }
           // Identifie la raison principale (= catégorie qui a le compteur le
           // plus élevé). Sert au debug rapide depuis le harness/logs.
@@ -4222,6 +4336,7 @@ List<ActivitySuggestion> selectVisitsDeterministic({
             'rejected_by_second_pick_guard': rejectSecondPickGuard,
             'rejected_by_quality_floor': rejectQualityFloor,
             'rejected_by_iconic_trip_dedup': rejectIconicTripDedup,
+            'rejected_by_same_complex_cap': rejectSameComplexCap,
           };
           final sortedRejects = rejects.entries.where((e) => e.value > 0).toList()
             ..sort((a, b) => b.value.compareTo(a.value));
@@ -4501,6 +4616,22 @@ List<ActivitySuggestion> selectVisitsDeterministic({
         dayPickLats.add(pick.latitude);
         dayPickLngs.add(pick.longitude);
         lastActivity = out.last;
+        // Phase 2 / Tâche 2.4 — incrément compteurs same-complex.
+        // Strictement no-op quand le flag est OFF (court-circuit via
+        // `complexDedupActive`).
+        if (complexDedupActive) {
+          final pickComplexKey = matchComplex(
+            name: pick.name,
+            placeId: pick.placeId,
+            groups: complexGroups,
+          );
+          if (pickComplexKey != null) {
+            complexCountThisDay[pickComplexKey] =
+                (complexCountThisDay[pickComplexKey] ?? 0) + 1;
+            complexCountAcrossTrip[pickComplexKey] =
+                (complexCountAcrossTrip[pickComplexKey] ?? 0) + 1;
+          }
+        }
       }
     }
   }
@@ -6203,11 +6334,22 @@ Future<List<ActivitySuggestion>> _runAutoPlacesFirstBody({
     '(sélecteur déterministe — 0 Gemini)',
   );
 
+  // Phase 2 / Tâche 2.4 — flag-aware câblage. Default OFF (cf.
+  // `FeatureFlags.defaults()` + `_parseBoolString('') == null`).
+  // Activable via `--dart-define=USE_SAME_COMPLEX_DEDUP=true` ;
+  // future activation via override Supabase suit la même
+  // signature. Lookup registry **toujours fait** (no-op si flag
+  // OFF, court-circuité dans le sélecteur).
+  final featureFlags = FeatureFlags.fromEnvironment();
+  final complexGroupsForTrip =
+      loadLocalComplexGroupsForDestination(trip.destination);
   final visits = selectVisitsDeterministic(
     clusters: clustersForVisits,
     trip: trip,
     travelerProfile: travelerProfile,
     existingTitlesNormalized: existingTitlesNormalized,
+    useSameComplexDedup: featureFlags.useSameComplexDedup,
+    complexGroups: complexGroupsForTrip,
   );
   debugPrint(
     '[places_first] Auto Places-first : ${visits.length} visites sélectionnées',

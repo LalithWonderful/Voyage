@@ -43,6 +43,8 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:voyage/config/feature_flags.dart';
+import 'package:voyage/data/complexes/complex_registry.dart';
 import 'package:voyage/features/planning/models/activity_suggestion_model.dart';
 import 'package:voyage/features/planning/services/geocoding_service.dart';
 import 'package:voyage/features/planning/services/places_first_pipeline.dart';
@@ -124,10 +126,22 @@ Future<_RunOutput> _runPipeline(Trip trip) async {
 
     final travelerProfile = travelerPlacesProfiles[trip.travelerType];
 
+    // Phase 2 / Tâche 2.4 — flag-aware câblage. Par défaut OFF
+    // (`fromEnvironment()` retourne false sans `--dart-define`).
+    // Activable via :
+    //   flutter test --dart-define=USE_SAME_COMPLEX_DEDUP=true \
+    //     test/snapshots/generate_baseline.dart
+    // pour observer l'impact de la dédup `SameComplexGroup` sur le
+    // planning Singapour.
+    final featureFlags = FeatureFlags.fromEnvironment();
+    final complexGroupsForTrip =
+        loadLocalComplexGroupsForDestination(trip.destination);
     final visits = selectVisitsDeterministic(
       clusters: clusters,
       trip: trip,
       travelerProfile: travelerProfile,
+      useSameComplexDedup: featureFlags.useSameComplexDedup,
+      complexGroups: complexGroupsForTrip,
     );
 
     final budgetPriceCap = priceLevelCapForBudget(
