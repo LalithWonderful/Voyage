@@ -822,6 +822,15 @@ const Set<String> _qualityFinalFoodTypes = <String>{
   'juice_shop',
   'tea_house',
   'food', // type générique Google
+  // V8.28f2 (Lalith 2026-05-11) — additions pour cohérence avec
+  // _mealPlaceTypes. Pâtisseries / boulangeries fines / confiseries /
+  // chocolatiers sont alimentaires, pas des visites auto.
+  'pastry_shop',
+  'cake_shop',
+  'confectionery',
+  'donut_shop',
+  'chocolate_shop',
+  'candy_store',
   // `*_restaurant` (italian_restaurant, sushi_restaurant, etc.)
   // détecté par suffixe dans `_isAllowedFinalVisitCandidate`.
 };
@@ -1218,9 +1227,46 @@ const int _qualityStrongLandmarkReviewsThreshold = 500;
 ///   - 'high_rating_few_reviews' : rating ≥ 4.5 mais reviews < 10.
 ///   - 'generic_poi' : point_of_interest seul.
 ///   - null si OK.
+/// V8.28f2 (Lalith 2026-05-11) — détecte les restaurants/cafés/
+/// boulangeries/pâtisseries déguisés en POIs touristiques. Bug
+/// observé Florence : Antica Trattoria da Tito dal 1913 avec
+/// types=[historical_landmark, night_club, italian_restaurant]
+/// passait à travers `_isAllowedFinalVisitCandidate` car la
+/// détection food n'examinait que `primary=historical_landmark`.
+///
+/// Règle : retourne true si UN DES types de `c.types` est food
+/// (incluant le suffixe `*_restaurant`).
+/// Exception 1 — marché emblématique : un type travel-safe (`tourist_
+/// attraction` / `market` / `farmers_market` / `flea_market` /
+/// `food_market`) co-tagué neutralise. Couvre Borough Market,
+/// Smorgasburg, Pak Khlong Talat.
+/// Exception 2 — marker curated : `_BlueprintMustSee` / `_BlueprintExperience`
+/// / `_MetroAnchor`. Un lieu curé peut porter un type secondaire
+/// food (Khaosan Road avec `bar`, food court must-see), on garde.
+bool isRestaurantDisguisedForVisit(
+  NearbyCandidate c,
+  List<String> matchedInterests,
+) {
+  if (matchedInterests.contains(blueprintMustSeeMarker)) return false;
+  if (matchedInterests.contains(blueprintExperienceMarker)) return false;
+  if (matchedInterests.contains(metroAnchorMarker)) return false;
+  final hasFoodTypeAnywhere = c.types.any((t) =>
+      _qualityFinalFoodTypes.contains(t) || t.endsWith('_restaurant'));
+  if (!hasFoodTypeAnywhere) return false;
+  final hasMarketContext = c.types.any(_qualityMarketTravelTypes.contains);
+  if (hasMarketContext) return false;
+  return true;
+}
+
 String? _isAllowedFinalVisitCandidate(
   NearbyCandidate c, {
   required Set<String> tripInterests,
+  /// V8.28f2 — markers du candidat (`_BlueprintMustSee`,
+  /// `_BlueprintExperience`, `_MetroAnchor`). Sert d'exception au
+  /// rejet `restaurant_out_of_scope` quand un lieu curé porte un
+  /// type secondaire food (ex: Khaosan Road avec `bar`, food market
+  /// emblématique avec `food_court`).
+  List<String> matchedInterests = const [],
 }) {
   if (c.types.isEmpty) return 'generic_poi';
   final primary = c.types.first;
@@ -1267,15 +1313,14 @@ String? _isAllowedFinalVisitCandidate(
     return 'blocked_type';
   }
 
-  // Food types : restos/cafes/bakeries/etc. hors scope visites auto.
-  // Exception : market emblématique (food_market + tourist_attraction).
-  final isFoodType = _qualityFinalFoodTypes.contains(primary) ||
-      primary.endsWith('_restaurant');
-  if (isFoodType) {
-    final hasMarketContext = c.types.any(_qualityMarketTravelTypes.contains);
-    if (!hasMarketContext) {
-      return 'restaurant_out_of_scope';
-    }
+  // V8.28f2 (Lalith 2026-05-11) — restaurants déguisés.
+  // Cas observé Florence : Antica Trattoria da Tito dal 1913
+  // sortait à 09:30 comme « Culture » car types=[historical_landmark,
+  // night_club, italian_restaurant] et le primary=historical_landmark
+  // passait. `isRestaurantDisguisedForVisit` check ANY position +
+  // exception curated (blueprint/metroAnchor) + exception market.
+  if (isRestaurantDisguisedForVisit(c, matchedInterests)) {
+    return 'restaurant_out_of_scope';
   }
 
   // Rating < 4.0 toujours rejeté.
@@ -3340,6 +3385,7 @@ List<ActivitySuggestion> selectVisitsDeterministic({
       final reason = _isAllowedFinalVisitCandidate(
         candidate,
         tripInterests: finalGateTripInterests,
+        matchedInterests: entry.value.matchedInterests,
       );
       if (reason == null) {
         newPool[entry.key] = entry.value;

@@ -3,6 +3,7 @@ import 'package:voyage/features/planning/data/destination_blueprints.dart';
 import 'package:voyage/features/planning/data/metro_profile.dart';
 import 'package:voyage/features/planning/services/day_center_service.dart';
 import 'package:voyage/features/planning/services/places_first_pipeline.dart';
+import 'package:voyage/features/planning/services/places_nearby_service.dart';
 
 /// Verrouille la compatibilité query↔intérêt utilisée pour filtrer les
 /// `additionalTextQueries` du profil voyageur (Grand luxe, Couple, Backpack).
@@ -447,6 +448,156 @@ void main() {
           'istanbul');
       // Hors zone : null.
       expect(getMetroProfileForCluster(0.0, 0.0), isNull);
+    });
+  });
+
+  group('V8.28f2 isRestaurantDisguisedForVisit', () {
+    // V8.28f2 — bug Florence : Antica Trattoria da Tito dal 1913 sortait
+    // à 09:30 comme « Culture » car primary=historical_landmark masquait
+    // le secondary italian_restaurant. Détection étendue à ANY position
+    // avec exception curated (blueprint/metroAnchor) et exception
+    // marché emblématique.
+
+    NearbyCandidate make({
+      required String name,
+      required List<String> types,
+    }) =>
+        NearbyCandidate(
+          placeId: name.toLowerCase(),
+          name: name,
+          latitude: 0,
+          longitude: 0,
+          types: types,
+        );
+
+    test('Antica Trattoria primary=historical_landmark + secondary '
+        'italian_restaurant → disguised (true)', () {
+      final c = make(
+        name: 'Antica Trattoria da Tito dal 1913',
+        types: ['historical_landmark', 'night_club', 'italian_restaurant'],
+      );
+      expect(isRestaurantDisguisedForVisit(c, const []), isTrue,
+          reason: 'italian_restaurant en secondaire doit déclencher le '
+              'rejet (V8.28f2 any-position)');
+    });
+
+    test('Restaurant primary sans market context (legacy V8.7) → true',
+        () {
+      // Note : `tourist_attraction` figure dans _qualityMarketTravelTypes
+      // donc un resto avec ce tag passerait (exception marché). Pour
+      // tester la règle pure, on prend un resto sans aucun co-tag
+      // marché.
+      final c = make(
+        name: 'Le Petit Bistrot',
+        types: ['french_restaurant', 'point_of_interest'],
+      );
+      expect(isRestaurantDisguisedForVisit(c, const []), isTrue);
+    });
+
+    test('Pâtisserie primary (V8.28f2 addition) → true', () {
+      final c = make(
+        name: 'Pâtisserie Stohrer',
+        types: ['pastry_shop', 'tourist_attraction'],
+      );
+      // tourist_attraction est dans _qualityMarketTravelTypes →
+      // hasMarketContext=true → pas disguised. Edge case mais cohérent
+      // avec V8.7 (marché emblématique). Pour patisserie sans tourist
+      // tag :
+      final c2 = make(
+        name: 'Boulangerie du coin',
+        types: ['pastry_shop', 'point_of_interest'],
+      );
+      expect(isRestaurantDisguisedForVisit(c, const []), isFalse,
+          reason: 'pastry_shop + tourist_attraction → exception '
+              'marché emblématique V8.7');
+      expect(isRestaurantDisguisedForVisit(c2, const []), isTrue,
+          reason: 'pastry_shop sans market context → disguised');
+    });
+
+    test('Marché touristique reste accepté (Borough Market) → false', () {
+      // Borough Market : market + tourist_attraction + food_court.
+      final c = make(
+        name: 'Borough Market',
+        types: ['market', 'tourist_attraction', 'food_court'],
+      );
+      expect(isRestaurantDisguisedForVisit(c, const []), isFalse,
+          reason: 'food_court + market + tourist_attraction → exception '
+              'marché V8.7 préservée');
+    });
+
+    test('Marché alimentaire farmers_market reste accepté → false', () {
+      final c = make(
+        name: 'Smorgasburg',
+        types: ['farmers_market', 'food_court', 'food'],
+      );
+      expect(isRestaurantDisguisedForVisit(c, const []), isFalse);
+    });
+
+    test('Exception curated : blueprintMustSeeMarker accepte même '
+        'avec italian_restaurant → false', () {
+      // Cas hypothétique : un must-see curated avec un type food en
+      // secondaire (ex: « Erawan Tea Room » dans un blueprint Bangkok).
+      // Le curated wins, on garde.
+      final c = make(
+        name: 'Some Curated MustSee',
+        types: ['historical_landmark', 'italian_restaurant'],
+      );
+      expect(
+          isRestaurantDisguisedForVisit(c, const [blueprintMustSeeMarker]),
+          isFalse,
+          reason: 'must-see blueprint doit pouvoir porter type food '
+              'secondaire (curated wins)');
+    });
+
+    test('Exception curated : blueprintExperienceMarker accepte → false',
+        () {
+      // Khaosan Road : tourist_attraction + bar typique. On ne veut
+      // pas la rejeter à cause du `bar`.
+      final c = make(
+        name: 'Khaosan Road',
+        types: ['tourist_attraction', 'bar'],
+      );
+      // (bar n'est pas dans _qualityFinalFoodTypes mais simulons le cas)
+      final c2 = make(
+        name: 'Khaosan Food Street',
+        types: ['tourist_attraction', 'food'],
+      );
+      expect(
+          isRestaurantDisguisedForVisit(
+              c, const [blueprintExperienceMarker]),
+          isFalse);
+      // Même c2 avec `food` direct passe via curated (tourist_attraction
+      // aussi neutralise, mais on vérifie quand même la priorité curated).
+      expect(
+          isRestaurantDisguisedForVisit(
+              c2, const [blueprintExperienceMarker]),
+          isFalse);
+    });
+
+    test('Exception curated : metroAnchorMarker accepte → false', () {
+      // Fan-out V8.28d peut ramener un lieu type "food" légitime
+      // (rare mais possible). Le marker garantit qu'il vient d'une
+      // ancre tourisme curée → on garde.
+      final c = make(
+        name: 'Some metro anchor result',
+        types: ['cafe', 'tourist_attraction'],
+      );
+      expect(
+          isRestaurantDisguisedForVisit(c, const [metroAnchorMarker]),
+          isFalse);
+    });
+
+    test('Lieu sans food type → false (pas disguised)', () {
+      final c = make(
+        name: 'Colosseum',
+        types: ['tourist_attraction', 'historical_landmark', 'monument'],
+      );
+      expect(isRestaurantDisguisedForVisit(c, const []), isFalse);
+    });
+
+    test('Cafe primary sans market/curated → true (régression V8.7)', () {
+      final c = make(name: 'Random Cafe', types: ['cafe']);
+      expect(isRestaurantDisguisedForVisit(c, const []), isTrue);
     });
   });
 }
