@@ -996,9 +996,327 @@ const _singaporeMetro = MetroProfile(
   ],
 );
 
+/// V8.28c (Lalith 2026-05-11) — +5 MetroProfiles : Dubai, Kuala
+/// Lumpur, Bali (île, isMegaCity=false), Hanoi, Hong Kong.
+/// Zones génériques (oldCity/riverside/market/modern). Split géo
+/// intra-ville à envisager si simu révèle des zigzags (cf. Bangkok
+/// V8.24, Tokyo V8.28d2/d3, Singapour V8.28b1).
+
+const _dubaiMetro = MetroProfile(
+  cityKey: 'dubai',
+  lat: 25.2048,
+  lng: 55.2708,
+  // Dubai s'étend sur ~30 km : Old Dubai (Deira/Al Fahidi) ~25.27,
+  // Downtown Burj Khalifa ~25.20, Dubai Marina ~25.08, Palm
+  // Jumeirah ~25.13. Rayon 40 km couvre tout.
+  clusterRadiusKm: 40.0,
+  disableMarketTypeFallback: false,
+  isMegaCity: true,
+  touristAnchors: [
+    TouristAnchor(label: 'Burj Khalifa / Downtown',
+        lat: 25.1972, lng: 55.2744),
+    TouristAnchor(label: 'Dubai Mall', lat: 25.1972, lng: 55.2796),
+    TouristAnchor(label: 'Palm Jumeirah / Atlantis',
+        lat: 25.1308, lng: 55.1170, radiusMeters: 2500),
+    TouristAnchor(label: 'Dubai Marina', lat: 25.0805, lng: 55.1403),
+    TouristAnchor(label: 'Jumeirah Beach / Burj Al Arab',
+        lat: 25.1413, lng: 55.1853),
+    TouristAnchor(label: 'Al Fahidi / Bastakiya (Old Dubai)',
+        lat: 25.2631, lng: 55.3010),
+    TouristAnchor(label: 'Deira / Gold Souk / Spice Souk',
+        lat: 25.2697, lng: 55.2974),
+    TouristAnchor(label: 'Madinat Jumeirah / Souk',
+        lat: 25.1330, lng: 55.1830),
+  ],
+  zones: [
+    MetroZone(type: DayPackType.oldCityDay, patterns: [
+      'al fahidi', 'bastakiya', 'al bastakiya',
+      'dubai museum', 'al seef',
+      'sheikh saeed', 'coffee museum',
+      'al shindagha', 'shindagha',
+      'jumeirah mosque',
+    ]),
+    MetroZone(type: DayPackType.riversideDay, patterns: [
+      'dubai creek', 'creekside', 'al seef',
+      'abra ride', 'dubai festival city',
+      'dubai water canal', 'al qasba',
+    ]),
+    MetroZone(type: DayPackType.marketDay, patterns: [
+      'gold souk', 'spice souk', 'textile souk',
+      'perfume souk', 'deira souk',
+      'madinat jumeirah souk', 'souk madinat',
+      'naif souk',
+    ]),
+    MetroZone(type: DayPackType.modernDay, patterns: [
+      'burj khalifa', 'at the top burj',
+      'dubai mall', 'dubai fountain', 'dubai aquarium',
+      'palm jumeirah', 'atlantis the palm', 'atlantis aquaventure',
+      'the view at the palm',
+      'dubai marina', 'jbr beach', 'jumeirah beach residence',
+      'bluewaters', 'ain dubai',
+      'burj al arab', 'jumeirah beach',
+      'dubai frame', 'zabeel park',
+      'museum of the future',
+      'global village dubai',
+    ]),
+  ],
+);
+
+const _kualaLumpurMetro = MetroProfile(
+  cityKey: 'kuala lumpur',
+  lat: 3.1390,
+  lng: 101.6869,
+  clusterRadiusKm: 35.0,
+  disableMarketTypeFallback: false,
+  isMegaCity: true,
+  touristAnchors: [
+    TouristAnchor(label: 'Petronas Twin Towers / KLCC',
+        lat: 3.1577, lng: 101.7117),
+    TouristAnchor(label: 'Bukit Bintang', lat: 3.1466, lng: 101.7106),
+    TouristAnchor(label: 'Chinatown / Petaling Street',
+        lat: 3.1438, lng: 101.6987),
+    TouristAnchor(label: 'Merdeka Square / Heritage',
+        lat: 3.1483, lng: 101.6929),
+    TouristAnchor(label: 'Batu Caves',
+        lat: 3.2378, lng: 101.6839, radiusMeters: 2000),
+    TouristAnchor(label: 'KL Tower / Bukit Nanas',
+        lat: 3.1530, lng: 101.7032),
+    TouristAnchor(label: 'Brickfields / Little India',
+        lat: 3.1297, lng: 101.6797),
+  ],
+  zones: [
+    MetroZone(type: DayPackType.oldCityDay, patterns: [
+      'merdeka square', 'dataran merdeka',
+      'sultan abdul samad', 'masjid jamek',
+      'kl heritage', 'central market kuala lumpur',
+      'kasturi walk',
+      'masjid negara', 'national mosque',
+      'national museum malaysia', 'muzium negara',
+      'old kl railway station',
+    ]),
+    MetroZone(type: DayPackType.riversideDay, patterns: [
+      'klang river', 'kl river of life', 'gombak river',
+      'titiwangsa lake', 'lake gardens kl',
+      'perdana botanical',
+    ]),
+    MetroZone(type: DayPackType.marketDay, patterns: [
+      'petaling street', 'chinatown kuala lumpur',
+      'kasturi walk', 'central market kl',
+      'pasar seni',
+      'bukit bintang night market',
+      'jalan alor',
+    ]),
+    MetroZone(type: DayPackType.modernDay, patterns: [
+      'petronas twin towers', 'petronas towers',
+      'klcc park', 'klcc',
+      'suria klcc', 'aquaria klcc',
+      'kl tower', 'menara kuala lumpur', 'menara kl',
+      'bukit bintang', 'pavilion kuala lumpur', 'pavilion kl',
+      'lot 10', 'starhill gallery', 'fahrenheit 88',
+      'batu caves', 'thean hou temple',
+      'sunway lagoon', 'mid valley megamall',
+      'royal selangor pewter',
+    ]),
+  ],
+);
+
+const _baliMetro = MetroProfile(
+  cityKey: 'bali',
+  // Centre sud Bali (Sukawati area) couvre Ubud (NE) / Seminyak
+  // (W) / Nusa Dua (SE). Bali = île, pas mégalopole dense.
+  lat: -8.4095,
+  lng: 115.1889,
+  // Bali s'étend sur ~50 km : Ubud -8.51 / Uluwatu -8.83 /
+  // Tegallalang -8.43 / Tanah Lot -8.62. Rayon 50 km couvre les
+  // hotspots tourisme. K-means clusterise par zone (Ubud / Sud /
+  // côte W).
+  clusterRadiusKm: 50.0,
+  disableMarketTypeFallback: false,
+  // V8.28c — `isMegaCity=false` : Bali n'est pas une mégalopole
+  // dense. Le cap 5 km megacity fallback (V8.28b1.3) serait trop
+  // tight pour une journée Ubud → Tegallalang (~10 km). Standard
+  // V8.21 (10 km / 1 long hop) s'applique.
+  isMegaCity: false,
+  touristAnchors: [
+    TouristAnchor(label: 'Ubud center / Monkey Forest',
+        lat: -8.5069, lng: 115.2625),
+    TouristAnchor(label: 'Tegallalang Rice Terraces',
+        lat: -8.4322, lng: 115.2789),
+    TouristAnchor(label: 'Seminyak', lat: -8.6845, lng: 115.1567),
+    TouristAnchor(label: 'Canggu', lat: -8.6478, lng: 115.1340),
+    TouristAnchor(label: 'Kuta / Legian',
+        lat: -8.7218, lng: 115.1697),
+    TouristAnchor(label: 'Nusa Dua', lat: -8.7973, lng: 115.2334),
+    TouristAnchor(label: 'Sanur', lat: -8.6864, lng: 115.2520),
+    TouristAnchor(label: 'Tanah Lot', lat: -8.6212, lng: 115.0867),
+    TouristAnchor(label: 'Uluwatu', lat: -8.8290, lng: 115.0848),
+  ],
+  zones: [
+    MetroZone(type: DayPackType.oldCityDay, patterns: [
+      'ubud palace', 'puri saren', 'saraswati temple',
+      'pura taman', 'goa gajah', 'elephant cave',
+      'monkey forest', 'sacred monkey forest',
+      'tegallalang', 'rice terrace',
+      'besakih', 'mother temple',
+      'tirta empul', 'gunung kawi',
+      'tanah lot', 'pura tanah lot',
+      'uluwatu temple', 'pura luhur uluwatu',
+      'ulun danu beratan', 'pura ulun danu',
+    ]),
+    MetroZone(type: DayPackType.riversideDay, patterns: [
+      'kuta beach', 'seminyak beach', 'canggu beach',
+      'echo beach', 'batu bolong', 'berawa beach',
+      'sanur beach', 'jimbaran beach', 'jimbaran bay',
+      'nusa dua beach', 'pandawa beach', 'padang padang',
+      'tegenungan waterfall', 'tibumana waterfall',
+      'sekumpul waterfall',
+    ]),
+    MetroZone(type: DayPackType.marketDay, patterns: [
+      'ubud art market', 'ubud market',
+      'sukawati market', 'pasar sukawati',
+      'badung market', 'kumbasari market',
+    ]),
+    MetroZone(type: DayPackType.modernDay, patterns: [
+      'gwk cultural park', 'garuda wisnu kencana',
+      'bali bird park', 'bali zoo',
+      'bali safari', 'waterbom bali',
+      'finns beach club', 'potato head beach club',
+      'campuhan ridge walk',
+      'jatiluwih rice terrace',
+      'mount batur', 'kintamani',
+    ]),
+  ],
+);
+
+const _hanoiMetro = MetroProfile(
+  cityKey: 'hanoi',
+  lat: 21.0285,
+  lng: 105.8542,
+  clusterRadiusKm: 30.0,
+  disableMarketTypeFallback: false,
+  isMegaCity: true,
+  touristAnchors: [
+    TouristAnchor(label: 'Hoan Kiem Lake / Old Quarter',
+        lat: 21.0285, lng: 105.8542),
+    TouristAnchor(label: 'Temple of Literature',
+        lat: 21.0294, lng: 105.8358),
+    TouristAnchor(label: 'Ho Chi Minh Mausoleum',
+        lat: 21.0367, lng: 105.8348),
+    TouristAnchor(label: 'West Lake / Tay Ho',
+        lat: 21.0644, lng: 105.8214, radiusMeters: 2500),
+    TouristAnchor(label: 'Dong Xuan Market',
+        lat: 21.0383, lng: 105.8497),
+    TouristAnchor(label: 'Train Street', lat: 21.0301, lng: 105.8404),
+    TouristAnchor(label: 'Long Bien Bridge',
+        lat: 21.0445, lng: 105.8617),
+    TouristAnchor(label: 'Imperial Citadel of Thang Long',
+        lat: 21.0356, lng: 105.8398),
+  ],
+  zones: [
+    MetroZone(type: DayPackType.oldCityDay, patterns: [
+      'hoan kiem lake', 'hồ hoàn kiếm', 'ho hoan kiem',
+      'ngoc son temple', 'đền ngọc sơn', 'den ngoc son',
+      'old quarter hanoi', 'phố cổ', 'pho co',
+      'temple of literature', 'văn miếu', 'van mieu',
+      'imperial citadel', 'thang long',
+      'hanoi opera house', 'nhà hát lớn',
+      'st joseph cathedral', 'nhà thờ lớn',
+      'tran quoc pagoda', 'chùa trấn quốc',
+      'one pillar pagoda', 'chùa một cột',
+    ]),
+    MetroZone(type: DayPackType.riversideDay, patterns: [
+      'west lake', 'hồ tây', 'ho tay',
+      'tay ho', 'tây hồ',
+      'red river hanoi', 'sông hồng',
+      'long bien bridge', 'cầu long biên',
+    ]),
+    MetroZone(type: DayPackType.marketDay, patterns: [
+      'dong xuan market', 'chợ đồng xuân',
+      'hang da market', 'chợ hàng da',
+      'cho hom', 'chợ hôm',
+      'quang ba flower market',
+    ]),
+    MetroZone(type: DayPackType.modernDay, patterns: [
+      'ho chi minh mausoleum', 'lăng chủ tịch',
+      'presidential palace hanoi',
+      'vietnam museum of ethnology',
+      'museum of fine arts vietnam',
+      'lotte center hanoi', 'lotte observation',
+      'keangnam landmark', 'landmark 72',
+      'train street', 'phố tàu hanoi',
+      'thang long water puppet',
+    ]),
+  ],
+);
+
+const _hongKongMetro = MetroProfile(
+  cityKey: 'hong kong',
+  lat: 22.3193,
+  lng: 114.1694,
+  clusterRadiusKm: 35.0,
+  disableMarketTypeFallback: false,
+  isMegaCity: true,
+  touristAnchors: [
+    TouristAnchor(label: 'Victoria Peak',
+        lat: 22.2730, lng: 114.1500),
+    TouristAnchor(label: 'Tsim Sha Tsui Promenade',
+        lat: 22.2942, lng: 114.1722),
+    TouristAnchor(label: 'Central / IFC',
+        lat: 22.2819, lng: 114.1577),
+    TouristAnchor(label: 'Mong Kok', lat: 22.3193, lng: 114.1694),
+    TouristAnchor(label: 'Causeway Bay',
+        lat: 22.2796, lng: 114.1827),
+    TouristAnchor(label: 'Wan Chai', lat: 22.2783, lng: 114.1747),
+    TouristAnchor(label: 'Ngong Ping / Big Buddha (Lantau)',
+        lat: 22.2553, lng: 113.9050, radiusMeters: 2500),
+    TouristAnchor(label: 'Disneyland Hong Kong',
+        lat: 22.3133, lng: 114.0421, radiusMeters: 2000),
+    TouristAnchor(label: 'Stanley Market',
+        lat: 22.2189, lng: 114.2103),
+  ],
+  zones: [
+    MetroZone(type: DayPackType.oldCityDay, patterns: [
+      'man mo temple', 'wong tai sin temple',
+      'chi lin nunnery', 'nan lian garden',
+      'po lin monastery', 'big buddha', 'tian tan buddha',
+      'tin hau temple', 'pak tai temple',
+      'central police station', 'tai kwun',
+      'sheung wan',
+    ]),
+    MetroZone(type: DayPackType.riversideDay, patterns: [
+      'victoria harbour', 'star ferry',
+      'avenue of stars', 'tsim sha tsui promenade',
+      'symphony of lights',
+      'hong kong cultural centre',
+      'kowloon waterfront',
+    ]),
+    MetroZone(type: DayPackType.marketDay, patterns: [
+      'temple street night market', 'temple street',
+      'ladies market', 'tung choi street',
+      'stanley market',
+      'cat street', 'upper lascar row',
+      'goldfish market', 'flower market hong kong',
+      'jade market hong kong',
+    ]),
+    MetroZone(type: DayPackType.modernDay, patterns: [
+      'victoria peak', 'the peak', 'sky terrace 428',
+      'peak tram',
+      'ifc mall', 'two ifc',
+      'times square hong kong', 'causeway bay',
+      'lan kwai fong', 'soho hong kong',
+      'mong kok', 'nathan road',
+      'hong kong disneyland', 'disneyland hong kong',
+      'ocean park hong kong',
+      'ngong ping 360', 'ngong ping cable car',
+      'm+ museum', 'hong kong museum of art',
+    ]),
+  ],
+);
+
 /// Registre des MetroProfile actifs. V8.27 = 2 villes (Bangkok,
 /// Paris). V8.28a = +5 (Tokyo, New York, London, Rome, Istanbul).
 /// V8.28b = +5 (Séoul, Barcelone, Lisbonne, HCM, Singapour).
+/// V8.28c = +5 (Dubai, Kuala Lumpur, Bali, Hanoi, Hong Kong).
 /// Ajouter ici pour activer Day Builder sur de nouvelles
 /// métropoles. L'ordre n'a pas d'importance (lookup par haversine).
 const metroProfiles = <MetroProfile>[
@@ -1014,6 +1332,11 @@ const metroProfiles = <MetroProfile>[
   _lisbonMetro,
   _hoChiMinhMetro,
   _singaporeMetro,
+  _dubaiMetro,
+  _kualaLumpurMetro,
+  _baliMetro,
+  _hanoiMetro,
+  _hongKongMetro,
 ];
 
 /// Lookup MetroProfile pour un cluster donné. Retourne le 1er profile

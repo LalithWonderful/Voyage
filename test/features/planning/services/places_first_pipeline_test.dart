@@ -546,6 +546,123 @@ void main() {
             reason: '$city doit avoir ≥7 tourist anchors curated');
       }
     });
+
+    // V8.28c — sanity +5 villes mégalopoles.
+    test('V8.28c — Dubai blueprint + aliases', () {
+      final bp = getBlueprintForDestination('Dubai');
+      expect(bp, isNotNull);
+      expect(bp!.destinationKey, 'dubai');
+      expect(bp.kind, DestinationKind.majorCity);
+      expect(bp.mustSeeQueries.length, greaterThanOrEqualTo(8));
+      expect(getBlueprintForDestination('Dubaï')?.destinationKey, 'dubai');
+      expect(getBlueprintForDestination('DXB')?.destinationKey, 'dubai');
+    });
+
+    test('V8.28c — Kuala Lumpur blueprint + aliases', () {
+      final bp = getBlueprintForDestination('Kuala Lumpur');
+      expect(bp, isNotNull);
+      expect(bp!.destinationKey, 'kuala lumpur');
+      expect(bp.kind, DestinationKind.majorCity);
+      expect(getBlueprintForDestination('KL')?.destinationKey,
+          'kuala lumpur');
+      expect(
+          getBlueprintForDestination('Kuala-Lumpur')?.destinationKey,
+          'kuala lumpur');
+    });
+
+    test('V8.28c — Bali blueprint + aliases (Denpasar / Pulau Bali)',
+        () {
+      final bp = getBlueprintForDestination('Bali');
+      expect(bp, isNotNull);
+      expect(bp!.destinationKey, 'bali');
+      expect(bp.kind, DestinationKind.majorCity);
+      expect(getBlueprintForDestination('Pulau Bali')?.destinationKey,
+          'bali');
+      expect(getBlueprintForDestination('Denpasar')?.destinationKey,
+          'bali');
+    });
+
+    test('V8.28c — Hanoi blueprint + aliases (Hà Nội / Hanoï)', () {
+      final bp = getBlueprintForDestination('Hanoi');
+      expect(bp, isNotNull);
+      expect(bp!.destinationKey, 'hanoi');
+      expect(bp.kind, DestinationKind.majorCity);
+      expect(getBlueprintForDestination('Hanoï')?.destinationKey,
+          'hanoi');
+      expect(getBlueprintForDestination('Hà Nội')?.destinationKey,
+          'hanoi');
+      expect(getBlueprintForDestination('Ha Noi')?.destinationKey,
+          'hanoi');
+    });
+
+    test('V8.28c — Hong Kong blueprint + aliases (HK / Hongkong)', () {
+      final bp = getBlueprintForDestination('Hong Kong');
+      expect(bp, isNotNull);
+      expect(bp!.destinationKey, 'hong kong');
+      expect(bp.kind, DestinationKind.majorCity);
+      expect(getBlueprintForDestination('HK')?.destinationKey,
+          'hong kong');
+      expect(getBlueprintForDestination('Hongkong')?.destinationKey,
+          'hong kong');
+      expect(getBlueprintForDestination('Hong-Kong')?.destinationKey,
+          'hong kong');
+    });
+
+    test('V8.28c — getMetroProfileForCluster pour les 5 nouvelles villes',
+        () {
+      // Dubai : Downtown / Burj Khalifa area.
+      expect(getMetroProfileForCluster(25.2048, 55.2708)?.cityKey,
+          'dubai');
+      // KL : centre.
+      expect(getMetroProfileForCluster(3.1390, 101.6869)?.cityKey,
+          'kuala lumpur');
+      // Bali : centre sud.
+      expect(getMetroProfileForCluster(-8.4095, 115.1889)?.cityKey,
+          'bali');
+      // Hanoi : Hoan Kiem.
+      expect(getMetroProfileForCluster(21.0285, 105.8542)?.cityKey,
+          'hanoi');
+      // Hong Kong : Central.
+      expect(getMetroProfileForCluster(22.3193, 114.1694)?.cityKey,
+          'hong kong');
+    });
+
+    test('V8.28c — Bali isMegaCity=false (île, pas mégalopole dense)',
+        () {
+      final bali = metroProfiles.firstWhere((p) => p.cityKey == 'bali');
+      expect(bali.isMegaCity, isFalse,
+          reason: 'Bali = île, cap 5 km megacity fallback serait '
+              'trop tight pour Ubud → Tegallalang (~10 km)');
+      expect(bali.clusterRadiusKm, greaterThanOrEqualTo(40.0),
+          reason: 'Bali doit avoir un rayon étendu pour couvrir '
+              'Ubud / Seminyak / Nusa Dua / Uluwatu');
+    });
+
+    test('V8.28c — invariants Dubai/KL/Hanoi/HK isMegaCity=true', () {
+      for (final city in [
+        'dubai', 'kuala lumpur', 'hanoi', 'hong kong',
+      ]) {
+        final profile = metroProfiles.firstWhere((p) => p.cityKey == city);
+        expect(profile.isMegaCity, isTrue,
+            reason: '$city doit être isMegaCity=true');
+        expect(profile.zones.length, greaterThanOrEqualTo(4));
+        expect(profile.touristAnchors.length, greaterThanOrEqualTo(7));
+      }
+    });
+
+    test('V8.28c — canonical Bali résout sur centre sud (-8.41, 115.19)',
+        () {
+      final canonical = getCanonicalSegmentCity('Bali');
+      expect(canonical, isNotNull);
+      expect(canonical!.expectedLat, closeTo(-8.41, 0.05));
+      expect(canonical.expectedLng, closeTo(115.19, 0.05));
+      expect(canonical.countryCode, 'id');
+      // "Denpasar" résout aussi vers Bali (couvre les voyages où
+      // l'utilisateur saisit la capitale).
+      final denpasar = getCanonicalSegmentCity('Denpasar');
+      expect(denpasar, isNotNull);
+      expect(denpasar!.expectedLat, closeTo(-8.41, 0.05));
+    });
   });
 
   group('V8.28f2 isRestaurantDisguisedForVisit', () {

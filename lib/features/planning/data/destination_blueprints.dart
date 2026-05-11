@@ -406,6 +406,133 @@ const _singaporeBlueprint = DestinationBlueprint(
   ],
 );
 
+/// V8.28c (Lalith 2026-05-11) — +5 villes mégalopoles : Dubai,
+/// Kuala Lumpur, Bali (île, traitée en majorCity avec isMegaCity=
+/// false), Hanoi, Hong Kong. Précédent V8.28b = Séoul/Barcelone/
+/// Lisbonne/HCM/Singapour. Chaque blueprint contient 10 must-see +
+/// 5 experience. MetroProfile correspondant dans `metro_profile.dart`
+/// (zones + anchors).
+
+const _dubaiBlueprint = DestinationBlueprint(
+  destinationKey: 'dubai',
+  kind: DestinationKind.majorCity,
+  mustSeeQueries: [
+    'Burj Khalifa Dubai',
+    'Dubai Mall',
+    'Dubai Fountain',
+    'Palm Jumeirah',
+    'Dubai Marina',
+    'Burj Al Arab',
+    'Dubai Frame',
+    'Jumeirah Mosque Dubai',
+    'Al Fahidi Historical Neighbourhood',
+    'Gold Souk Deira Dubai',
+  ],
+  experienceQueries: [
+    'Atlantis Aquaventure Dubai',
+    'desert safari Dubai',
+    'Dubai Creek abra ride',
+    'Madinat Jumeirah souk',
+    'Global Village Dubai',
+  ],
+);
+
+const _kualaLumpurBlueprint = DestinationBlueprint(
+  destinationKey: 'kuala lumpur',
+  kind: DestinationKind.majorCity,
+  mustSeeQueries: [
+    'Petronas Twin Towers',
+    'KL Tower Menara Kuala Lumpur',
+    'KLCC Park',
+    'Batu Caves Selangor',
+    'Sultan Abdul Samad Building',
+    'Merdeka Square Kuala Lumpur',
+    'Petaling Street Chinatown KL',
+    'Central Market Kuala Lumpur',
+    'Masjid Negara National Mosque',
+    'Aquaria KLCC',
+  ],
+  experienceQueries: [
+    'Bukit Bintang Kuala Lumpur',
+    'Jalan Alor street food',
+    'Royal Selangor Pewter Visitor Centre',
+    'Heli Lounge Bar KL',
+    'Thean Hou Temple Kuala Lumpur',
+  ],
+);
+
+const _baliBlueprint = DestinationBlueprint(
+  destinationKey: 'bali',
+  kind: DestinationKind.majorCity,
+  mustSeeQueries: [
+    'Ubud Monkey Forest',
+    'Tegallalang Rice Terraces',
+    'Tanah Lot Temple',
+    'Uluwatu Temple',
+    'Tegenungan Waterfall',
+    'Sacred Monkey Forest Sanctuary Ubud',
+    'GWK Cultural Park Bali',
+    'Besakih Mother Temple',
+    'Goa Gajah Elephant Cave',
+    'Bali Bird Park',
+  ],
+  experienceQueries: [
+    'Seminyak Beach Bali',
+    'Canggu Echo Beach',
+    'Ubud Art Market',
+    'Jimbaran Beach seafood',
+    'Bali traditional dance Ubud',
+  ],
+);
+
+const _hanoiBlueprint = DestinationBlueprint(
+  destinationKey: 'hanoi',
+  kind: DestinationKind.majorCity,
+  mustSeeQueries: [
+    'Hoan Kiem Lake Hanoi',
+    'Old Quarter Hanoi',
+    'Temple of Literature Hanoi',
+    'Ho Chi Minh Mausoleum',
+    'One Pillar Pagoda Hanoi',
+    'Tran Quoc Pagoda',
+    'West Lake Hanoi',
+    'Hanoi Opera House',
+    'Imperial Citadel of Thang Long',
+    'St Joseph Cathedral Hanoi',
+  ],
+  experienceQueries: [
+    'Train Street Hanoi',
+    'Thang Long Water Puppet Theatre',
+    'Dong Xuan Market Hanoi',
+    'Bia Hoi Junction Hanoi',
+    'Long Bien Bridge Hanoi',
+  ],
+);
+
+const _hongKongBlueprint = DestinationBlueprint(
+  destinationKey: 'hong kong',
+  kind: DestinationKind.majorCity,
+  mustSeeQueries: [
+    'Victoria Peak Hong Kong',
+    'Tsim Sha Tsui Promenade',
+    'Star Ferry Hong Kong',
+    'Tian Tan Big Buddha Lantau',
+    'Po Lin Monastery',
+    'Wong Tai Sin Temple',
+    'Man Mo Temple Hong Kong',
+    'Symphony of Lights Hong Kong',
+    'Ngong Ping 360 cable car',
+    'Hong Kong Disneyland',
+  ],
+  experienceQueries: [
+    'Temple Street Night Market Hong Kong',
+    'Ladies Market Mong Kok',
+    'Stanley Market Hong Kong',
+    'Lan Kwai Fong Central',
+    'Tim Ho Wan dim sum',
+  ],
+);
+
 /// Normalise une destination pour le lookup blueprint :
 /// - prend le premier token avant la virgule
 /// - lowercase
@@ -414,13 +541,21 @@ const _singaporeBlueprint = DestinationBlueprint(
 String _normalizeBlueprintKey(String s) {
   var n = s.toLowerCase().trim();
   // Strip accents.
+  // V8.28c — extension Vietnamese diacritics (ạ/ộ/ậ/etc.) pour
+  // matcher "Hà Nội" → "ha noi" → alias "hanoi". Aligné sur
+  // `segment_city_canonicals.dart::_normalizeCanonicalCityKey`.
   const replacements = <String, String>{
-    'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
-    'à': 'a', 'â': 'a', 'ä': 'a',
-    'î': 'i', 'ï': 'i',
-    'ô': 'o', 'ö': 'o',
-    'û': 'u', 'ü': 'u', 'ù': 'u',
-    'ç': 'c',
+    'á': 'a', 'à': 'a', 'â': 'a', 'ä': 'a', 'ã': 'a', 'å': 'a',
+    'ạ': 'a', 'ả': 'a', 'ầ': 'a', 'ấ': 'a', 'ậ': 'a', 'ằ': 'a',
+    'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e', 'ẽ': 'e', 'ẻ': 'e',
+    'ệ': 'e', 'ề': 'e', 'ế': 'e',
+    'í': 'i', 'ì': 'i', 'î': 'i', 'ï': 'i', 'ĩ': 'i', 'ị': 'i',
+    'ó': 'o', 'ò': 'o', 'ô': 'o', 'ö': 'o', 'õ': 'o', 'ơ': 'o',
+    'ọ': 'o', 'ộ': 'o', 'ố': 'o', 'ồ': 'o',
+    'ú': 'u', 'ù': 'u', 'û': 'u', 'ü': 'u', 'ũ': 'u', 'ụ': 'u',
+    'ư': 'u',
+    'ý': 'y', 'ỳ': 'y',
+    'ç': 'c', 'đ': 'd', 'ñ': 'n',
   };
   replacements.forEach((from, to) {
     n = n.replaceAll(from, to);
@@ -461,6 +596,19 @@ String _normalizeBlueprintKey(String s) {
   if (n == 'singapour' || n == 'singapura' || n == 'sg') {
     return 'singapore';
   }
+  // V8.28c — aliases pour les 5 nouvelles métropoles.
+  if (n == 'dubaï' || n == 'dxb' || n == 'duby') return 'dubai';
+  if (n == 'kl' || n == 'kuala-lumpur' || n == 'kuala lumpur city') {
+    return 'kuala lumpur';
+  }
+  if (n == 'pulau bali' || n == 'denpasar' || n == 'bali island') {
+    return 'bali';
+  }
+  if (n == 'hanoï' || n == 'hà nội' || n == 'ha noi') return 'hanoi';
+  if (n == 'hongkong' || n == 'hong-kong' || n == 'hk' || n == 'hkg' ||
+      n == 'hong kong sar') {
+    return 'hong kong';
+  }
   return n;
 }
 
@@ -498,6 +646,17 @@ DestinationBlueprint? getBlueprintForDestination(String? destination) {
       return _hoChiMinhBlueprint;
     case 'singapore':
       return _singaporeBlueprint;
+    // V8.28c — +5 villes mégalopoles.
+    case 'dubai':
+      return _dubaiBlueprint;
+    case 'kuala lumpur':
+      return _kualaLumpurBlueprint;
+    case 'bali':
+      return _baliBlueprint;
+    case 'hanoi':
+      return _hanoiBlueprint;
+    case 'hong kong':
+      return _hongKongBlueprint;
   }
   return null;
 }

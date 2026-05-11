@@ -206,6 +206,24 @@ const Map<String, SegmentCanonicalCity> _canonicalCities =
     expectedLng: 103.8198,
     countryCode: 'sg',
   ),
+  // ─── Bali ─────────────────────────────────────────────────────
+  // V8.28c (Lalith 2026-05-11) — canonical Bali. Le géocodage seul
+  // peut tomber sur Denpasar (capitale, sud) ou dériver vers les
+  // homonymes ailleurs. Coords centre sud Bali (Denpasar /
+  // Sukawati area) couvrent les hotspots tourisme via le rayon
+  // étendu MetroProfile (50 km).
+  'bali': SegmentCanonicalCity(
+    canonicalQuery: 'Bali, Indonesia',
+    expectedLat: -8.4095,
+    expectedLng: 115.1889,
+    countryCode: 'id',
+  ),
+  'denpasar': SegmentCanonicalCity(
+    canonicalQuery: 'Bali, Indonesia',
+    expectedLat: -8.4095,
+    expectedLng: 115.1889,
+    countryCode: 'id',
+  ),
   // ─── Cambodge / autres ──────────────────────────────────────────
   // Ajouter au fil des bugs observés.
 };
