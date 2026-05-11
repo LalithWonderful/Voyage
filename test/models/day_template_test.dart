@@ -485,7 +485,43 @@ void main() {
     });
   });
 
-  // ─── 7. Doublons ─────────────────────────────────────────────────────
+  // ─── 7. Listes vides explicitement acceptées (contrat spec 4.1) ─────
+
+  group('Listes vides acceptées (recommendedAnchorKeys + '
+      'forbiddenComplexKeys)', () {
+    test('recommendedAnchorKeys vide → validate() OK', () {
+      final t = _validTemplate(recommendedAnchorKeys: const []);
+      expect(t.validate(), isEmpty,
+          reason: 'Spec 4.1 : recommendedAnchorKeys peut être vide');
+    });
+
+    test('forbiddenComplexKeys vide → validate() OK', () {
+      final t = _validTemplate(forbiddenComplexKeys: const []);
+      expect(t.validate(), isEmpty,
+          reason: 'Spec 4.1 : forbiddenComplexKeys peut être vide');
+    });
+
+    test('Les DEUX listes vides simultanément → validate() OK', () {
+      final t = _validTemplate(
+        recommendedAnchorKeys: const [],
+        forbiddenComplexKeys: const [],
+      );
+      expect(t.validate(), isEmpty);
+    });
+
+    test('JSON round-trip avec listes vides préserve la vacuité', () {
+      final original = _validTemplate(
+        recommendedAnchorKeys: const [],
+        forbiddenComplexKeys: const [],
+      );
+      final decoded = DayTemplate.fromJson(original.toJson());
+      expect(decoded.recommendedAnchorKeys, isEmpty);
+      expect(decoded.forbiddenComplexKeys, isEmpty);
+      expect(decoded.validate(), isEmpty);
+    });
+  });
+
+  // ─── 8. Doublons ─────────────────────────────────────────────────────
 
   group('Doublons', () {
     test('Duplicate recommendedAnchorKeys (casse différente) rejeté', () {
@@ -559,7 +595,7 @@ void main() {
     });
   });
 
-  // ─── 8. Validation croisée avec DestinationIntelligence ──────────────
+  // ─── 9. Validation croisée avec DestinationIntelligence ──────────────
 
   group('validateAgainstDestination', () {
     final di = _singaporeDiFixture();
@@ -639,7 +675,7 @@ void main() {
     });
   });
 
-  // ─── 9. Agrégation d'erreurs ─────────────────────────────────────────
+  // ─── 10. Agrégation d'erreurs ────────────────────────────────────────
 
   group('Agrégation d\'erreurs', () {
     test('Template massivement invalide → ≥ 5 erreurs en une fois', () {
