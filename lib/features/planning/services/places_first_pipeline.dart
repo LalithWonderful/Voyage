@@ -1227,6 +1227,49 @@ const int _qualityStrongLandmarkReviewsThreshold = 500;
 ///   - 'high_rating_few_reviews' : rating ≥ 4.5 mais reviews < 10.
 ///   - 'generic_poi' : point_of_interest seul.
 ///   - null si OK.
+/// V8.28b1 (Lalith 2026-05-11) — true si l'adresse du candidat match
+/// l'un des patterns interdits (substring case-insensitive). Utilisé
+/// pour le filter `out_of_country` quand le cluster MetroProfile
+/// déclare `blockedAddressPatterns` (cas Singapour : adresse contient
+/// `Malaysia` / `Johor` / `JBCC` / `KSL City` / `KOMTAR` →
+/// candidat rejeté).
+///
+/// Retourne false si `blockedPatterns` est vide ou si l'address est
+/// null/empty (rien à matcher, candidat passe).
+bool isCandidateAddressBlocked(
+  NearbyCandidate c,
+  List<String> blockedPatterns,
+) {
+  if (blockedPatterns.isEmpty) return false;
+  final addr = c.address;
+  if (addr == null || addr.isEmpty) return false;
+  final addrLower = addr.toLowerCase();
+  for (final pattern in blockedPatterns) {
+    if (addrLower.contains(pattern.toLowerCase())) return true;
+  }
+  return false;
+}
+
+/// V8.28b1 — true si le nom du candidat match l'un des patterns
+/// interdits visit-slot (substring case-insensitive). Utilisé pour
+/// rejeter les hawker centres Singapour des visit-slots (Lau Pa Sat,
+/// Maxwell Food Centre, Hong Lim Market & Food Centre).
+///
+/// Le marker curated NE sauve PAS le candidat (contrairement à
+/// `isRestaurantDisguisedForVisit`). Les hawker centres restent
+/// dispo pour l'insertion repas (qui utilise un autre code path).
+bool isCandidateNameVisitBlocked(
+  NearbyCandidate c,
+  List<String> blockedNamePatterns,
+) {
+  if (blockedNamePatterns.isEmpty) return false;
+  final nameLower = c.name.toLowerCase();
+  for (final pattern in blockedNamePatterns) {
+    if (nameLower.contains(pattern.toLowerCase())) return true;
+  }
+  return false;
+}
+
 /// V8.28f2 (Lalith 2026-05-11) — détecte les restaurants/cafés/
 /// boulangeries/pâtisseries déguisés en POIs touristiques. Bug
 /// observé Florence : Antica Trattoria da Tito dal 1913 avec
@@ -1267,11 +1310,36 @@ String? _isAllowedFinalVisitCandidate(
   /// type secondaire food (ex: Khaosan Road avec `bar`, food market
   /// emblématique avec `food_court`).
   List<String> matchedInterests = const [],
+  /// V8.28b1 — patterns d'adresses (case-insensitive substring) qui
+  /// rejettent le candidat avec reason `out_of_country`. Vient du
+  /// MetroProfile du cluster (cas Singapour ↔ Johor).
+  List<String> blockedAddressPatterns = const [],
+  /// V8.28b1 — patterns de noms (case-insensitive substring) qui
+  /// rejettent le candidat des visit-slots avec reason
+  /// `restaurant_out_of_scope`. Couvre les hawker centres
+  /// curated-mais-non-visite (Lau Pa Sat, Maxwell, Hong Lim).
+  /// Le marker curated NE sauve PAS le candidat ici.
+  List<String> visitBlockedNamePatterns = const [],
 }) {
   if (c.types.isEmpty) return 'generic_poi';
   final primary = c.types.first;
   final reviews = c.userRatingCount ?? 0;
   final rating = c.rating ?? 0;
+
+  // V8.28b1 (Lalith 2026-05-11) — out-of-country filter. Cas
+  // observé Singapour : cluster ~(1.43,103.78) rayon ~20 km tirait
+  // Johor Bahru. MetroProfile Singapour déclare
+  // `blockedAddressPatterns`.
+  if (isCandidateAddressBlocked(c, blockedAddressPatterns)) {
+    return 'out_of_country';
+  }
+
+  // V8.28b1 — hawker centres Singapour : Lau Pa Sat / Maxwell /
+  // Hong Lim sont curated (blueprint experience) mais ne doivent
+  // pas être visit-slot. Reuse reason `restaurant_out_of_scope`.
+  if (isCandidateNameVisitBlocked(c, visitBlockedNamePatterns)) {
+    return 'restaurant_out_of_scope';
+  }
 
   // V8.9 (Lalith 2026-05-10 — Q1B) — wellness/nightlife mismatch :
   // un place avec primary spa/public_bath/massage/etc. ne doit
@@ -3380,12 +3448,26 @@ List<ActivitySuggestion> selectVisitsDeterministic({
     final newPool = <
         String,
         ({NearbyCandidate candidate, List<String> matchedInterests})>{};
+    // V8.28b1 — MetroProfile du cluster utilisé pour 2 filtres :
+    // 1. `blockedAddressPatterns` : rejet `out_of_country` quand
+    //    l'adresse contient un pattern interdit (Singapour vs Johor).
+    // 2. `visitBlockedNamePatterns` : rejet `restaurant_out_of_scope`
+    //    quand le nom match un hawker centre (Lau Pa Sat, Maxwell...).
+    //    Le marker curated NE sauve PAS ces lieux (réservés aux repas).
+    final clusterMetro = getMetroProfileForCluster(
+        cluster.center.latitude, cluster.center.longitude);
+    final blockedAddrPatterns =
+        clusterMetro?.blockedAddressPatterns ?? const <String>[];
+    final visitBlockedNamePatterns =
+        clusterMetro?.visitBlockedNamePatterns ?? const <String>[];
     for (final entry in cluster.pool.entries) {
       final candidate = entry.value.candidate;
       final reason = _isAllowedFinalVisitCandidate(
         candidate,
         tripInterests: finalGateTripInterests,
         matchedInterests: entry.value.matchedInterests,
+        blockedAddressPatterns: blockedAddrPatterns,
+        visitBlockedNamePatterns: visitBlockedNamePatterns,
       );
       if (reason == null) {
         newPool[entry.key] = entry.value;
@@ -4259,6 +4341,7 @@ List<ActivitySuggestion> selectVisitsDeterministic({
       'rejectedByBlockedLodging=${finalGateCounts['blocked_lodging'] ?? 0} '
       'rejectedByBlockedTitle=${finalGateCounts['blocked_title'] ?? 0} '
       'rejectedByBlockedAddress=${finalGateCounts['blocked_address'] ?? 0} '
+      'rejectedByOutOfCountry=${finalGateCounts['out_of_country'] ?? 0} '
       'rejectedByRestaurantOutOfScope=${finalGateCounts['restaurant_out_of_scope'] ?? 0} '
       'rejectedByWeakEvent=${finalGateCounts['weak_event'] ?? 0} '
       'rejectedByLowReviews=${(finalGateCounts['low_reviews'] ?? 0) + (finalGateCounts['high_rating_few_reviews'] ?? 0)} '

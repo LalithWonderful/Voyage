@@ -1500,6 +1500,269 @@ void main() {
     });
   });
 
+  group('Day Builder V8.28b1 Singapore zone classification', () {
+    // V8.28b1 — 5 zones Singapour spécifiques remplacent les 4
+    // génériques. Le cap 5 km isMegaCity (V8.28d-fix) garantit la
+    // compacité géographique de chaque pack.
+    late Trip singaporeTrip;
+
+    setUp(() {
+      singaporeTrip = Trip(
+        id: 'trip_sg',
+        userId: 'u1',
+        title: 'Singapore',
+        destination: 'Singapore',
+        startDate: DateTime(2026, 5, 14),
+        endDate: DateTime(2026, 5, 20),
+        createdAt: DateTime(2026, 5, 10),
+      );
+    });
+
+    Map<String, ({NearbyCandidate candidate, List<String> matchedInterests})>
+        singaporePool() {
+      final pool = <String,
+          ({NearbyCandidate candidate, List<String> matchedInterests})>{};
+      void add(String id, String name, double lat, double lng, int reviews,
+          List<String> types, List<String> mi) {
+        pool[id] = (
+          candidate: NearbyCandidate(
+            placeId: id,
+            name: name,
+            latitude: lat,
+            longitude: lng,
+            rating: 4.5,
+            userRatingCount: reviews,
+            types: types,
+          ),
+          matchedInterests: mi,
+        );
+      }
+
+      // Marina Bay cluster ~(1.28/103.86).
+      add('mbs', 'Marina Bay Sands', 1.2834, 103.8607, 100000,
+          ['tourist_attraction'], [blueprintMustSeeMarker]);
+      add('gbtb', 'Gardens by the Bay', 1.2816, 103.8636, 80000,
+          ['tourist_attraction', 'park'], [blueprintMustSeeMarker]);
+      add('supertree', 'Supertree Grove', 1.2820, 103.8632, 30000,
+          ['tourist_attraction'], const []);
+      add('asm', 'ArtScience Museum', 1.2862, 103.8597, 25000,
+          ['museum', 'art_gallery'], [blueprintMustSeeMarker]);
+      add('merlion', 'Merlion Park', 1.2868, 103.8545, 60000,
+          ['tourist_attraction'], [blueprintMustSeeMarker]);
+      // Sentosa cluster ~(1.25/103.83).
+      add('sentosa', 'Sentosa Island', 1.2494, 103.8303, 70000,
+          ['tourist_attraction'], [blueprintMustSeeMarker]);
+      add('usss', 'Universal Studios Singapore', 1.2540, 103.8237, 50000,
+          ['tourist_attraction'], const []);
+      add('luge', 'Skyline Luge Sentosa', 1.2538, 103.8170, 20000,
+          ['tourist_attraction'], const []);
+      add('faber', 'Mount Faber', 1.2716, 103.8190, 15000,
+          ['park'], const []);
+      // Chinatown/Civic cluster ~(1.29/103.85).
+      add('buddha', 'Buddha Tooth Relic Temple', 1.2814, 103.8443, 40000,
+          ['tourist_attraction'], [blueprintMustSeeMarker]);
+      add('ngs', 'National Gallery Singapore', 1.2906, 103.8512, 18000,
+          ['museum', 'art_gallery'], const []);
+      add('fortc', 'Fort Canning Park', 1.2934, 103.8455, 20000,
+          ['park', 'tourist_attraction'], const []);
+      add('boatq', 'Boat Quay', 1.2873, 103.8497, 25000,
+          ['tourist_attraction'], const []);
+      // Orchard/Botanic cluster ~(1.30-1.31/103.81-83).
+      add('botanic', 'Singapore Botanic Gardens', 1.3138, 103.8159, 60000,
+          ['park', 'tourist_attraction'], [blueprintMustSeeMarker]);
+      add('orchard', 'Orchard Road', 1.3050, 103.8327, 40000,
+          ['tourist_attraction'], [blueprintMustSeeMarker]);
+      add('ionsky', 'ION Sky', 1.3041, 103.8324, 8000,
+          ['tourist_attraction'], const []);
+      // Kampong Glam / Little India cluster ~(1.30-1.31/103.85).
+      add('sultan', 'Sultan Mosque', 1.3022, 103.8595, 18000,
+          ['mosque', 'place_of_worship', 'tourist_attraction'], const []);
+      add('haji', 'Haji Lane', 1.3008, 103.8587, 12000,
+          ['tourist_attraction'], const []);
+      add('littleind', 'Little India Singapore', 1.3066, 103.8520, 25000,
+          ['tourist_attraction'], [blueprintMustSeeMarker]);
+      add('veera', 'Sri Veeramakaliamman Temple', 1.3071, 103.8525, 14000,
+          ['hindu_temple', 'tourist_attraction'], const []);
+      return pool;
+    }
+
+    test('Singapore : Marina Bay Sands + Gardens by the Bay + ArtScience '
+        '→ singaporeMarinaBayDay', () {
+      final result = buildDayPacksForCluster(
+        clusterCenterLat: 1.3521,
+        clusterCenterLng: 103.8198,
+        clusterDays: [
+          DateTime(2026, 5, 16),
+          DateTime(2026, 5, 17),
+          DateTime(2026, 5, 18),
+          DateTime(2026, 5, 19),
+          DateTime(2026, 5, 20),
+        ],
+        clusterPool: singaporePool(),
+        trip: singaporeTrip,
+        maxPerDay: 4,
+      );
+      expect(result.enabled, isTrue);
+      final marinaIds = {'mbs', 'gbtb', 'supertree', 'asm', 'merlion'};
+      for (final pack in result.dayPackByDate.values) {
+        final overlap = pack.placeIds.intersection(marinaIds);
+        if (overlap.length >= 2) {
+          expect(pack.type, DayPackType.singaporeMarinaBayDay,
+              reason: '${overlap.length} Marina Bay places dans pack '
+                  '${pack.type.label}, attendu singapore_marina_bay_day');
+        }
+      }
+    });
+
+    test('Singapore : Sentosa + Universal + Skyline Luge → '
+        'singaporeSentosaDay', () {
+      final result = buildDayPacksForCluster(
+        clusterCenterLat: 1.3521,
+        clusterCenterLng: 103.8198,
+        clusterDays: [
+          DateTime(2026, 5, 16),
+          DateTime(2026, 5, 17),
+          DateTime(2026, 5, 18),
+          DateTime(2026, 5, 19),
+        ],
+        clusterPool: singaporePool(),
+        trip: singaporeTrip,
+        maxPerDay: 4,
+      );
+      final sentosaIds = {'sentosa', 'usss', 'luge', 'faber'};
+      for (final pack in result.dayPackByDate.values) {
+        final overlap = pack.placeIds.intersection(sentosaIds);
+        if (overlap.length >= 2) {
+          expect(pack.type, DayPackType.singaporeSentosaDay,
+              reason: 'pack ${pack.type.label} regroupe Sentosa places, '
+                  'attendu singapore_sentosa_day');
+        }
+      }
+    });
+
+    test('Singapore : Buddha Tooth + National Gallery + Fort Canning → '
+        'singaporeChinatownCivicDay', () {
+      final result = buildDayPacksForCluster(
+        clusterCenterLat: 1.3521,
+        clusterCenterLng: 103.8198,
+        clusterDays: [
+          DateTime(2026, 5, 16),
+          DateTime(2026, 5, 17),
+          DateTime(2026, 5, 18),
+          DateTime(2026, 5, 19),
+        ],
+        clusterPool: singaporePool(),
+        trip: singaporeTrip,
+        maxPerDay: 4,
+      );
+      final civicIds = {'buddha', 'ngs', 'fortc', 'boatq'};
+      for (final pack in result.dayPackByDate.values) {
+        final overlap = pack.placeIds.intersection(civicIds);
+        if (overlap.length >= 2) {
+          expect(pack.type, DayPackType.singaporeChinatownCivicDay,
+              reason: 'pack ${pack.type.label} regroupe Civic places, '
+                  'attendu singapore_chinatown_civic_day');
+        }
+      }
+    });
+
+    test('Singapore : Botanic Gardens + Orchard Road + ION Sky → '
+        'singaporeOrchardBotanicDay', () {
+      final result = buildDayPacksForCluster(
+        clusterCenterLat: 1.3521,
+        clusterCenterLng: 103.8198,
+        clusterDays: [
+          DateTime(2026, 5, 16),
+          DateTime(2026, 5, 17),
+          DateTime(2026, 5, 18),
+          DateTime(2026, 5, 19),
+        ],
+        clusterPool: singaporePool(),
+        trip: singaporeTrip,
+        maxPerDay: 4,
+      );
+      final orchardIds = {'botanic', 'orchard', 'ionsky'};
+      for (final pack in result.dayPackByDate.values) {
+        final overlap = pack.placeIds.intersection(orchardIds);
+        if (overlap.length >= 2) {
+          expect(pack.type, DayPackType.singaporeOrchardBotanicDay,
+              reason: 'pack ${pack.type.label} regroupe Orchard/Botanic '
+                  'places, attendu singapore_orchard_botanic_day');
+        }
+      }
+    });
+
+    test('Singapore : Sultan Mosque + Haji Lane + Little India → '
+        'singaporeKampongGlamLittleIndiaDay', () {
+      final result = buildDayPacksForCluster(
+        clusterCenterLat: 1.3521,
+        clusterCenterLng: 103.8198,
+        clusterDays: [
+          DateTime(2026, 5, 16),
+          DateTime(2026, 5, 17),
+          DateTime(2026, 5, 18),
+          DateTime(2026, 5, 19),
+        ],
+        clusterPool: singaporePool(),
+        trip: singaporeTrip,
+        maxPerDay: 4,
+      );
+      final kgliIds = {'sultan', 'haji', 'littleind', 'veera'};
+      for (final pack in result.dayPackByDate.values) {
+        final overlap = pack.placeIds.intersection(kgliIds);
+        if (overlap.length >= 2) {
+          expect(
+              pack.type, DayPackType.singaporeKampongGlamLittleIndiaDay,
+              reason: 'pack ${pack.type.label} regroupe Kampong Glam / '
+                  'Little India places, attendu '
+                  'singapore_kampong_glam_little_india_day');
+        }
+      }
+    });
+
+    test('Singapore : aucun pack de type modernDay/oldCityDay/marketDay/'
+        'riversideDay legacy (disabledArchetypes)', () {
+      final result = buildDayPacksForCluster(
+        clusterCenterLat: 1.3521,
+        clusterCenterLng: 103.8198,
+        clusterDays: [
+          DateTime(2026, 5, 16),
+          DateTime(2026, 5, 17),
+          DateTime(2026, 5, 18),
+          DateTime(2026, 5, 19),
+          DateTime(2026, 5, 20),
+        ],
+        clusterPool: singaporePool(),
+        trip: singaporeTrip,
+        maxPerDay: 4,
+      );
+      for (final pack in result.dayPackByDate.values) {
+        expect(
+            pack.type,
+            isNot(anyOf(
+              DayPackType.oldCityDay,
+              DayPackType.riversideDay,
+              DayPackType.marketDay,
+              DayPackType.modernDay,
+            )),
+            reason: 'pack legacy type=${pack.type.label} sur Singapour : '
+                'disabledArchetypes V8.28b1 non respecté');
+      }
+    });
+
+    test('Singapore : enum labels exposés', () {
+      expect(DayPackType.singaporeMarinaBayDay.label,
+          'singapore_marina_bay_day');
+      expect(DayPackType.singaporeSentosaDay.label, 'singapore_sentosa_day');
+      expect(DayPackType.singaporeChinatownCivicDay.label,
+          'singapore_chinatown_civic_day');
+      expect(DayPackType.singaporeOrchardBotanicDay.label,
+          'singapore_orchard_botanic_day');
+      expect(DayPackType.singaporeKampongGlamLittleIndiaDay.label,
+          'singapore_kampong_glam_little_india_day');
+    });
+  });
+
   group('Day Builder cross-cluster reservation', () {
     test('reservedPlaceIds exclut les places déjà prises par autre cluster',
         () {

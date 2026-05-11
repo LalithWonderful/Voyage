@@ -69,6 +69,15 @@ enum DayPackType {
   // splitté en marketOldCity/Chatuchak/Srinagarindra.
   modernWestDay('modern_west_day'),
   roppongiMinatoDay('roppongi_minato_day'),
+  // V8.28b1 (Lalith 2026-05-11) — split zones Singapour. Simu post
+  // V8.28b a montré des packs fourre-tout type Jardin botanique →
+  // Orchard → ArtScience Museum → Buddha Tooth Relic Temple (3-4
+  // zones distinctes mélangées). 5 zones géo Singapore-specific :
+  singaporeMarinaBayDay('singapore_marina_bay_day'),
+  singaporeSentosaDay('singapore_sentosa_day'),
+  singaporeChinatownCivicDay('singapore_chinatown_civic_day'),
+  singaporeOrchardBotanicDay('singapore_orchard_botanic_day'),
+  singaporeKampongGlamLittleIndiaDay('singapore_kampong_glam_little_india_day'),
   arrivalLightDay('arrival_light_day');
 
   final String label;
@@ -534,6 +543,11 @@ DayPack? _buildArrivalLightPack({
     // pour le J1 compact autour de l'hôtel.
     DayPackType.modernWestDay,
     DayPackType.roppongiMinatoDay,
+    // V8.28b1 — zones Singapour (arrival_light pool).
+    DayPackType.singaporeMarinaBayDay,
+    DayPackType.singaporeChinatownCivicDay,
+    DayPackType.singaporeOrchardBotanicDay,
+    DayPackType.singaporeKampongGlamLittleIndiaDay,
     DayPackType.riversideDay,
     DayPackType.oldCityDay,
   ]) {
@@ -715,6 +729,12 @@ DayBuilderResult buildDayPacksForCluster({
               // V8.28d2 — zones modernes Tokyo (split géo).
               DayPackType.modernWestDay,
               DayPackType.roppongiMinatoDay,
+              // V8.28b1 — zones Singapour (split géo dense).
+              DayPackType.singaporeMarinaBayDay,
+              DayPackType.singaporeSentosaDay,
+              DayPackType.singaporeChinatownCivicDay,
+              DayPackType.singaporeOrchardBotanicDay,
+              DayPackType.singaporeKampongGlamLittleIndiaDay,
             ];
       for (final type in candidateTypes) {
         final pool = av[type]!;

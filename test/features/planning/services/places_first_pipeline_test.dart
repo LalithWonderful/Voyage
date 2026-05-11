@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:voyage/features/planning/data/destination_blueprints.dart';
 import 'package:voyage/features/planning/data/metro_profile.dart';
+import 'package:voyage/features/planning/services/day_builder.dart';
 import 'package:voyage/features/planning/services/day_center_service.dart';
 import 'package:voyage/features/planning/services/places_first_pipeline.dart';
 import 'package:voyage/features/planning/services/places_nearby_service.dart';
@@ -693,6 +694,225 @@ void main() {
     test('Cafe primary sans market/curated → true (régression V8.7)', () {
       final c = make(name: 'Random Cafe', types: ['cafe']);
       expect(isRestaurantDisguisedForVisit(c, const []), isTrue);
+    });
+  });
+
+  group('V8.28b1 Singapore hardening', () {
+    // V8.28b1 — Singapore-specific filters.
+
+    final singapore =
+        getMetroProfileForCluster(1.3521, 103.8198)!;
+    final tokyo = getMetroProfileForCluster(35.6812, 139.7671)!;
+
+    NearbyCandidate make({
+      required String name,
+      List<String> types = const ['tourist_attraction'],
+      String? address,
+    }) =>
+        NearbyCandidate(
+          placeId: name.toLowerCase().replaceAll(' ', '_'),
+          name: name,
+          latitude: 0,
+          longitude: 0,
+          types: types,
+          address: address,
+        );
+
+    group('A — out-of-country (Singapour vs Johor)', () {
+      test('Singapore MetroProfile contient les patterns Johor/Malaysia',
+          () {
+        expect(singapore.blockedAddressPatterns,
+            containsAll(['malaysia', 'johor']));
+      });
+
+      test('Candidat avec adresse "Johor Bahru, Malaysia" → rejeté '
+          'sur Singapore', () {
+        final c = make(
+          name: 'KSL City Mall',
+          address: 'Lebuh Daya Bumi, Johor Bahru, Johor Darul Ta\'zim, '
+              'Malaysia',
+        );
+        expect(
+            isCandidateAddressBlocked(
+                c, singapore.blockedAddressPatterns),
+            isTrue);
+      });
+
+      test('Candidat avec adresse Singapore valide → accepté', () {
+        final c = make(
+          name: 'Merlion Park',
+          address: '1 Fullerton Rd, Singapore 049213',
+        );
+        expect(
+            isCandidateAddressBlocked(
+                c, singapore.blockedAddressPatterns),
+            isFalse);
+      });
+
+      test('Gardens by the Bay (Singapore address) → accepté', () {
+        final c = make(
+          name: 'Gardens by the Bay',
+          address: '18 Marina Gardens Dr, Singapore 018953',
+        );
+        expect(
+            isCandidateAddressBlocked(
+                c, singapore.blockedAddressPatterns),
+            isFalse);
+      });
+
+      test('National Museum Singapore → accepté', () {
+        final c = make(
+          name: 'National Museum of Singapore',
+          address: '93 Stamford Rd, Singapore 178897',
+        );
+        expect(
+            isCandidateAddressBlocked(
+                c, singapore.blockedAddressPatterns),
+            isFalse);
+      });
+
+      test('JBCC / KSL City / KOMTAR patterns → tous rejetés', () {
+        final cases = [
+          ('Persada Johor', 'Persada Johor International Convention'),
+          ('KSL Resort', 'KSL City, Johor Bahru'),
+          ('KOMTAR JBCC', 'KOMTAR JBCC, Johor Bahru'),
+        ];
+        for (final entry in cases) {
+          final c = make(name: entry.$1, address: entry.$2);
+          expect(
+              isCandidateAddressBlocked(
+                  c, singapore.blockedAddressPatterns),
+              isTrue,
+              reason: 'address "${entry.$2}" doit être rejetée');
+        }
+      });
+
+      test('Pas de blocage hors Singapour (Tokyo profile = empty)', () {
+        // Tokyo n'a pas de blockedAddressPatterns → un candidat avec
+        // une adresse Johor ne devrait pas être rejeté par ce
+        // filter (mais il serait rejeté autrement, hors scope).
+        final c = make(
+          name: 'KSL City Mall',
+          address: 'Johor Bahru, Malaysia',
+        );
+        expect(
+            isCandidateAddressBlocked(c, tokyo.blockedAddressPatterns),
+            isFalse,
+            reason: 'Tokyo n\'a pas de blockedAddressPatterns → '
+                'pas de rejet par ce filter');
+      });
+
+      test('Candidat sans address → not blocked (no signal)', () {
+        final c = make(name: 'No Address Place');
+        expect(
+            isCandidateAddressBlocked(
+                c, singapore.blockedAddressPatterns),
+            isFalse);
+      });
+    });
+
+    group('C — hawker centres visit-slot blocked', () {
+      test('Singapore MetroProfile contient les patterns hawker', () {
+        expect(singapore.visitBlockedNamePatterns,
+            containsAll(['lau pa sat', 'maxwell food centre']));
+      });
+
+      test('Lau Pa Sat (tourist_attraction + food) → blocked visit-slot',
+          () {
+        final c = make(
+          name: 'Lau Pa Sat',
+          types: ['tourist_attraction', 'restaurant', 'food'],
+        );
+        expect(
+            isCandidateNameVisitBlocked(
+                c, singapore.visitBlockedNamePatterns),
+            isTrue);
+      });
+
+      test('Maxwell Food Centre → blocked visit-slot', () {
+        final c = make(
+          name: 'Maxwell Food Centre',
+          types: ['tourist_attraction', 'food_court'],
+        );
+        expect(
+            isCandidateNameVisitBlocked(
+                c, singapore.visitBlockedNamePatterns),
+            isTrue);
+      });
+
+      test('Hong Lim Market & Food Centre → blocked visit-slot', () {
+        final c = make(
+          name: 'Hong Lim Market & Food Centre',
+          types: ['food_court'],
+        );
+        expect(
+            isCandidateNameVisitBlocked(
+                c, singapore.visitBlockedNamePatterns),
+            isTrue);
+      });
+
+      test('Generic "Food Centre" → blocked (catch-all)', () {
+        final c = make(
+          name: 'Random Food Centre Singapore',
+          types: ['food_court'],
+        );
+        expect(
+            isCandidateNameVisitBlocked(
+                c, singapore.visitBlockedNamePatterns),
+            isTrue);
+      });
+
+      test('Chinatown Singapore (touristique, pas food centre) → '
+          'pas blocked', () {
+        final c = make(
+          name: 'Chinatown Singapore',
+          types: ['tourist_attraction'],
+        );
+        expect(
+            isCandidateNameVisitBlocked(
+                c, singapore.visitBlockedNamePatterns),
+            isFalse);
+      });
+
+      test('Merlion Park → pas blocked', () {
+        final c = make(name: 'Merlion Park');
+        expect(
+            isCandidateNameVisitBlocked(
+                c, singapore.visitBlockedNamePatterns),
+            isFalse);
+      });
+
+      test('Hors Singapore (Tokyo profile) : Lau Pa Sat ne serait pas '
+          'blocked par ce filter (mais voyage Tokyo n\'a pas Lau Pa Sat '
+          'dans le pool, hors scope simu réelle)', () {
+        final c = make(name: 'Lau Pa Sat');
+        expect(
+            isCandidateNameVisitBlocked(
+                c, tokyo.visitBlockedNamePatterns),
+            isFalse);
+      });
+    });
+
+    test('Singapore MetroProfile : 5 zones spécifiques + 4 legacy disabled',
+        () {
+      expect(
+          singapore.disabledArchetypes,
+          containsAll([
+            DayPackType.oldCityDay,
+            DayPackType.riversideDay,
+            DayPackType.marketDay,
+            DayPackType.modernDay,
+          ]));
+      final zoneTypes = singapore.zones.map((z) => z.type).toSet();
+      expect(
+          zoneTypes,
+          containsAll([
+            DayPackType.singaporeMarinaBayDay,
+            DayPackType.singaporeSentosaDay,
+            DayPackType.singaporeChinatownCivicDay,
+            DayPackType.singaporeOrchardBotanicDay,
+            DayPackType.singaporeKampongGlamLittleIndiaDay,
+          ]));
     });
   });
 }

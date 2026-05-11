@@ -117,6 +117,30 @@ class MetroProfile {
   /// empty set → comportement V8.28d2 préservé.
   final Set<DayPackType> disabledArchetypes;
 
+  /// V8.28b1 (Lalith 2026-05-11) — patterns d'adresses (substring,
+  /// case-insensitive) qui rejettent un candidat de cette
+  /// destination. Utile pour les villes proches d'une frontière où
+  /// le geocoder ou la recherche par radius tirent le pool vers le
+  /// pays voisin. Cas Singapour : cluster centré ~(1.43,103.78)
+  /// avec rayon 20 km tirait KSL City Mall / KOMTAR JBCC /
+  /// Johor Zoo / Bazar JB / etc. depuis Johor Bahru, Malaysia.
+  ///
+  /// Le filter s'applique dans `_isAllowedFinalVisitCandidate`
+  /// (pool gate) avec reason `out_of_country` quand le cluster
+  /// MetroProfile match cette ville. Empty pour les villes qui
+  /// n'ont pas ce problème (default).
+  final List<String> blockedAddressPatterns;
+
+  /// V8.28b1 — patterns de noms (substring, case-insensitive) qui
+  /// rejettent un candidat des visit-slots. Utilisé pour Singapour
+  /// où les hawker centres iconiques (Lau Pa Sat, Maxwell Food
+  /// Centre, Hong Lim Market & Food Centre) sont curés dans le
+  /// blueprint (experience marker) mais ne doivent pas être picked
+  /// comme visites classiques — réservés à l'insertion repas.
+  /// L'exception curated (V8.28f2) ne s'applique PAS ici (le marker
+  /// blueprint ne sauve pas le candidat du visit-slot filter).
+  final List<String> visitBlockedNamePatterns;
+
   const MetroProfile({
     required this.cityKey,
     required this.lat,
@@ -127,6 +151,8 @@ class MetroProfile {
     required this.zones,
     this.touristAnchors = const [],
     this.disabledArchetypes = const <DayPackType>{},
+    this.blockedAddressPatterns = const <String>[],
+    this.visitBlockedNamePatterns = const <String>[],
   });
 }
 
@@ -835,6 +861,21 @@ const _hoChiMinhMetro = MetroProfile(
   ],
 );
 
+// V8.28b1 (Lalith 2026-05-11) — restructure Singapour. Simu post
+// V8.28b a montré :
+//   1. Cluster centré ~(1.43,103.78) avec rayon ~20 km tirait
+//      KSL City Mall / KOMTAR JBCC / Johor Zoo / Bazar JB depuis
+//      Johor Bahru, Malaysia → blocage via blockedAddressPatterns.
+//   2. Packs fourre-tout (Jardin botanique → Orchard → ArtScience
+//      Museum → Buddha Tooth Relic Temple) → 5 zones géo
+//      Singapore-specific qui remplacent les 4 zones génériques.
+//   3. Lau Pa Sat / Maxwell Food Centre picked comme visite
+//      classique → visitBlockedNamePatterns rejette des visit-slots
+//      (restent disponibles pour insertion repas).
+//
+// Zones legacy désactivées via `disabledArchetypes` pour éviter que
+// les fallbacks `park`/`art_gallery`/`market` ré-injectent des
+// candidats hors zone.
 const _singaporeMetro = MetroProfile(
   cityKey: 'singapore',
   lat: 1.3521,
@@ -842,6 +883,27 @@ const _singaporeMetro = MetroProfile(
   clusterRadiusKm: 35.0,
   disableMarketTypeFallback: false,
   isMegaCity: true,
+  disabledArchetypes: {
+    DayPackType.oldCityDay,
+    DayPackType.riversideDay,
+    DayPackType.marketDay,
+    DayPackType.modernDay,
+  },
+  blockedAddressPatterns: [
+    'malaysia',
+    'johor',
+    'johor bahru',
+    'johor darul ta\'zim',
+    'jbcc',
+    'ksl city',
+    'komtar',
+  ],
+  visitBlockedNamePatterns: [
+    'lau pa sat',
+    'maxwell food centre',
+    'hong lim market',
+    'food centre',
+  ],
   touristAnchors: [
     TouristAnchor(label: 'Marina Bay Sands',
         lat: 1.2834, lng: 103.8607),
@@ -860,37 +922,60 @@ const _singaporeMetro = MetroProfile(
         lat: 1.3138, lng: 103.8159, radiusMeters: 2500),
   ],
   zones: [
-    MetroZone(type: DayPackType.oldCityDay, patterns: [
-      'chinatown singapore', 'chinatown heritage centre',
-      'sri mariamman temple', 'buddha tooth relic temple',
-      'thian hock keng', 'kampong glam',
-      'sultan mosque', 'masjid sultan',
-      'haji lane', 'little india singapore',
-      'sri veeramakaliamman', 'sri srinivasa perumal',
-      'civic district singapore', 'fort canning',
-    ]),
-    MetroZone(type: DayPackType.riversideDay, patterns: [
-      'singapore river', 'clarke quay', 'boat quay',
-      'robertson quay', 'merlion park', 'merlion',
-      'esplanade theatres', 'esplanade',
-      'helix bridge', 'jubilee bridge',
-    ]),
-    MetroZone(type: DayPackType.marketDay, patterns: [
-      'lau pa sat', 'maxwell food centre', 'maxwell hawker',
-      'tekka centre', 'tekka market',
-      'chinatown food street', 'old airport road food centre',
-      'newton food centre', 'tiong bahru market',
-    ]),
-    MetroZone(type: DayPackType.modernDay, patterns: [
+    // Marina Bay / civic waterfront (~1.28/103.86).
+    MetroZone(type: DayPackType.singaporeMarinaBayDay, patterns: [
       'marina bay sands', 'gardens by the bay', 'supertree grove',
-      'cloud forest singapore', 'flower dome',
-      'artscience museum',
+      'cloud forest', 'flower dome', 'marina barrage',
+      'merlion park', 'merlion',
+      'artscience museum', 'art science museum',
+      'singapore flyer', 'helix bridge', 'jubilee bridge',
+      'spectra', 'esplanade theatres', 'esplanade',
+      'sands skypark',
+    ]),
+    // Sentosa + Mount Faber (~1.25/103.83).
+    MetroZone(type: DayPackType.singaporeSentosaDay, patterns: [
       'sentosa', 'universal studios singapore', 'usss',
-      'singapore flyer', 'national gallery singapore',
-      'national museum singapore',
-      'orchard road', 'ion orchard',
+      'singapore oceanarium', 's.e.a. aquarium',
+      'skyline luge', 'madame tussauds singapore',
+      'adventure cove', 'wings of time',
+      'siloso beach', 'palawan beach', 'tanjong beach',
+      'singapore cable car', 'mount faber',
+    ]),
+    // Chinatown + Civic District (~1.28-1.29/103.85).
+    MetroZone(type: DayPackType.singaporeChinatownCivicDay, patterns: [
+      'buddha tooth relic temple', 'chinatown singapore',
+      'chinatown heritage centre',
+      'sri mariamman temple', 'thian hock keng',
+      'asian civilisations museum',
+      'national gallery singapore', 'national gallery',
+      'national museum of singapore', 'national museum singapore',
+      'peranakan museum',
+      'fort canning park', 'fort canning tree tunnel', 'fort canning',
+      'old hill street police station',
+      'boat quay', 'clarke quay', 'robertson quay',
+      'pinnacle@duxton', 'pinnacle duxton',
+    ]),
+    // Orchard / Botanic Gardens (~1.30-1.31/103.81-103.83).
+    MetroZone(type: DayPackType.singaporeOrchardBotanicDay, patterns: [
       'singapore botanic gardens', 'botanic gardens singapore',
-      'mount faber', 'pinnacle@duxton',
+      'jardin botanique de singapour', 'national orchid garden',
+      'gallop extension', 'ginger garden', 'swan lake',
+      'rainforest trail',
+      'orchard road', 'ion sky', 'ion orchard', 'ion art gallery',
+      'museum of ice cream singapore',
+      'dempsey hill',
+    ]),
+    // Kampong Glam + Little India (~1.30-1.31/103.85).
+    MetroZone(type: DayPackType.singaporeKampongGlamLittleIndiaDay,
+        patterns: [
+      'sultan mosque', 'masjid sultan',
+      'arab street', 'haji lane', 'kampong glam',
+      'little india singapore', 'little india',
+      'sri veeramakaliamman', 'sri srinivasa perumal',
+      'indian heritage centre',
+      'former house of tan teng niah', 'tan teng niah',
+      'church of our lady of lourdes',
+      'angullia mosque',
     ]),
   ],
 );
