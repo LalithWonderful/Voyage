@@ -8,22 +8,22 @@
 
 | Metric | Baseline | Current | Delta |
 |---|---:|---:|---:|
-| Visits | 19 | 19 | +0 |
+| Visits | 18 | 18 | +0 |
 | Meals | 4 | 4 | — |
-| Slots | 23 | 23 | — |
-| Active days | 8 | 8 | — |
-| Free days | 0 | 0 | — |
+| Slots | 22 | 22 | — |
+| Active days | 7 | 7 | — |
+| Free days | 1 | 1 | — |
 | Visits change % | — | — | +0.0 % |
 
 ## Quality scores
 
 | Score | Baseline | Current | Delta | Status |
 |---|---:|---:|---:|:---:|
-| overall | 78.6 | 78.6 | +0.0 | OK |
-| coherence | 73.1 | 73.1 | +0.0 | OK |
-| diversity | 34.4 | 34.4 | +0.0 | OK |
+| overall | 81.5 | 81.5 | +0.0 | OK |
+| coherence | 82.1 | 82.1 | +0.0 | OK |
+| diversity | 33.1 | 33.1 | +0.0 | OK |
 | repetition | 100.0 | 100.0 | +0.0 | OK |
-| transition | 85.6 | 85.6 | +0.0 | OK |
+| transition | 92.1 | 92.1 | +0.0 | OK |
 | coverage | 100.0 | 100.0 | +0.0 | OK |
 
 ## Places
@@ -38,8 +38,8 @@
 
 | Metric | Baseline | Current | Delta |
 |---|---:|---:|---:|
-| Avg inter-slot (m) | 1234.9 | 1234.9 | +0.0 |
-| Max inter-slot (m) | 11485.4 | 11485.4 | +0.0 |
+| Avg inter-slot (m) | 1457.2 | 1457.2 | +0.0 |
+| Max inter-slot (m) | 10554.7 | 10554.7 | +0.0 |
 
 ## Days
 
@@ -48,10 +48,10 @@
 | 2026-05-18 | 3 → 3 | 3 → 3 | 0 → 0 |
 | 2026-05-19 | 4 → 4 | 4 → 4 | 0 → 0 |
 | 2026-05-20 | 3 → 3 | 2 → 2 | 1 → 1 |
-| 2026-05-21 | 2 → 2 | 1 → 1 | 1 → 1 |
-| 2026-05-22 | 4 → 4 | 4 → 4 | 0 → 0 |
+| 2026-05-21 | 4 → 4 | 4 → 4 | 0 → 0 |
+| 2026-05-22 | 2 → 2 | 0 → 0 | 2 → 2 |
 | 2026-05-23 | 3 → 3 | 2 → 2 | 1 → 1 |
-| 2026-05-24 | 2 → 2 | 1 → 1 | 1 → 1 |
+| 2026-05-24 | 1 → 1 | 1 → 1 | 0 → 0 |
 | 2026-05-25 | 2 → 2 | 2 → 2 | 0 → 0 |
 
 ## Verdict reasons
