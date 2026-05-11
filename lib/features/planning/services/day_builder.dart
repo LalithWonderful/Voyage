@@ -122,6 +122,15 @@ const int _kMaxLongTransitionsPerPack = 1;
 /// (Chatuchak↔Srinagarindra à 16km déclenche).
 const double _kMaxTransitionPerPackKm = 10.0;
 
+/// V8.28d-fix (Lalith 2026-05-11) — cap durci pour les mégalopoles
+/// (`MetroProfile.isMegaCity=true`). Simu Tokyo 2026-05-11 a montré
+/// des packs acceptés avec `maxTransitionKm=9.7` (Meiji-jingū →
+/// Sanctuaire Asakusa dans la même matinée). Pour les mégalopoles
+/// type Tokyo / NYC / London, une journée 3-4 visites doit rester
+/// dans une zone (≤ 5 km inter-pick). 5 km est cohérent avec le
+/// coherence guard V8.23 et le second-pick guard V8.26.
+const double _kMaxTransitionMegaCityKm = 5.0;
+
 /// Hard cap maxTransition (km) pour un pack arrival_light_day. Plus
 /// strict (5km) car jour d'arrivée doit rester compact autour du
 /// hôtel/cluster, pas d'enchaînement type Asiatique→Bang Na (9.6km).
@@ -528,6 +537,12 @@ DayBuilderResult buildDayPacksForCluster({
   }
 
   final maxPlacesPerDay = math.min(maxPerDay, _kMaxPlacesPerPackHardCap);
+  // V8.28d-fix — cap maxTransition durci pour les mégalopoles. Évite
+  // Meiji-jingū → Asakusa (9.7 km) acceptés dans la même matinée
+  // Tokyo. Cf. simu 2026-05-11.
+  final maxTransitionKmCap = profile.isMegaCity
+      ? _kMaxTransitionMegaCityKm
+      : _kMaxTransitionPerPackKm;
 
   // V8.24 — log condensé : ne montre que les counts non-nuls.
   final countsParts = <String>[];
@@ -620,7 +635,7 @@ DayBuilderResult buildDayPacksForCluster({
           centerLng: clusterCenterLng,
           maxPlaces: maxPlacesPerDay,
           maxLongTransitions: _kMaxLongTransitionsPerPack,
-          maxTransitionKmCap: _kMaxTransitionPerPackKm,
+          maxTransitionKmCap: maxTransitionKmCap,
         );
         if (attempt != null) {
           debugPrint(
@@ -637,8 +652,8 @@ DayBuilderResult buildDayPacksForCluster({
         } else {
           debugPrint(
             '[day_pack_reject] date=${_iso(day)} type=${t.label} '
-            'reason=pool_too_small_or_maxTransition_over_10km_or_too_many_long_hops '
-            'poolSize=${pool.length}',
+            'reason=pool_too_small_or_maxTransition_over_${maxTransitionKmCap.toStringAsFixed(0)}km_or_too_many_long_hops '
+            'poolSize=${pool.length} isMegaCity=${profile.isMegaCity}',
           );
         }
       }

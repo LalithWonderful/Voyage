@@ -2200,11 +2200,23 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
     if (metroProfile != null &&
         metroProfile.isMegaCity &&
         metroProfile.touristAnchors.isNotEmpty) {
+      // V8.28d-fix (Lalith 2026-05-11) — `place_of_worship` retiré :
+      // Google Places API (New) `searchNearby` rejette ce type avec
+      // HTTP 400 "Unsupported types". Symptôme observé simu Tokyo
+      // 2026-05-11 : tous les anchors retournaient results=0, le
+      // `metro_anchor_fanout` était neutralisé silencieusement
+      // (wrapper retourne [] sur 400, logs `[places_nearby] HTTP 400`
+      // visibles mais pas surfacés ici). Les temples/sanctuaires
+      // (Senso-ji, Meiji-jingū, etc.) restent capturés via les types
+      // génériques `tourist_attraction` / `historical_landmark` qui
+      // les remontent côté Places API. Types conservés = sous-ensemble
+      // strictement validé par l'API New.
       const anchorIncludedTypes = <String>[
         'tourist_attraction', 'museum', 'historical_landmark',
-        'monument', 'place_of_worship', 'park', 'art_gallery',
+        'monument', 'park', 'art_gallery',
       ];
       final anchorResults = <String, NearbyCandidate>{};
+      var anchorErrors = 0;
       for (final anchor in metroProfile.touristAnchors) {
         try {
           final results = await nearbyService.searchNearby(
@@ -2226,9 +2238,26 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
             'radius=${anchor.radiusMeters}m '
             'results=${results.length}',
           );
-        } catch (_) {
-          // Budget Cost-1 cap ou erreur API → on continue.
+        } catch (e) {
+          // V8.28d-fix — log explicite. Exception ici = signal d'un
+          // problème côté wrapper (HTTP 400 retourne [] sans throw).
+          // Sans log, un type invalide partagé fait silently échouer
+          // les 9 anchors d'affilée.
+          anchorErrors++;
+          // ignore: avoid_print
+          print(
+            '[metro_anchor_fetch] city=${metroProfile.cityKey} '
+            'anchor="${anchor.label}" EXCEPTION error="$e"',
+          );
         }
+      }
+      if (anchorErrors > 0) {
+        // ignore: avoid_print
+        print(
+          '[metro_anchor_fanout] city=${metroProfile.cityKey} '
+          'anchorErrors=$anchorErrors '
+          '(check includedTypes vs Places API New supported list)',
+        );
       }
       if (anchorResults.isNotEmpty) {
         const anchorFanoutMaxKm = 50.0;

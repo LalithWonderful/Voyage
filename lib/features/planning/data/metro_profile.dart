@@ -279,26 +279,62 @@ const _tokyoMetro = MetroProfile(
     TouristAnchor(label: 'Tokyo Station / Marunouchi',
         lat: 35.6812, lng: 139.7671),
   ],
+  // V8.28d-fix (Lalith 2026-05-11) — zones Tokyo restructurées en 4
+  // clusters géographiques compacts (≤ 5 km inter-pick, aligné sur
+  // `_kMaxTransitionMegaCityKm`). La simu 2026-05-11 a montré que
+  // l'ancien découpage mélangeait Meiji-jingū (W) avec Senso-ji (NE)
+  // dans `oldCityDay`, et Shibuya (W) avec Tokyo Tower (S) +
+  // Tokyo Skytree (NE) dans `modernDay`. Résultat : packs acceptés
+  // à 9.7 km de transition. Nouveau découpage par quartier compact :
+  // - oldCityDay = NE (Asakusa / Ueno / Skytree / Akihabara)
+  // - modernDay = W + S central (Shibuya / Shinjuku / Meiji /
+  //   Harajuku / Roppongi / Tokyo Tower)
+  // - riversideDay = SE coast (Odaiba / Toyosu / teamLab / Sumida)
+  // - marketDay = central est (Tsukiji / Ginza / Imperial Palace /
+  //   Tokyo Station). Label "market" un peu loose ici (Imperial Palace
+  //   n'est pas un marché) mais geographically Tsukiji est l'ancre
+  //   thématique et le pack reste cohérent <5 km inter-pick.
   zones: [
+    // NE Tokyo : Asakusa cluster + Ueno + Skytree + Akihabara.
+    // Toutes <5 km de Senso-ji (35.7148/139.7967).
     MetroZone(type: DayPackType.oldCityDay, patterns: [
-      'senso-ji', 'sensoji', 'asakusa', 'meiji shrine', 'meiji jingu',
-      'imperial palace', 'yasukuni', 'kanda', 'nezu shrine',
-      'zojoji', 'gokokuji', 'kappabashi',
+      'senso-ji', 'sensoji', 'asakusa', 'nakamise',
+      'tokyo skytree', 'skytree',
+      'ueno park', 'ueno zoo', 'ueno toshogu',
+      'ameya-yokocho', 'ameyoko',
+      'akihabara',
+      'kappabashi', 'kanda', 'nezu shrine', 'gokokuji',
     ]),
+    // SE coast : Odaiba / Toyosu / teamLab Planets / Sumida.
     MetroZone(type: DayPackType.riversideDay, patterns: [
-      'sumida river', 'odaiba', 'rainbow bridge', 'kachidoki',
-      'asakusa pier', 'sumida park',
+      'sumida river', 'sumida park',
+      'odaiba', 'rainbow bridge', 'kachidoki',
+      'toyosu', 'teamlab',
+      'asakusa pier',
     ]),
+    // Central est : Tsukiji / Toyosu market / Ginza / Imperial Palace
+    // / Tokyo Station / Hamarikyu / Yasukuni. Cluster compact ~2.5 km.
     MetroZone(type: DayPackType.marketDay, patterns: [
-      'tsukiji outer market', 'tsukiji', 'ameya-yokocho',
-      'ameyoko', 'toyosu market', 'nakamise',
+      'tsukiji outer market', 'tsukiji',
+      'toyosu market',
+      'ginza',
+      'imperial palace', 'kokyo', 'kōkyo',
+      'tokyo station', 'marunouchi',
+      'hamarikyu', 'hama-rikyu', 'hama rikyu',
+      'yasukuni',
     ]),
+    // W Tokyo + S central : Shibuya / Shinjuku / Meiji / Harajuku /
+    // Yoyogi / Roppongi / Tokyo Tower / Mori Tower / Azabudai.
+    // Shinjuku ↔ Tokyo Tower 5.3 km → cap 5 km rejette ce pack-là,
+    // mais Shibuya ↔ Tower 3.6 km accepté. Builder shrink fait le tri.
     MetroZone(type: DayPackType.modernDay, patterns: [
-      'tokyo tower', 'tokyo skytree', 'skytree',
-      'shibuya crossing', 'shibuya', 'shinjuku gyoen', 'shinjuku',
-      'akihabara', 'roppongi', 'ginza', 'omotesando',
-      'harajuku', 'takeshita', 'teamlab',
-      'ueno park', 'yoyogi park',
+      'shibuya crossing', 'shibuya',
+      'shinjuku gyoen', 'shinjuku',
+      'meiji shrine', 'meiji jingu', 'meiji-jingu', 'meiji jingū',
+      'harajuku', 'takeshita', 'omotesando',
+      'yoyogi park',
+      'tokyo tower', 'zojoji',
+      'roppongi', 'mori tower', 'azabudai',
     ]),
   ],
 );
