@@ -1227,6 +1227,85 @@ const int _qualityStrongLandmarkReviewsThreshold = 500;
 ///   - 'high_rating_few_reviews' : rating ≥ 4.5 mais reviews < 10.
 ///   - 'generic_poi' : point_of_interest seul.
 ///   - null si OK.
+/// V8.28b1.3 (Lalith 2026-05-11) — true si le candidat est éligible à
+/// la dédup trip-level pour les lieux iconiques (en plus de la dédup
+/// per-cluster existante). Couvre les cas où Google retourne le même
+/// placeId via 2 chemins de recherche différents (blueprint fetch
+/// + per-day gather, fan-out d'ancre, etc.) et où le candidat se
+/// retrouve dans des sub-clusters distincts → la dédup
+/// `selectedDedupKeysBySegment` per-cluster ne propage pas
+/// cross-cluster, et `useCountAcrossTrip` (name-based) rate quand
+/// Google renvoie le même lieu avec un libellé légèrement différent.
+///
+/// Eligibilité :
+///   - isIconicMuseum  : reviews ≥ 200 ET type museum/art_museum/
+///     art_gallery (cohérent avec la rule iconic cap existante).
+///   - isIconicTourist : reviews ≥ 500 ET type tourist_attraction/
+///     historical_landmark/monument/landmark.
+///   - marker `_MetroAnchor` (V8.28d) : enrichissement contrôlé via
+///     ancres tourisme curées — toutes éligibles à la dédup trip.
+///   - Exception nominale Singapour : `effectiveMetro.cityKey ==
+///     'singapore'` ET le nom contient `orchard road`. Orchard
+///     Road est une route (pas un POI avec tourist_attraction +
+///     500 reviews) ; sans cette exception, elle peut sortir N
+///     fois dans le voyage Singapour.
+///
+/// Préserve V8.16 (per-segment dedup) en n'incluant PAS les
+/// candidats non-iconiques : Bangkok ne bloque pas un petit lieu
+/// répété à Koh Samet, Hanoi ne bloque pas Hoi An, etc.
+bool isCandidateTripLevelDedupEligible(
+  NearbyCandidate c,
+  List<String> matchedInterests,
+  MetroProfile? effectiveMetro,
+) =>
+    _isTripLevelDedupEligible(c, matchedInterests, effectiveMetro);
+
+/// V8.28b1.3 (Lalith 2026-05-11) — caps de transition slot picker
+/// pour les jours en mode fallback (sans Day Builder pack) sur
+/// mégalopole. Stricter que V8.21 default :
+///   - 5 km max single hop (au lieu de 10 km)
+///   - 0 long hop autorisé (au lieu de 1)
+/// Évite zigzags type Chinatown/CBD → Sentosa → Orchard Road
+/// observé Singapour 22/05 (Sentosa↔Orchard = 6.1 km).
+///
+/// Hors mégalopole ou en mode pack curé → caps V8.21 default.
+({double maxSingleTransitionKm, int maxLongTransitionsPerDay})
+    fallbackTransitionCapsForDay({
+  required MetroProfile? clusterMetroProfile,
+  required bool hasDayPack,
+}) {
+  final isMegaCityFallback =
+      (clusterMetroProfile?.isMegaCity ?? false) && !hasDayPack;
+  return (
+    maxSingleTransitionKm: isMegaCityFallback ? 5.0 : 10.0,
+    maxLongTransitionsPerDay: isMegaCityFallback ? 0 : 1,
+  );
+}
+
+bool _isTripLevelDedupEligible(
+  NearbyCandidate c,
+  List<String> matchedInterests,
+  MetroProfile? effectiveMetro,
+) {
+  final reviewN = c.userRatingCount ?? 0;
+  final isIconicMuseum = reviewN >= 200 &&
+      (c.types.contains('museum') ||
+          c.types.contains('art_museum') ||
+          c.types.contains('art_gallery'));
+  final isIconicTourist = reviewN >= 500 &&
+      (c.types.contains('tourist_attraction') ||
+          c.types.contains('historical_landmark') ||
+          c.types.contains('monument') ||
+          c.types.contains('landmark'));
+  if (isIconicMuseum || isIconicTourist) return true;
+  if (matchedInterests.contains(metroAnchorMarker)) return true;
+  if (effectiveMetro?.cityKey == 'singapore') {
+    final n = c.name.toLowerCase();
+    if (n.contains('orchard road')) return true;
+  }
+  return false;
+}
+
 /// V8.28b1 (Lalith 2026-05-11) — true si l'adresse du candidat match
 /// l'un des patterns interdits (substring case-insensitive). Utilisé
 /// pour le filter `out_of_country` quand le cluster MetroProfile
@@ -3597,6 +3676,20 @@ List<ActivitySuggestion> selectVisitsDeterministic({
   const maxReusePerCluster = 2;
   final useCountAcrossTrip = <String, int>{};
 
+  // V8.28b1.3 (Lalith 2026-05-11) — dédup trip-level placeId-based
+  // pour les lieux iconiques. Complète `useCountAcrossTrip`
+  // (name-based, qui rate quand Google renvoie le même placeId avec
+  // 2 libellés légèrement différents — ex: "Buddha Tooth Relic
+  // Temple" vs "Buddha Tooth Relic Temple & Museum") ET
+  // `selectedDedupKeysBySegment` (per-cluster, qui ne propage pas
+  // cross-cluster Bintan/Singapour). Set keyé par
+  // `_dedupKeyForCandidate(c)` qui priorise placeId.
+  //
+  // Éligibilité limitée aux iconiques curés (cf.
+  // `_isTripLevelDedupEligible`) → préserve V8.16 (Bangkok ne
+  // bloque pas Koh Samet pour les non-iconiques).
+  final iconicSelectedAcrossTrip = <String>{};
+
   // V8.6 (Lalith 2026-05-10 — Phase Quality-1A v3) — wellness cap
   // durci suite retour debug Thaïlande 45j. Spec Lalith :
   //   - max 1 wellness par jour (jamais 2, même profil tolérant).
@@ -3704,6 +3797,12 @@ List<ActivitySuggestion> selectVisitsDeterministic({
     // pour comparer).
     final clusterMetroProfile = getMetroProfileForCluster(
         cluster.center.latitude, cluster.center.longitude);
+    // V8.28b1.3 — effective MetroProfile pour ce cluster : tombe en
+    // fallback sur trip destination si le cluster n'a pas de match
+    // (sub-cluster drift). Utilisé pour l'exception nominale
+    // Singapore/Orchard Road dans `_isTripLevelDedupEligible`.
+    final effectiveMetroForCluster =
+        clusterMetroProfile ?? tripDestinationMetro;
 
     for (final day in cluster.days) {
       // V8.20 (Day Builder) — pack thématique éventuel pour ce jour.
@@ -3717,8 +3816,17 @@ List<ActivitySuggestion> selectVisitsDeterministic({
       // pack (cas central cluster Bangkok où archétypes rejetés). Ne
       // s'active qu'après la 1ʳᵉ activité du jour (lastActivity != null).
       var longTransitionsThisDay = 0;
-      const maxLongTransitionsPerDay = 1;
-      const maxSingleTransitionKm = 10.0;
+      // V8.28b1.3 (Lalith 2026-05-11) — caps fallback mégalopole
+      // (5 km / 0 long hop) via helper publique testable. Évite
+      // zigzags type Chinatown → Sentosa → Orchard (Singapour
+      // 22/05). En mode pack curé OU hors mégalopole : V8.21 default
+      // (10 km / 1 long hop). Cf. `fallbackTransitionCapsForDay`.
+      final transitionCaps = fallbackTransitionCapsForDay(
+        clusterMetroProfile: clusterMetroProfile,
+        hasDayPack: dayPackPlaceIds != null,
+      );
+      final maxSingleTransitionKm = transitionCaps.maxSingleTransitionKm;
+      final maxLongTransitionsPerDay = transitionCaps.maxLongTransitionsPerDay;
       const longTransitionThresholdKm = 5.0;
       // V8.23 (Lalith 2026-05-10 — coherence guard slot-level) — après
       // 2 picks, le barycentre des picks du jour définit la zone du
@@ -3789,6 +3897,20 @@ List<ActivitySuggestion> selectVisitsDeterministic({
                 c, clusterMetroProfile, e.value.matchedInterests)) {
               return false;
             }
+          }
+          // V8.28b1.3 (Lalith 2026-05-11) — dédup trip-level pour
+          // les iconiques. Évite Buddha Tooth Relic Temple /
+          // Sentosa / Orchard Road picked sur 2 jours différents
+          // dans le même voyage Singapour. Le check est placeId-
+          // based (via `_dedupKeyForCandidate`) et seulement actif
+          // pour les candidats éligibles (cf.
+          // `_isTripLevelDedupEligible` : iconic museum/tourist,
+          // metro anchor, exception Singapore/Orchard Road).
+          if (_isTripLevelDedupEligible(
+                  c, e.value.matchedInterests, effectiveMetroForCluster) &&
+              iconicSelectedAcrossTrip
+                  .contains(_dedupKeyForCandidate(c))) {
+            return false;
           }
           // V8.21 (anti-zigzag slot-level) — hard cap depuis la dernière
           // activité du jour. Empêche Chatuchak (13.80, 100.55) suivi
@@ -3930,6 +4052,7 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           var rejectCoherenceGuard = 0;
           var rejectSecondPickGuard = 0;
           var rejectQualityFloor = 0;
+          var rejectIconicTripDedup = 0;
           for (final e in entries) {
             final c = e.value.candidate;
             // V8.20 (Day Builder) — comptabilise les rejets par filtre pack.
@@ -3945,6 +4068,14 @@ List<ActivitySuggestion> selectVisitsDeterministic({
                 rejectQualityFloor++;
                 continue;
               }
+            }
+            // V8.28b1.3 — dédup trip-level iconique : miroir du filtre.
+            if (_isTripLevelDedupEligible(
+                    c, e.value.matchedInterests, effectiveMetroForCluster) &&
+                iconicSelectedAcrossTrip
+                    .contains(_dedupKeyForCandidate(c))) {
+              rejectIconicTripDedup++;
+              continue;
             }
             // V8.21 (anti-zigzag slot-level) — miroir du filtre.
             final lastLat = lastActivity?.latitude;
@@ -4074,6 +4205,7 @@ List<ActivitySuggestion> selectVisitsDeterministic({
             'rejected_by_coherence_guard': rejectCoherenceGuard,
             'rejected_by_second_pick_guard': rejectSecondPickGuard,
             'rejected_by_quality_floor': rejectQualityFloor,
+            'rejected_by_iconic_trip_dedup': rejectIconicTripDedup,
           };
           final sortedRejects = rejects.entries.where((e) => e.value > 0).toList()
             ..sort((a, b) => b.value.compareTo(a.value));
@@ -4304,6 +4436,14 @@ List<ActivitySuggestion> selectVisitsDeterministic({
         useCountAcrossTrip[pickName] = (useCountAcrossTrip[pickName] ?? 0) + 1;
         usedThisDay.add(pickName);
         selectedDedupKeys.add(_dedupKeyForCandidate(pick));
+        // V8.28b1.3 — enregistre placeId du pick dans le set
+        // trip-level si éligible iconique (cf. helper). Bloque le
+        // re-pick cross-cluster (Buddha Tooth Relic Temple / Sentosa /
+        // Orchard Road dupliqués observés Singapour).
+        if (_isTripLevelDedupEligible(
+            pick, matched, effectiveMetroForCluster)) {
+          iconicSelectedAcrossTrip.add(_dedupKeyForCandidate(pick));
+        }
         tagCountThisDay[tag] = (tagCountThisDay[tag] ?? 0) + 1;
         if (_isEventsPrimaryType(pick)) {
           eventsCountThisDay += 1;

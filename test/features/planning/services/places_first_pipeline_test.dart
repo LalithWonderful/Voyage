@@ -1060,4 +1060,221 @@ void main() {
       expect(blueprint?.destinationKey, 'singapore');
     });
   });
+
+  group('V8.28b1.3 trip-level iconic dedup', () {
+    // V8.28b1.3 Patch A — dédup trip-level placeId-based pour les
+    // lieux iconiques. Complète V8.16 (per-segment) + iconic cap
+    // V8.9 (name-based). Évite Buddha Tooth Relic Temple / Sentosa
+    // / Orchard Road dupliqués cross-cluster sur Singapour.
+
+    final singapore = getMetroProfileForCluster(1.3521, 103.8198)!;
+    final kohSamet = getMetroProfileForCluster(13.7563, 100.5018)!;
+    // Phu Quoc / Hoi An n'ont pas de MetroProfile.
+
+    NearbyCandidate make({
+      required String name,
+      List<String> types = const ['tourist_attraction'],
+      int reviews = 0,
+    }) =>
+        NearbyCandidate(
+          placeId: name.toLowerCase().replaceAll(' ', '_'),
+          name: name,
+          latitude: 0,
+          longitude: 0,
+          types: types,
+          userRatingCount: reviews,
+        );
+
+    test('isIconicTourist (tourist_attraction + reviews ≥ 500) → '
+        'éligible dédup trip', () {
+      final c = make(
+        name: 'Buddha Tooth Relic Temple',
+        types: ['tourist_attraction', 'place_of_worship'],
+        reviews: 40000,
+      );
+      expect(
+          isCandidateTripLevelDedupEligible(c, const [], singapore),
+          isTrue);
+    });
+
+    test('isIconicMuseum (museum + reviews ≥ 200) → éligible', () {
+      final c = make(
+        name: 'Asian Civilisations Museum',
+        types: ['museum', 'tourist_attraction'],
+        reviews: 5000,
+      );
+      expect(
+          isCandidateTripLevelDedupEligible(c, const [], singapore),
+          isTrue);
+    });
+
+    test('Marker _MetroAnchor → éligible (V8.28d enrichissement curé)',
+        () {
+      final c = make(
+        name: 'Some metro anchor result',
+        types: ['tourist_attraction'],
+        reviews: 50,
+      );
+      expect(
+          isCandidateTripLevelDedupEligible(
+              c, const [metroAnchorMarker], singapore),
+          isTrue);
+    });
+
+    test('Singapore : "Orchard Road" → éligible (exception nominale)', () {
+      final c = make(
+        name: 'Orchard Road',
+        types: ['route', 'point_of_interest'],
+        reviews: 1000,
+      );
+      // Types=route, pas dans isIconicTourist (pas
+      // tourist_attraction/historical_landmark/etc). L'exception
+      // nominale Singapore sauve.
+      expect(
+          isCandidateTripLevelDedupEligible(c, const [], singapore),
+          isTrue);
+    });
+
+    test('Singapore : nom sans "orchard road" → pas d\'exception', () {
+      final c = make(
+        name: 'Tanjong Pagar',
+        types: ['route'],
+        reviews: 100,
+      );
+      expect(
+          isCandidateTripLevelDedupEligible(c, const [], singapore),
+          isFalse);
+    });
+
+    test('Bangkok : exception Orchard Road NE s\'applique PAS '
+        '(scoped Singapore)', () {
+      final c = make(
+        name: 'Orchard Road Plaza Bangkok', // hypothétique
+        types: ['route'],
+        reviews: 100,
+      );
+      expect(
+          isCandidateTripLevelDedupEligible(c, const [], kohSamet),
+          isFalse,
+          reason: 'Exception Orchard Road scoped au cityKey '
+              '"singapore" uniquement');
+    });
+
+    test('Hors mégalopole (Phu Quoc, pas de MetroProfile) → '
+        'éligibilité standard', () {
+      // Phu Quoc plage iconique sans MetroProfile : reste éligible
+      // si reviews suffisants.
+      final iconic = make(
+        name: 'Sao Beach Phu Quoc',
+        types: ['tourist_attraction', 'beach'],
+        reviews: 3000,
+      );
+      expect(
+          isCandidateTripLevelDedupEligible(iconic, const [], null),
+          isTrue,
+          reason: 'isIconicTourist tient même sans MetroProfile');
+      // Petit lieu non-iconique : NON éligible → V8.16 preserved
+      // (Bangkok ne bloque pas un petit lieu Koh Samet).
+      final smallPlace = make(
+        name: 'Local small place',
+        types: ['point_of_interest'],
+        reviews: 50,
+      );
+      expect(
+          isCandidateTripLevelDedupEligible(
+              smallPlace, const [], null),
+          isFalse,
+          reason: 'Non-iconique : V8.16 per-segment dedup uniquement, '
+              'pas de blocage trip-level cross-cluster');
+    });
+
+    test('Reviews insuffisants pour iconic → pas éligible', () {
+      final c = make(
+        name: 'Some Temple',
+        types: ['tourist_attraction'],
+        reviews: 100, // < 500
+      );
+      expect(
+          isCandidateTripLevelDedupEligible(c, const [], singapore),
+          isFalse);
+    });
+
+    test('Type sans signal iconique (point_of_interest seul) → '
+        'pas éligible', () {
+      final c = make(
+        name: 'Random POI',
+        types: ['point_of_interest'],
+        reviews: 1000,
+      );
+      expect(
+          isCandidateTripLevelDedupEligible(c, const [], singapore),
+          isFalse);
+    });
+  });
+
+  group('V8.28b1.3 megacity fallback transition caps', () {
+    // V8.28b1.3 Patch B — caps slot picker durcis pour mégalopole
+    // en mode fallback (Day Builder pack absent). Évite zigzag
+    // Chinatown → Sentosa → Orchard (Singapour 22/05, Sentosa↔
+    // Orchard 6.1 km).
+
+    final singapore = getMetroProfileForCluster(1.3521, 103.8198)!;
+    final phuQuocCenter = getMetroProfileForCluster(10.22, 103.96);
+
+    test('Mégalopole fallback (Singapore, pas de pack) → 5 km / 0 hops',
+        () {
+      final caps = fallbackTransitionCapsForDay(
+        clusterMetroProfile: singapore,
+        hasDayPack: false,
+      );
+      expect(caps.maxSingleTransitionKm, 5.0);
+      expect(caps.maxLongTransitionsPerDay, 0);
+    });
+
+    test('Mégalopole AVEC pack (Day Builder actif) → V8.21 default '
+        '10 km / 1 hop', () {
+      final caps = fallbackTransitionCapsForDay(
+        clusterMetroProfile: singapore,
+        hasDayPack: true,
+      );
+      expect(caps.maxSingleTransitionKm, 10.0,
+          reason: 'En mode pack, Day Builder garantit déjà compacité '
+              'via _kMaxTransitionMegaCityKm V8.28d-fix');
+      expect(caps.maxLongTransitionsPerDay, 1);
+    });
+
+    test('Hors mégalopole (clusterMetroProfile null, Phu Quoc) → '
+        'V8.21 default', () {
+      expect(phuQuocCenter, isNull,
+          reason: 'Phu Quoc ne doit pas avoir de MetroProfile');
+      final caps = fallbackTransitionCapsForDay(
+        clusterMetroProfile: phuQuocCenter,
+        hasDayPack: false,
+      );
+      expect(caps.maxSingleTransitionKm, 10.0);
+      expect(caps.maxLongTransitionsPerDay, 1);
+    });
+
+    test('Toutes les mégalopoles ont isMegaCity=true → durcissement '
+        'cohérent', () {
+      for (final cityKey in [
+        'bangkok', 'paris', 'tokyo', 'new york', 'london', 'rome',
+        'istanbul', 'seoul', 'barcelona', 'lisbon', 'ho chi minh',
+        'singapore',
+      ]) {
+        final profile =
+            metroProfiles.firstWhere((p) => p.cityKey == cityKey);
+        expect(profile.isMegaCity, isTrue,
+            reason: '$cityKey doit avoir isMegaCity=true');
+        final caps = fallbackTransitionCapsForDay(
+          clusterMetroProfile: profile,
+          hasDayPack: false,
+        );
+        expect(caps.maxSingleTransitionKm, 5.0,
+            reason: '$cityKey en fallback doit avoir cap 5 km');
+        expect(caps.maxLongTransitionsPerDay, 0,
+            reason: '$cityKey en fallback doit avoir 0 long hop');
+      }
+    });
+  });
 }
