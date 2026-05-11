@@ -1210,6 +1210,106 @@ void main() {
           isCandidateTripLevelDedupEligible(c, const [], singapore),
           isFalse);
     });
+
+    // V8.28b1.4 — bug fix : Buddha Tooth / Sentosa avec types
+    // primary religieux/admin (sans tourist_attraction) doivent
+    // être éligibles via le marker blueprint mustSee.
+    test('V8.28b1.4 — Buddha Tooth (types=[buddhist_temple, '
+        'place_of_worship] SANS tourist_attraction) + marker '
+        '_BlueprintMustSee → éligible', () {
+      final c = make(
+        name: 'Buddha Tooth Relic Temple',
+        types: ['buddhist_temple', 'place_of_worship',
+            'point_of_interest', 'establishment'],
+        reviews: 40000,
+      );
+      // isIconicTourist échoue (pas de tourist_attraction).
+      // isIconicMuseum échoue (pas de museum).
+      // metroAnchor absent.
+      // Singapore exception : "buddha tooth relic temple" ne contient
+      // pas "orchard road".
+      // → SANS blueprint marker, ce candidat passe travers (bug
+      //   V8.28b1.3). AVEC marker, V8.28b1.4 le catch.
+      expect(
+          isCandidateTripLevelDedupEligible(c, const [], singapore),
+          isFalse,
+          reason: 'Sans marker, Buddha Tooth avec types religieux '
+              'seuls rate les checks types (bug V8.28b1.3)');
+      expect(
+          isCandidateTripLevelDedupEligible(
+              c, const [blueprintMustSeeMarker], singapore),
+          isTrue,
+          reason: 'Avec _BlueprintMustSee, V8.28b1.4 catch — c\'est '
+              'la source de vérité éditoriale Lunao');
+    });
+
+    test('V8.28b1.4 — Sentosa Island (types=[locality, political] '
+        'sans tourist_attraction) + marker _BlueprintMustSee → '
+        'éligible', () {
+      final c = make(
+        name: 'Sentosa Island',
+        types: ['locality', 'political', 'point_of_interest'],
+        reviews: 80000,
+      );
+      expect(
+          isCandidateTripLevelDedupEligible(c, const [], singapore),
+          isFalse,
+          reason: 'Sans marker, Sentosa avec types admin seul rate');
+      expect(
+          isCandidateTripLevelDedupEligible(
+              c, const [blueprintMustSeeMarker], singapore),
+          isTrue);
+    });
+
+    test('V8.28b1.4 — Marker _BlueprintExperience → éligible '
+        '(routes / quartiers curés)', () {
+      // Khaosan Road / Bui Vien / Bairro Alto : routes nightlife
+      // dans blueprint experience. Types souvent `route` /
+      // `political` sans signal touristique fort.
+      final c = make(
+        name: 'Bui Vien Walking Street',
+        types: ['route', 'point_of_interest'],
+        reviews: 5000,
+      );
+      expect(
+          isCandidateTripLevelDedupEligible(c, const [], singapore),
+          isFalse);
+      expect(
+          isCandidateTripLevelDedupEligible(
+              c, const [blueprintExperienceMarker], singapore),
+          isTrue);
+    });
+
+    test('V8.28b1.4 — Régression : non-iconique sans marker reste '
+        'NON éligible (V8.16 preserved)', () {
+      // Petit lieu local sans marker blueprint : doit rester
+      // gouverné par V8.16 per-segment dedup uniquement.
+      final c = make(
+        name: 'Local Coffee Shop',
+        types: ['cafe', 'establishment'],
+        reviews: 80,
+      );
+      expect(
+          isCandidateTripLevelDedupEligible(c, const [], singapore),
+          isFalse,
+          reason: 'V8.16 preserved : petit lieu sans curation reste '
+              'per-segment uniquement');
+    });
+
+    test('V8.28b1.4 — Markers blueprint + types non-iconiques en '
+        'combinaison → éligible (markers gagnent)', () {
+      // Even if types are weird, the marker is the source of truth.
+      final c = make(
+        name: 'Some Curated Place',
+        types: ['establishment'], // pas iconique
+        reviews: 5, // peu de reviews
+      );
+      expect(
+          isCandidateTripLevelDedupEligible(
+              c, const [blueprintMustSeeMarker], null),
+          isTrue,
+          reason: 'Marker blueprint = curation Lunao, prioritaire');
+    });
   });
 
   group('V8.28b1.3 megacity fallback transition caps', () {

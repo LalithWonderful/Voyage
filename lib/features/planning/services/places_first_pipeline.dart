@@ -1237,18 +1237,23 @@ const int _qualityStrongLandmarkReviewsThreshold = 500;
 /// cross-cluster, et `useCountAcrossTrip` (name-based) rate quand
 /// Google renvoie le même lieu avec un libellé légèrement différent.
 ///
-/// Eligibilité :
+/// Eligibilité (V8.28b1.4 — ordre revu, markers en premier) :
+///   - marker `_BlueprintMustSee` / `_BlueprintExperience` : source
+///     de vérité éditoriale Lunao. Couvre les lieux que Google
+///     retourne sans type « canonique » tourisme (Buddha Tooth
+///     Relic Temple = `buddhist_temple` SANS `tourist_attraction`,
+///     Sentosa Island = `political`/`locality` selon contexte).
+///     Ces lieux ratent isIconicTourist mais sont iconiques au
+///     sens produit, donc dédupliqués trip-level.
+///   - marker `_MetroAnchor` (V8.28d) : enrichissement contrôlé via
+///     ancres tourisme curées — toutes éligibles à la dédup trip.
 ///   - isIconicMuseum  : reviews ≥ 200 ET type museum/art_museum/
 ///     art_gallery (cohérent avec la rule iconic cap existante).
 ///   - isIconicTourist : reviews ≥ 500 ET type tourist_attraction/
 ///     historical_landmark/monument/landmark.
-///   - marker `_MetroAnchor` (V8.28d) : enrichissement contrôlé via
-///     ancres tourisme curées — toutes éligibles à la dédup trip.
 ///   - Exception nominale Singapour : `effectiveMetro.cityKey ==
-///     'singapore'` ET le nom contient `orchard road`. Orchard
-///     Road est une route (pas un POI avec tourist_attraction +
-///     500 reviews) ; sans cette exception, elle peut sortir N
-///     fois dans le voyage Singapour.
+///     'singapore'` ET le nom contient `orchard road`. Conservé en
+///     filet de sécurité si l'utilisateur n'utilise pas le blueprint.
 ///
 /// Préserve V8.16 (per-segment dedup) en n'incluant PAS les
 /// candidats non-iconiques : Bangkok ne bloque pas un petit lieu
@@ -1287,6 +1292,18 @@ bool _isTripLevelDedupEligible(
   List<String> matchedInterests,
   MetroProfile? effectiveMetro,
 ) {
+  // V8.28b1.4 (Lalith 2026-05-11) — markers curated en premier.
+  // Root cause du bug V8.28b1.3 : Buddha Tooth Relic Temple
+  // (Singapore blueprint mustSee) sortait avec primary type
+  // `buddhist_temple` SANS `tourist_attraction` ni `historical_
+  // landmark` → ratait isIconicTourist → ne s'ajoutait pas au set
+  // iconicSelectedAcrossTrip → re-pick autorisé sur jour suivant.
+  // Idem Sentosa Island (`political`/`locality` selon contexte
+  // Google). Tous ces lieux sont CURATED dans le blueprint Lunao :
+  // le marker `_BlueprintMustSee` est la source de vérité éditoriale.
+  if (matchedInterests.contains(blueprintMustSeeMarker)) return true;
+  if (matchedInterests.contains(blueprintExperienceMarker)) return true;
+  if (matchedInterests.contains(metroAnchorMarker)) return true;
   final reviewN = c.userRatingCount ?? 0;
   final isIconicMuseum = reviewN >= 200 &&
       (c.types.contains('museum') ||
@@ -1298,7 +1315,6 @@ bool _isTripLevelDedupEligible(
           c.types.contains('monument') ||
           c.types.contains('landmark'));
   if (isIconicMuseum || isIconicTourist) return true;
-  if (matchedInterests.contains(metroAnchorMarker)) return true;
   if (effectiveMetro?.cityKey == 'singapore') {
     final n = c.name.toLowerCase();
     if (n.contains('orchard road')) return true;
