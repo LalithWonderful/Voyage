@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:voyage/config/feature_flags.dart';
 import 'package:voyage/data/complexes/complex_registry.dart';
+import 'package:voyage/data/day_templates/day_template_registry.dart';
 import 'package:voyage/data/destinations/destination_intelligence_registry.dart';
 import 'package:voyage/features/planning/data/destination_blueprints.dart';
 import 'package:voyage/features/planning/data/metro_profile.dart';
@@ -18,6 +19,7 @@ import 'package:voyage/features/planning/services/places_nearby_service.dart';
 import 'package:voyage/features/planning/services/traveler_to_places_mapping.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/wallet/models/document_model.dart';
+import 'package:voyage/features/planning/services/template_first_pipeline.dart';
 import 'package:voyage/models/destination_intelligence.dart';
 import 'package:voyage/models/same_complex_group.dart';
 import 'package:voyage/services/complex_matcher.dart';
@@ -6346,6 +6348,86 @@ Future<List<ActivitySuggestion>> _runAutoPlacesFirstBody({
           (c) => existingTitlesNormalized.contains(norm(c.name)),
         );
       });
+    }
+  }
+
+  // Phase 4 / Tâche 4.5 — Pipeline template-first (flag-gated).
+  // Court-circuit total quand `useDayTemplates == false` :
+  // comportement strictement pré-4.5. Quand le flag est ON et
+  // que la destination a une DI + des templates connus
+  // localement, tente le pipeline template-first. Si le résultat
+  // est jugé utilisable, retourne (+ meals inserés via le helper
+  // legacy `insertDeterministicMeals`). Sinon fallback complet
+  // vers la logique legacy (groupDaysByCenter +
+  // selectVisitsDeterministic).
+  //
+  // Activable via `--dart-define=USE_DAY_TEMPLATES=true`.
+  //
+  // Cette branche n'est exécutée QUE pour `category == all`
+  // (visites + repas). Pour `category == restaurants` (legacy
+  // Gemini path) et `category == activities` (visites seules),
+  // la logique existante est conservée — le template-first ne
+  // s'applique pas en 4.5.
+  if (category == SuggestionCategory.all) {
+    final templateFlags = FeatureFlags.fromEnvironment();
+    if (templateFlags.useDayTemplates) {
+      final tfDi = lookupLocalDestinationIntelligence(trip.destination);
+      final tfTemplates =
+          loadLocalDayTemplatesForDestination(trip.destination);
+      if (tfDi != null && tfTemplates.isNotEmpty) {
+        final tfComplexGroups =
+            loadLocalComplexGroupsForDestination(trip.destination);
+        final tfResult = tryTemplateFirstPipeline(
+          trip: trip,
+          di: tfDi,
+          templates: tfTemplates,
+          pool: pool,
+          complexGroups: tfComplexGroups,
+        );
+        if (tfResult.isUsable) {
+          debugPrint(
+            '[template_first_pipeline] using template-first '
+            '${tfResult.activities.length} visits destination='
+            '"${trip.destination}"',
+          );
+          final tfMerged = <ActivitySuggestion>[...tfResult.activities];
+          // Insertion repas via le helper legacy. Réutilise le pool
+          // déjà fetché + le service nearbyService déjà en scope.
+          final tfTravelerProfile = trip.travelerType != null
+              ? travelerPlacesProfiles[trip.travelerType]
+              : null;
+          final tfMealsBudgetCap = priceLevelCapForBudget(
+            budgetPerPersonEur: trip.budgetPerPersonEur,
+            durationDays: trip.durationDays,
+          );
+          final tfMeals = await insertDeterministicMeals(
+            activities: tfMerged,
+            pool: pool,
+            nearbyService: nearbyService,
+            travelerProfile: tfTravelerProfile,
+            tripInterests: tripInterests,
+            languageCode: languageCode,
+            localTransportMode: trip.localTransportMode,
+            budgetPriceCap: tfMealsBudgetCap,
+          );
+          tfMerged.addAll(tfMeals);
+          debugPrint(
+            '[template_first_pipeline] +${tfMeals.length} meals '
+            'inserted via legacy helper, total ${tfMerged.length}',
+          );
+          return tfMerged;
+        }
+        debugPrint(
+          '[template_first_fallback] reason='
+          '${tfResult.fallbackReason} destination='
+          '"${trip.destination}"',
+        );
+      } else {
+        debugPrint(
+          '[template_first_fallback] reason=missing_di_or_templates '
+          'destination="${trip.destination}"',
+        );
+      }
     }
   }
 

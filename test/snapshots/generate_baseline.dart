@@ -45,11 +45,13 @@ import 'dart:math' as math;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:voyage/config/feature_flags.dart';
 import 'package:voyage/data/complexes/complex_registry.dart';
+import 'package:voyage/data/day_templates/day_template_registry.dart';
 import 'package:voyage/data/destinations/destination_intelligence_registry.dart';
 import 'package:voyage/features/planning/models/activity_suggestion_model.dart';
 import 'package:voyage/features/planning/services/geocoding_service.dart';
 import 'package:voyage/features/planning/services/places_first_pipeline.dart';
 import 'package:voyage/features/planning/services/places_nearby_service.dart';
+import 'package:voyage/features/planning/services/template_first_pipeline.dart';
 import 'package:voyage/features/planning/services/traveler_to_places_mapping.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/quality/planning_metrics.dart';
@@ -127,12 +129,14 @@ Future<_RunOutput> _runPipeline(Trip trip) async {
 
     final travelerProfile = travelerPlacesProfiles[trip.travelerType];
 
-    // Phase 2 / Tâche 2.4 + Phase 3 / Tâche 3.2 — flag-aware
-    // câblage. Par défaut OFF (`fromEnvironment()` retourne false
-    // sans `--dart-define`). Activables via :
+    // Phase 2 / Tâche 2.4 + Phase 3 / Tâche 3.2 + Phase 4 / 4.5
+    // — flag-aware câblage. Par défaut OFF (`fromEnvironment()`
+    // retourne false sans `--dart-define`). Activables via :
     //   flutter test --dart-define=USE_SAME_COMPLEX_DEDUP=true \
     //     test/snapshots/generate_baseline.dart
     //   flutter test --dart-define=USE_DESTINATION_SCOPE=true \
+    //     test/snapshots/generate_baseline.dart
+    //   flutter test --dart-define=USE_DAY_TEMPLATES=true \
     //     test/snapshots/generate_baseline.dart
     // pour observer l'impact des nouvelles politiques sur le
     // planning Singapour.
@@ -141,6 +145,56 @@ Future<_RunOutput> _runPipeline(Trip trip) async {
         loadLocalComplexGroupsForDestination(trip.destination);
     final destinationIntelligenceForTrip =
         lookupLocalDestinationIntelligence(trip.destination);
+
+    // Phase 4 / Tâche 4.5 — Pipeline template-first (flag-gated).
+    // Mirror du routing présent dans `_runAutoPlacesFirstBody` :
+    // tente template-first si flag ON + DI + templates dispos,
+    // sinon fallback à la logique legacy ci-dessous.
+    if (featureFlags.useDayTemplates &&
+        destinationIntelligenceForTrip != null) {
+      final tfTemplates =
+          loadLocalDayTemplatesForDestination(trip.destination);
+      if (tfTemplates.isNotEmpty) {
+        final tfResult = tryTemplateFirstPipeline(
+          trip: trip,
+          di: destinationIntelligenceForTrip,
+          templates: tfTemplates,
+          pool: pool,
+          complexGroups: complexGroupsForTrip,
+        );
+        if (tfResult.isUsable) {
+          // ignore: avoid_print
+          print(
+            '[template_first_pipeline] using template-first '
+            '${tfResult.activities.length} visits',
+          );
+          final tfBudgetCap = priceLevelCapForBudget(
+            budgetPerPersonEur: trip.budgetPerPersonEur,
+            durationDays:
+                trip.endDate.difference(trip.startDate).inDays + 1,
+          );
+          final tfMeals = await insertDeterministicMeals(
+            activities: tfResult.activities,
+            pool: pool,
+            nearbyService: nearbyService,
+            travelerProfile: travelerProfile,
+            tripInterests: trip.interests ?? const <String>[],
+            languageCode: 'fr',
+            localTransportMode: trip.localTransportMode,
+            budgetPriceCap: tfBudgetCap,
+          );
+          return (visits: tfResult.activities, meals: tfMeals);
+        }
+        // ignore: avoid_print
+        print(
+          '[template_first_fallback] reason=${tfResult.fallbackReason}',
+        );
+      } else {
+        // ignore: avoid_print
+        print('[template_first_fallback] reason=missing_templates');
+      }
+    }
+
     final visits = selectVisitsDeterministic(
       clusters: clusters,
       trip: trip,
