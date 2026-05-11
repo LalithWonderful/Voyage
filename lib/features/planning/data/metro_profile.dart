@@ -890,6 +890,7 @@ const _singaporeMetro = MetroProfile(
     DayPackType.modernDay,
   },
   blockedAddressPatterns: [
+    // V8.28b1 — frontière Malaysia (Johor Bahru limitrophe à Woodlands).
     'malaysia',
     'johor',
     'johor bahru',
@@ -897,6 +898,21 @@ const _singaporeMetro = MetroProfile(
     'jbcc',
     'ksl city',
     'komtar',
+    // V8.28b1.2 (Lalith 2026-05-11) — frontière Indonésie. Sous-cluster
+    // observé centré (1.14, 104.43) ≈ Bintan/Lagoi (~75 km SE de
+    // Singapour). Sans Singapore MetroProfile match côté cluster, le
+    // filter retombait sur empty list → candidats Indonésie leakaient.
+    // Le fallback `tripDestinationMetro` V8.28b1.2 applique ces
+    // patterns aux sous-clusters drift. Patterns : pays + îles +
+    // province + capitale Riau Islands.
+    'indonesia',
+    'bintan',
+    'batam',
+    'lagoi',
+    'tanjung pinang',
+    'kepulauan riau',
+    'riau islands',
+    'kepri',
   ],
   visitBlockedNamePatterns: [
     'lau pa sat',

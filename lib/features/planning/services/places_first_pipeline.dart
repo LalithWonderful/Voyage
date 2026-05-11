@@ -3444,6 +3444,26 @@ List<ActivitySuggestion> selectVisitsDeterministic({
   // mismatch dans `_isAllowedFinalVisitCandidate`.
   final finalGateTripInterests =
       (trip.interests ?? const <String>[]).toSet();
+  // V8.28b1.2 (Lalith 2026-05-11) — fallback MetroProfile au niveau
+  // trip-destination quand un sous-cluster n'a pas de match géo.
+  // Cas observé Singapour : sous-cluster centré (1.14, 104.43) (~75
+  // km du centre Singapour, soit Bintan en Indonésie) avait
+  // `clusterMetroProfile=null` → aucun filter Johor/Indonesia ne
+  // s'appliquait, candidats hors-pays leakaient en pool. La trip
+  // destination "Singapore" résout vers le blueprint Singapore →
+  // MetroProfile Singapore via le registre. On l'utilise comme
+  // fallback uniquement quand `clusterMetro == null`.
+  MetroProfile? tripDestinationMetro;
+  final tripBlueprint = getBlueprintForDestination(trip.destination);
+  if (tripBlueprint != null) {
+    for (final p in metroProfiles) {
+      if (p.cityKey == tripBlueprint.destinationKey) {
+        tripDestinationMetro = p;
+        break;
+      }
+    }
+  }
+
   final filteredClusters = clusters.map((cluster) {
     final newPool = <
         String,
@@ -3454,12 +3474,18 @@ List<ActivitySuggestion> selectVisitsDeterministic({
     // 2. `visitBlockedNamePatterns` : rejet `restaurant_out_of_scope`
     //    quand le nom match un hawker centre (Lau Pa Sat, Maxwell...).
     //    Le marker curated NE sauve PAS ces lieux (réservés aux repas).
+    //
+    // V8.28b1.2 — fallback `tripDestinationMetro` quand le cluster
+    // n'a pas de match (sous-cluster drift géo). Évite que les
+    // candidats hors-pays leakent sur les sous-clusters frontière
+    // (Singapour ↔ Bintan/Batam, etc.).
     final clusterMetro = getMetroProfileForCluster(
         cluster.center.latitude, cluster.center.longitude);
+    final effectiveMetro = clusterMetro ?? tripDestinationMetro;
     final blockedAddrPatterns =
-        clusterMetro?.blockedAddressPatterns ?? const <String>[];
+        effectiveMetro?.blockedAddressPatterns ?? const <String>[];
     final visitBlockedNamePatterns =
-        clusterMetro?.visitBlockedNamePatterns ?? const <String>[];
+        effectiveMetro?.visitBlockedNamePatterns ?? const <String>[];
     for (final entry in cluster.pool.entries) {
       final candidate = entry.value.candidate;
       final reason = _isAllowedFinalVisitCandidate(

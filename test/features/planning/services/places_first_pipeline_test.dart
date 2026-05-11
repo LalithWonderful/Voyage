@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:voyage/features/planning/data/destination_blueprints.dart';
 import 'package:voyage/features/planning/data/metro_profile.dart';
+import 'package:voyage/features/planning/data/segment_city_canonicals.dart';
 import 'package:voyage/features/planning/services/day_builder.dart';
 import 'package:voyage/features/planning/services/day_center_service.dart';
 import 'package:voyage/features/planning/services/places_first_pipeline.dart';
@@ -913,6 +914,150 @@ void main() {
             DayPackType.singaporeOrchardBotanicDay,
             DayPackType.singaporeKampongGlamLittleIndiaDay,
           ]));
+    });
+  });
+
+  group('V8.28b1.2 Singapore extended hardening', () {
+    // V8.28b1.2 — extensions du Singapore hardening :
+    // - Patterns Indonésie ajoutés à blockedAddressPatterns
+    //   (Bintan/Batam frontière Sud).
+    // - Canonical "Singapore" pour clean segment resolution.
+    // - Fallback trip-destination MetroProfile au pipeline (testé
+    //   indirectement via les patterns présents).
+
+    final singapore = getMetroProfileForCluster(1.3521, 103.8198)!;
+
+    NearbyCandidate make({
+      required String name,
+      List<String> types = const ['tourist_attraction'],
+      String? address,
+    }) =>
+        NearbyCandidate(
+          placeId: name.toLowerCase().replaceAll(' ', '_'),
+          name: name,
+          latitude: 0,
+          longitude: 0,
+          types: types,
+          address: address,
+        );
+
+    test('A2 — Singapore.blockedAddressPatterns inclut Indonésie/Bintan/'
+        'Batam (V8.28b1.2)', () {
+      expect(
+          singapore.blockedAddressPatterns,
+          containsAll([
+            'indonesia',
+            'bintan',
+            'batam',
+            'lagoi',
+            'tanjung pinang',
+            'kepulauan riau',
+            'riau islands',
+          ]));
+    });
+
+    test('A2 — Candidat à Bintan (Indonesia) → rejeté', () {
+      final c = make(
+        name: 'Bintan Lagoi Resort',
+        address: 'Jalan Perigi Raja, Lagoi, Bintan, Kepulauan Riau, '
+            'Indonesia',
+      );
+      expect(
+          isCandidateAddressBlocked(
+              c, singapore.blockedAddressPatterns),
+          isTrue);
+    });
+
+    test('A2 — Candidat à Batam → rejeté', () {
+      final c = make(
+        name: 'Batam Centre Mall',
+        address: 'Batam, Kepulauan Riau, Indonesia',
+      );
+      expect(
+          isCandidateAddressBlocked(
+              c, singapore.blockedAddressPatterns),
+          isTrue);
+    });
+
+    test('A2 — Candidat à Tanjung Pinang → rejeté', () {
+      final c = make(
+        name: 'Vihara Ksitigarbha Bodhisattva',
+        address: 'Tanjung Pinang, Kepulauan Riau, Indonesia',
+      );
+      expect(
+          isCandidateAddressBlocked(
+              c, singapore.blockedAddressPatterns),
+          isTrue);
+    });
+
+    test('A2 — Singapore valide reste accepté malgré nouveaux patterns',
+        () {
+      final c = make(
+        name: 'Gardens by the Bay',
+        address: '18 Marina Gardens Dr, Singapore 018953',
+      );
+      expect(
+          isCandidateAddressBlocked(
+              c, singapore.blockedAddressPatterns),
+          isFalse);
+    });
+
+    test('A3 — Canonical "singapore" résout sur (1.3521, 103.8198)', () {
+      final canonical = getCanonicalSegmentCity('Singapore');
+      expect(canonical, isNotNull);
+      expect(canonical!.expectedLat, closeTo(1.3521, 0.01));
+      expect(canonical.expectedLng, closeTo(103.8198, 0.01));
+      expect(canonical.countryCode, 'sg');
+    });
+
+    test('A3 — Canonical "singapour" (FR) résout pareil', () {
+      final canonical = getCanonicalSegmentCity('Singapour');
+      expect(canonical, isNotNull);
+      expect(canonical!.expectedLat, closeTo(1.3521, 0.01));
+      expect(canonical.expectedLng, closeTo(103.8198, 0.01));
+    });
+
+    test('A3 — Canonical case-insensitive ("SINGAPORE")', () {
+      final canonical = getCanonicalSegmentCity('SINGAPORE');
+      expect(canonical, isNotNull);
+      expect(canonical!.canonicalQuery, 'Singapore');
+    });
+
+    test('A3 — Canonical resolve avec country fourni ne casse pas', () {
+      final canonical =
+          getCanonicalSegmentCity('Singapore', country: 'Singapore');
+      // Pas de match composé "singapore, singapore" mais fallback
+      // sur "singapore" seul.
+      expect(canonical, isNotNull);
+      expect(canonical!.expectedLat, closeTo(1.3521, 0.01));
+    });
+
+    test('A1 — Singapore trip destination résout vers le MetroProfile '
+        'Singapore (via blueprint + registry lookup)', () {
+      // Simule la résolution dans le pipeline V8.28b1.2 :
+      // trip.destination -> getBlueprintForDestination ->
+      // metroProfiles.firstWhere(cityKey)
+      final blueprint = getBlueprintForDestination('Singapore');
+      expect(blueprint, isNotNull);
+      expect(blueprint!.destinationKey, 'singapore');
+
+      MetroProfile? resolved;
+      for (final p in metroProfiles) {
+        if (p.cityKey == blueprint.destinationKey) {
+          resolved = p;
+          break;
+        }
+      }
+      expect(resolved, isNotNull);
+      expect(resolved!.cityKey, 'singapore');
+      expect(resolved.blockedAddressPatterns, contains('indonesia'),
+          reason: 'Le MetroProfile résolu doit avoir les patterns '
+              'V8.28b1.2 (Indonésie) pour appliquer le filtre fallback');
+    });
+
+    test('A1 — Trip avec destination "Singapour" (FR) résout pareil', () {
+      final blueprint = getBlueprintForDestination('Singapour');
+      expect(blueprint?.destinationKey, 'singapore');
     });
   });
 }

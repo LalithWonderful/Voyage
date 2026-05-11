@@ -189,6 +189,23 @@ const Map<String, SegmentCanonicalCity> _canonicalCities =
     expectedLng: 100.5018,
     countryCode: 'th',
   ),
+  // ─── Singapour ───────────────────────────────────────────────────
+  // V8.28b1.2 (Lalith 2026-05-11) — canonical Singapour pour éviter
+  // la dérive géocoder vers Bintan/Batam ou Singapore Strait. Sans
+  // cette entrée, un segment "Singapore" pouvait résoudre sur
+  // (1.14, 104.43) ≈ Bintan, hors zone MetroProfile Singapore.
+  'singapore': SegmentCanonicalCity(
+    canonicalQuery: 'Singapore',
+    expectedLat: 1.3521,
+    expectedLng: 103.8198,
+    countryCode: 'sg',
+  ),
+  'singapour': SegmentCanonicalCity(
+    canonicalQuery: 'Singapore',
+    expectedLat: 1.3521,
+    expectedLng: 103.8198,
+    countryCode: 'sg',
+  ),
   // ─── Cambodge / autres ──────────────────────────────────────────
   // Ajouter au fil des bugs observés.
 };
