@@ -49,6 +49,7 @@ import 'package:voyage/features/planning/services/places_first_pipeline.dart';
 import 'package:voyage/features/planning/services/places_nearby_service.dart';
 import 'package:voyage/features/planning/services/traveler_to_places_mapping.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
+import 'package:voyage/quality/planning_metrics.dart';
 
 // ─── Trip fixture standard ────────────────────────────────────────────────
 //
@@ -302,6 +303,7 @@ Map<String, dynamic> _buildBaselineJson({
   required Trip trip,
   required _RunOutput run,
   required _Summary summary,
+  required PlanningQualityReport qualityReport,
 }) {
   return {
     'metadata': {
@@ -338,6 +340,12 @@ Map<String, dynamic> _buildBaselineJson({
       'avg_inter_slot_distance_meters':
           summary.avgInterSlotDistanceMeters?.toStringAsFixed(1),
     },
+    // Phase 0 / Tâche 0.2 — Métriques qualité agrégées calculées via
+    // `computePlanningMetrics` du module `lib/quality/planning_metrics.dart`.
+    // Pure compute, déterministe à entrée identique. Voir la doc
+    // `docs/migrations/phase0_task0_2.md` pour la définition exacte des
+    // scores et seuils.
+    'quality_report': qualityReport.toJson(),
     'visits': run.visits.map(_activityToJson).toList(),
     'meals': run.meals.map(_activityToJson).toList(),
     'captured_logs': run.capturedLogs,
@@ -386,6 +394,62 @@ void _printSummary(_Summary s) {
   print('');
 }
 
+String _scoreLabel(double? score) =>
+    score == null ? 'n/a' : '${score.toStringAsFixed(1)} / 100';
+
+void _printQualityReport(PlanningQualityReport r) {
+  // ignore: avoid_print
+  print('═══════════════════════════════════════════════════════════════');
+  // ignore: avoid_print
+  print('  PLANNING QUALITY REPORT (Phase 0 / Tâche 0.2)');
+  // ignore: avoid_print
+  print('═══════════════════════════════════════════════════════════════');
+  // ignore: avoid_print
+  print('  Overall score      : ${_scoreLabel(r.overallScore)}');
+  // ignore: avoid_print
+  print('  ├─ coherence       : ${_scoreLabel(r.coherenceScore)}'
+      '   (compacité jour par jour)');
+  // ignore: avoid_print
+  print('  ├─ diversity       : ${_scoreLabel(r.diversityScore)}'
+      '   (entropie Shannon des tags visites)');
+  // ignore: avoid_print
+  print('  ├─ repetition      : ${_scoreLabel(r.repetitionScore)}'
+      '   (haut = peu de répétitions)');
+  // ignore: avoid_print
+  print('  ├─ transition      : ${_scoreLabel(r.transitionScore)}'
+      '   (distances inter-slot)');
+  // ignore: avoid_print
+  print('  └─ coverage        : ${_scoreLabel(r.coverageScore)}'
+      '   (% journées remplies)');
+  // ignore: avoid_print
+  print('  Totaux             : ${r.totalSlots} slots '
+      '(${r.totalVisits} visites + ${r.totalMeals} repas)');
+  // ignore: avoid_print
+  print('  Jours actifs       : ${r.totalDaysWithActivity}/'
+      '${r.totalExpectedDays}');
+  if (r.repeatedTitlesNormalized.isNotEmpty) {
+    // ignore: avoid_print
+    print('  Titres répétés     : ${r.repeatedTitlesNormalized.join(", ")}');
+  }
+  final daysWithWarnings = r.byDay.where((d) => d.warnings.isNotEmpty).toList();
+  if (daysWithWarnings.isNotEmpty) {
+    // ignore: avoid_print
+    print('  Jours avec warnings :');
+    for (final d in daysWithWarnings) {
+      // ignore: avoid_print
+      print('    - ${d.date.toIso8601String().split("T").first} '
+          ': ${d.warnings.join(", ")}');
+    }
+  } else {
+    // ignore: avoid_print
+    print('  Jours avec warnings : (aucun)');
+  }
+  // ignore: avoid_print
+  print('═══════════════════════════════════════════════════════════════');
+  // ignore: avoid_print
+  print('');
+}
+
 // ─── Entry point ─────────────────────────────────────────────────────────
 
 void main() {
@@ -419,11 +483,30 @@ void main() {
     final run = await _runPipeline(trip);
     final summary = _computeSummary(trip, run);
 
+    // V8.28c+ / Phase 0 Tâche 0.2 — Métriques qualité calculées sur
+    // visites + repas combinés. La fonction sépare visites/repas en
+    // interne via l'heuristique startTime (12:30 / 19:30 = meal slots).
+    // `expectedTripDays` fourni explicitement pour que le coverage
+    // score reflète le span complet du voyage même si les premier/
+    // dernier jours ne sont pas peuplés.
+    final tripDays =
+        trip.endDate.difference(trip.startDate).inDays + 1;
+    final qualityReport = computePlanningMetrics(
+      [...run.visits, ...run.meals],
+      expectedTripDays: tripDays,
+    );
+
     _printSummary(summary);
+    _printQualityReport(qualityReport);
 
     // Écriture du JSON. Chemin absolu basé sur cwd = racine du
     // projet Flutter (convention `flutter test`).
-    final json = _buildBaselineJson(trip: trip, run: run, summary: summary);
+    final json = _buildBaselineJson(
+      trip: trip,
+      run: run,
+      summary: summary,
+      qualityReport: qualityReport,
+    );
     final encoder = const JsonEncoder.withIndent('  ');
     final outputPath = 'test/snapshots/singapore_baseline.json';
     final file = File(outputPath);
