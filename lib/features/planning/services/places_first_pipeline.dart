@@ -209,48 +209,58 @@ bool _isGenericCategoricalQuery(List<String> queryWords) {
 const Map<String, Set<String>> _queryStrongTypes = <String, Set<String>>{
   // ─── Spectacles / scènes / concerts / cinéma ─────────────────────
   'salle de spectacle': {
-    'performing_arts_theater', 'event_venue', 'cultural_center',
-    'live_music_venue', 'movie_theater', 'convention_center',
+    'performing_arts_theater',
+    'event_venue',
+    'cultural_center',
+    'live_music_venue',
+    'movie_theater',
+    'convention_center',
   },
   'salle de concert': {
-    'performing_arts_theater', 'event_venue', 'live_music_venue',
-    'cultural_center', 'movie_theater',
-  },
-  'theatre': {
-    'performing_arts_theater', 'event_venue', 'cultural_center',
-  },
-  'concert': {
-    'performing_arts_theater', 'event_venue', 'live_music_venue',
+    'performing_arts_theater',
+    'event_venue',
+    'live_music_venue',
     'cultural_center',
-  },
-  'cinema': {
     'movie_theater',
   },
+  'theatre': {'performing_arts_theater', 'event_venue', 'cultural_center'},
+  'concert': {
+    'performing_arts_theater',
+    'event_venue',
+    'live_music_venue',
+    'cultural_center',
+  },
+  'cinema': {'movie_theater'},
   'spectacle': {
-    'performing_arts_theater', 'event_venue', 'cultural_center',
+    'performing_arts_theater',
+    'event_venue',
+    'cultural_center',
     'live_music_venue',
   },
   'cabaret': {
-    'performing_arts_theater', 'event_venue', 'cultural_center',
+    'performing_arts_theater',
+    'event_venue',
+    'cultural_center',
     'live_music_venue',
   },
   'festival': {
-    'event_venue', 'cultural_center', 'performing_arts_theater',
-    'stadium', 'arena',
+    'event_venue',
+    'cultural_center',
+    'performing_arts_theater',
+    'stadium',
+    'arena',
   },
   'live music': {
-    'live_music_venue', 'performing_arts_theater', 'event_venue',
+    'live_music_venue',
+    'performing_arts_theater',
+    'event_venue',
     'cultural_center',
   },
   // ─── Sport-événement (à regarder, pas pratiqué) ──────────────────
   // Les écoles/salles de pratique remontent via Activité et leur
   // primaryType (`sports_school`, `gym`, `fitness_center`) — pas ici.
-  'kick boxing event': {
-    'stadium', 'arena', 'event_venue', 'sports_complex',
-  },
-  'boxing event': {
-    'stadium', 'arena', 'event_venue', 'sports_complex',
-  },
+  'kick boxing event': {'stadium', 'arena', 'event_venue', 'sports_complex'},
+  'boxing event': {'stadium', 'arena', 'event_venue', 'sports_complex'},
   // ─── Quality-1C (Lalith 2026-05-10) — queries catégorielles
   // Shopping/Culture/Nature qui rejetaient leurs candidats en lexical
   // mismatch sur Paris. L'infra `_queryStrongTypes` accepte le lieu
@@ -262,36 +272,49 @@ const Map<String, Set<String>> _queryStrongTypes = <String, Set<String>>{
   // applique `_normalizeForMatch` sur la query qui strip les accents
   // (« commerçante » → « commercante »). Une seule clé par variante.
   'rue commercante': {
-    'shopping_mall', 'department_store', 'clothing_store',
-    'shoe_store', 'gift_shop', 'jewelry_store', 'book_store',
-    'market', 'store',
+    'shopping_mall',
+    'department_store',
+    'clothing_store',
+    'shoe_store',
+    'gift_shop',
+    'jewelry_store',
+    'book_store',
+    'market',
+    'store',
   },
-  'boutique souvenirs': {
-    'gift_shop', 'souvenir_store', 'store',
-  },
+  'boutique souvenirs': {'gift_shop', 'souvenir_store', 'store'},
   'magasin d': {
     // Capture "magasin d'usine" (apostrophe normalisée selon
     // `_normalizeForMatch`). Outlet → shopping types.
     'shopping_mall', 'department_store', 'outlet_store', 'store',
   },
-  'marche local': {
-    'market', 'farmers_market', 'flea_market',
-  },
+  'marche local': {'market', 'farmers_market', 'flea_market'},
   // ─── Culture (monuments / sites historiques / etc.) ──────────────
   'monument historique': {
-    'historical_landmark', 'historical_place', 'monument',
-    'tourist_attraction', 'cultural_landmark',
+    'historical_landmark',
+    'historical_place',
+    'monument',
+    'tourist_attraction',
+    'cultural_landmark',
   },
   'site historique': {
-    'historical_landmark', 'historical_place', 'monument',
-    'tourist_attraction', 'cultural_landmark',
+    'historical_landmark',
+    'historical_place',
+    'monument',
+    'tourist_attraction',
+    'cultural_landmark',
   },
   'lieu historique': {
-    'historical_landmark', 'historical_place', 'monument',
-    'tourist_attraction', 'cultural_landmark',
+    'historical_landmark',
+    'historical_place',
+    'monument',
+    'tourist_attraction',
+    'cultural_landmark',
   },
   'site culturel': {
-    'cultural_center', 'tourist_attraction', 'museum',
+    'cultural_center',
+    'tourist_attraction',
+    'museum',
     'historical_landmark',
   },
   'patrimoine culturel': {
@@ -304,41 +327,56 @@ const Map<String, Set<String>> _queryStrongTypes = <String, Set<String>>{
   },
   // ─── Nature / vues ──────────────────────────────────────────────
   'point de vue': {
-    'scenic_spot', 'observation_deck', 'tourist_attraction',
+    'scenic_spot',
+    'observation_deck',
+    'tourist_attraction',
     'viewpoint',
   },
-  'foret': {
-    'park', 'national_park', 'nature_preserve', 'natural_feature',
-  },
-  'lac': {
-    'natural_feature', 'park', 'tourist_attraction',
-  },
+  'foret': {'park', 'national_park', 'nature_preserve', 'natural_feature'},
+  'lac': {'natural_feature', 'park', 'tourist_attraction'},
   'reserve naturelle': {
-    'national_park', 'state_park', 'park', 'nature_preserve',
+    'national_park',
+    'state_park',
+    'park',
+    'nature_preserve',
     'tourist_attraction',
   },
   'jardin botanique': {
-    'botanical_garden', 'park', 'tourist_attraction', 'garden',
+    'botanical_garden',
+    'park',
+    'tourist_attraction',
+    'garden',
   },
   // ─── Plage / front de mer ──────────────────────────────────────
-  'plage': {
-    'beach', 'natural_feature', 'tourist_attraction',
-  },
+  'plage': {'beach', 'natural_feature', 'tourist_attraction'},
   'bord de mer': {
-    'beach', 'natural_feature', 'park', 'tourist_attraction',
+    'beach',
+    'natural_feature',
+    'park',
+    'tourist_attraction',
     'scenic_spot',
   },
   'front de mer': {
-    'beach', 'natural_feature', 'park', 'tourist_attraction',
+    'beach',
+    'natural_feature',
+    'park',
+    'tourist_attraction',
     'scenic_spot',
   },
   // ─── Randonnée / sentier ───────────────────────────────────────
   'sentier de randonnee': {
-    'hiking_area', 'park', 'national_park', 'state_park',
-    'natural_feature', 'tourist_attraction',
+    'hiking_area',
+    'park',
+    'national_park',
+    'state_park',
+    'natural_feature',
+    'tourist_attraction',
   },
   'balade nature': {
-    'park', 'national_park', 'natural_feature', 'tourist_attraction',
+    'park',
+    'national_park',
+    'natural_feature',
+    'tourist_attraction',
     'hiking_area',
   },
 };
@@ -396,55 +434,55 @@ Set<String>? _strongTypesForQuery(String textQuery) {
 /// permissive (compatible par défaut, comportement actuel).
 const Map<String, Set<String>> _premiumQueryCompatibilities =
     <String, Set<String>>{
-  // ─── Wellness / Spa ────────────────────────────────────────────────
-  'luxury spa': {'Wellness', 'Esthétique'},
-  'spa': {'Wellness', 'Esthétique'},
-  'wellness': {'Wellness'},
-  'massage': {'Wellness', 'Esthétique'},
-  'hammam': {'Wellness', 'Esthétique'},
+      // ─── Wellness / Spa ────────────────────────────────────────────────
+      'luxury spa': {'Wellness', 'Esthétique'},
+      'spa': {'Wellness', 'Esthétique'},
+      'wellness': {'Wellness'},
+      'massage': {'Wellness', 'Esthétique'},
+      'hammam': {'Wellness', 'Esthétique'},
 
-  // ─── Gastronomie ──────────────────────────────────────────────────
-  'fine dining': {'Gastronomie', 'Bons plans'},
-  'michelin': {'Gastronomie'},
-  'gourmet restaurant': {'Gastronomie'},
-  'gastronomic': {'Gastronomie'},
-  'romantic restaurant': {'Gastronomie', 'Couple'},
-  'business lunch': {'Gastronomie'},
-  'street food': {'Gastronomie', 'Bons plans', 'Hors circuit'},
-  'food hall': {'Gastronomie', 'Bons plans'},
-  'cozy cafe': {'Gastronomie', 'Hors circuit'},
-  'roadside diner': {'Gastronomie'},
+      // ─── Gastronomie ──────────────────────────────────────────────────
+      'fine dining': {'Gastronomie', 'Bons plans'},
+      'michelin': {'Gastronomie'},
+      'gourmet restaurant': {'Gastronomie'},
+      'gastronomic': {'Gastronomie'},
+      'romantic restaurant': {'Gastronomie', 'Couple'},
+      'business lunch': {'Gastronomie'},
+      'street food': {'Gastronomie', 'Bons plans', 'Hors circuit'},
+      'food hall': {'Gastronomie', 'Bons plans'},
+      'cozy cafe': {'Gastronomie', 'Hors circuit'},
+      'roadside diner': {'Gastronomie'},
 
-  // ─── Bars / Nightlife ─────────────────────────────────────────────
-  'rooftop bar': {'Nightlife', 'Événements', 'Gastronomie'},
-  'cocktail bar': {'Nightlife', 'Événements'},
-  'lounge bar': {'Nightlife'},
-  'lively bar': {'Nightlife'},
-  'local bar': {'Nightlife'},
-  'hotel bar': {'Nightlife'},
+      // ─── Bars / Nightlife ─────────────────────────────────────────────
+      'rooftop bar': {'Nightlife', 'Événements', 'Gastronomie'},
+      'cocktail bar': {'Nightlife', 'Événements'},
+      'lounge bar': {'Nightlife'},
+      'lively bar': {'Nightlife'},
+      'local bar': {'Nightlife'},
+      'hotel bar': {'Nightlife'},
 
-  // ─── Hôtels / hébergement → JAMAIS comme activité ─────────────────
-  'boutique hotel': <String>{},
-  'luxury hotel': <String>{},
-  'hostel': <String>{},
+      // ─── Hôtels / hébergement → JAMAIS comme activité ─────────────────
+      'boutique hotel': <String>{},
+      'luxury hotel': <String>{},
+      'hostel': <String>{},
 
-  // ─── Vues / nature ─────────────────────────────────────────────────
-  'viewpoint': {'Nature', 'Spots populaires'},
-  'scenic stop': {'Nature', 'Spots populaires'},
-  'sunset spot': {'Nature', 'Couple', 'Spots populaires'},
-  'quiet park': {'Nature', 'Wellness'},
-  'photo spot': {'Spots populaires', 'Hors circuit'},
+      // ─── Vues / nature ─────────────────────────────────────────────────
+      'viewpoint': {'Nature', 'Spots populaires'},
+      'scenic stop': {'Nature', 'Spots populaires'},
+      'sunset spot': {'Nature', 'Couple', 'Spots populaires'},
+      'quiet park': {'Nature', 'Wellness'},
+      'photo spot': {'Spots populaires', 'Hors circuit'},
 
-  // ─── Culture / visites guidées ────────────────────────────────────
-  'guided tour': {'Culture', 'Spots populaires'},
-  'free walking tour': {'Culture', 'Spots populaires', 'Bons plans'},
+      // ─── Culture / visites guidées ────────────────────────────────────
+      'guided tour': {'Culture', 'Spots populaires'},
+      'free walking tour': {'Culture', 'Spots populaires', 'Bons plans'},
 
-  // ─── Marché / shopping nocturne ───────────────────────────────────
-  'night market': {'Spots populaires', 'Shopping', 'Bons plans'},
+      // ─── Marché / shopping nocturne ───────────────────────────────────
+      'night market': {'Spots populaires', 'Shopping', 'Bons plans'},
 
-  // ─── Pro / coworking ──────────────────────────────────────────────
-  'coworking': {'Voyage pro'},
-};
+      // ─── Pro / coworking ──────────────────────────────────────────────
+      'coworking': {'Voyage pro'},
+    };
 
 /// True si la query du profil voyageur est compatible avec l'intérêt
 /// courant. Si la query n'est dans aucune entrée de la map, on retourne
@@ -759,8 +797,13 @@ const Set<String> _qualityTravelSafeTypes = <String>{
 /// historique). Une église de quartier à 24 avis n'est pas une
 /// activité touristique.
 const Set<String> _qualityReligiousTypes = <String>{
-  'church', 'place_of_worship', 'mosque', 'synagogue',
-  'buddhist_temple', 'hindu_temple', 'shinto_shrine',
+  'church',
+  'place_of_worship',
+  'mosque',
+  'synagogue',
+  'buddhist_temple',
+  'hindu_temple',
+  'shinto_shrine',
 };
 
 /// V8.7 (Lalith 2026-05-10 — Quality-1A v4 final gate) — types
@@ -1070,11 +1113,20 @@ const Set<String> _qualityBroadDestinationNames = <String>{
 String _normalizeBroadDestination(String s) {
   var n = s.toLowerCase().trim();
   const replacements = <String, String>{
-    'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
-    'à': 'a', 'â': 'a', 'ä': 'a',
-    'î': 'i', 'ï': 'i',
-    'ô': 'o', 'ö': 'o',
-    'û': 'u', 'ü': 'u', 'ù': 'u',
+    'é': 'e',
+    'è': 'e',
+    'ê': 'e',
+    'ë': 'e',
+    'à': 'a',
+    'â': 'a',
+    'ä': 'a',
+    'î': 'i',
+    'ï': 'i',
+    'ô': 'o',
+    'ö': 'o',
+    'û': 'u',
+    'ü': 'u',
+    'ù': 'u',
     'ç': 'c',
     'ñ': 'n',
   };
@@ -1273,8 +1325,7 @@ bool isCandidateTripLevelDedupEligible(
   NearbyCandidate c,
   List<String> matchedInterests,
   MetroProfile? effectiveMetro,
-) =>
-    _isTripLevelDedupEligible(c, matchedInterests, effectiveMetro);
+) => _isTripLevelDedupEligible(c, matchedInterests, effectiveMetro);
 
 /// V8.28b1.3 (Lalith 2026-05-11) — caps de transition slot picker
 /// pour les jours en mode fallback (sans Day Builder pack) sur
@@ -1286,7 +1337,7 @@ bool isCandidateTripLevelDedupEligible(
 ///
 /// Hors mégalopole ou en mode pack curé → caps V8.21 default.
 ({double maxSingleTransitionKm, int maxLongTransitionsPerDay})
-    fallbackTransitionCapsForDay({
+fallbackTransitionCapsForDay({
   required MetroProfile? clusterMetroProfile,
   required bool hasDayPack,
 }) {
@@ -1316,11 +1367,13 @@ bool _isTripLevelDedupEligible(
   if (matchedInterests.contains(blueprintExperienceMarker)) return true;
   if (matchedInterests.contains(metroAnchorMarker)) return true;
   final reviewN = c.userRatingCount ?? 0;
-  final isIconicMuseum = reviewN >= 200 &&
+  final isIconicMuseum =
+      reviewN >= 200 &&
       (c.types.contains('museum') ||
           c.types.contains('art_museum') ||
           c.types.contains('art_gallery'));
-  final isIconicTourist = reviewN >= 500 &&
+  final isIconicTourist =
+      reviewN >= 500 &&
       (c.types.contains('tourist_attraction') ||
           c.types.contains('historical_landmark') ||
           c.types.contains('monument') ||
@@ -1399,8 +1452,9 @@ bool isRestaurantDisguisedForVisit(
   if (matchedInterests.contains(blueprintMustSeeMarker)) return false;
   if (matchedInterests.contains(blueprintExperienceMarker)) return false;
   if (matchedInterests.contains(metroAnchorMarker)) return false;
-  final hasFoodTypeAnywhere = c.types.any((t) =>
-      _qualityFinalFoodTypes.contains(t) || t.endsWith('_restaurant'));
+  final hasFoodTypeAnywhere = c.types.any(
+    (t) => _qualityFinalFoodTypes.contains(t) || t.endsWith('_restaurant'),
+  );
   if (!hasFoodTypeAnywhere) return false;
   final hasMarketContext = c.types.any(_qualityMarketTravelTypes.contains);
   if (hasMarketContext) return false;
@@ -1410,16 +1464,19 @@ bool isRestaurantDisguisedForVisit(
 String? _isAllowedFinalVisitCandidate(
   NearbyCandidate c, {
   required Set<String> tripInterests,
+
   /// V8.28f2 — markers du candidat (`_BlueprintMustSee`,
   /// `_BlueprintExperience`, `_MetroAnchor`). Sert d'exception au
   /// rejet `restaurant_out_of_scope` quand un lieu curé porte un
   /// type secondaire food (ex: Khaosan Road avec `bar`, food market
   /// emblématique avec `food_court`).
   List<String> matchedInterests = const [],
+
   /// V8.28b1 — patterns d'adresses (case-insensitive substring) qui
   /// rejettent le candidat avec reason `out_of_country`. Vient du
   /// MetroProfile du cluster (cas Singapour ↔ Johor).
   List<String> blockedAddressPatterns = const [],
+
   /// V8.28b1 — patterns de noms (case-insensitive substring) qui
   /// rejettent le candidat des visit-slots avec reason
   /// `restaurant_out_of_scope`. Couvre les hawker centres
@@ -1522,8 +1579,9 @@ String? _isAllowedFinalVisitCandidate(
     return 'low_reviews';
   }
   if (reviews < 30) {
-    final hasStrongTravel =
-        c.types.any(_qualityStrongTravelTypesStrict.contains);
+    final hasStrongTravel = c.types.any(
+      _qualityStrongTravelTypesStrict.contains,
+    );
     if (!hasStrongTravel) {
       return 'low_reviews';
     }
@@ -1533,16 +1591,18 @@ String? _isAllowedFinalVisitCandidate(
   // doivent avoir UN signal cultural fort ET ≥ 500 avis. Plus strict
   // que `_isQualityRejected` qui acceptait OR.
   if (_qualityWeakEventPrimaryTypes.contains(primary)) {
-    final hasStrongCulturalSignal = c.types.any((t) =>
-        t == 'tourist_attraction' ||
-        t == 'historical_landmark' ||
-        t == 'historical_place' ||
-        t == 'museum' ||
-        t == 'art_museum' ||
-        t == 'history_museum' ||
-        t == 'cultural_center' ||
-        t == 'live_music_venue' ||
-        t == 'monument');
+    final hasStrongCulturalSignal = c.types.any(
+      (t) =>
+          t == 'tourist_attraction' ||
+          t == 'historical_landmark' ||
+          t == 'historical_place' ||
+          t == 'museum' ||
+          t == 'art_museum' ||
+          t == 'history_museum' ||
+          t == 'cultural_center' ||
+          t == 'live_music_venue' ||
+          t == 'monument',
+    );
     if (!hasStrongCulturalSignal ||
         reviews < _qualityStrongLandmarkReviewsThreshold) {
       return 'weak_event';
@@ -1623,8 +1683,7 @@ String? _isQualityRejected(NearbyCandidate c) {
   // sans signal touristique = pas une activité touristique.
   if (_qualityWeakEventPrimaryTypes.contains(primary)) {
     final hasStrongSignal = c.types.any(_qualityTravelSafeTypes.contains);
-    if (!hasStrongSignal &&
-        reviews < _qualityStrongLandmarkReviewsThreshold) {
+    if (!hasStrongSignal && reviews < _qualityStrongLandmarkReviewsThreshold) {
       return 'weak_event_venue_no_dated_source';
     }
   }
@@ -1688,13 +1747,28 @@ const Set<String> _greenspacePrimaryTypes = <String>{
 /// Bug observé Lalith 2026-05-08 : Setti Fadma planifié à 16:30 entre 2
 /// activités du centre-ville Marrakech.
 const Set<String> _excursionNameKeywords = <String>{
-  'valley', 'vallée',
-  'cascades', 'waterfall', 'cascade',
-  'desert tour', 'sahara', 'sahara tour', 'merzouga', 'erg chebbi',
-  'day trip', 'daytrip', 'day-trip',
-  'excursion', 'guided tour', 'shore excursion',
-  'atlas mountains', 'atlas tour', 'haut atlas',
-  '4x4 tour', 'quad tour', 'quad bike',
+  'valley',
+  'vallée',
+  'cascades',
+  'waterfall',
+  'cascade',
+  'desert tour',
+  'sahara',
+  'sahara tour',
+  'merzouga',
+  'erg chebbi',
+  'day trip',
+  'daytrip',
+  'day-trip',
+  'excursion',
+  'guided tour',
+  'shore excursion',
+  'atlas mountains',
+  'atlas tour',
+  'haut atlas',
+  '4x4 tour',
+  'quad tour',
+  'quad bike',
   'road trip',
 };
 
@@ -1991,8 +2065,8 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
       final profileQueries = travelerProfile == null
           ? const <String>[]
           : travelerProfile.additionalTextQueries
-              .where((q) => isProfileQueryCompatibleWithInterest(q, interest))
-              .toList();
+                .where((q) => isProfileQueryCompatibleWithInterest(q, interest))
+                .toList();
       final mergedTextQueries = <String>[
         ...query.textQueries,
         ...profileQueries,
@@ -2074,7 +2148,8 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
         // alimenter `[places_quality_filter]`.
         final qReason = _isQualityRejected(c);
         if (qReason != null) {
-          qualityRejectCounts[qReason] = (qualityRejectCounts[qReason] ?? 0) + 1;
+          qualityRejectCounts[qReason] =
+              (qualityRejectCounts[qReason] ?? 0) + 1;
           return false;
         }
         qualityKeptCount++;
@@ -2108,12 +2183,17 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
 
   // Étape 1 : centres par jour, sans API Places.
   final dayCenters = await Future.wait(
-    days.map((day) async => (day: day, center: await centerForDay(
+    days.map(
+      (day) async => (
+        day: day,
+        center: await centerForDay(
           trip: trip,
           day: day,
           hotels: hotels,
           geocoder: geocoder,
-        ))),
+        ),
+      ),
+    ),
   );
   // V8.4 (Lalith 2026-05-10 — Phase Quality-1A, rule 6) — skip les
   // jours orphelins.
@@ -2142,8 +2222,9 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
       cache: nearbyService.cacheService!,
     );
   } else {
-    destinationLevel =
-        isBroadDestinationName(trip.destination) ? 'broad' : 'city';
+    destinationLevel = isBroadDestinationName(trip.destination)
+        ? 'broad'
+        : 'city';
   }
   final destinationIsBroad = destinationLevel == 'broad';
   var orphanDaysSkipped = 0;
@@ -2240,9 +2321,7 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
         );
         if (results.isEmpty) {
           // ignore: avoid_print
-          print(
-            '[blueprint_resolve] query="$query" status=miss tier=$tier',
-          );
+          print('[blueprint_resolve] query="$query" status=miss tier=$tier');
           return;
         }
         final topPick = results.firstWhere(
@@ -2262,8 +2341,7 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
         await resolveBlueprintQuery(query, 'must_see', blueprintMustSees);
       }
       for (final query in blueprint.experienceQueries) {
-        await resolveBlueprintQuery(
-            query, 'experience', blueprintExperiences);
+        await resolveBlueprintQuery(query, 'experience', blueprintExperiences);
       }
     }
   } else if (trip.destination.trim().isNotEmpty) {
@@ -2286,14 +2364,16 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
           .map((c) => c.placeId)
           .toSet()
           .length;
-      final byInterestTransit =
-          await collectByInterest(group.center, transitRadius);
+      final byInterestTransit = await collectByInterest(
+        group.center,
+        transitRadius,
+      );
       for (final tEntry in byInterestTransit.entries) {
-        final walkList =
-            byInterest[tEntry.key] ?? const <NearbyCandidate>[];
+        final walkList = byInterest[tEntry.key] ?? const <NearbyCandidate>[];
         final walkIds = walkList.map((c) => c.placeId).toSet();
-        final added =
-            tEntry.value.where((c) => !walkIds.contains(c.placeId)).toList();
+        final added = tEntry.value
+            .where((c) => !walkIds.contains(c.placeId))
+            .toList();
         if (added.isNotEmpty) {
           byInterest[tEntry.key] = [...walkList, ...added];
         }
@@ -2359,8 +2439,10 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
       if (byInterest == null) continue;
       // Haversine inline (small).
       final distKm = _haversineKmBetween(
-        biasCenter.latitude, biasCenter.longitude,
-        groupCenter.latitude, groupCenter.longitude,
+        biasCenter.latitude,
+        biasCenter.longitude,
+        groupCenter.latitude,
+        groupCenter.longitude,
       );
       if (distKm > blueprintFanoutMaxKm) {
         skippedClusters++;
@@ -2384,8 +2466,7 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
     }
     final nearbyTotal = poolBySig.values.fold<int>(
       0,
-      (sum, byInt) =>
-          sum + byInt.values.fold(0, (s, list) => s + list.length),
+      (sum, byInt) => sum + byInt.values.fold(0, (s, list) => s + list.length),
     );
     // ignore: avoid_print
     print(
@@ -2415,7 +2496,9 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
   if (validDayCenters.isNotEmpty) {
     final biasCenter = validDayCenters.first.center;
     final metroProfile = getMetroProfileForCluster(
-        biasCenter.latitude, biasCenter.longitude);
+      biasCenter.latitude,
+      biasCenter.longitude,
+    );
     if (metroProfile != null &&
         metroProfile.isMegaCity &&
         metroProfile.touristAnchors.isNotEmpty) {
@@ -2431,8 +2514,12 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
       // les remontent côté Places API. Types conservés = sous-ensemble
       // strictement validé par l'API New.
       const anchorIncludedTypes = <String>[
-        'tourist_attraction', 'museum', 'historical_landmark',
-        'monument', 'park', 'art_gallery',
+        'tourist_attraction',
+        'museum',
+        'historical_landmark',
+        'monument',
+        'park',
+        'art_gallery',
       ];
       final anchorResults = <String, NearbyCandidate>{};
       var anchorErrors = 0;
@@ -2489,8 +2576,10 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
           final byInterest = poolBySig[sig];
           if (byInterest == null) continue;
           final distKm = _haversineKmBetween(
-            biasCenter.latitude, biasCenter.longitude,
-            groupCenter.latitude, groupCenter.longitude,
+            biasCenter.latitude,
+            biasCenter.longitude,
+            groupCenter.latitude,
+            groupCenter.longitude,
           );
           if (distKm > anchorFanoutMaxKm) {
             skippedClusters++;
@@ -2538,8 +2627,7 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
     if (groupCenter.source != 'segment_city') continue;
     final byInterest = poolBySig[sig];
     if (byInterest == null) continue;
-    final poolSize =
-        byInterest.values.fold<int>(0, (s, l) => s + l.length);
+    final poolSize = byInterest.values.fold<int>(0, (s, l) => s + l.length);
     if (poolSize >= segmentPoolGuardThreshold) continue;
 
     // Trouver le canonical correspondant à ce group via les segments
@@ -2551,8 +2639,10 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
       final c = getCanonicalSegmentCity(seg.city, country: seg.country);
       if (c == null || c.queryHints.isEmpty) continue;
       final dKm = _haversineKmBetween(
-        c.expectedLat, c.expectedLng,
-        groupCenter.latitude, groupCenter.longitude,
+        c.expectedLat,
+        c.expectedLng,
+        groupCenter.latitude,
+        groupCenter.longitude,
       );
       if (dKm < 5.0) {
         canonical = c;
@@ -2605,10 +2695,7 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
       // blueprint must-sees existants si déjà présents.
       final existing =
           byInterest[blueprintMustSeeMarker] ?? <NearbyCandidate>[];
-      byInterest[blueprintMustSeeMarker] = [
-        ...existing,
-        ...fallbackResults,
-      ];
+      byInterest[blueprintMustSeeMarker] = [...existing, ...fallbackResults];
     }
   }
 
@@ -2624,11 +2711,9 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
     );
     final byInterest = poolBySig[sig];
     if (byInterest == null) continue;
-    pool.add(DayCandidates(
-      day: dc.day,
-      center: dc.center,
-      byInterest: byInterest,
-    ));
+    pool.add(
+      DayCandidates(day: dc.day, center: dc.center, byInterest: byInterest),
+    );
     final unique = byInterest.values
         .expand((l) => l)
         .map((c) => c.placeId)
@@ -2742,16 +2827,12 @@ String _iso(DateTime d) => d.toIso8601String().split('T').first;
 /// candidate doit être injecté dans un cluster (selon distance au
 /// biasCenter de la ville). Pas de précision inférieure au km
 /// nécessaire pour ce cas — conversion entière OK.
-double _haversineKmBetween(
-  double lat1,
-  double lng1,
-  double lat2,
-  double lng2,
-) {
+double _haversineKmBetween(double lat1, double lng1, double lat2, double lng2) {
   const earthKm = 6371.0;
   final dLat = (lat2 - lat1) * math.pi / 180.0;
   final dLng = (lng2 - lng1) * math.pi / 180.0;
-  final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+  final a =
+      math.sin(dLat / 2) * math.sin(dLat / 2) +
       math.cos(lat1 * math.pi / 180.0) *
           math.cos(lat2 * math.pi / 180.0) *
           math.sin(dLng / 2) *
@@ -3320,10 +3401,10 @@ Future<List<NearbyCandidate>> _buildRestaurantPoolForCenter({
   final maxPrice = (profileMaxPrice == null)
       ? budgetPriceCap
       : (budgetPriceCap == null
-          ? profileMaxPrice
-          : (profileMaxPrice < budgetPriceCap
-              ? profileMaxPrice
-              : budgetPriceCap));
+            ? profileMaxPrice
+            : (profileMaxPrice < budgetPriceCap
+                  ? profileMaxPrice
+                  : budgetPriceCap));
   final minPrice = hasGastronomieInterest && (maxPrice == null || maxPrice >= 2)
       ? math.max(profileMinPrice ?? 2, 2)
       : profileMinPrice;
@@ -3538,6 +3619,7 @@ List<ActivitySuggestion> selectVisitsDeterministic({
   // comportement reste strictement identique à pré-2.4.
   bool useSameComplexDedup = false,
   List<SameComplexGroup> complexGroups = const <SameComplexGroup>[],
+
   /// Journal optionnel de rejets `same_complex_cap` (pour tests).
   /// Si non null, **chaque rejet** y est appendé. Production passe
   /// `null` → aucune allocation, aucun overhead.
@@ -3547,6 +3629,7 @@ List<ActivitySuggestion> selectVisitsDeterministic({
   // le comportement reste strictement identique à pré-3.2.
   bool useDestinationScope = false,
   DestinationIntelligence? destinationIntelligence,
+
   /// Journal optionnel de rejets `destination_scope` (pour tests).
   /// Si non null, **chaque rejet** y est appendé. Production passe
   /// `null` → aucune allocation, aucun overhead.
@@ -3555,8 +3638,7 @@ List<ActivitySuggestion> selectVisitsDeterministic({
   // Phase 2 / Tâche 2.4 — la dédup complexe est active uniquement
   // quand le flag ET la liste sont non vides. Une de ces 2
   // conditions seule = no-op (cas destination sans groupes connus).
-  final complexDedupActive =
-      useSameComplexDedup && complexGroups.isNotEmpty;
+  final complexDedupActive = useSameComplexDedup && complexGroups.isNotEmpty;
 
   // Phase 3 / Tâche 3.2 — scope validation active uniquement
   // quand le flag ET la DI sont fournis. Une de ces 2 conditions
@@ -3582,8 +3664,7 @@ List<ActivitySuggestion> selectVisitsDeterministic({
   final finalGateLogged = <String, int>{};
   // V8.9 — tripInterests pré-calculé pour le wellness/nightlife
   // mismatch dans `_isAllowedFinalVisitCandidate`.
-  final finalGateTripInterests =
-      (trip.interests ?? const <String>[]).toSet();
+  final finalGateTripInterests = (trip.interests ?? const <String>[]).toSet();
   // V8.28b1.2 (Lalith 2026-05-11) — fallback MetroProfile au niveau
   // trip-destination quand un sous-cluster n'a pas de match géo.
   // Cas observé Singapour : sous-cluster centré (1.14, 104.43) (~75
@@ -3605,9 +3686,11 @@ List<ActivitySuggestion> selectVisitsDeterministic({
   }
 
   final filteredClusters = clusters.map((cluster) {
-    final newPool = <
-        String,
-        ({NearbyCandidate candidate, List<String> matchedInterests})>{};
+    final newPool =
+        <
+          String,
+          ({NearbyCandidate candidate, List<String> matchedInterests})
+        >{};
     // V8.28b1 — MetroProfile du cluster utilisé pour 2 filtres :
     // 1. `blockedAddressPatterns` : rejet `out_of_country` quand
     //    l'adresse contient un pattern interdit (Singapour vs Johor).
@@ -3620,7 +3703,9 @@ List<ActivitySuggestion> selectVisitsDeterministic({
     // candidats hors-pays leakent sur les sous-clusters frontière
     // (Singapour ↔ Bintan/Batam, etc.).
     final clusterMetro = getMetroProfileForCluster(
-        cluster.center.latitude, cluster.center.longitude);
+      cluster.center.latitude,
+      cluster.center.longitude,
+    );
     final effectiveMetro = clusterMetro ?? tripDestinationMetro;
     final blockedAddrPatterns =
         effectiveMetro?.blockedAddressPatterns ?? const <String>[];
@@ -3815,8 +3900,10 @@ List<ActivitySuggestion> selectVisitsDeterministic({
   // ajouter manuellement plus de spas s'il le veut.
   final wellnessIsStrongInterest = tripInterests.contains('Wellness');
   const maxWellnessPerDay = 1;
-  final tripWideWellnessCap =
-      math.min(3, math.max(1, (trip.durationDays / 7).floor()));
+  final tripWideWellnessCap = math.min(
+    3,
+    math.max(1, (trip.durationDays / 7).floor()),
+  );
   var wellnessCountTripWide = 0;
   // Compteur des rejets cap pour `[places_selector_summary]` final.
   var rejectedByWellnessCap = 0;
@@ -3846,10 +3933,13 @@ List<ActivitySuggestion> selectVisitsDeterministic({
     // Précision 2 décimales (~10-100km selon latitude). Bangkok area
     // ≈ 13.7,100.5 / Koh Samet ≈ 12.6,101.4 / Hanoi ≈ 21.0,105.8.
     // Le set de dédup pour ce segment est materialisé à la demande.
-    final segmentKey = '${cluster.center.latitude.toStringAsFixed(2)},'
+    final segmentKey =
+        '${cluster.center.latitude.toStringAsFixed(2)},'
         '${cluster.center.longitude.toStringAsFixed(2)}';
-    final selectedDedupKeys =
-        selectedDedupKeysBySegment.putIfAbsent(segmentKey, () => <String>{});
+    final selectedDedupKeys = selectedDedupKeysBySegment.putIfAbsent(
+      segmentKey,
+      () => <String>{},
+    );
 
     // V8.17 — guard radius cluster. Si la spread du pool dépasse 50km,
     // on log un warning : signal de mix cross-segment. La récolte
@@ -3859,8 +3949,10 @@ List<ActivitySuggestion> selectVisitsDeterministic({
       var maxDistKm = 0.0;
       for (final e in entries) {
         final d = _haversineKmBetween(
-          cluster.center.latitude, cluster.center.longitude,
-          e.value.candidate.latitude, e.value.candidate.longitude,
+          cluster.center.latitude,
+          cluster.center.longitude,
+          e.value.candidate.latitude,
+          e.value.candidate.longitude,
         );
         if (d > maxDistKm) maxDistKm = d;
       }
@@ -3879,8 +3971,10 @@ List<ActivitySuggestion> selectVisitsDeterministic({
     // pour les clusters non-éligibles (islandBeach, no blueprint, etc.).
     // Les `reservedPlaceIds` viennent des sub-clusters précédents du
     // même segment pour éviter le double-pick cross-cluster.
-    final segmentReserved =
-        dayBuilderReservedBySegment.putIfAbsent(segmentKey, () => <String>{});
+    final segmentReserved = dayBuilderReservedBySegment.putIfAbsent(
+      segmentKey,
+      () => <String>{},
+    );
     final dayBuilder = buildDayPacksForCluster(
       clusterCenterLat: cluster.center.latitude,
       clusterCenterLng: cluster.center.longitude,
@@ -3907,7 +4001,9 @@ List<ActivitySuggestion> selectVisitsDeterministic({
     // `clusterMetroProfile == null` → pas de floor (pas de curation
     // pour comparer).
     final clusterMetroProfile = getMetroProfileForCluster(
-        cluster.center.latitude, cluster.center.longitude);
+      cluster.center.latitude,
+      cluster.center.longitude,
+    );
     // V8.28b1.3 — effective MetroProfile pour ce cluster : tombe en
     // fallback sur trip destination si le cluster n'a pas de match
     // (sub-cluster drift). Utilisé pour l'exception nominale
@@ -3992,8 +4088,7 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           // V8.20 (Day Builder) — restreint au pack thématique du jour
           // si un pack est assigné. Le slot picker continue d'appliquer
           // sa logique de scoring/dedup à l'intérieur du pack restreint.
-          if (dayPackPlaceIds != null &&
-              !dayPackPlaceIds.contains(c.placeId)) {
+          if (dayPackPlaceIds != null && !dayPackPlaceIds.contains(c.placeId)) {
             return false;
           }
           // V8.28f (Lalith 2026-05-11) — quality floor fallback. En
@@ -4009,7 +4104,10 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           // qu'incohérente ».
           if (dayPackPlaceIds == null && clusterMetroProfile != null) {
             if (!isMetroQualifiedCandidate(
-                c, clusterMetroProfile, e.value.matchedInterests)) {
+              c,
+              clusterMetroProfile,
+              e.value.matchedInterests,
+            )) {
               return false;
             }
           }
@@ -4022,9 +4120,11 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           // `_isTripLevelDedupEligible` : iconic museum/tourist,
           // metro anchor, exception Singapore/Orchard Road).
           if (_isTripLevelDedupEligible(
-                  c, e.value.matchedInterests, effectiveMetroForCluster) &&
-              iconicSelectedAcrossTrip
-                  .contains(_dedupKeyForCandidate(c))) {
+                c,
+                e.value.matchedInterests,
+                effectiveMetroForCluster,
+              ) &&
+              iconicSelectedAcrossTrip.contains(_dedupKeyForCandidate(c))) {
             return false;
           }
           // V8.21 (anti-zigzag slot-level) — hard cap depuis la dernière
@@ -4035,7 +4135,10 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           final lastLng = lastActivity?.longitude;
           if (lastLat != null && lastLng != null) {
             final dKm = _haversineKmBetween(
-              lastLat, lastLng, c.latitude, c.longitude,
+              lastLat,
+              lastLng,
+              c.latitude,
+              c.longitude,
             );
             if (dKm > maxSingleTransitionKm) return false;
             if (longTransitionsThisDay >= maxLongTransitionsPerDay &&
@@ -4047,12 +4150,15 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           // rester dans 5 km du barycentre du jour. Évite Wat Bang Na
           // Nok à 9.6 km de la zone Chinatown/ICONSIAM/Asiatique.
           if (dayPickLats.length >= 2) {
-            final centroidLat = dayPickLats.reduce((a, b) => a + b) /
-                dayPickLats.length;
-            final centroidLng = dayPickLngs.reduce((a, b) => a + b) /
-                dayPickLngs.length;
+            final centroidLat =
+                dayPickLats.reduce((a, b) => a + b) / dayPickLats.length;
+            final centroidLng =
+                dayPickLngs.reduce((a, b) => a + b) / dayPickLngs.length;
             final dCentroidKm = _haversineKmBetween(
-              centroidLat, centroidLng, c.latitude, c.longitude,
+              centroidLat,
+              centroidLng,
+              c.latitude,
+              c.longitude,
             );
             if (dCentroidKm > dayCoherenceRadiusKm) return false;
           }
@@ -4063,8 +4169,10 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           // cohérence zone.
           if (dayPickLats.length == 1 && dayPackPlaceIds == null) {
             final dFirstKm = _haversineKmBetween(
-              dayPickLats[0], dayPickLngs[0],
-              c.latitude, c.longitude,
+              dayPickLats[0],
+              dayPickLngs[0],
+              c.latitude,
+              c.longitude,
             );
             if (dFirstKm > secondPickRadiusFallbackKm) return false;
           }
@@ -4244,16 +4352,21 @@ List<ActivitySuggestion> selectVisitsDeterministic({
             // V8.28f (quality floor fallback) — miroir du filtre.
             if (dayPackPlaceIds == null && clusterMetroProfile != null) {
               if (!isMetroQualifiedCandidate(
-                  c, clusterMetroProfile, e.value.matchedInterests)) {
+                c,
+                clusterMetroProfile,
+                e.value.matchedInterests,
+              )) {
                 rejectQualityFloor++;
                 continue;
               }
             }
             // V8.28b1.3 — dédup trip-level iconique : miroir du filtre.
             if (_isTripLevelDedupEligible(
-                    c, e.value.matchedInterests, effectiveMetroForCluster) &&
-                iconicSelectedAcrossTrip
-                    .contains(_dedupKeyForCandidate(c))) {
+                  c,
+                  e.value.matchedInterests,
+                  effectiveMetroForCluster,
+                ) &&
+                iconicSelectedAcrossTrip.contains(_dedupKeyForCandidate(c))) {
               rejectIconicTripDedup++;
               continue;
             }
@@ -4262,7 +4375,10 @@ List<ActivitySuggestion> selectVisitsDeterministic({
             final lastLng = lastActivity?.longitude;
             if (lastLat != null && lastLng != null) {
               final dKm = _haversineKmBetween(
-                lastLat, lastLng, c.latitude, c.longitude,
+                lastLat,
+                lastLng,
+                c.latitude,
+                c.longitude,
               );
               if (dKm > maxSingleTransitionKm ||
                   (longTransitionsThisDay >= maxLongTransitionsPerDay &&
@@ -4273,12 +4389,15 @@ List<ActivitySuggestion> selectVisitsDeterministic({
             }
             // V8.23 (coherence guard) — miroir du filtre.
             if (dayPickLats.length >= 2) {
-              final centroidLat = dayPickLats.reduce((a, b) => a + b) /
-                  dayPickLats.length;
-              final centroidLng = dayPickLngs.reduce((a, b) => a + b) /
-                  dayPickLngs.length;
+              final centroidLat =
+                  dayPickLats.reduce((a, b) => a + b) / dayPickLats.length;
+              final centroidLng =
+                  dayPickLngs.reduce((a, b) => a + b) / dayPickLngs.length;
               final dCentroidKm = _haversineKmBetween(
-                centroidLat, centroidLng, c.latitude, c.longitude,
+                centroidLat,
+                centroidLng,
+                c.latitude,
+                c.longitude,
               );
               if (dCentroidKm > dayCoherenceRadiusKm) {
                 rejectCoherenceGuard++;
@@ -4288,8 +4407,10 @@ List<ActivitySuggestion> selectVisitsDeterministic({
             // V8.26 (second-pick guard fallback) — miroir du filtre.
             if (dayPickLats.length == 1 && dayPackPlaceIds == null) {
               final dFirstKm = _haversineKmBetween(
-                dayPickLats[0], dayPickLngs[0],
-                c.latitude, c.longitude,
+                dayPickLats[0],
+                dayPickLngs[0],
+                c.latitude,
+                c.longitude,
               );
               if (dFirstKm > secondPickRadiusFallbackKm) {
                 rejectSecondPickGuard++;
@@ -4358,7 +4479,8 @@ List<ActivitySuggestion> selectVisitsDeterministic({
               final dayCap = eventsIsStrongInterest
                   ? maxEventsPerDayTolerant
                   : maxEventsPerDayLight;
-              final clusterExceeded = !eventsIsStrongInterest &&
+              final clusterExceeded =
+                  !eventsIsStrongInterest &&
                   eventsCountThisCluster >= maxEventsPerClusterLight;
               if (eventsCountThisDay >= dayCap || clusterExceeded) {
                 rejectEvents++;
@@ -4410,8 +4532,9 @@ List<ActivitySuggestion> selectVisitsDeterministic({
             'rejected_by_iconic_trip_dedup': rejectIconicTripDedup,
             'rejected_by_same_complex_cap': rejectSameComplexCap,
           };
-          final sortedRejects = rejects.entries.where((e) => e.value > 0).toList()
-            ..sort((a, b) => b.value.compareTo(a.value));
+          final sortedRejects =
+              rejects.entries.where((e) => e.value > 0).toList()
+                ..sort((a, b) => b.value.compareTo(a.value));
           final primaryReason = sortedRejects.isEmpty
               ? 'unknown'
               : sortedRejects.first.key;
@@ -4467,8 +4590,9 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           // score boost ET à plafonner la distance penalty (sinon un
           // must-see iconique à 4 km perdrait vs un filler à 200 m).
           final isBlueprintMustSee = matchSet.contains(blueprintMustSeeMarker);
-          final isBlueprintExperience =
-              matchSet.contains(blueprintExperienceMarker);
+          final isBlueprintExperience = matchSet.contains(
+            blueprintExperienceMarker,
+          );
           // Distance penalty renforcée — décourage les transitions longues.
           // 2026-05-08 calibrage #3 : multiplicateur dérivé du
           // transportDistanceFactor (walk ≈ ×11.4, taxi ≈ ×5.3, etc.).
@@ -4516,10 +4640,10 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           // sans bloquer dur si la pool n'a rien d'autre.
           final wellnessConsecutivePenalty =
               (wellnessIsStrongInterest &&
-                      lastHalfDayHadWellness &&
-                      _isWellnessPrimaryType(c))
-                  ? 25.0
-                  : 0.0;
+                  lastHalfDayHadWellness &&
+                  _isWellnessPrimaryType(c))
+              ? 25.0
+              : 0.0;
           // 2026-05-08 calibrage #1 : pénalité diversité PAR TAG dans la
           // journée. -10 par occurrence du même tag déjà pické. Casse les
           // 4× Culture consécutifs observés sur Meilleur prix / Couple.
@@ -4644,7 +4768,10 @@ List<ActivitySuggestion> selectVisitsDeterministic({
         // re-pick cross-cluster (Buddha Tooth Relic Temple / Sentosa /
         // Orchard Road dupliqués observés Singapour).
         if (_isTripLevelDedupEligible(
-            pick, matched, effectiveMetroForCluster)) {
+          pick,
+          matched,
+          effectiveMetroForCluster,
+        )) {
           iconicSelectedAcrossTrip.add(_dedupKeyForCandidate(pick));
         }
         tagCountThisDay[tag] = (tagCountThisDay[tag] ?? 0) + 1;
@@ -4677,7 +4804,10 @@ List<ActivitySuggestion> selectVisitsDeterministic({
         final lastLngBefore = lastActivity?.longitude;
         if (lastLatBefore != null && lastLngBefore != null) {
           final hopKm = _haversineKmBetween(
-            lastLatBefore, lastLngBefore, pick.latitude, pick.longitude,
+            lastLatBefore,
+            lastLngBefore,
+            pick.latitude,
+            pick.longitude,
           );
           if (hopKm > longTransitionThresholdKm) {
             longTransitionsThisDay += 1;
@@ -4714,9 +4844,10 @@ List<ActivitySuggestion> selectVisitsDeterministic({
   // V8.7 (Lalith 2026-05-10 — Quality-1A v4) — selector summary
   // enrichi avec la ventilation du final gate. `print` non throttlé.
   // Volume = 1 ligne par run.
-  final finalGateTotal =
-      finalGateCounts.values.fold<int>(0, (s, v) => s + v);
-  if (rejectedByWellnessCap > 0 || finalGateTotal > 0 || rejectedByMajorsCap > 0) {
+  final finalGateTotal = finalGateCounts.values.fold<int>(0, (s, v) => s + v);
+  if (rejectedByWellnessCap > 0 ||
+      finalGateTotal > 0 ||
+      rejectedByMajorsCap > 0) {
     // ignore: avoid_print
     print(
       '[places_selector_summary] tripId=${trip.id} '
@@ -4758,8 +4889,9 @@ int _defaultDurationForType(String primaryType) {
       primaryType == 'mosque') {
     return 45;
   }
-  if (primaryType == 'shopping_mall' || primaryType.contains('store'))
+  if (primaryType == 'shopping_mall' || primaryType.contains('store')) {
     return 60;
+  }
   if (primaryType == 'spa' ||
       primaryType == 'massage_spa' ||
       primaryType == 'wellness_center' ||
@@ -4818,9 +4950,11 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
   required TravelerPlacesProfile? travelerProfile,
   required List<String> tripInterests,
   required String? languageCode,
+
   /// Mode de déplacement local préféré (`walk`/`taxi`/...) pour ajuster le
   /// rayon de recherche resto. Null = comportement actuel (basé profil).
   String? localTransportMode,
+
   /// Cap maximum de `priceLevel` Places dérivé du budget par personne du
   /// voyage. Évince les restos manifestement trop chers. Lieux sans
   /// priceLevel toujours conservés.
@@ -4961,8 +5095,7 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
     // Si la pool n'a plus rien après cette exclusion, fallback sans.
     final cuisinesUsedTrip = cuisineUseCount.keys.toSet();
 
-    final lunchCtx =
-        'kind=lunch date=$dayKey anchor="$lunchAnchorLabel"';
+    final lunchCtx = 'kind=lunch date=$dayKey anchor="$lunchAnchorLabel"';
     // V8 Cost-2 : picks in-memory depuis la pool partagée — 0 appel API.
     var lunch = _pickRestoFromPool(
       pool: restoPool,
@@ -5058,8 +5191,7 @@ Future<List<ActivitySuggestion>> insertDeterministicMeals({
       ?lunchPrimaryType,
     };
 
-    final dinnerCtx =
-        'kind=dinner date=$dayKey anchor="$dinnerAnchorLabel"';
+    final dinnerCtx = 'kind=dinner date=$dayKey anchor="$dinnerAnchorLabel"';
     var dinner = _pickRestoFromPool(
       pool: restoPool,
       anchorLatitude: dinnerLat,
@@ -5459,19 +5591,25 @@ bool _isInterestCoherentWithTag(String interest, String tag) {
     'Shopping': {'Shopping', 'Bons plans', 'Esthétique'},
     'Wellness': {'Wellness', 'Esthétique'},
     'Visite': {
-      'Spots populaires', 'Culture', 'Hors circuit', 'Événements', 'Nature'
+      'Spots populaires',
+      'Culture',
+      'Hors circuit',
+      'Événements',
+      'Nature',
     },
     // Activité (à pratiquer) — sports actifs, parcs attractions, water_park,
     // tourist_attraction. Cohérent avec Sports / Loisirs / Spots populaires.
     'Activité': {
-      'Sports', 'Spots populaires', 'Hors circuit', 'Plage',
-      'Nature', 'Bons plans',
+      'Sports',
+      'Spots populaires',
+      'Hors circuit',
+      'Plage',
+      'Nature',
+      'Bons plans',
     },
     // Événements (à regarder) — théâtre/concert/cinéma/stade/arena. Cohérent
     // avec Événements / Nightlife / Spots populaires / Culture.
-    'Événements': {
-      'Événements', 'Nightlife', 'Spots populaires', 'Culture',
-    },
+    'Événements': {'Événements', 'Nightlife', 'Spots populaires', 'Culture'},
     // Tags hérités — gardés rétrocompat (peuvent encore apparaître si un
     // code legacy renvoie 'Loisir'/'Sport') mais ne sont plus émis par le
     // nouveau `_tagFromPrimaryType`.
@@ -6103,9 +6241,11 @@ Pour CHAQUE jour, sélectionne EXACTEMENT 4 à 6 activités NON ALIMENTAIRES ét
   // les tokens.
   final interestList = trip.interests ?? const <String>[];
   final interestDefinitionsBody = interestList
-      .map((i) => interestExplanations[i] != null
-          ? '- $i : ${interestExplanations[i]}'
-          : '- $i')
+      .map(
+        (i) => interestExplanations[i] != null
+            ? '- $i : ${interestExplanations[i]}'
+            : '- $i',
+      )
       .join('\n');
   final interestDefinitions = interestList.isEmpty
       ? ''
@@ -6372,11 +6512,11 @@ Future<List<ActivitySuggestion>> _runAutoPlacesFirstBody({
     final templateFlags = FeatureFlags.fromEnvironment();
     if (templateFlags.useDayTemplates) {
       final tfDi = lookupLocalDestinationIntelligence(trip.destination);
-      final tfTemplates =
-          loadLocalDayTemplatesForDestination(trip.destination);
+      final tfTemplates = loadLocalDayTemplatesForDestination(trip.destination);
       if (tfDi != null && tfTemplates.isNotEmpty) {
-        final tfComplexGroups =
-            loadLocalComplexGroupsForDestination(trip.destination);
+        final tfComplexGroups = loadLocalComplexGroupsForDestination(
+          trip.destination,
+        );
         final tfResult = tryTemplateFirstPipeline(
           trip: trip,
           di: tfDi,
@@ -6494,10 +6634,12 @@ Future<List<ActivitySuggestion>> _runAutoPlacesFirstBody({
   // Lookups registry **toujours faits** (no-op si flag OFF,
   // court-circuité dans le sélecteur).
   final featureFlags = FeatureFlags.fromEnvironment();
-  final complexGroupsForTrip =
-      loadLocalComplexGroupsForDestination(trip.destination);
-  final destinationIntelligenceForTrip =
-      lookupLocalDestinationIntelligence(trip.destination);
+  final complexGroupsForTrip = loadLocalComplexGroupsForDestination(
+    trip.destination,
+  );
+  final destinationIntelligenceForTrip = lookupLocalDestinationIntelligence(
+    trip.destination,
+  );
   final visits = selectVisitsDeterministic(
     clusters: clustersForVisits,
     trip: trip,
