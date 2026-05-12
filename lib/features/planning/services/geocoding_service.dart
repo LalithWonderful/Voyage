@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
+import 'package:voyage/config/live_api_guards.dart';
 import 'package:voyage/core/constants/ai_constants.dart';
 import 'package:voyage/features/planning/services/airport_city_overrides.dart';
 import 'package:voyage/features/planning/services/place_components.dart';
@@ -9,11 +10,13 @@ class GeocodingResult {
   final double latitude;
   final double longitude;
   final String formattedAddress;
+
   /// Code pays ISO 2 (lowercase) extrait des `address_components` quand
   /// présent. Permet de signaler les vols/trains hors du pays du voyage
   /// même quand on est passé par le fallback Geocoding texte (pas de
   /// placeId dispo).
   final String? countryCode;
+
   /// Nom de la ville (locality / postal_town / sublocality_level_1) extrait
   /// des `address_components`. Permet de déduire l'étape voyage (city) depuis
   /// un aéroport ou une gare. Null si pas de locality dans la réponse.
@@ -29,30 +32,54 @@ class GeocodingResult {
 }
 
 class GeocodingService {
+  final LiveApiGuards _guards;
+
+  GeocodingService({LiveApiGuards? guards})
+    : _guards = guards ?? LiveApiGuards.fromEnvironment();
+
   Future<GeocodingResult?> geocode(String query, {String? regionHint}) async {
-    if (AiConstants.googleMapsApiKey == 'COLLE_TA_CLE_MAPS_ICI' || AiConstants.googleMapsApiKey.isEmpty) {
-      developer.log('Clé Google Maps manquante — skip géocodage', name: 'geocoding');
+    if (AiConstants.googleMapsApiKey == 'COLLE_TA_CLE_MAPS_ICI' ||
+        AiConstants.googleMapsApiKey.isEmpty) {
+      developer.log(
+        'Clé Google Maps manquante — skip géocodage',
+        name: 'geocoding',
+      );
       return null;
     }
     final trimmed = query.trim();
     if (trimmed.isEmpty) return null;
+
+    _guards.assertAllowed(
+      LiveApiFamily.googleGeocoding,
+      operation: 'GeocodingService.geocode',
+    );
 
     final params = {
       'address': trimmed,
       'key': AiConstants.googleMapsApiKey,
       if (regionHint != null && regionHint.isNotEmpty) 'region': regionHint,
     };
-    final uri = Uri.https('maps.googleapis.com', '/maps/api/geocode/json', params);
+    final uri = Uri.https(
+      'maps.googleapis.com',
+      '/maps/api/geocode/json',
+      params,
+    );
     try {
       final response = await http.get(uri);
       if (response.statusCode != 200) {
-        developer.log('Geocoding HTTP ${response.statusCode} : ${response.body}', name: 'geocoding');
+        developer.log(
+          'Geocoding HTTP ${response.statusCode} : ${response.body}',
+          name: 'geocoding',
+        );
         return null;
       }
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       final status = data['status'] as String?;
       if (status != 'OK') {
-        developer.log('Geocoding status=$status pour "$trimmed"', name: 'geocoding');
+        developer.log(
+          'Geocoding status=$status pour "$trimmed"',
+          name: 'geocoding',
+        );
         return null;
       }
       final results = data['results'] as List;
@@ -71,7 +98,9 @@ class GeocodingService {
       String? sublocalityLevel1;
       String? adminLevel2;
       for (final comp in components.whereType<Map<String, dynamic>>()) {
-        final types = ((comp['types'] as List?) ?? const []).whereType<String>().toSet();
+        final types = ((comp['types'] as List?) ?? const [])
+            .whereType<String>()
+            .toSet();
         if (types.contains('country')) {
           final shortName = comp['short_name'] as String?;
           if (shortName != null && shortName.isNotEmpty) {
@@ -83,7 +112,8 @@ class GeocodingService {
         if (types.contains('locality')) locality = long;
         if (types.contains('postal_town')) postalTown = long;
         if (types.contains('administrative_area_level_1')) adminLevel1 = long;
-        if (types.contains('sublocality_level_1') || types.contains('sublocality')) {
+        if (types.contains('sublocality_level_1') ||
+            types.contains('sublocality')) {
           sublocalityLevel1 = long;
         }
         if (types.contains('administrative_area_level_2')) adminLevel2 = long;
@@ -92,7 +122,8 @@ class GeocodingService {
       // par coords. Sinon cascade address_components via
       // pickCityFromComponents. Cf. `airport_city_overrides.dart` et
       // `place_components.dart`.
-      final city = overrideCityForAirportLatLng(lat, lng) ??
+      final city =
+          overrideCityForAirportLatLng(lat, lng) ??
           pickCityFromComponents(
             locality: locality,
             postalTown: postalTown,

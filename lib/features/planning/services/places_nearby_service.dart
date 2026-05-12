@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:voyage/config/live_api_guards.dart';
 import 'package:voyage/core/constants/ai_constants.dart';
 import 'package:voyage/core/services/location_service.dart';
 import 'package:voyage/features/planning/services/gemini_cache_service.dart';
@@ -20,6 +21,7 @@ class NearbyCandidate {
   final String? address;
   final double? rating;
   final int? userRatingCount;
+
   /// 0 = gratuit, 1 = inexpensive, 2 = moderate, 3 = expensive, 4 = very expensive.
   /// Null si non renseigné par Places.
   final int? priceLevel;
@@ -50,32 +52,37 @@ class NearbyCandidate {
       rating: (json['rating'] as num?)?.toDouble(),
       userRatingCount: (json['userRatingCount'] as num?)?.toInt(),
       priceLevel: _decodePriceLevel(json['priceLevel'] as String?),
-      types: ((json['types'] as List?) ?? const []).map((e) => e.toString()).toList(),
+      types: ((json['types'] as List?) ?? const [])
+          .map((e) => e.toString())
+          .toList(),
       latitude: lat ?? 0,
       longitude: lng ?? 0,
     );
   }
 
   Map<String, dynamic> toCacheJson() => {
-        'placeId': placeId,
-        'name': name,
-        'address': address,
-        'rating': rating,
-        'userRatingCount': userRatingCount,
-        'priceLevel': priceLevel,
-        'types': types,
-        'latitude': latitude,
-        'longitude': longitude,
-      };
+    'placeId': placeId,
+    'name': name,
+    'address': address,
+    'rating': rating,
+    'userRatingCount': userRatingCount,
+    'priceLevel': priceLevel,
+    'types': types,
+    'latitude': latitude,
+    'longitude': longitude,
+  };
 
-  factory NearbyCandidate.fromCacheJson(Map<String, dynamic> json) => NearbyCandidate(
+  factory NearbyCandidate.fromCacheJson(Map<String, dynamic> json) =>
+      NearbyCandidate(
         placeId: json['placeId'] as String? ?? '',
         name: json['name'] as String? ?? '',
         address: json['address'] as String?,
         rating: (json['rating'] as num?)?.toDouble(),
         userRatingCount: (json['userRatingCount'] as num?)?.toInt(),
         priceLevel: (json['priceLevel'] as num?)?.toInt(),
-        types: ((json['types'] as List?) ?? const []).map((e) => e.toString()).toList(),
+        types: ((json['types'] as List?) ?? const [])
+            .map((e) => e.toString())
+            .toList(),
         latitude: (json['latitude'] as num?)?.toDouble() ?? 0,
         longitude: (json['longitude'] as num?)?.toDouble() ?? 0,
       );
@@ -112,6 +119,7 @@ class NearbyCandidate {
 /// d'une ville changent peu). Le hit est gratuit pour tous les voyageurs.
 class PlacesNearbyService {
   final GeminiCacheService? _cache;
+  final LiveApiGuards _guards;
 
   /// V8.11 (Lalith 2026-05-10) — getter exposé pour le destination
   /// resolver (`resolveDestinationLevel`) qui réutilise `gemini_cache`
@@ -144,7 +152,9 @@ class PlacesNearbyService {
     return b;
   }
 
-  PlacesNearbyService({GeminiCacheService? cache}) : _cache = cache;
+  PlacesNearbyService({GeminiCacheService? cache, LiveApiGuards? guards})
+    : _cache = cache,
+      _guards = guards ?? LiveApiGuards.fromEnvironment();
 
   static const _fieldMask =
       'places.id,places.displayName,places.formattedAddress,'
@@ -166,8 +176,6 @@ class PlacesNearbyService {
     int maxResults = 20,
     String? languageCode,
   }) async {
-    final key = AiConstants.googleMapsApiKey;
-    if (key.isEmpty || key == 'COLLE_TA_CLE_MAPS_ICI') return [];
     if (includedTypes.isEmpty) return [];
 
     final cacheKey = _cacheKeyForNearby(
@@ -206,16 +214,21 @@ class PlacesNearbyService {
       }
     }
 
+    final key = AiConstants.googleMapsApiKey;
+    if (key.isEmpty || key == 'COLLE_TA_CLE_MAPS_ICI') return [];
+
     // V7 — vérification budget AVANT l'appel API. Si la run a été
     // rate-limited ou si on a atteint un cap, on retourne vide plutôt
     // que d'aggraver le 429.
-    if (_budget?.shouldSkip(
-          kind: PlacesCallKind.nearby,
-          dedupKey: dedupKey,
-        ) ??
+    if (_budget?.shouldSkip(kind: PlacesCallKind.nearby, dedupKey: dedupKey) ??
         false) {
       return const [];
     }
+
+    _guards.assertAllowed(
+      LiveApiFamily.googlePlaces,
+      operation: 'PlacesNearbyService.searchNearby',
+    );
 
     try {
       final uri = Uri.https('places.googleapis.com', '/v1/places:searchNearby');
@@ -228,7 +241,8 @@ class PlacesNearbyService {
             'radius': radius,
           },
         },
-        if (languageCode != null && languageCode.isNotEmpty) 'languageCode': languageCode,
+        if (languageCode != null && languageCode.isNotEmpty)
+          'languageCode': languageCode,
       });
       final resp = await http.post(
         uri,
@@ -241,8 +255,7 @@ class PlacesNearbyService {
       );
       if (resp.statusCode != 200) {
         // V7 — détection du rate-limit pour bail-out global de la run.
-        if (PlacesBudgetConfig.rateLimitedHttpCodes
-            .contains(resp.statusCode)) {
+        if (PlacesBudgetConfig.rateLimitedHttpCodes.contains(resp.statusCode)) {
           _budget?.markRateLimited(
             kind: PlacesCallKind.nearby,
             httpCode: resp.statusCode,
@@ -273,7 +286,9 @@ class PlacesNearbyService {
       });
       return results;
     } catch (e) {
-      debugPrint('[places_nearby] EXCEPTION searchNearby types=$includedTypes error="$e"');
+      debugPrint(
+        '[places_nearby] EXCEPTION searchNearby types=$includedTypes error="$e"',
+      );
       return [];
     }
   }
@@ -292,8 +307,6 @@ class PlacesNearbyService {
     int maxResults = 20,
     String? languageCode,
   }) async {
-    final key = AiConstants.googleMapsApiKey;
-    if (key.isEmpty || key == 'COLLE_TA_CLE_MAPS_ICI') return [];
     final query = textQuery.trim();
     if (query.isEmpty) return [];
 
@@ -331,6 +344,9 @@ class PlacesNearbyService {
       }
     }
 
+    final key = AiConstants.googleMapsApiKey;
+    if (key.isEmpty || key == 'COLLE_TA_CLE_MAPS_ICI') return [];
+
     // V7 — vérification budget AVANT l'appel API.
     if (_budget?.shouldSkip(
           kind: PlacesCallKind.searchText,
@@ -339,6 +355,11 @@ class PlacesNearbyService {
         false) {
       return const [];
     }
+
+    _guards.assertAllowed(
+      LiveApiFamily.googlePlaces,
+      operation: 'PlacesNearbyService.searchText',
+    );
 
     try {
       final uri = Uri.https('places.googleapis.com', '/v1/places:searchText');
@@ -359,7 +380,8 @@ class PlacesNearbyService {
             'radius': radius,
           },
         },
-        if (languageCode != null && languageCode.isNotEmpty) 'languageCode': languageCode,
+        if (languageCode != null && languageCode.isNotEmpty)
+          'languageCode': languageCode,
       });
       final resp = await http.post(
         uri,
@@ -372,8 +394,7 @@ class PlacesNearbyService {
       );
       if (resp.statusCode != 200) {
         // V7 — détection rate-limit pour bail-out global.
-        if (PlacesBudgetConfig.rateLimitedHttpCodes
-            .contains(resp.statusCode)) {
+        if (PlacesBudgetConfig.rateLimitedHttpCodes.contains(resp.statusCode)) {
           _budget?.markRateLimited(
             kind: PlacesCallKind.searchText,
             httpCode: resp.statusCode,
