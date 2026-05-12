@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
+import 'package:voyage/config/live_api_guards.dart';
 import 'package:voyage/core/constants/ai_constants.dart';
 import 'package:voyage/features/planning/services/airport_city_overrides.dart';
 import 'package:voyage/features/planning/services/place_components.dart';
@@ -13,12 +14,18 @@ class PlacePhoto {
 }
 
 class OpeningPeriod {
-  final int openDay;    // 0 = dimanche, 1 = lundi, ... 6 = samedi (convention Google)
+  final int
+  openDay; // 0 = dimanche, 1 = lundi, ... 6 = samedi (convention Google)
   final String openTime; // "0830"
   final int? closeDay;
   final String? closeTime;
 
-  const OpeningPeriod({required this.openDay, required this.openTime, this.closeDay, this.closeTime});
+  const OpeningPeriod({
+    required this.openDay,
+    required this.openTime,
+    this.closeDay,
+    this.closeTime,
+  });
 
   factory OpeningPeriod.fromJson(Map<String, dynamic> json) {
     final open = json['open'] as Map<String, dynamic>?;
@@ -33,7 +40,8 @@ class OpeningPeriod {
 
   Map<String, dynamic> toJson() => {
     'open': {'day': openDay, 'time': openTime},
-    if (closeDay != null && closeTime != null) 'close': {'day': closeDay, 'time': closeTime},
+    if (closeDay != null && closeTime != null)
+      'close': {'day': closeDay, 'time': closeTime},
   };
 }
 
@@ -44,8 +52,11 @@ class OpeningHours {
   const OpeningHours({this.weekdayText = const [], this.periods = const []});
 
   factory OpeningHours.fromJson(Map<String, dynamic> json) => OpeningHours(
-    weekdayText: (json['weekday_text'] as List?)?.map((e) => e.toString()).toList() ?? const [],
-    periods: (json['periods'] as List?)
+    weekdayText:
+        (json['weekday_text'] as List?)?.map((e) => e.toString()).toList() ??
+        const [],
+    periods:
+        (json['periods'] as List?)
             ?.whereType<Map<String, dynamic>>()
             .map((p) => OpeningPeriod.fromJson(p))
             .toList() ??
@@ -75,7 +86,11 @@ class OpeningHours {
 
       if (p.openDay == p.closeDay) {
         // Même jour
-        if (p.openDay == googleDay && minutes >= openMin && minutes < closeMin) return true;
+        if (p.openDay == googleDay &&
+            minutes >= openMin &&
+            minutes < closeMin) {
+          return true;
+        }
       } else {
         // Traverse minuit
         if (p.openDay == googleDay && minutes >= openMin) return true;
@@ -140,6 +155,7 @@ class PlaceInfo {
   final int? priceLevel;
   final String? placeId;
   final String? address;
+
   /// Nom canonique du lieu retourné par Google Places (ex: "Place Stanislas",
   /// "Brasserie Excelsior"). Sert au filtre anti-hallucination : on rejette
   /// une suggestion Gemini si aucun token significatif de son titre ne matche
@@ -171,6 +187,32 @@ class PlaceInfo {
 class PlacesService {
   static const _maxPhotos = 3;
   static const _photoMaxWidth = 800;
+  final LiveApiGuards _guards;
+  final http.Client? _httpClient;
+  final String _apiKey;
+
+  PlacesService({
+    LiveApiGuards? guards,
+    http.Client? httpClient,
+    String? apiKey,
+  }) : _guards = guards ?? LiveApiGuards.fromEnvironment(),
+       _httpClient = httpClient,
+       _apiKey = apiKey ?? AiConstants.googleMapsApiKey;
+
+  bool get _hasApiKey =>
+      _apiKey.isNotEmpty && _apiKey != 'COLLE_TA_CLE_MAPS_ICI';
+
+  void _assertGooglePlacesAllowed(String operation) {
+    _guards.assertAllowed(LiveApiFamily.googlePlaces, operation: operation);
+  }
+
+  Future<http.Response> _get(Uri uri) {
+    final client = _httpClient;
+    if (client != null) {
+      return client.get(uri);
+    }
+    return http.get(uri);
+  }
 
   /// Recherche les infos d'un lieu : photos, rating, nombre d'avis.
   Future<PlaceInfo> findInfo({
@@ -178,24 +220,30 @@ class PlacesService {
     double? latitude,
     double? longitude,
   }) async {
-    final key = AiConstants.googleMapsApiKey;
-    if (key.isEmpty || key == 'COLLE_TA_CLE_MAPS_ICI') return PlaceInfo.empty;
+    final key = _apiKey;
+    if (!_hasApiKey) return PlaceInfo.empty;
     final trimmed = query.trim();
     if (trimmed.isEmpty) return PlaceInfo.empty;
 
+    _assertGooglePlacesAllowed('PlacesService.findInfo');
     try {
       final params = {
         'input': trimmed,
         'inputtype': 'textquery',
-        'fields': 'photos,place_id,name,rating,user_ratings_total,price_level,formatted_address',
+        'fields':
+            'photos,place_id,name,rating,user_ratings_total,price_level,formatted_address',
         'key': key,
       };
       if (latitude != null && longitude != null) {
         params['locationbias'] = 'circle:5000@$latitude,$longitude';
       }
 
-      final findUri = Uri.https('maps.googleapis.com', '/maps/api/place/findplacefromtext/json', params);
-      final findResp = await http.get(findUri);
+      final findUri = Uri.https(
+        'maps.googleapis.com',
+        '/maps/api/place/findplacefromtext/json',
+        params,
+      );
+      final findResp = await _get(findUri);
       if (findResp.statusCode != 200) {
         developer.log('Places HTTP ${findResp.statusCode}', name: 'places');
         return PlaceInfo.empty;
@@ -216,11 +264,11 @@ class PlacesService {
         for (final p in photosData.take(_maxPhotos)) {
           final ref = (p as Map<String, dynamic>)['photo_reference'] as String?;
           if (ref == null) continue;
-          final url = Uri.https('maps.googleapis.com', '/maps/api/place/photo', {
-            'maxwidth': '$_photoMaxWidth',
-            'photo_reference': ref,
-            'key': key,
-          }).toString();
+          final url = Uri.https(
+            'maps.googleapis.com',
+            '/maps/api/place/photo',
+            {'maxwidth': '$_photoMaxWidth', 'photo_reference': ref, 'key': key},
+          ).toString();
           final attr = (p['html_attributions'] as List?)?.join(' · ') ?? '';
           photos.add(PlacePhoto(url: url, attribution: attr));
         }
@@ -247,7 +295,11 @@ class PlacesService {
     double? latitude,
     double? longitude,
   }) async {
-    final info = await findInfo(query: query, latitude: latitude, longitude: longitude);
+    final info = await findInfo(
+      query: query,
+      latitude: latitude,
+      longitude: longitude,
+    );
     return info.photos;
   }
 
@@ -279,10 +331,12 @@ class PlacesService {
   ///
   /// `countryCode` (ISO 2 lowercase, ex: 'th') restreint aux résultats du
   /// pays — sécurise les étapes sur les voyages "Pays".
-  Future<List<({String description, String mainText, String placeId})>> autocompleteCities(String query, {String? countryCode}) async {
-    final key = AiConstants.googleMapsApiKey;
+  Future<List<({String description, String mainText, String placeId})>>
+  autocompleteCities(String query, {String? countryCode}) async {
+    final key = _apiKey;
     final trimmed = query.trim();
-    if (trimmed.length < 2 || key.isEmpty || key == 'COLLE_TA_CLE_MAPS_ICI') return const [];
+    if (trimmed.length < 2 || !_hasApiKey) return const [];
+    _assertGooglePlacesAllowed('PlacesService.autocompleteCities');
     // 3 appels en parallèle pour latence constante (3 round-trips simultanés).
     final results = await Future.wait([
       _autocompleteEtape(trimmed, '(cities)', countryCode, key),
@@ -303,25 +357,34 @@ class PlacesService {
     return merged;
   }
 
-  Future<List<({String description, String mainText, String placeId})>> _autocompleteEtape(
+  Future<List<({String description, String mainText, String placeId})>>
+  _autocompleteEtape(
     String trimmed,
     String typesParam,
     String? countryCode,
     String key,
   ) async {
     try {
-      final uri = Uri.https('maps.googleapis.com', '/maps/api/place/autocomplete/json', {
-        'input': trimmed,
-        'types': typesParam,
-        'language': 'fr',
-        if (countryCode != null && countryCode.isNotEmpty) 'components': 'country:$countryCode',
-        'key': key,
-      });
-      final resp = await http.get(uri);
+      final uri = Uri.https(
+        'maps.googleapis.com',
+        '/maps/api/place/autocomplete/json',
+        {
+          'input': trimmed,
+          'types': typesParam,
+          'language': 'fr',
+          if (countryCode != null && countryCode.isNotEmpty)
+            'components': 'country:$countryCode',
+          'key': key,
+        },
+      );
+      final resp = await _get(uri);
       if (resp.statusCode != 200) return const [];
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
       if (data['status'] != 'OK' && data['status'] != 'ZERO_RESULTS') {
-        developer.log('Autocomplete[$typesParam] status=${data['status']}', name: 'places');
+        developer.log(
+          'Autocomplete[$typesParam] status=${data['status']}',
+          name: 'places',
+        );
         return const [];
       }
       final preds = (data['predictions'] as List?) ?? const [];
@@ -331,37 +394,51 @@ class PlacesService {
       // Debug : log brut de chaque prédiction (description + types) pour
       // diagnostiquer les cas "X ne remonte pas dans l'autocomplete" (cas
       // Ko Samet 2026-05-03). À garder tant que ces cas surgissent.
-      debugPrint('[places] autocomplete[$typesParam] "$trimmed" → ${preds.length} preds');
+      debugPrint(
+        '[places] autocomplete[$typesParam] "$trimmed" → ${preds.length} preds',
+      );
       for (final p in preds.whereType<Map<String, dynamic>>()) {
         final desc = (p['description'] as String?) ?? '';
-        final types = ((p['types'] as List?) ?? const []).whereType<String>().toList();
+        final types = ((p['types'] as List?) ?? const [])
+            .whereType<String>()
+            .toList();
         debugPrint('[places]   • $desc — types=$types');
       }
-      return preds.whereType<Map<String, dynamic>>().where((p) {
-        final types = ((p['types'] as List?) ?? const []).whereType<String>().toSet();
-        // Doit avoir au moins un type "destination valide".
-        if (!types.any(_allowedEtapeTypes.contains)) return false;
-        // Filtre additionnel : un `point_of_interest` SEUL (sans aucun
-        // type qui en fait une vraie destination touristique) est rejeté.
-        // Cas Ko Samet 2026-05-03 : Google retourne 3 lieux individuels
-        // dans l'île (pier, sentier, autre pier) qui ne sont pas des
-        // "étapes" — juste des POIs internes. Seul le parc national qui
-        // a aussi `park` + `tourist_attraction` passe.
-        if (types.contains('point_of_interest') &&
-            !types.any(_destinationGradeTypes.contains)) {
-          return false;
-        }
-        return true;
-      }).map((p) {
-        final desc = (p['description'] as String?) ?? '';
-        final structured = p['structured_formatting'] as Map<String, dynamic>?;
-        final main = (structured?['main_text'] as String?) ?? desc.split(',').first.trim();
-        return (
-          description: desc,
-          mainText: main,
-          placeId: (p['place_id'] as String?) ?? '',
-        );
-      }).where((r) => r.description.isNotEmpty).toList();
+      return preds
+          .whereType<Map<String, dynamic>>()
+          .where((p) {
+            final types = ((p['types'] as List?) ?? const [])
+                .whereType<String>()
+                .toSet();
+            // Doit avoir au moins un type "destination valide".
+            if (!types.any(_allowedEtapeTypes.contains)) return false;
+            // Filtre additionnel : un `point_of_interest` SEUL (sans aucun
+            // type qui en fait une vraie destination touristique) est rejeté.
+            // Cas Ko Samet 2026-05-03 : Google retourne 3 lieux individuels
+            // dans l'île (pier, sentier, autre pier) qui ne sont pas des
+            // "étapes" — juste des POIs internes. Seul le parc national qui
+            // a aussi `park` + `tourist_attraction` passe.
+            if (types.contains('point_of_interest') &&
+                !types.any(_destinationGradeTypes.contains)) {
+              return false;
+            }
+            return true;
+          })
+          .map((p) {
+            final desc = (p['description'] as String?) ?? '';
+            final structured =
+                p['structured_formatting'] as Map<String, dynamic>?;
+            final main =
+                (structured?['main_text'] as String?) ??
+                desc.split(',').first.trim();
+            return (
+              description: desc,
+              mainText: main,
+              placeId: (p['place_id'] as String?) ?? '',
+            );
+          })
+          .where((r) => r.description.isNotEmpty)
+          .toList();
     } catch (e) {
       developer.log('Erreur Autocomplete[$typesParam] : $e', name: 'places');
       return const [];
@@ -417,67 +494,85 @@ class PlacesService {
   /// "Maroc" ou "Bali" → on récupère le `kind` (`city`/`country`/`region`)
   /// pour ensuite imposer le découpage en étapes si la destination n'est pas
   /// une ville. Cf. project_next_priority Niveau 2.
-  Future<List<({String description, String mainText, String placeId, String kind})>> autocompleteDestinations(String query) async {
-    final key = AiConstants.googleMapsApiKey;
+  Future<
+    List<({String description, String mainText, String placeId, String kind})>
+  >
+  autocompleteDestinations(String query) async {
+    final key = _apiKey;
     final trimmed = query.trim();
-    if (trimmed.length < 2 || key.isEmpty || key == 'COLLE_TA_CLE_MAPS_ICI') return const [];
+    if (trimmed.length < 2 || !_hasApiKey) return const [];
+    _assertGooglePlacesAllowed('PlacesService.autocompleteDestinations');
     try {
-      final uri = Uri.https('maps.googleapis.com', '/maps/api/place/autocomplete/json', {
-        'input': trimmed,
-        // `types=geocode` exclut les établissements (hôpitaux, restos, hôtels...)
-        // tout en laissant passer pays/régions/villes/adresses précises. Sans
-        // ce filtre, taper "Chine" remontait "Chinese General Hospital and
-        // Medical Center" en 1ère suggestion (bug observé Lalith 28/04).
-        'types': 'geocode',
-        'language': 'fr',
-        'key': key,
-      });
-      final resp = await http.get(uri);
+      final uri = Uri.https(
+        'maps.googleapis.com',
+        '/maps/api/place/autocomplete/json',
+        {
+          'input': trimmed,
+          // `types=geocode` exclut les établissements (hôpitaux, restos, hôtels...)
+          // tout en laissant passer pays/régions/villes/adresses précises. Sans
+          // ce filtre, taper "Chine" remontait "Chinese General Hospital and
+          // Medical Center" en 1ère suggestion (bug observé Lalith 28/04).
+          'types': 'geocode',
+          'language': 'fr',
+          'key': key,
+        },
+      );
+      final resp = await _get(uri);
       if (resp.statusCode != 200) return const [];
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
       if (data['status'] != 'OK' && data['status'] != 'ZERO_RESULTS') {
-        developer.log('Autocomplete dest status=${data['status']}', name: 'places');
+        developer.log(
+          'Autocomplete dest status=${data['status']}',
+          name: 'places',
+        );
         return const [];
       }
       final preds = (data['predictions'] as List?) ?? const [];
-      return preds.whereType<Map<String, dynamic>>().map((p) {
-        final desc = (p['description'] as String?) ?? '';
-        final structured = p['structured_formatting'] as Map<String, dynamic>?;
-        final main = (structured?['main_text'] as String?) ?? desc.split(',').first.trim();
-        final types = ((p['types'] as List?) ?? const [])
-            .whereType<String>()
-            .toList(growable: false);
-        // Mapping types Google → kind métier :
-        // - 'country' → country
-        // - 'administrative_area_level_1/2' (région/État/département) → region
-        // - 'natural_feature' (île, archipel, parc, montagne) → region (Bali,
-        //   Sicile, etc. peuvent revenir avec ce type SANS administrative_area)
-        // - 'locality' / 'sublocality' / 'postal_town' → city
-        // - sinon → 'place' (POI, adresse précise). Côté UI on bloque save sur
-        //   country/region uniquement, pas sur 'place' (laisse passer même
-        //   si l'utilisateur tape une adresse précise).
-        final String kind;
-        if (types.contains('country')) {
-          kind = 'country';
-        } else if (types.contains('locality') ||
-            types.contains('postal_town') ||
-            types.contains('sublocality')) {
-          kind = 'city';
-        } else if (types.contains('administrative_area_level_1') ||
-            types.contains('administrative_area_level_2') ||
-            types.contains('natural_feature') ||
-            types.contains('archipelago')) {
-          kind = 'region';
-        } else {
-          kind = 'place';
-        }
-        return (
-          description: desc,
-          mainText: main,
-          placeId: (p['place_id'] as String?) ?? '',
-          kind: kind,
-        );
-      }).where((r) => r.description.isNotEmpty).toList();
+      return preds
+          .whereType<Map<String, dynamic>>()
+          .map((p) {
+            final desc = (p['description'] as String?) ?? '';
+            final structured =
+                p['structured_formatting'] as Map<String, dynamic>?;
+            final main =
+                (structured?['main_text'] as String?) ??
+                desc.split(',').first.trim();
+            final types = ((p['types'] as List?) ?? const [])
+                .whereType<String>()
+                .toList(growable: false);
+            // Mapping types Google → kind métier :
+            // - 'country' → country
+            // - 'administrative_area_level_1/2' (région/État/département) → region
+            // - 'natural_feature' (île, archipel, parc, montagne) → region (Bali,
+            //   Sicile, etc. peuvent revenir avec ce type SANS administrative_area)
+            // - 'locality' / 'sublocality' / 'postal_town' → city
+            // - sinon → 'place' (POI, adresse précise). Côté UI on bloque save sur
+            //   country/region uniquement, pas sur 'place' (laisse passer même
+            //   si l'utilisateur tape une adresse précise).
+            final String kind;
+            if (types.contains('country')) {
+              kind = 'country';
+            } else if (types.contains('locality') ||
+                types.contains('postal_town') ||
+                types.contains('sublocality')) {
+              kind = 'city';
+            } else if (types.contains('administrative_area_level_1') ||
+                types.contains('administrative_area_level_2') ||
+                types.contains('natural_feature') ||
+                types.contains('archipelago')) {
+              kind = 'region';
+            } else {
+              kind = 'place';
+            }
+            return (
+              description: desc,
+              mainText: main,
+              placeId: (p['place_id'] as String?) ?? '',
+              kind: kind,
+            );
+          })
+          .where((r) => r.description.isNotEmpty)
+          .toList();
     } catch (e) {
       developer.log('Erreur Autocomplete dest : $e', name: 'places');
       return const [];
@@ -500,15 +595,16 @@ class PlacesService {
   /// `language=fr` retourne des noms en français quand dispo (ex: "Aéroport
   /// Charles-de-Gaulle" plutôt que "Charles de Gaulle Airport").
   Future<List<({String description, String mainText, String placeId})>>
-      autocompleteTransport(
+  autocompleteTransport(
     String query, {
     required String type,
     String? sessionToken,
   }) async {
-    final key = AiConstants.googleMapsApiKey;
+    final key = _apiKey;
     final trimmed = query.trim();
-    if (trimmed.length < 2 || key.isEmpty || key == 'COLLE_TA_CLE_MAPS_ICI') return const [];
+    if (trimmed.length < 2 || !_hasApiKey) return const [];
     if (type != 'airport' && type != 'train_station') return const [];
+    _assertGooglePlacesAllowed('PlacesService.autocompleteTransport');
     try {
       final params = <String, String>{
         'input': trimmed,
@@ -519,25 +615,39 @@ class PlacesService {
       if (sessionToken != null && sessionToken.isNotEmpty) {
         params['sessiontoken'] = sessionToken;
       }
-      final uri = Uri.https('maps.googleapis.com', '/maps/api/place/autocomplete/json', params);
-      final resp = await http.get(uri);
+      final uri = Uri.https(
+        'maps.googleapis.com',
+        '/maps/api/place/autocomplete/json',
+        params,
+      );
+      final resp = await _get(uri);
       if (resp.statusCode != 200) return const [];
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
       if (data['status'] != 'OK' && data['status'] != 'ZERO_RESULTS') {
-        developer.log('Autocomplete transport status=${data['status']}', name: 'places');
+        developer.log(
+          'Autocomplete transport status=${data['status']}',
+          name: 'places',
+        );
         return const [];
       }
       final preds = (data['predictions'] as List?) ?? const [];
-      return preds.whereType<Map<String, dynamic>>().map((p) {
-        final desc = (p['description'] as String?) ?? '';
-        final structured = p['structured_formatting'] as Map<String, dynamic>?;
-        final main = (structured?['main_text'] as String?) ?? desc.split(',').first.trim();
-        return (
-          description: desc,
-          mainText: main,
-          placeId: (p['place_id'] as String?) ?? '',
-        );
-      }).where((r) => r.description.isNotEmpty).toList();
+      return preds
+          .whereType<Map<String, dynamic>>()
+          .map((p) {
+            final desc = (p['description'] as String?) ?? '';
+            final structured =
+                p['structured_formatting'] as Map<String, dynamic>?;
+            final main =
+                (structured?['main_text'] as String?) ??
+                desc.split(',').first.trim();
+            return (
+              description: desc,
+              mainText: main,
+              placeId: (p['place_id'] as String?) ?? '',
+            );
+          })
+          .where((r) => r.description.isNotEmpty)
+          .toList();
     } catch (e) {
       developer.log('Erreur Autocomplete transport : $e', name: 'places');
       return const [];
@@ -555,12 +665,13 @@ class PlacesService {
   /// (ex: BKK→CNX = TH dans un voyage Chine). Le `city` permet de déduire
   /// l'étape voyage depuis un aéroport (CNX → "Chiang Mai"). À combiner avec
   /// `place_lookup_cache` côté Supabase pour rendre asymptotiquement gratuit.
-  Future<({double lat, double lng, String name, String? countryCode, String? city})?> resolvePlaceCoords(
-    String placeId, {
-    String? sessionToken,
-  }) async {
-    final key = AiConstants.googleMapsApiKey;
-    if (placeId.isEmpty || key.isEmpty || key == 'COLLE_TA_CLE_MAPS_ICI') return null;
+  Future<
+    ({double lat, double lng, String name, String? countryCode, String? city})?
+  >
+  resolvePlaceCoords(String placeId, {String? sessionToken}) async {
+    final key = _apiKey;
+    if (placeId.isEmpty || !_hasApiKey) return null;
+    _assertGooglePlacesAllowed('PlacesService.resolvePlaceCoords');
     try {
       final params = <String, String>{
         'place_id': placeId,
@@ -571,8 +682,12 @@ class PlacesService {
       if (sessionToken != null && sessionToken.isNotEmpty) {
         params['sessiontoken'] = sessionToken;
       }
-      final uri = Uri.https('maps.googleapis.com', '/maps/api/place/details/json', params);
-      final resp = await http.get(uri);
+      final uri = Uri.https(
+        'maps.googleapis.com',
+        '/maps/api/place/details/json',
+        params,
+      );
+      final resp = await _get(uri);
       if (resp.statusCode != 200) return null;
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
       if (data['status'] != 'OK') return null;
@@ -595,7 +710,9 @@ class PlacesService {
       String? sublocalityLevel1;
       String? adminLevel2;
       for (final comp in components.whereType<Map<String, dynamic>>()) {
-        final types = ((comp['types'] as List?) ?? const []).whereType<String>().toSet();
+        final types = ((comp['types'] as List?) ?? const [])
+            .whereType<String>()
+            .toSet();
         if (types.contains('country')) {
           final shortName = comp['short_name'] as String?;
           if (shortName != null && shortName.isNotEmpty) {
@@ -607,7 +724,8 @@ class PlacesService {
         if (types.contains('locality')) locality = long;
         if (types.contains('postal_town')) postalTown = long;
         if (types.contains('administrative_area_level_1')) adminLevel1 = long;
-        if (types.contains('sublocality_level_1') || types.contains('sublocality')) {
+        if (types.contains('sublocality_level_1') ||
+            types.contains('sublocality')) {
           sublocalityLevel1 = long;
         }
         if (types.contains('administrative_area_level_2')) adminLevel2 = long;
@@ -617,7 +735,8 @@ class PlacesService {
       // voyageur (BKK→Bangkok, CDG→Paris, NRT→Tokyo) au lieu de la subdivision
       // administrative locale (Samut Prakan, Roissy-en-France, Chiba). Si pas
       // d'override, fallback sur la cascade address_components standard.
-      final city = overrideCityForAirportLatLng(lat, lng) ??
+      final city =
+          overrideCityForAirportLatLng(lat, lng) ??
           pickCityFromComponents(
             locality: locality,
             postalTown: postalTown,
@@ -625,7 +744,13 @@ class PlacesService {
             sublocalityLevel1: sublocalityLevel1,
             adminLevel2: adminLevel2,
           );
-      return (lat: lat, lng: lng, name: name, countryCode: countryCode, city: city);
+      return (
+        lat: lat,
+        lng: lng,
+        name: name,
+        countryCode: countryCode,
+        city: city,
+      );
     } catch (e) {
       developer.log('Erreur resolvePlaceCoords : $e', name: 'places');
       return null;
@@ -641,22 +766,31 @@ class PlacesService {
   /// Coût : 1 appel Place Details (~$0.017). Stocker le résultat côté caller
   /// pour ne pas re-payer à chaque ouverture du dialog d'étape.
   Future<String?> getCountryCodeFromPlaceId(String placeId) async {
-    final key = AiConstants.googleMapsApiKey;
-    if (placeId.isEmpty || key.isEmpty || key == 'COLLE_TA_CLE_MAPS_ICI') return null;
+    final key = _apiKey;
+    if (placeId.isEmpty || !_hasApiKey) return null;
+    _assertGooglePlacesAllowed('PlacesService.getCountryCodeFromPlaceId');
     try {
-      final uri = Uri.https('maps.googleapis.com', '/maps/api/place/details/json', {
-        'place_id': placeId,
-        'fields': 'address_component',
-        'language': 'fr',
-        'key': key,
-      });
-      final resp = await http.get(uri);
+      final uri = Uri.https(
+        'maps.googleapis.com',
+        '/maps/api/place/details/json',
+        {
+          'place_id': placeId,
+          'fields': 'address_component',
+          'language': 'fr',
+          'key': key,
+        },
+      );
+      final resp = await _get(uri);
       if (resp.statusCode != 200) return null;
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
       if (data['status'] != 'OK') return null;
-      final components = ((data['result'] as Map<String, dynamic>?)?['address_components'] as List?) ?? const [];
+      final components =
+          ((data['result'] as Map<String, dynamic>?)?['address_components']
+              as List?) ??
+          const [];
       for (final comp in components.whereType<Map<String, dynamic>>()) {
-        final types = ((comp['types'] as List?) ?? const []).whereType<String>();
+        final types = ((comp['types'] as List?) ?? const [])
+            .whereType<String>();
         if (types.contains('country')) {
           final shortName = comp['short_name'] as String?;
           if (shortName != null && shortName.isNotEmpty) {
@@ -681,32 +815,48 @@ class PlacesService {
     String city, {
     String? country,
   }) async {
-    final key = AiConstants.googleMapsApiKey;
-    if (key.isEmpty || key == 'COLLE_TA_CLE_MAPS_ICI') return null;
-    final query = country != null && country.isNotEmpty ? '$city, $country' : city;
+    final key = _apiKey;
+    if (!_hasApiKey) return null;
+    final query = country != null && country.isNotEmpty
+        ? '$city, $country'
+        : city;
+    if (query.trim().isEmpty) return null;
+    _assertGooglePlacesAllowed('PlacesService.findCityCoords');
     try {
-      final uri = Uri.https('maps.googleapis.com', '/maps/api/place/findplacefromtext/json', {
-        'input': query,
-        'inputtype': 'textquery',
-        'fields': 'geometry,formatted_address',
-        'language': 'fr',
-        'key': key,
-      });
-      final resp = await http.get(uri);
+      final uri = Uri.https(
+        'maps.googleapis.com',
+        '/maps/api/place/findplacefromtext/json',
+        {
+          'input': query,
+          'inputtype': 'textquery',
+          'fields': 'geometry,formatted_address',
+          'language': 'fr',
+          'key': key,
+        },
+      );
+      final resp = await _get(uri);
       if (resp.statusCode != 200) {
-        developer.log('FindPlace city HTTP ${resp.statusCode} pour "$query"', name: 'places');
+        developer.log(
+          'FindPlace city HTTP ${resp.statusCode} pour "$query"',
+          name: 'places',
+        );
         return null;
       }
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
       final status = data['status'] as String?;
       if (status != 'OK') {
-        developer.log('FindPlace city status=$status pour "$query"', name: 'places');
+        developer.log(
+          'FindPlace city status=$status pour "$query"',
+          name: 'places',
+        );
         return null;
       }
       final candidates = (data['candidates'] as List?) ?? const [];
       if (candidates.isEmpty) return null;
       final first = candidates.first as Map<String, dynamic>;
-      final loc = (first['geometry'] as Map<String, dynamic>?)?['location'] as Map<String, dynamic>?;
+      final loc =
+          (first['geometry'] as Map<String, dynamic>?)?['location']
+              as Map<String, dynamic>?;
       final lat = (loc?['lat'] as num?)?.toDouble();
       final lng = (loc?['lng'] as num?)?.toDouble();
       final addr = (first['formatted_address'] as String?) ?? '';
@@ -720,30 +870,46 @@ class PlacesService {
   }
 
   /// Récupère reviews + horaires d'ouverture en un seul appel Places Details.
-  Future<({List<PlaceReview> reviews, OpeningHours? openingHours})> getDetails(String placeId) async {
-    final key = AiConstants.googleMapsApiKey;
-    if (key.isEmpty || key == 'COLLE_TA_CLE_MAPS_ICI') return (reviews: const <PlaceReview>[], openingHours: null);
+  Future<({List<PlaceReview> reviews, OpeningHours? openingHours})> getDetails(
+    String placeId,
+  ) async {
+    final key = _apiKey;
+    if (!_hasApiKey) {
+      return (reviews: const <PlaceReview>[], openingHours: null);
+    }
+    if (placeId.isEmpty) {
+      return (reviews: const <PlaceReview>[], openingHours: null);
+    }
+    _assertGooglePlacesAllowed('PlacesService.getDetails');
     try {
-      final uri = Uri.https('maps.googleapis.com', '/maps/api/place/details/json', {
-        'place_id': placeId,
-        'fields': 'reviews,opening_hours',
-        'language': 'fr',
-        'reviews_sort': 'newest',
-        'key': key,
-      });
-      final resp = await http.get(uri);
-      if (resp.statusCode != 200) return (reviews: const <PlaceReview>[], openingHours: null);
+      final uri =
+          Uri.https('maps.googleapis.com', '/maps/api/place/details/json', {
+            'place_id': placeId,
+            'fields': 'reviews,opening_hours',
+            'language': 'fr',
+            'reviews_sort': 'newest',
+            'key': key,
+          });
+      final resp = await _get(uri);
+      if (resp.statusCode != 200) {
+        return (reviews: const <PlaceReview>[], openingHours: null);
+      }
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
-      if (data['status'] != 'OK') return (reviews: const <PlaceReview>[], openingHours: null);
+      if (data['status'] != 'OK') {
+        return (reviews: const <PlaceReview>[], openingHours: null);
+      }
       final result = data['result'] as Map<String, dynamic>?;
       final reviewsData = result?['reviews'] as List?;
       final hoursData = result?['opening_hours'] as Map<String, dynamic>?;
-      final reviews = reviewsData
+      final reviews =
+          reviewsData
               ?.whereType<Map<String, dynamic>>()
               .map((r) => PlaceReview.fromJson(r))
               .toList() ??
           const <PlaceReview>[];
-      final openingHours = hoursData != null ? OpeningHours.fromJson(hoursData) : null;
+      final openingHours = hoursData != null
+          ? OpeningHours.fromJson(hoursData)
+          : null;
       return (reviews: reviews, openingHours: openingHours);
     } catch (e) {
       developer.log('Erreur Places details : $e', name: 'places');
