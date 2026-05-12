@@ -1006,11 +1006,43 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
       );
       return;
     }
-    // Loader bloquant pendant le géocodage (max ~2s pour 5 villes)
+    // Loader bloquant pendant le géocodage (max ~2s pour 5 villes), avec bouton
+    // Annuler explicite : si l'utilisateur tape Annuler, on lève `cancelled` et
+    // chaque guard `if (cancelled) return;` après un await empêche les setState,
+    // snackbars et le preview de partir. Les findCityCoords déjà lancés finissent
+    // en background, leurs résultats sont ignorés.
+    var cancelled = false;
+    var dialogClosed = false;
+    void closeLoader() {
+      if (!dialogClosed) {
+        dialogClosed = true;
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+    }
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
+      builder: (_) => Dialog(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              const Text('Géolocalisation des étapes…'),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () {
+                  cancelled = true;
+                  closeLoader();
+                },
+                child: const Text('Annuler'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
     final places = ref.read(placesServiceProvider);
     final geocoded = <TripSegment>[];
@@ -1021,9 +1053,10 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
         continue;
       }
       final coords = await places.findCityCoords(seg.city, country: seg.country);
+      if (cancelled) return;
       if (coords == null) {
         if (!mounted) return;
-        Navigator.of(context, rootNavigator: true).pop();
+        closeLoader();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Impossible de géolocaliser "${seg.city}". Vérifie l\'orthographe ou ajoute le pays.'),
@@ -1036,8 +1069,9 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
       geocoded.add(seg.copyWith(latitude: coords.lat, longitude: coords.lng));
     }
     final anchor = await places.findCityCoords(dest);
+    if (cancelled) return;
     if (!mounted) return;
-    Navigator.of(context, rootNavigator: true).pop();
+    closeLoader();
     if (anchor == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
