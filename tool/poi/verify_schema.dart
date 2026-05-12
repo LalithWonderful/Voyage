@@ -1,5 +1,6 @@
-// POI-1.6 — Verify that the 6 POI tables exist in Supabase.
-// Reads credentials from SupabaseConstants (no CLI secrets).
+// POI-1.6 / POI-1.7 — Verify that the 6 POI tables exist in Supabase.
+// Prefers SUPABASE_SECRET_KEY or SUPABASE_ANON_KEY from --define.
+// Falls back to SupabaseConstants only if env vars are not provided.
 
 import 'dart:io';
 
@@ -7,9 +8,15 @@ import 'package:supabase/supabase.dart';
 import 'package:voyage/core/constants/supabase_constants.dart';
 
 void main() async {
+  final secretKey = const String.fromEnvironment('SUPABASE_SECRET_KEY');
+  final anonKey = const String.fromEnvironment('SUPABASE_ANON_KEY');
+  final readKey = secretKey.isNotEmpty
+      ? secretKey
+      : (anonKey.isNotEmpty ? anonKey : SupabaseConstants.supabaseAnonKey);
+
   final client = SupabaseClient(
     SupabaseConstants.supabaseUrl,
-    SupabaseConstants.supabaseAnonKey,
+    readKey,
   );
 
   final requiredTables = [
