@@ -21,11 +21,13 @@ All 6 POI tables verified present before first write attempt.
 dart run \
   --define=ALLOW_POI_SUPABASE_WRITE=true \
   --define=SUPABASE_URL=https://qfadipkbhuohujxlgrnn.supabase.co \
-  --define=SUPABASE_SERVICE_ROLE_KEY=<YOUR_SERVICE_ROLE_KEY> \
+  --define=SUPABASE_SECRET_KEY=<YOUR_SECRET_KEY> \
   tool/poi/run_pilot_import.dart \
   test/fixtures/poi/pilot_pois_lisbon.json \
   --write
 ```
+
+(If `SUPABASE_SECRET_KEY` is unavailable, `SUPABASE_SERVICE_ROLE_KEY` is accepted as a fallback.)
 
 **Result:** ✅ COMPLETED
 - Validation passed: true
@@ -41,10 +43,12 @@ dart run \
 ```bash
 dart run \
   --define=SUPABASE_URL=https://qfadipkbhuohujxlgrnn.supabase.co \
-  --define=SUPABASE_ANON_KEY=<YOUR_ANON_KEY> \
+  --define=SUPABASE_SECRET_KEY=<YOUR_SECRET_KEY> \
   tool/poi/verify_import.dart \
   --destination lisbon
 ```
+
+(If `SUPABASE_SECRET_KEY` is unavailable, `SUPABASE_ANON_KEY` is accepted as a fallback.)
 
 **Result:** ✅ HEALTHY
 - POIs: 10
@@ -93,7 +97,7 @@ A PostgREST compatibility issue was discovered and fixed before the successful i
 
 ## 7. CLI Changes
 
-- `tool/poi/run_pilot_import.dart`: Updated to require `SUPABASE_SERVICE_ROLE_KEY` (instead of anon key) for real writes, since POI tables have RLS write = service_role only.
+- `tool/poi/run_pilot_import.dart`: Updated to accept `SUPABASE_SECRET_KEY` (preferred) or `SUPABASE_SERVICE_ROLE_KEY` (fallback) for real writes, since POI tables have RLS write = service_role only.
 - `tool/poi/verify_import.dart`: New read-only verification CLI using `PoiSupabaseImportChecker`.
 
 ## 8. Test Results

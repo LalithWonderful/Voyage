@@ -44,7 +44,7 @@ Expected output: `canProceed: true`, zero blocking errors.
 ## 3. Real Import Procedure
 
 ### Prerequisites
-- `SUPABASE_URL` and `SUPABASE_ANON_KEY` set via `--dart-define`
+- `SUPABASE_URL` and a write key (`SUPABASE_SECRET_KEY` preferred, or `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_ANON_KEY` fallback) set via `--dart-define`
 - `ALLOW_POI_SUPABASE_WRITE=true` for real writes
 
 ### Step 1 — Dry-run
@@ -59,7 +59,7 @@ dart run tool/poi/import_poi_to_supabase.dart \
 ```bash
 dart run --define=ALLOW_POI_SUPABASE_WRITE=true \
          --define=SUPABASE_URL=<your-url> \
-         --define=SUPABASE_ANON_KEY=<your-key> \
+         --define=SUPABASE_SECRET_KEY=<your-key> \
          tool/poi/import_poi_to_supabase.dart \
          test/fixtures/poi/pilot_pois_lisbon.json --write
 ```

@@ -6,7 +6,7 @@
 // Dry-run par défaut. Pour écrire :
 //   dart run --define=ALLOW_POI_SUPABASE_WRITE=true \
 //            --define=SUPABASE_URL=<url> \
-//            --define=SUPABASE_ANON_KEY=<key> \
+//            --define=SUPABASE_SECRET_KEY=<key> \
 //            tool/poi/import_poi_to_supabase.dart <fixture.json> --write
 //
 // Le fixture doit avoir été revu (PoiFixtureReviewer) avant import.
@@ -50,18 +50,24 @@ void main(List<String> args) async {
   SupabaseClient? client;
   if (!dryRun) {
     final supabaseUrl = const String.fromEnvironment('SUPABASE_URL');
+    final supabaseSecretKey = const String.fromEnvironment('SUPABASE_SECRET_KEY');
+    final supabaseServiceRoleKey = const String.fromEnvironment('SUPABASE_SERVICE_ROLE_KEY');
     final supabaseAnonKey = const String.fromEnvironment('SUPABASE_ANON_KEY');
+    final writeKey = supabaseSecretKey.isNotEmpty
+        ? supabaseSecretKey
+        : (supabaseServiceRoleKey.isNotEmpty ? supabaseServiceRoleKey : supabaseAnonKey);
 
-    if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) {
+    if (supabaseUrl.isEmpty || writeKey.isEmpty) {
       stderr.writeln(
-        'ERROR: SUPABASE_URL and SUPABASE_ANON_KEY must be set for real writes.\n'
+        'ERROR: SUPABASE_URL and a write key (SUPABASE_SECRET_KEY, SUPABASE_SERVICE_ROLE_KEY, '
+        'or SUPABASE_ANON_KEY) must be set for real writes.\n'
         'Run with: dart run --define=SUPABASE_URL=<url> '
-        '--define=SUPABASE_ANON_KEY=<key> ...',
+        '--define=SUPABASE_SECRET_KEY=<key> ...',
       );
       exit(1);
     }
 
-    client = SupabaseClient(supabaseUrl, supabaseAnonKey);
+    client = SupabaseClient(supabaseUrl, writeKey);
   }
 
   final importer = PoiSupabaseImporter(client: client);
@@ -86,7 +92,9 @@ Options:
   --write    Execute real Supabase upserts (requires ALLOW_POI_SUPABASE_WRITE=true)
 
 Environment:
-  SUPABASE_URL        Supabase project URL
-  SUPABASE_ANON_KEY   Supabase anonymous key (service_role for writes)
+  SUPABASE_URL              Supabase project URL
+  SUPABASE_SECRET_KEY       Supabase secret key (preferred for writes)
+  SUPABASE_SERVICE_ROLE_KEY Fallback service role key for writes
+  SUPABASE_ANON_KEY         Fallback anonymous key for writes
 ''');
 }

@@ -1,7 +1,9 @@
 // POI-1.6 — Post-import verification for a destination.
-// Read-only; uses anon key (no service_role required).
+// Read-only; uses secret key (preferred) or anon key.
 //
 // Usage:
+//   dart run --define=SUPABASE_URL=<url> --define=SUPABASE_SECRET_KEY=<key> \
+//       tool/poi/verify_import.dart [--destination lisbon]
 //   dart run --define=SUPABASE_URL=<url> --define=SUPABASE_ANON_KEY=<key> \
 //       tool/poi/verify_import.dart [--destination lisbon]
 
@@ -14,20 +16,23 @@ void main(List<String> args) async {
   final destination = _argValue(args, '--destination') ?? 'lisbon';
 
   final url = const String.fromEnvironment('SUPABASE_URL');
+  final secretKey = const String.fromEnvironment('SUPABASE_SECRET_KEY');
   final anonKey = const String.fromEnvironment('SUPABASE_ANON_KEY');
+  final readKey = secretKey.isNotEmpty ? secretKey : anonKey;
 
-  if (url.isEmpty || anonKey.isEmpty) {
+  if (url.isEmpty || readKey.isEmpty) {
     stderr.writeln(
-      'ERROR: SUPABASE_URL and SUPABASE_ANON_KEY must be provided via --define.',
+      'ERROR: SUPABASE_URL and a read key (SUPABASE_SECRET_KEY or SUPABASE_ANON_KEY) '
+      'must be provided via --define.',
     );
     stderr.writeln(
-      '  dart run --define=SUPABASE_URL=<url> --define=SUPABASE_ANON_KEY=<key> '
+      '  dart run --define=SUPABASE_URL=<url> --define=SUPABASE_SECRET_KEY=<key> '
       'tool/poi/verify_import.dart [--destination <key>]',
     );
     exit(1);
   }
 
-  final client = SupabaseClient(url, anonKey);
+  final client = SupabaseClient(url, readKey);
   final reader = SupabasePoiImportCheckReader(client);
   final checker = PoiSupabaseImportChecker(reader);
 
