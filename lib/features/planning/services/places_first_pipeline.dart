@@ -15,8 +15,11 @@ import 'package:voyage/features/planning/services/day_center_service.dart';
 import 'package:voyage/features/planning/services/gemini_cache_service.dart';
 import 'package:voyage/features/planning/services/geocoding_service.dart';
 import 'package:voyage/features/planning/services/interests_to_places_mapping.dart';
+import 'package:voyage/features/planning/data/destination_key_mapper.dart';
 import 'package:voyage/features/planning/services/places_nearby_service.dart';
+import 'package:voyage/features/planning/services/poi_candidate_adapter.dart';
 import 'package:voyage/features/planning/services/traveler_to_places_mapping.dart';
+import 'package:voyage/features/poi/domain/poi_repository.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/wallet/models/document_model.dart';
 import 'package:voyage/features/planning/services/template_first_pipeline.dart';
@@ -1980,6 +1983,10 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
   /// "en"...). Critique pour les destinations non-anglophones (Maroc → noms
   /// en arabe sinon). Default null = langue Places par défaut.
   String? languageCode,
+
+  /// POI-2.0 — Repository POI pour enrichir le pool avec des candidats curatés.
+  /// Si null, le comportement existant (100% Google Places) est préservé.
+  PoiRepository? poiRepository,
 }) async {
   final interests = interestsOverride ?? trip.interests ?? const <String>[];
   if (interests.isEmpty) {
@@ -2698,6 +2705,50 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
       byInterest[blueprintMustSeeMarker] = [...existing, ...fallbackResults];
     }
   }
+
+  // ─── POI-2.0 : enrichir avec les POIs curatés ───
+  final destinationKey = DestinationKeyMapper.map(trip.destination);
+  if (destinationKey != null && poiRepository != null) {
+    final poiAdapter = PoiCandidateAdapter(poiRepository);
+    final poiCandidates = await poiAdapter.adaptForDestination(destinationKey);
+
+    if (poiCandidates.isNotEmpty) {
+      final poiByPlaceId = <String, NearbyCandidate>{
+        for (final c in poiCandidates) c.placeId: c,
+      };
+
+      for (final byInterest in poolBySig.values) {
+        // .keys.toList() car on mute la map pendant l'itération
+        for (final interest in byInterest.keys.toList()) {
+          final existing = byInterest[interest]!;
+          final merged = <NearbyCandidate>[];
+
+          // 1. Remplacer les Google Places par le POI curaté quand googlePlaceId match
+          for (final gPlace in existing) {
+            final poiMatch = poiByPlaceId[gPlace.placeId];
+            merged.add(poiMatch ?? gPlace);
+          }
+
+          // 2. Ajouter les POIs sans match Google (IDs synthétiques poi:<id>)
+          final seenInMerged = merged.map((c) => c.placeId).toSet();
+          for (final poi in poiCandidates) {
+            if (!seenInMerged.contains(poi.placeId)) {
+              merged.add(poi);
+            }
+          }
+
+          byInterest[interest] = merged;
+        }
+      }
+
+      // ignore: avoid_print
+      print(
+        '[poi_first] destination=$destinationKey '
+        'pois=${poiCandidates.length} merged into ${poolBySig.length} pool(s)',
+      );
+    }
+  }
+  // ─── Fin POI-2.0 ───
 
   // Étape 4 : assemblage `List<DayCandidates>`. Chaque jour récupère la
   // pool de son groupe — partage de référence, lecture seule en aval
