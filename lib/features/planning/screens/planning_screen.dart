@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:voyage/config/live_api_guards.dart';
 import 'package:voyage/core/services/notification_service.dart';
 import 'package:voyage/core/providers/currency_provider.dart';
 import 'package:voyage/core/widgets/offline_banner.dart';
@@ -573,13 +574,6 @@ class PlanningScreen extends ConsumerWidget {
     // await pour ne pas dépendre d'un context potentiellement stale plus tard.
     final languageCode = Localizations.maybeLocaleOf(context)?.languageCode ?? 'fr';
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      useRootNavigator: true,
-      builder: (_) => const _LoadingDialog(),
-    );
-
     bool dialogClosed = false;
     void closeDialog() {
       if (!dialogClosed) {
@@ -587,6 +581,29 @@ class PlanningScreen extends ConsumerWidget {
         navigator.pop();
       }
     }
+    var cancelled = false;
+    void showError(String msg) {
+      if (cancelled) return;
+      if (!context.mounted) return;
+      closeDialog();
+      messenger.showSnackBar(SnackBar(
+        content: Text(msg, maxLines: 4),
+        backgroundColor: AppColors.error,
+        duration: const Duration(seconds: 6),
+      ));
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      builder: (_) => _LoadingDialog(
+        onCancel: () {
+          cancelled = true;
+          closeDialog();
+        },
+      ),
+    );
 
     try {
       final profile = await ref.read(userProfileProvider.future);
@@ -617,10 +634,12 @@ class PlanningScreen extends ConsumerWidget {
           } catch (_) {} // silent — un échec sur une activité ne doit pas bloquer le flow
         }));
         debugPrint('[BACKFILL] $updated adresses ajoutées (${missingAddress.length - updated} non trouvées)');
+        if (cancelled) return;
         // Re-fetch pour que Gemini voit les nouvelles adresses
         if (updated > 0) {
           ref.invalidate(tripActivitiesProvider(tripId));
           existing = await ref.read(planningTimelineProvider(tripId).future);
+          if (cancelled) return;
         }
       }
 
@@ -680,7 +699,8 @@ class PlanningScreen extends ConsumerWidget {
             aiService: aiService,
             existingTitlesNormalized: existingTitlesNorm,
             languageCode: languageCode,
-          );
+          ).timeout(const Duration(seconds: 60));
+          if (cancelled) return;
           closeDialog();
           if (!context.mounted) return;
           if (groups.isEmpty) {
@@ -703,16 +723,13 @@ class PlanningScreen extends ConsumerWidget {
           );
           ref.invalidate(tripActivitiesProvider(tripId));
           ref.invalidate(tripTransportsProvider(tripId));
+        } on LiveApiBlockedException catch (_) {
+          showError('Suggestion indisponible : les services de géolocalisation ou Gemini sont désactivés.');
+        } on TimeoutException catch (_) {
+          showError('La génération a mis trop de temps à répondre. Vérifie ta connexion et réessaie.');
         } catch (e) {
-          closeDialog();
           debugPrint('[SUGGEST coPilot Places-first] EXCEPTION : $e');
-          messenger.showSnackBar(
-            SnackBar(
-              content: Text('Erreur Places-first : $e', maxLines: 4),
-              backgroundColor: AppColors.error,
-              duration: const Duration(seconds: 6),
-            ),
-          );
+          showError('Erreur Places-first : $e');
         }
         return;
       }
@@ -742,7 +759,8 @@ class PlanningScreen extends ConsumerWidget {
         category: category,
         existingTitlesNormalized: existingTitlesNorm,
         languageCode: languageCode,
-      );
+      ).timeout(const Duration(seconds: 60));
+      if (cancelled) return;
 
       // ── Filtres métier (toujours pertinents en Places-first) ──
       // - dedup interne (Gemini peut sélectionner 2 fois la même ref)
@@ -861,16 +879,13 @@ class PlanningScreen extends ConsumerWidget {
       );
       ref.invalidate(tripActivitiesProvider(tripId));
       ref.invalidate(tripTransportsProvider(tripId));
+    } on LiveApiBlockedException catch (_) {
+      showError('Suggestion indisponible : les services de géolocalisation ou Gemini sont désactivés.');
+    } on TimeoutException catch (_) {
+      showError('La génération a mis trop de temps à répondre. Vérifie ta connexion et réessaie.');
     } catch (e) {
-      closeDialog();
       debugPrint('[SUGGEST] EXCEPTION : $e');
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('Erreur IA : $e', maxLines: 4),
-          backgroundColor: AppColors.error,
-          duration: const Duration(seconds: 6),
-        ),
-      );
+      showError('Erreur IA : $e');
     }
   }
 
@@ -956,7 +971,8 @@ class PlanningScreen extends ConsumerWidget {
 }
 
 class _LoadingDialog extends StatelessWidget {
-  const _LoadingDialog();
+  final VoidCallback? onCancel;
+  const _LoadingDialog({this.onCancel});
 
   @override
   Widget build(BuildContext context) {
@@ -968,13 +984,21 @@ class _LoadingDialog extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('✨', style: TextStyle(fontSize: 48)),
-            SizedBox(height: 12),
-            Text('Je prépare ton planning...', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-            SizedBox(height: 4),
+            const Text('✨', style: TextStyle(fontSize: 48)),
+            const SizedBox(height: 12),
+            const Text('Je prépare ton planning...', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
             Text('Quelques secondes', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-            SizedBox(height: 16),
-            CircularProgressIndicator(strokeWidth: 2.5),
+            const SizedBox(height: 16),
+            const CircularProgressIndicator(strokeWidth: 2.5),
+            if (onCancel != null) ...[
+              const SizedBox(height: 12),
+              TextButton(
+                style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+                onPressed: onCancel,
+                child: const Text('Annuler la génération'),
+              ),
+            ],
           ],
         ),
       ),
