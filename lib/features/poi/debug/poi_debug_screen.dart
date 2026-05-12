@@ -51,12 +51,13 @@ class PoiDebugScreen extends ConsumerStatefulWidget {
 }
 
 class _PoiDebugScreenState extends ConsumerState<PoiDebugScreen> {
-  final _destinationCtrl = TextEditingController(text: 'singapore');
+  final _destinationCtrl = TextEditingController(text: 'lisbon');
   final _queryCtrl = TextEditingController();
   final _limitCtrl = TextEditingController();
 
   PoiCategory? _selectedCategory;
   bool _mustSeeOnly = false;
+  bool _topMode = false;
 
   /// Paramètres de recherche actuels. Rebuild déclenche un re-watch du
   /// provider `poiSearchProvider` grâce à Riverpod `family` caching.
@@ -74,6 +75,27 @@ class _PoiDebugScreenState extends ConsumerState<PoiDebugScreen> {
     _queryCtrl.dispose();
     _limitCtrl.dispose();
     super.dispose();
+  }
+
+  Widget _buildSearchResults() {
+    final poisAsync = ref.watch(poiSearchProvider(_currentParams));
+    return poisAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (err, _) => _ErrorView(error: err.toString(), onRetry: () => setState(() {})),
+      data: (pois) => _PoiListView(pois: pois),
+    );
+  }
+
+  Widget _buildTopResults() {
+    final destination = _destinationCtrl.text.trim();
+    final poisAsync = ref.watch(
+      topPoisProvider((destinationKey: destination, limit: 10)),
+    );
+    return poisAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (err, _) => _ErrorView(error: err.toString(), onRetry: () => setState(() {})),
+      data: (pois) => _PoiListView(pois: pois, label: 'Top 10'),
+    );
   }
 
   @override
@@ -104,13 +126,16 @@ class _PoiDebugScreenState extends ConsumerState<PoiDebugScreen> {
             onMustSeeChanged: (v) => setState(() => _mustSeeOnly = v),
             onSearch: () => setState(() {}),
           ),
+          // ─── Quick actions ───
+          _QuickActions(
+            topMode: _topMode,
+            onTopModeChanged: (v) => setState(() => _topMode = v),
+          ),
           // ─── Résultats ───
           Expanded(
-            child: poisAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (err, _) => _ErrorView(error: err.toString(), onRetry: () => setState(() {})),
-              data: (pois) => _PoiListView(pois: pois),
-            ),
+            child: _topMode
+                ? _buildTopResults()
+                : _buildSearchResults(),
           ),
         ],
       ),
@@ -319,6 +344,48 @@ class _CategoryDropdown extends StatelessWidget {
   }
 }
 
+class _QuickActions extends StatelessWidget {
+  final bool topMode;
+  final ValueChanged<bool> onTopModeChanged;
+
+  const _QuickActions({required this.topMode, required this.onTopModeChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.surface,
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: Row(
+        children: [
+          ChoiceChip(
+            label: const Text('Recherche'),
+            selected: !topMode,
+            onSelected: (_) => onTopModeChanged(false),
+            selectedColor: AppColors.primaryLight,
+            labelStyle: TextStyle(
+              fontSize: 12,
+              color: !topMode ? AppColors.primary : AppColors.textSecondary,
+              fontWeight: !topMode ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+          const SizedBox(width: 8),
+          ChoiceChip(
+            label: const Text('Top 10'),
+            selected: topMode,
+            onSelected: (_) => onTopModeChanged(true),
+            selectedColor: AppColors.primaryLight,
+            labelStyle: TextStyle(
+              fontSize: 12,
+              color: topMode ? AppColors.primary : AppColors.textSecondary,
+              fontWeight: topMode ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ErrorView extends StatelessWidget {
   final String error;
   final VoidCallback onRetry;
@@ -359,7 +426,8 @@ class _ErrorView extends StatelessWidget {
 
 class _PoiListView extends StatelessWidget {
   final List<Poi> pois;
-  const _PoiListView({required this.pois});
+  final String? label;
+  const _PoiListView({required this.pois, this.label});
 
   @override
   Widget build(BuildContext context) {
@@ -388,16 +456,35 @@ class _PoiListView extends StatelessWidget {
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-      itemCount: pois.length,
-      itemBuilder: (_, index) {
-        final poi = pois[index];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: _PoiDebugCard(poi: poi, index: index + 1),
-        );
-      },
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (label != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Text(
+              label!,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+            itemCount: pois.length,
+            itemBuilder: (_, index) {
+              final poi = pois[index];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _PoiDebugCard(poi: poi, index: index + 1),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }

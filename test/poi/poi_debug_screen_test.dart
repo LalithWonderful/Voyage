@@ -24,7 +24,7 @@ Poi _poi({
   int? editorialScore,
   bool isMustSee = false,
   String sourcePrimaryId = 'src-editorial',
-  String destinationKey = 'singapore',
+  String destinationKey = 'lisbon',
   int? touristicImportance,
   int? typicalDurationMinutes,
   int? priceLevel,
@@ -69,22 +69,71 @@ void main() {
 
       expect(find.text('🔍 Debug POI'), findsOneWidget);
       expect(find.text('Destination key'), findsOneWidget);
-      expect(find.text('Recherche'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'Recherche'), findsOneWidget);
       expect(find.byType(DropdownButton<PoiCategory?>), findsOneWidget);
       expect(find.text('Must-see'), findsOneWidget);
       expect(find.text('Rechercher'), findsOneWidget);
+      expect(find.text('Top 10'), findsOneWidget);
     });
 
     testWidgets('état empty quand repo vide', (tester) async {
       await tester.pumpWidget(_buildScreen(repo: const FakePoiRepository()));
       await tester.pumpAndSettle();
 
-      // Déclenche la recherche avec la destination par défaut.
+      // Déclenche la recherche avec la destination par défaut (lisbon).
       await tester.tap(find.text('Rechercher'));
       await tester.pumpAndSettle();
 
       expect(find.text('📭'), findsOneWidget);
       expect(find.text('Aucun POI trouvé'), findsOneWidget);
+    });
+
+    testWidgets('mode Top 10 affiche les meilleurs POIs', (tester) async {
+      final repo = FakePoiRepository(
+        pois: [
+          _poi(
+            poiId: 'poi-001',
+            name: 'Belém Tower',
+            normalizedName: 'belem tower',
+            category: PoiCategory.monument,
+            editorialScore: 95,
+            destinationKey: 'lisbon',
+          ),
+          _poi(
+            poiId: 'poi-002',
+            name: 'Jerónimos Monastery',
+            normalizedName: 'jeronimos monastery',
+            category: PoiCategory.monument,
+            editorialScore: 92,
+            destinationKey: 'lisbon',
+          ),
+          _poi(
+            poiId: 'poi-003',
+            name: 'Alfama',
+            normalizedName: 'alfama',
+            category: PoiCategory.neighborhood,
+            editorialScore: 88,
+            destinationKey: 'lisbon',
+          ),
+        ],
+      );
+      await tester.pumpWidget(_buildScreen(repo: repo));
+      await tester.pumpAndSettle();
+
+      // Passe en mode Top 10
+      await tester.tap(find.text('Top 10'));
+      await tester.pumpAndSettle();
+
+      // Les 3 POIs doivent être présents (ListView peut ne pas renderer
+      // les éléments offscreen ; on scroll pour les trouver).
+      expect(find.text('Belém Tower'), findsOneWidget);
+      expect(find.text('Jerónimos Monastery'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('Alfama'),
+        100,
+        scrollable: find.byType(Scrollable).last,
+      );
+      expect(find.text('Alfama'), findsOneWidget);
     });
 
     testWidgets('affiche les POI retournés par le repo', (tester) async {

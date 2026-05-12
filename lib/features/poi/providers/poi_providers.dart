@@ -108,3 +108,15 @@ final poiSearchProvider =
   },
   name: 'poiSearchProvider',
 );
+
+/// Retourne les [limit] POIs les mieux notés de la destination.
+final topPoisProvider =
+    FutureProvider.family<List<Poi>, ({String destinationKey, int limit})>(
+  (ref, params) async {
+    final repo = ref.watch(poiRepositoryProvider);
+    return repo.getTopPoisForDestination(params.destinationKey, params.limit);
+  },
+  name: 'topPoisProvider',
+);
+
+
