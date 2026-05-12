@@ -181,7 +181,18 @@ class PlanningScreen extends ConsumerWidget {
             const SizedBox(height: 18),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Text('Que veux-tu suggérer ?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text('Que veux-tu suggérer ?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    tooltip: 'Fermer',
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 10),
             // V8.2 (Lalith 2026-05-10) — décision produit : suppression de
@@ -208,6 +219,12 @@ class PlanningScreen extends ConsumerWidget {
                 onTap: () => Navigator.pop(ctx, 'test'),
               ),
             ],
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.close),
+              title: const Text('Annuler', style: TextStyle(fontWeight: FontWeight.w600)),
+              onTap: () => Navigator.pop(ctx),
+            ),
             const SizedBox(height: 12),
           ],
         ),
