@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
+import 'package:voyage/config/live_api_guards.dart';
 import 'package:voyage/core/constants/ai_constants.dart';
 import 'package:voyage/features/planning/models/trip_transport_model.dart';
 import 'package:voyage/features/planning/services/gemini_cache_service.dart';
@@ -27,15 +28,14 @@ class RouteEndpoint {
   final double? lat;
   final double? lng;
 
-  const RouteEndpoint.placeId(String this.placeId)
-      : lat = null,
-        lng = null;
-  const RouteEndpoint.coords({required double this.lat, required double this.lng})
-      : placeId = null;
+  const RouteEndpoint.placeId(String this.placeId) : lat = null, lng = null;
+  const RouteEndpoint.coords({
+    required double this.lat,
+    required double this.lng,
+  }) : placeId = null;
 
   bool get isValid =>
-      (placeId != null && placeId!.isNotEmpty) ||
-      (lat != null && lng != null);
+      (placeId != null && placeId!.isNotEmpty) || (lat != null && lng != null);
 
   /// Représentation pour le body Routes API (`origin` ou `destination`).
   Map<String, dynamic> toApiBody() {
@@ -63,8 +63,16 @@ class RouteEndpoint {
 
 class RoutesService {
   final GeminiCacheService? _cache;
+  final LiveApiGuards _guards;
+  final http.Client? _httpClient;
 
-  RoutesService({GeminiCacheService? cache}) : _cache = cache;
+  RoutesService({
+    GeminiCacheService? cache,
+    LiveApiGuards? guards,
+    http.Client? httpClient,
+  }) : _cache = cache,
+       _guards = guards ?? LiveApiGuards.fromEnvironment(),
+       _httpClient = httpClient;
 
   /// Calcule les options de transport réalistes pour une paire (origin, destination).
   /// Retourne `null` si tout a échoué (réseau, clé, endpoints invalides).
@@ -96,8 +104,6 @@ class RoutesService {
     required RouteEndpoint from,
     required RouteEndpoint to,
   }) async {
-    final key = AiConstants.googleMapsApiKey;
-    if (key.isEmpty || key == 'COLLE_TA_CLE_MAPS_ICI') return null;
     if (!from.isValid || !to.isValid) return null;
     if (from.cacheKey == to.cacheKey) return null;
 
@@ -121,6 +127,14 @@ class RoutesService {
         return _filterAbsurdOptions(cachedOpts);
       }
     }
+
+    _guards.assertAllowed(
+      LiveApiFamily.googleRoutes,
+      operation: 'RoutesService.computeOptionsFromEndpoints',
+    );
+
+    final key = AiConstants.googleMapsApiKey;
+    if (key.isEmpty || key == 'COLLE_TA_CLE_MAPS_ICI') return null;
 
     // 4 appels en parallèle (1 par mode). Chaque échec individuel renvoie null
     // et est filtré du résultat — on garde le best-effort partiel.
@@ -164,7 +178,9 @@ class RoutesService {
         final m = RegExp(r'(\d+(?:\.\d+)?)\s*km').firstMatch(o.detail!);
         if (m != null) distanceKm = double.tryParse(m.group(1)!);
       }
-      if (o.mode == 'walk' && (o.durationMinutes > 180 || (distanceKm != null && distanceKm > 15))) {
+      if (o.mode == 'walk' &&
+          (o.durationMinutes > 180 ||
+              (distanceKm != null && distanceKm > 15))) {
         developer.log(
           'Routes filter: WALK rejeté (${o.durationMinutes}min, ${distanceKm?.toStringAsFixed(1) ?? "?"}km) — aberrant pour la marche',
           name: 'routes',
@@ -193,7 +209,10 @@ class RoutesService {
     String key,
   ) async {
     try {
-      final uri = Uri.https('routes.googleapis.com', '/directions/v2:computeRoutes');
+      final uri = Uri.https(
+        'routes.googleapis.com',
+        '/directions/v2:computeRoutes',
+      );
       final body = jsonEncode({
         'origin': from.toApiBody(),
         'destination': to.toApiBody(),
@@ -202,7 +221,7 @@ class RoutesService {
         // (400) si on l'envoie pour les autres modes.
         if (googleMode == 'DRIVE') 'routingPreference': 'TRAFFIC_AWARE',
       });
-      final resp = await http.post(
+      final resp = await _post(
         uri,
         headers: {
           'Content-Type': 'application/json',
@@ -212,7 +231,10 @@ class RoutesService {
         body: body,
       );
       if (resp.statusCode != 200) {
-        developer.log('Routes HTTP ${resp.statusCode} ($googleMode): ${resp.body}', name: 'routes');
+        developer.log(
+          'Routes HTTP ${resp.statusCode} ($googleMode): ${resp.body}',
+          name: 'routes',
+        );
         return null;
       }
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
@@ -227,7 +249,8 @@ class RoutesService {
       final seconds = _parseDurationSeconds(durationStr);
       if (seconds == null || seconds <= 0) return null;
       final minutes = (seconds / 60).round().clamp(1, 600);
-      final distanceM = (route['distance_meters'] as num?)?.toInt() ??
+      final distanceM =
+          (route['distance_meters'] as num?)?.toInt() ??
           (route['distanceMeters'] as num?)?.toInt() ??
           0;
 
@@ -264,7 +287,9 @@ class RoutesService {
         mode: voyageMode,
         durationMinutes: minutes,
         priceEstimate: _estimatePrice(voyageMode, distanceM),
-        detail: distanceM > 0 ? '${(distanceM / 1000).toStringAsFixed(1)} km' : null,
+        detail: distanceM > 0
+            ? '${(distanceM / 1000).toStringAsFixed(1)} km'
+            : null,
       );
     } catch (e) {
       developer.log('Routes exception $googleMode: $e', name: 'routes');
@@ -281,15 +306,22 @@ class RoutesService {
   ///
   /// Si plusieurs segments TRANSIT (ex: bus + tram), `mode` = celui dont la
   /// durée est la plus longue, et `detail` enchaîne les instructions avec "puis".
-  Future<TransportOption?> _computeTransit(RouteEndpoint from, RouteEndpoint to, String key) async {
+  Future<TransportOption?> _computeTransit(
+    RouteEndpoint from,
+    RouteEndpoint to,
+    String key,
+  ) async {
     try {
-      final uri = Uri.https('routes.googleapis.com', '/directions/v2:computeRoutes');
+      final uri = Uri.https(
+        'routes.googleapis.com',
+        '/directions/v2:computeRoutes',
+      );
       final body = jsonEncode({
         'origin': from.toApiBody(),
         'destination': to.toApiBody(),
         'travelMode': 'TRANSIT',
       });
-      final resp = await http.post(
+      final resp = await _post(
         uri,
         headers: {
           'Content-Type': 'application/json',
@@ -300,20 +332,29 @@ class RoutesService {
         body: body,
       );
       if (resp.statusCode != 200) {
-        developer.log('Routes HTTP ${resp.statusCode} (TRANSIT) $from→$to: ${resp.body}', name: 'routes');
+        developer.log(
+          'Routes HTTP ${resp.statusCode} (TRANSIT) $from→$to: ${resp.body}',
+          name: 'routes',
+        );
         return null;
       }
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
       final routes = data['routes'] as List?;
       if (routes == null || routes.isEmpty) {
-        developer.log('Routes TRANSIT: aucune route renvoyée pour $from→$to (probablement trop proche ou pas de réseau)', name: 'routes');
+        developer.log(
+          'Routes TRANSIT: aucune route renvoyée pour $from→$to (probablement trop proche ou pas de réseau)',
+          name: 'routes',
+        );
         return null;
       }
       final route = routes.first as Map<String, dynamic>;
 
       final seconds = _parseDurationSeconds(route['duration'] as String?);
       if (seconds == null || seconds <= 0) {
-        developer.log('Routes TRANSIT: durée nulle/invalide $from→$to', name: 'routes');
+        developer.log(
+          'Routes TRANSIT: durée nulle/invalide $from→$to',
+          name: 'routes',
+        );
         return null;
       }
       final minutes = (seconds / 60).round().clamp(1, 600);
@@ -344,7 +385,9 @@ class RoutesService {
           mode: 'transit',
           durationMinutes: minutes,
           priceEstimate: _estimatePrice('transit', distanceM),
-          detail: distanceM > 0 ? '${(distanceM / 1000).toStringAsFixed(1)} km' : null,
+          detail: distanceM > 0
+              ? '${(distanceM / 1000).toStringAsFixed(1)} km'
+              : null,
         );
       }
 
@@ -354,11 +397,13 @@ class RoutesService {
       for (final step in transitSteps) {
         final transit = step['transitDetails'] as Map<String, dynamic>?;
         if (transit == null) continue;
-        final stepDurS = _parseDurationSeconds(step['duration'] as String?) ?? 0;
+        final stepDurS =
+            _parseDurationSeconds(step['duration'] as String?) ?? 0;
 
         final line = transit['transitLine'] as Map<String, dynamic>?;
         // Numéro/court : `nameShort` souvent "1", "T2", "B5". Sinon `name` long.
-        final lineLabel = (line?['nameShort'] as String?)?.trim() ??
+        final lineLabel =
+            (line?['nameShort'] as String?)?.trim() ??
             (line?['name'] as String?)?.trim() ??
             '';
         final vehicle = line?['vehicle'] as Map<String, dynamic>?;
@@ -379,7 +424,9 @@ class RoutesService {
         } else if (toStop != null) {
           parts.add('arrivée: $toStop');
         }
-        if (headsign != null && headsign.isNotEmpty) parts.add('dir. $headsign');
+        if (headsign != null && headsign.isNotEmpty) {
+          parts.add('dir. $headsign');
+        }
         if (stopCount != null && stopCount > 0) {
           parts.add('$stopCount arrêt${stopCount > 1 ? 's' : ''}');
         }
@@ -467,5 +514,17 @@ class RoutesService {
     final trimmed = s.endsWith('s') ? s.substring(0, s.length - 1) : s;
     final n = num.tryParse(trimmed);
     return n?.toInt();
+  }
+
+  Future<http.Response> _post(
+    Uri uri, {
+    Map<String, String>? headers,
+    Object? body,
+  }) {
+    final client = _httpClient;
+    if (client != null) {
+      return client.post(uri, headers: headers, body: body);
+    }
+    return http.post(uri, headers: headers, body: body);
   }
 }
