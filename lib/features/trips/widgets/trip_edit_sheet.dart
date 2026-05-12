@@ -1006,11 +1006,13 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
       );
       return;
     }
-    // Loader bloquant pendant le géocodage (max ~2s pour 5 villes), avec bouton
-    // Annuler explicite : si l'utilisateur tape Annuler, on lève `cancelled` et
-    // chaque guard `if (cancelled) return;` après un await empêche les setState,
-    // snackbars et le preview de partir. Les findCityCoords déjà lancés finissent
-    // en background, leurs résultats sont ignorés.
+    // Loader bloquant pendant le géocodage, avec bouton Annuler explicite,
+    // timeout 10s par appel et try/catch global. Le flag `cancelled` est levé
+    // par le bouton + guards `if (cancelled) return;` après chaque await ; les
+    // findCityCoords lancés finissent en background, leurs résultats sont jetés.
+    // Le catch capture aussi LiveApiBlockedException (Places désactivé sans
+    // ALLOW_LIVE_GOOGLE_PLACES) et TimeoutException pour éviter le spinner
+    // infini, et affiche une SnackBar explicite.
     var cancelled = false;
     var dialogClosed = false;
     void closeLoader() {
@@ -1023,6 +1025,7 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
       context: context,
       barrierDismissible: false,
       builder: (_) => Dialog(
+        backgroundColor: AppColors.surface,
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -1030,9 +1033,19 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
             children: [
               const CircularProgressIndicator(),
               const SizedBox(height: 16),
-              const Text('Géolocalisation des étapes…'),
-              const SizedBox(height: 8),
+              Text(
+                'Optimisation des étapes…',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 12),
               TextButton(
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                ),
                 onPressed: () {
                   cancelled = true;
                   closeLoader();
@@ -1046,30 +1059,55 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
     );
     final places = ref.read(placesServiceProvider);
     final geocoded = <TripSegment>[];
-    for (final seg in _segments) {
-      if (seg.latitude != null && seg.longitude != null) {
-        geocoded.add(seg);
-        developer.log('Optimize: ${seg.city} (caché) → ${seg.latitude},${seg.longitude}', name: 'optimize');
-        continue;
+    ({double lat, double lng, String formattedAddress})? anchor;
+    try {
+      for (final seg in _segments) {
+        if (seg.latitude != null && seg.longitude != null) {
+          geocoded.add(seg);
+          developer.log('Optimize: ${seg.city} (caché) → ${seg.latitude},${seg.longitude}', name: 'optimize');
+          continue;
+        }
+        final coords = await places
+            .findCityCoords(seg.city, country: seg.country)
+            .timeout(const Duration(seconds: 10));
+        if (cancelled) return;
+        if (coords == null) {
+          if (!mounted) return;
+          closeLoader();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Impossible de géolocaliser "${seg.city}". Vérifie l\'orthographe ou ajoute le pays.'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+          return;
+        }
+        developer.log('Optimize: ${seg.city}${seg.country != null ? " (${seg.country})" : ""} → ${coords.lat},${coords.lng} (${coords.formattedAddress})', name: 'optimize');
+        geocoded.add(seg.copyWith(latitude: coords.lat, longitude: coords.lng));
       }
-      final coords = await places.findCityCoords(seg.city, country: seg.country);
+      anchor = await places
+          .findCityCoords(dest)
+          .timeout(const Duration(seconds: 10));
       if (cancelled) return;
-      if (coords == null) {
-        if (!mounted) return;
-        closeLoader();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Impossible de géolocaliser "${seg.city}". Vérifie l\'orthographe ou ajoute le pays.'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-        return;
-      }
-      developer.log('Optimize: ${seg.city}${seg.country != null ? " (${seg.country})" : ""} → ${coords.lat},${coords.lng} (${coords.formattedAddress})', name: 'optimize');
-      geocoded.add(seg.copyWith(latitude: coords.lat, longitude: coords.lng));
+    } catch (e) {
+      if (cancelled) return;
+      if (!mounted) return;
+      closeLoader();
+      final raw = e.toString();
+      final msg = e is TimeoutException
+          ? 'La géolocalisation a mis trop de temps à répondre. Vérifie ta connexion et réessaie.'
+          : raw.contains('LiveApiBlocked')
+              ? 'Optimisation indisponible : la géolocalisation Google Places est désactivée.'
+              : 'Impossible d\'optimiser l\'ordre : $raw';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          backgroundColor: AppColors.error,
+          duration: const Duration(seconds: 6),
+        ),
+      );
+      return;
     }
-    final anchor = await places.findCityCoords(dest);
-    if (cancelled) return;
     if (!mounted) return;
     closeLoader();
     if (anchor == null) {
