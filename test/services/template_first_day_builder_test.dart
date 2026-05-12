@@ -6,7 +6,15 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:voyage/data/day_templates/singapore_templates.dart';
 import 'package:voyage/models/day_template.dart';
+import 'package:voyage/models/destination_intelligence.dart' show GeoPoint;
 import 'package:voyage/services/template_first_day_builder.dart';
+
+// ─── Coordonnées Singapore utiles aux tests 4.7 ──────────────────────
+//
+// Centres de zones (issus de `buildSingaporeDestinationIntelligence`).
+// Réutilisés pour tester Axe 1 anti-zigzag sans dépendre de la DI
+// complète (tests purement unitaires sur le builder).
+const _marinaBayCenter = GeoPoint(lat: 1.2830, lng: 103.8600);
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
@@ -60,6 +68,7 @@ TemplateDayBuildInput _input({
   int dayIndex = 1,
   Set<String> alreadyUsedPlaceKeys = const {},
   Set<String> alreadyUsedAnchorKeys = const {},
+  GeoPoint? primaryZoneCenter,
 }) {
   return TemplateDayBuildInput(
     template: template,
@@ -68,6 +77,7 @@ TemplateDayBuildInput _input({
     candidates: candidates,
     alreadyUsedPlaceKeys: alreadyUsedPlaceKeys,
     alreadyUsedAnchorKeys: alreadyUsedAnchorKeys,
+    primaryZoneCenter: primaryZoneCenter,
   );
 }
 
@@ -623,21 +633,42 @@ void main() {
       expect(r.assignments[0].candidate?.placeKey, equals('p_a'));
     });
 
-    test('Template free_day avec recommendedAnchorKeys/'
-        'forbiddenComplexKeys vides', () {
+    test('Template free_day — slots freeTime restent volontairement '
+        'vides (4.7 Axe 2)', () {
+      // 4.7 — Axe 2 : `ExpectedSlotType.freeTime` n'est plus
+      // rempli automatiquement. free_day a 3 slots :
+      // 2× freeTime + 1× meal. Avec un candidate non-meal
+      // disponible, seul le slot meal est rempli (ici 0 car
+      // pas de candidate meal) → filledSlotsCount peut être 0.
+      // Le résultat ne doit PAS marquer ces slots comme
+      // `missingCandidateForSlot` — ils sont vides par design.
       final template = _freeDay();
       final candidates = [
         _cand(
             placeKey: 'p_any',
             title: 'Anything',
-            category: 'freeTime', // matche freeTime via règle "tout match"
+            category: 'visit',
             score: 80),
       ];
       final r = buildTemplateFirstDay(_input(
         template: template,
         candidates: candidates,
       ));
-      expect(r.filledSlotsCount, greaterThan(0));
+      // Les 2 slots freeTime sont vides SANS warning
+      // `missingCandidateForSlot` (sortie volontaire).
+      final freeSlots = r.assignments
+          .where((a) => a.slot.expectedType == ExpectedSlotType.freeTime)
+          .toList();
+      expect(freeSlots.length, equals(2));
+      for (final s in freeSlots) {
+        expect(s.candidate, isNull);
+        expect(s.warnings, isEmpty,
+            reason: 'Slot freeTime ne doit pas porter '
+                'missingCandidateForSlot — vide volontaire.');
+      }
+      // free_day n'est PAS un fallback (les freeTime ne comptent
+      // pas dans le ratio empty).
+      expect(r.isFallback, isFalse);
       expect(r.validate(), isEmpty);
     });
 
@@ -757,6 +788,9 @@ void main() {
     });
 
     test('arrival_day construit avec candidates minimalistes', () {
+      // 4.7 — Axe 2 : arrival_day a 3 slots (visit, meal, freeTime).
+      // Le slot freeTime reste vide volontairement (cf. Axe 2).
+      // filledSlotsCount attendu = 2 (visit + meal), pas 3.
       final template = _arrivalDay();
       final candidates = [
         _cand(
@@ -769,17 +803,16 @@ void main() {
             title: 'Restaurant Near Hotel',
             category: 'meal',
             score: 75),
-        _cand(
-            placeKey: 'p_free',
-            title: 'Free time spot',
-            category: 'freeTime',
-            score: 50),
       ];
       final r = buildTemplateFirstDay(_input(
         template: template,
         candidates: candidates,
       ));
-      expect(r.filledSlotsCount, equals(template.slots.length));
+      // 2 slots non-freeTime remplis sur 2 → pas fallback.
+      final nonFreeSlots = template.slots
+          .where((s) => s.expectedType != ExpectedSlotType.freeTime)
+          .length;
+      expect(r.filledSlotsCount, equals(nonFreeSlots));
       expect(r.warnings, isEmpty);
       expect(r.isFallback, isFalse);
     });
@@ -908,6 +941,36 @@ void main() {
       expect(r.warnings, contains(TemplateDayBuildWarning.emptyCandidatePool));
     });
 
+    test('isFallback ne compte PAS les slots freeTime (4.7 Axe 2)', () {
+      // free_day a 3 slots : 2× freeTime + 1× meal. Avec 0
+      // candidate meal, le slot meal reste vide → 1/1 slots
+      // non-freeTime vide. Mais isFallback est `emptyCount >
+      // nonFreeSlots.length / 2`, donc 1 > 0.5 → true.
+      // Test inverse : si le slot meal est rempli, isFallback=false.
+      final template = _freeDay();
+      final candidates = [
+        _cand(
+            placeKey: 'p_meal',
+            title: 'Lunch',
+            category: 'meal',
+            score: 80,
+            rating: 4.5),
+      ];
+      final r = buildTemplateFirstDay(_input(
+        template: template,
+        candidates: candidates,
+      ));
+      // 1 slot non-freeTime (meal), rempli → 0 empty → not fallback.
+      expect(r.isFallback, isFalse);
+      // 2 slots freeTime vides volontaires.
+      final freeEmpty = r.assignments
+          .where((a) =>
+              a.slot.expectedType == ExpectedSlotType.freeTime &&
+              a.candidate == null)
+          .length;
+      expect(freeEmpty, equals(2));
+    });
+
     test('validate() détecte duplicate placeKey '
         '(invariant interne préservé)', () {
       // En condition normale, le builder ne génère jamais de
@@ -946,6 +1009,696 @@ void main() {
       );
       expect(result.validate().any((e) => e.contains('duplicated')),
           isTrue);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Spec 4.7 — Stabilisation template-first day quality
+  // ═══════════════════════════════════════════════════════════════════
+  //
+  // 4 axes ajoutés (cf. `docs/migrations/phase4_task4_7.md`) :
+  //   I.  Anti-zigzag / zone primaire
+  //   J.  Respect freeTime / free_day (déjà couvert dans F.H ci-dessus)
+  //   K.  Quality floor (rating ≥ 4.0, reviews ≥ 50)
+  //   L.  Hawker / food-centre block en visit
+  //   M.  Intégration multi-axes (cas Singapour réaliste, offline)
+
+  // ─── I. Axe 1 — Anti-zigzag / zone primaire ──────────────────────────
+
+  group('I. Axe 4.7-1 — Anti-zigzag / zone primaire', () {
+    final template = _marinaBayDay(); // primaryZoneName='Marina Bay'
+
+    test('Candidat dans la zone primaire (≤2km) prioritaire sur '
+        'candidat hors zone (>5km) à score égal', () {
+      // p_close à 0.4 km de Marina Bay center, p_far à ~5-8 km.
+      // Anchor + meal + viewpoint fournis pour ne pas perturber
+      // le slot visit (le builder ne doit pas "consommer" p_close
+      // pour combler un autre slot en relax category).
+      final candidates = [
+        _cand(
+            placeKey: 'p_anchor',
+            title: 'Marina Bay Sands',
+            category: 'anchor',
+            anchorKey: 'Marina Bay Sands',
+            score: 95,
+            rating: 4.7,
+            userRatingCount: 50000,
+            lat: 1.2834,
+            lng: 103.8607),
+        _cand(
+            placeKey: 'p_meal',
+            title: 'Marina Lunch',
+            category: 'meal',
+            score: 75,
+            rating: 4.4,
+            userRatingCount: 800,
+            lat: 1.2840,
+            lng: 103.8605),
+        _cand(
+            placeKey: 'p_view',
+            title: 'Spectra Light Show',
+            category: 'viewpoint',
+            score: 80,
+            rating: 4.6,
+            userRatingCount: 20000,
+            lat: 1.2843,
+            lng: 103.8590),
+        // Les 2 candidats visit en compétition (score égal,
+        // distance différente) :
+        _cand(
+            placeKey: 'p_far',
+            title: 'Far Visit',
+            category: 'visit',
+            score: 70,
+            rating: 4.5,
+            userRatingCount: 1000,
+            lat: 1.3138, // Botanic Gardens ~5.6 km
+            lng: 103.8159),
+        _cand(
+            placeKey: 'p_close',
+            title: 'Close Visit',
+            category: 'visit',
+            score: 70,
+            rating: 4.5,
+            userRatingCount: 1000,
+            lat: 1.2850, // ~0.4 km de Marina Bay center
+            lng: 103.8605),
+      ];
+      final r = buildTemplateFirstDay(_input(
+        template: template,
+        candidates: candidates,
+        primaryZoneCenter: _marinaBayCenter,
+      ));
+      final visitSlot = r.assignments
+          .firstWhere((a) => a.slot.slotKey == 'afternoon_waterfront');
+      expect(visitSlot.candidate?.placeKey, equals('p_close'),
+          reason: 'Le candidat proche zone primaire doit gagner sur '
+              'le candidat éloigné à score égal.');
+    });
+
+    test('Candidat à >10 km de la zone primaire rejeté si alternative '
+        'existe (non-anchor)', () {
+      // p_remote à ~50 km au nord (équivalent Johor Bahru) → rejet.
+      // p_alt à 1 km dans la zone → sélectionné.
+      final candidates = [
+        _cand(
+            placeKey: 'p_remote',
+            title: 'Way Too Far',
+            category: 'visit',
+            score: 100, // score élevé mais hors zone
+            rating: 4.8,
+            userRatingCount: 5000,
+            lat: 1.7000, // ~50 km au nord
+            lng: 103.8600),
+        _cand(
+            placeKey: 'p_alt',
+            title: 'In Zone Alt',
+            category: 'visit',
+            score: 70,
+            rating: 4.4,
+            userRatingCount: 500,
+            lat: 1.2840,
+            lng: 103.8605),
+      ];
+      final r = buildTemplateFirstDay(_input(
+        template: template,
+        candidates: candidates,
+        primaryZoneCenter: _marinaBayCenter,
+      ));
+      final keys = r.assignments
+          .where((a) => a.candidate != null)
+          .map((a) => a.candidate!.placeKey)
+          .toList();
+      expect(keys, isNot(contains('p_remote')),
+          reason: 'Candidat > 10 km hors zone (non-anchor) doit être '
+              'rejeté quand une alternative existe.');
+      expect(keys, contains('p_alt'));
+    });
+
+    test('Anchor recommandé hors zone (>10 km) toléré (exception)', () {
+      // Le template marina_bay_day recommande 'Gardens by the Bay'
+      // comme anchor. Si le candidat correspondant est étrangement
+      // loin (mauvais geocoding par ex.), on doit quand même
+      // l'accepter pour respecter le choix éditorial du template.
+      final candidates = [
+        _cand(
+            placeKey: 'p_gbb_far',
+            title: 'Gardens by the Bay (geocoded far)',
+            category: 'anchor',
+            anchorKey: 'Gardens by the Bay',
+            score: 50,
+            rating: 4.8,
+            userRatingCount: 100000,
+            lat: 1.7000, // > 10 km hors zone
+            lng: 103.8600),
+      ];
+      final r = buildTemplateFirstDay(_input(
+        template: template,
+        candidates: candidates,
+        primaryZoneCenter: _marinaBayCenter,
+      ));
+      // Le slot anchor doit toujours prendre p_gbb_far : exception
+      // anti-zigzag pour anchor recommandé.
+      expect(r.assignments[0].candidate?.placeKey, equals('p_gbb_far'),
+          reason: 'Anchor recommandé exempt du rejet > 10 km.');
+    });
+
+    test('primaryZoneCenter null → axe anti-zigzag en bypass complet '
+        '(rétro-compat tests 4.4/4.5)', () {
+      // Sans primaryZoneCenter, le comportement doit être identique
+      // à pré-4.7 : tri = anchor + score + rating + ...
+      // Aucun candidat n'est rejeté pour distance, peu importe où.
+      final candidates = [
+        _cand(
+            placeKey: 'p_remote',
+            title: 'Remote MBS',
+            category: 'anchor',
+            anchorKey: 'Marina Bay Sands',
+            score: 100,
+            rating: 4.7,
+            userRatingCount: 50000,
+            lat: 5.0, // au milieu de l'océan, ne devrait
+            lng: 110.0), // pas être rejeté car bypass.
+      ];
+      final r = buildTemplateFirstDay(_input(
+        template: template,
+        candidates: candidates,
+        // primaryZoneCenter non passé → null
+      ));
+      expect(r.assignments[0].candidate?.placeKey, equals('p_remote'));
+    });
+
+    test('Candidat sans coordonnées (lat/lng null) accepté '
+        '(pas pénalisé)', () {
+      // Un candidat sans coordonnées ne doit pas être rejeté ni
+      // pénalisé en tri par anti-zigzag — c'est une absence
+      // d'information, pas un mauvais signal.
+      final candidates = [
+        _cand(
+            placeKey: 'p_no_coord',
+            title: 'Anchor No Coord',
+            category: 'anchor',
+            anchorKey: 'Marina Bay Sands',
+            score: 90,
+            rating: 4.6,
+            userRatingCount: 10000,
+            // lat/lng intentionnellement null
+            ),
+      ];
+      final r = buildTemplateFirstDay(_input(
+        template: template,
+        candidates: candidates,
+        primaryZoneCenter: _marinaBayCenter,
+      ));
+      expect(r.assignments[0].candidate?.placeKey, equals('p_no_coord'));
+    });
+  });
+
+  // ─── J. Axe 2 — Respect freeTime (couverture additionnelle) ──────────
+
+  group('J. Axe 4.7-2 — Respect freeTime', () {
+    test('arrival_day : slot freeTime non rempli même si candidate '
+        'freeTime disponible dans le pool', () {
+      final template = _arrivalDay();
+      // Pool généreux incluant un candidate "freeTime"-compatible
+      final candidates = [
+        _cand(
+            placeKey: 'p_visit',
+            title: 'Soft Walk',
+            category: 'visit',
+            score: 70,
+            rating: 4.3,
+            userRatingCount: 200),
+        _cand(
+            placeKey: 'p_meal',
+            title: 'Dinner',
+            category: 'meal',
+            score: 75,
+            rating: 4.5),
+        _cand(
+            placeKey: 'p_anything',
+            title: 'Could Fill Free Slot',
+            category: 'visit',
+            score: 60,
+            rating: 4.5,
+            userRatingCount: 500),
+      ];
+      final r = buildTemplateFirstDay(_input(
+        template: template,
+        candidates: candidates,
+      ));
+      // Slot evening_free_time DOIT rester vide.
+      final freeSlot = r.assignments
+          .firstWhere((a) => a.slot.slotKey == 'evening_free_time');
+      expect(freeSlot.candidate, isNull,
+          reason: 'Slot freeTime ne doit pas être rempli '
+              'automatiquement (4.7 Axe 2).');
+      expect(freeSlot.warnings, isEmpty,
+          reason: 'Slot freeTime vide est volontaire, pas un manque.');
+    });
+  });
+
+  // ─── K. Axe 3 — Quality floor ────────────────────────────────────────
+
+  group('K. Axe 4.7-3 — Quality floor', () {
+    final template = _marinaBayDay();
+
+    // Helper anchor + meal + viewpoint pour isoler le slot visit
+    // dans les tests quality floor (sinon le builder, en relax
+    // category Tier 3, consomme nos visit candidates pour combler
+    // le slot anchor — pollution du test).
+    List<TemplateCandidate> surroundingSlots() => [
+          _cand(
+              placeKey: 'p_anchor',
+              title: 'Marina Bay Sands',
+              category: 'anchor',
+              anchorKey: 'Marina Bay Sands',
+              score: 95,
+              rating: 4.7,
+              userRatingCount: 50000,
+              lat: 1.2834,
+              lng: 103.8607),
+          _cand(
+              placeKey: 'p_meal',
+              title: 'Marina Lunch',
+              category: 'meal',
+              score: 75,
+              rating: 4.4,
+              userRatingCount: 800,
+              lat: 1.2840,
+              lng: 103.8605),
+          _cand(
+              placeKey: 'p_view',
+              title: 'Spectra Light Show',
+              category: 'viewpoint',
+              score: 80,
+              rating: 4.6,
+              userRatingCount: 20000,
+              lat: 1.2843,
+              lng: 103.8590),
+        ];
+
+    test('Candidat rating < 4.0 rejeté en slot visit', () {
+      final candidates = [
+        ...surroundingSlots(),
+        _cand(
+            placeKey: 'p_low_rating',
+            title: 'Mediocre Place',
+            category: 'visit',
+            score: 100,
+            rating: 3.5, // sous le seuil
+            userRatingCount: 1000,
+            lat: 1.2840,
+            lng: 103.8605),
+        _cand(
+            placeKey: 'p_ok',
+            title: 'Decent Place',
+            category: 'visit',
+            score: 50,
+            rating: 4.4,
+            userRatingCount: 200,
+            lat: 1.2840,
+            lng: 103.8605),
+      ];
+      final r = buildTemplateFirstDay(_input(
+        template: template,
+        candidates: candidates,
+        primaryZoneCenter: _marinaBayCenter,
+      ));
+      final visit = r.assignments
+          .firstWhere((a) => a.slot.slotKey == 'afternoon_waterfront');
+      expect(visit.candidate?.placeKey, equals('p_ok'),
+          reason: 'p_low_rating doit être rejeté (rating < 4.0).');
+    });
+
+    test('Candidat userRatingCount < 50 rejeté en slot visit', () {
+      final candidates = [
+        ...surroundingSlots(),
+        _cand(
+            placeKey: 'p_few_reviews',
+            title: 'Obscure Place',
+            category: 'visit',
+            score: 100,
+            rating: 4.9,
+            userRatingCount: 12, // sous le seuil
+            lat: 1.2840,
+            lng: 103.8605),
+        _cand(
+            placeKey: 'p_normal',
+            title: 'Normal Place',
+            category: 'visit',
+            score: 50,
+            rating: 4.2,
+            userRatingCount: 500,
+            lat: 1.2840,
+            lng: 103.8605),
+      ];
+      final r = buildTemplateFirstDay(_input(
+        template: template,
+        candidates: candidates,
+        primaryZoneCenter: _marinaBayCenter,
+      ));
+      final visit = r.assignments
+          .firstWhere((a) => a.slot.slotKey == 'afternoon_waterfront');
+      expect(visit.candidate?.placeKey, equals('p_normal'),
+          reason: 'p_few_reviews doit être rejeté (reviews < 50).');
+    });
+
+    test('Anchor recommandé avec rating < 4.0 ACCEPTÉ (exception)', () {
+      // Si l'anchor recommandé du template a un rating bas (cas
+      // rare mais possible), on l'accepte quand même pour
+      // préserver le choix éditorial.
+      final candidates = [
+        _cand(
+            placeKey: 'p_gbb_low',
+            title: 'Gardens by the Bay',
+            category: 'anchor',
+            anchorKey: 'Gardens by the Bay',
+            score: 50,
+            rating: 3.5,
+            userRatingCount: 20,
+            lat: 1.2820,
+            lng: 103.8636),
+      ];
+      final r = buildTemplateFirstDay(_input(
+        template: template,
+        candidates: candidates,
+        primaryZoneCenter: _marinaBayCenter,
+      ));
+      expect(r.assignments[0].candidate?.placeKey, equals('p_gbb_low'),
+          reason: 'Anchor recommandé exempt du quality floor.');
+    });
+
+    test('Slot meal exempté du quality floor (rating 3.8 accepté)', () {
+      final candidates = [
+        _cand(
+            placeKey: 'p_mbs',
+            title: 'Marina Bay Sands',
+            category: 'anchor',
+            anchorKey: 'Marina Bay Sands',
+            score: 95,
+            rating: 4.7,
+            userRatingCount: 50000,
+            lat: 1.2834,
+            lng: 103.8607),
+        _cand(
+            placeKey: 'p_meh_meal',
+            title: 'Average Resto',
+            category: 'meal',
+            score: 60,
+            rating: 3.8, // sous le seuil visit mais OK en meal
+            userRatingCount: 80,
+            lat: 1.2840,
+            lng: 103.8605),
+      ];
+      final r = buildTemplateFirstDay(_input(
+        template: template,
+        candidates: candidates,
+        primaryZoneCenter: _marinaBayCenter,
+      ));
+      final meal = r.assignments
+          .firstWhere((a) => a.slot.slotKey == 'lunch');
+      expect(meal.candidate?.placeKey, equals('p_meh_meal'),
+          reason: 'Slot meal accepte rating < 4.0 (insertion repas '
+              'legacy gère ses propres règles).');
+    });
+  });
+
+  // ─── L. Axe 4 — Hawker / food-centre block en visit ──────────────────
+
+  group('L. Axe 4.7-4 — Hawker / food-centre block', () {
+    final template = _marinaBayDay();
+
+    // Helper identique à K — isoler le slot visit.
+    List<TemplateCandidate> surroundingSlots() => [
+          _cand(
+              placeKey: 'p_anchor',
+              title: 'Marina Bay Sands',
+              category: 'anchor',
+              anchorKey: 'Marina Bay Sands',
+              score: 95,
+              rating: 4.7,
+              userRatingCount: 50000,
+              lat: 1.2834,
+              lng: 103.8607),
+          _cand(
+              placeKey: 'p_meal',
+              title: 'Marina Lunch',
+              category: 'meal',
+              score: 75,
+              rating: 4.4,
+              userRatingCount: 800,
+              lat: 1.2840,
+              lng: 103.8605),
+          _cand(
+              placeKey: 'p_view',
+              title: 'Spectra Light Show',
+              category: 'viewpoint',
+              score: 80,
+              rating: 4.6,
+              userRatingCount: 20000,
+              lat: 1.2843,
+              lng: 103.8590),
+        ];
+
+    test('Candidat "Maxwell Food Centre" rejeté en slot visit', () {
+      final candidates = [
+        ...surroundingSlots(),
+        _cand(
+            placeKey: 'p_maxwell',
+            title: 'Maxwell Food Centre',
+            category: 'visit', // catégorie trompeuse
+            score: 100,
+            rating: 4.6,
+            userRatingCount: 30000,
+            lat: 1.2840,
+            lng: 103.8605),
+        _cand(
+            placeKey: 'p_alt',
+            title: 'Real Attraction',
+            category: 'visit',
+            score: 40,
+            rating: 4.3,
+            userRatingCount: 200,
+            lat: 1.2840,
+            lng: 103.8605),
+      ];
+      final r = buildTemplateFirstDay(_input(
+        template: template,
+        candidates: candidates,
+        primaryZoneCenter: _marinaBayCenter,
+      ));
+      final visit = r.assignments
+          .firstWhere((a) => a.slot.slotKey == 'afternoon_waterfront');
+      expect(visit.candidate?.placeKey, equals('p_alt'),
+          reason: 'Maxwell Food Centre doit être bloqué en slot visit.');
+    });
+
+    test('Candidat "Maxwell Food Centre" ACCEPTÉ en slot meal', () {
+      // Le template chinatown_civic_day a un slot meal hawker.
+      final chinatown = _chinatownCivicDay();
+      final candidates = [
+        _cand(
+            placeKey: 'p_anchor',
+            title: 'Buddha Tooth Relic Temple',
+            category: 'anchor',
+            anchorKey: 'Buddha Tooth Relic Temple',
+            score: 90,
+            rating: 4.7,
+            userRatingCount: 30000,
+            lat: 1.2814,
+            lng: 103.8443),
+        _cand(
+            placeKey: 'p_maxwell',
+            title: 'Maxwell Food Centre',
+            category: 'meal',
+            score: 85,
+            rating: 4.6,
+            userRatingCount: 30000,
+            lat: 1.2807,
+            lng: 103.8447),
+      ];
+      final r = buildTemplateFirstDay(_input(
+        template: chinatown,
+        candidates: candidates,
+        primaryZoneCenter: const GeoPoint(lat: 1.2814, lng: 103.8443),
+      ));
+      final meal = r.assignments
+          .firstWhere((a) => a.slot.slotKey == 'lunch_hawker');
+      expect(meal.candidate?.placeKey, equals('p_maxwell'),
+          reason: 'Hawker centre accepté comme expérience food '
+              'structurante en slot meal.');
+    });
+
+    test('"hawker centre" générique (substring) rejeté en visit', () {
+      final candidates = [
+        ...surroundingSlots(),
+        _cand(
+            placeKey: 'p_generic',
+            title: 'Some Random Hawker Centre',
+            category: 'visit',
+            score: 100,
+            rating: 4.5,
+            userRatingCount: 2000,
+            lat: 1.2840,
+            lng: 103.8605),
+        _cand(
+            placeKey: 'p_real',
+            title: 'Marina Promenade',
+            category: 'visit',
+            score: 60,
+            rating: 4.3,
+            userRatingCount: 800,
+            lat: 1.2840,
+            lng: 103.8605),
+      ];
+      final r = buildTemplateFirstDay(_input(
+        template: template,
+        candidates: candidates,
+        primaryZoneCenter: _marinaBayCenter,
+      ));
+      final visit = r.assignments
+          .firstWhere((a) => a.slot.slotKey == 'afternoon_waterfront');
+      expect(visit.candidate?.placeKey, equals('p_real'),
+          reason: '"hawker centre" substring doit bloquer en visit.');
+    });
+  });
+
+  // ─── M. Intégration multi-axes — cas Singapour offline ────────────────
+
+  group('M. Intégration 4.7 — multi-axes Singapour offline', () {
+    test('marina_bay_day : tous les axes coopèrent', () {
+      // Pool simulant un résultat Google Places réaliste :
+      // - 2 anchors recommandés Marina Bay (rating OK, in zone)
+      // - 1 anchor recommandé Sentosa hors zone (toléré car anchor)
+      // - 1 hawker centre (devrait aller en meal, pas en visit)
+      // - 1 visite obscure (rating bas → rejet)
+      // - 1 visite cohérente
+      // - 1 candidat très loin > 10 km (rejet anti-zigzag)
+      // - 1 repas standard
+      final template = _marinaBayDay();
+      final candidates = [
+        // Anchor recommandé, in zone — devrait gagner slot anchor
+        _cand(
+            placeKey: 'p_mbs',
+            title: 'Marina Bay Sands',
+            category: 'anchor',
+            anchorKey: 'Marina Bay Sands',
+            score: 95,
+            rating: 4.7,
+            userRatingCount: 80000,
+            lat: 1.2834,
+            lng: 103.8607),
+        _cand(
+            placeKey: 'p_gbb',
+            title: 'Gardens by the Bay',
+            category: 'anchor',
+            anchorKey: 'Gardens by the Bay',
+            score: 92,
+            rating: 4.8,
+            userRatingCount: 150000,
+            lat: 1.2816,
+            lng: 103.8636),
+        // Hawker centre — devrait être bloqué en visit, accepté
+        // pour meal s'il y en avait dans la même catégorie. Ici on
+        // le marque comme catégorie "visit" trompeuse → block.
+        _cand(
+            placeKey: 'p_hawker',
+            title: 'Lau Pa Sat',
+            category: 'visit',
+            score: 70,
+            rating: 4.5,
+            userRatingCount: 20000,
+            lat: 1.2806,
+            lng: 103.8503),
+        // Visite faible qualité → quality floor reject.
+        _cand(
+            placeKey: 'p_obscure',
+            title: 'Obscure Random Place',
+            category: 'visit',
+            score: 60,
+            rating: 3.6,
+            userRatingCount: 25,
+            lat: 1.2845,
+            lng: 103.8610),
+        // Visite cohérente, dans zone, qualité OK.
+        _cand(
+            placeKey: 'p_helix',
+            title: 'Helix Bridge',
+            category: 'visit',
+            score: 65,
+            rating: 4.4,
+            userRatingCount: 5000,
+            lat: 1.2860,
+            lng: 103.8627),
+        // Trop loin (Sentosa) sans être anchor recommandé Marina
+        // → bucket fort mais pas > 10 km Marina Bay → bucket 1-2.
+        // Pour tester rejet > 10 km, on met un cas explicite plus loin.
+        _cand(
+            placeKey: 'p_remote',
+            title: 'Remote Tourist Trap',
+            category: 'visit',
+            score: 90,
+            rating: 4.5,
+            userRatingCount: 500,
+            lat: 1.7000, // ~50 km au nord (Johor)
+            lng: 103.8600),
+        // Repas standard.
+        _cand(
+            placeKey: 'p_lunch',
+            title: 'Marina Lunch',
+            category: 'meal',
+            score: 75,
+            rating: 4.3,
+            userRatingCount: 800,
+            lat: 1.2840,
+            lng: 103.8605),
+        // Viewpoint.
+        _cand(
+            placeKey: 'p_view',
+            title: 'Spectra Light Show',
+            category: 'viewpoint',
+            score: 80,
+            rating: 4.6,
+            userRatingCount: 20000,
+            lat: 1.2843,
+            lng: 103.8590),
+      ];
+      final r = buildTemplateFirstDay(_input(
+        template: template,
+        candidates: candidates,
+        primaryZoneCenter: _marinaBayCenter,
+      ));
+
+      final selected = r.assignments
+          .where((a) => a.candidate != null)
+          .map((a) => a.candidate!.placeKey)
+          .toList();
+
+      // Anchor slot rempli avec anchor recommandé in-zone.
+      expect(
+          [r.assignments[0].candidate?.placeKey],
+          anyOf([
+            equals(['p_mbs']),
+            equals(['p_gbb']),
+          ]));
+
+      // Meal slot rempli avec Marina Lunch.
+      final mealSlot = r.assignments
+          .firstWhere((a) => a.slot.expectedType == ExpectedSlotType.meal);
+      expect(mealSlot.candidate?.placeKey, equals('p_lunch'));
+
+      // Aucune sélection ne doit contenir Lau Pa Sat (hawker block)
+      // ni p_obscure (quality floor) ni p_remote (anti-zigzag >10km).
+      expect(selected, isNot(contains('p_hawker')));
+      expect(selected, isNot(contains('p_obscure')));
+      expect(selected, isNot(contains('p_remote')));
+
+      // Tous les slots non-freeTime sont remplis (pool généreux).
+      expect(r.isFallback, isFalse);
+
+      // Le résultat reste déterministe + sans duplicate.
+      expect(r.validate(), isEmpty);
     });
   });
 }

@@ -73,7 +73,8 @@ import 'package:voyage/features/planning/services/places_first_pipeline.dart'
 import 'package:voyage/features/planning/services/places_nearby_service.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/models/day_template.dart';
-import 'package:voyage/models/destination_intelligence.dart';
+import 'package:voyage/models/destination_intelligence.dart'
+    show DestinationIntelligence, GeoPoint;
 import 'package:voyage/models/same_complex_group.dart';
 import 'package:voyage/services/complex_matcher.dart';
 import 'package:voyage/services/day_theme_assigner.dart';
@@ -158,6 +159,15 @@ TemplateFirstResult tryTemplateFirstPipeline({
     final knownAnchorNames =
         di.anchors.map((a) => a.name).toSet();
 
+    // 4.7 — Index zones par nom normalisé pour résoudre rapide
+    // `template.primaryZoneName` → `TouristZone.center`. Permet
+    // au builder d'appliquer l'axe anti-zigzag (rejet > 10 km
+    // hors zone primaire, bucket de tri).
+    final zonesByNameNorm = <String, GeoPoint>{};
+    for (final z in di.zones) {
+      zonesByNameNorm[z.name.trim().toLowerCase()] = z.center;
+    }
+
     final allActivities = <ActivitySuggestion>[];
     final usedPlaceKeys = <String>{};
     final usedAnchorKeys = <String>{};
@@ -181,6 +191,9 @@ TemplateFirstResult tryTemplateFirstPipeline({
 
       if (templateCandidates.isEmpty) continue;
 
+      final zoneCenter = zonesByNameNorm[
+          assignment.template.primaryZoneName.trim().toLowerCase()];
+
       final result = buildTemplateFirstDay(TemplateDayBuildInput(
         template: assignment.template,
         date: assignment.date,
@@ -189,6 +202,7 @@ TemplateFirstResult tryTemplateFirstPipeline({
         destinationKey: di.destinationKey,
         alreadyUsedPlaceKeys: Set<String>.from(usedPlaceKeys),
         alreadyUsedAnchorKeys: Set<String>.from(usedAnchorKeys),
+        primaryZoneCenter: zoneCenter,
       ));
 
       final dayActivities =

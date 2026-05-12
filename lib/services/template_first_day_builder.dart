@@ -58,14 +58,38 @@
 ///
 /// Comparator stable :
 ///   1. anchor match recommandé d'abord (rang 0 vs 1)
-///   2. `score` DESC
-///   3. `rating` DESC nulls last
-///   4. `userRatingCount` DESC nulls last
-///   5. `title` ASC
-///   6. `placeKey` ASC (tiebreaker final ultime)
+///   2. **zone primary bucket ASC** (4.7 — 0 ≤ 2km, 1 ∈ ]2,5]km,
+///      2 ∈ ]5,10]km, 3 = no-coord ou no-zone). Bypass si pas
+///      de `primaryZoneCenter` fourni.
+///   3. `score` DESC
+///   4. `rating` DESC nulls last
+///   5. `userRatingCount` DESC nulls last
+///   6. `title` ASC
+///   7. `placeKey` ASC (tiebreaker final ultime)
+///
+/// ## Stabilisation 4.7 (cf. `docs/migrations/phase4_task4_7.md`)
+///
+/// 4 axes ajoutés au-dessus de la base 4.4 :
+///   1. **Anti-zigzag / zone primaire** : si `primaryZoneCenter`
+///      fourni, distance haversine > 10 km rejetée sauf anchor
+///      recommandé ; bucket de zone injecté en critère de tri 2.
+///   2. **Respect `freeTime`** : slot `ExpectedSlotType.freeTime`
+///      reste vide volontairement (pas de warning
+///      `missingCandidateForSlot`). N'entre pas dans le calcul
+///      `isFallback`.
+///   3. **Quality floor** : pour slots non-meal et non-rest,
+///      rejet des candidats `rating < 4.0` OU `reviews < 50`,
+///      sauf si `anchorKey` ∈ `recommendedAnchorKeys`.
+///   4. **Hawker / food-centre block en visit** : substring match
+///      sur `title` rejette les centres food en slots non-meal
+///      (`hawker centre`, `food centre`, `food court`, etc.).
+///      Autorisés en slot `meal`.
 library;
 
+import 'dart:math' as math;
+
 import 'package:voyage/models/day_template.dart';
+import 'package:voyage/models/destination_intelligence.dart' show GeoPoint;
 
 // ─── Adapter local : TemplateCandidate ────────────────────────────────
 
@@ -155,6 +179,16 @@ class TemplateDayBuildInput {
   /// existe (Tier 1 → 2 → 3 relâché).
   final Set<String> alreadyUsedAnchorKeys;
 
+  /// 4.7 — Centre canonique de la zone primaire du template
+  /// (résolu par le caller via `di.zones` à partir de
+  /// `template.primaryZoneName`). Drives l'axe anti-zigzag :
+  /// rejet > 10 km sauf anchor recommandé, bucket de zone injecté
+  /// en critère de tri 2.
+  ///
+  /// **Optionnel** : si `null`, l'axe anti-zigzag est en bypass
+  /// complet (rétro-compatible avec les tests Phase 4.4/4.5).
+  final GeoPoint? primaryZoneCenter;
+
   const TemplateDayBuildInput({
     required this.template,
     required this.date,
@@ -163,6 +197,7 @@ class TemplateDayBuildInput {
     this.destinationKey,
     this.alreadyUsedPlaceKeys = const <String>{},
     this.alreadyUsedAnchorKeys = const <String>{},
+    this.primaryZoneCenter,
   });
 }
 
@@ -337,12 +372,51 @@ TemplateDayBuildResult buildTemplateFirstDay(TemplateDayBuildInput input) {
     );
   }
 
+  // ── 4.7 — Pré-filtre anti-zigzag (Axe 1) ──────────────────────────
+  // Si `primaryZoneCenter` fourni : rejet > 10 km, sauf si le
+  // candidat est un anchor recommandé du template (compromis :
+  // un anchor recommandé hors zone reste acceptable, c'est le
+  // choix éditorial du template). Si aucun centre fourni →
+  // bypass complet (rétro-compat).
+  final zoneCenter = input.primaryZoneCenter;
+  final afterZoneReject = <TemplateCandidate>[];
+  if (zoneCenter != null) {
+    for (final c in notForbidden) {
+      final isRecommendedAnchor = c.anchorKey != null &&
+          recommendedAnchorsNorm
+              .contains(c.anchorKey!.trim().toLowerCase());
+      if (isRecommendedAnchor) {
+        afterZoneReject.add(c);
+        continue;
+      }
+      final dKm = _candidateDistanceKm(c, zoneCenter);
+      if (dKm == null || dKm <= _kZoneRejectKm) {
+        afterZoneReject.add(c);
+      }
+    }
+  } else {
+    afterZoneReject.addAll(notForbidden);
+  }
+
   // ── 2. Walk slots dans l'ordre ────────────────────────────────────
   final assignments = <TemplateSlotAssignment>[];
   final selectedThisDay = <String>{}; // placeKey set intra-jour
 
   for (final slot in template.slots) {
-    final eligible = notForbidden
+    // 4.7 — Axe 2 : freeTime reste volontairement vide. Pas de
+    // pioche, pas de warning. N'entre pas dans le compte
+    // `isFallback`.
+    if (slot.expectedType == ExpectedSlotType.freeTime) {
+      assignments.add(TemplateSlotAssignment(
+        slot: slot,
+        candidate: null,
+        effectiveDurationMinutes: slot.typicalDurationMinutes,
+        warnings: const <TemplateDayBuildWarning>[],
+      ));
+      continue;
+    }
+
+    final eligible = afterZoneReject
         .where((c) => !selectedThisDay.contains(c.placeKey))
         .toList();
 
@@ -363,9 +437,12 @@ TemplateDayBuildResult buildTemplateFirstDay(TemplateDayBuildInput input) {
       slot: slot,
       alreadyUsedPlaceKeys: alreadyUsedPlaceKeys,
       alreadyUsedAnchorKeys: alreadyUsedAnchorKeys,
+      recommendedAnchorsNorm: recommendedAnchorsNorm,
       checkCategory: true,
       checkAlreadyUsedPlace: true,
       checkAlreadyUsedAnchor: true,
+      applyQualityFloor: true,
+      applyVisitNameBlock: true,
     );
 
     // Tier 2 : relax anchor cross-trip.
@@ -375,9 +452,12 @@ TemplateDayBuildResult buildTemplateFirstDay(TemplateDayBuildInput input) {
         slot: slot,
         alreadyUsedPlaceKeys: alreadyUsedPlaceKeys,
         alreadyUsedAnchorKeys: alreadyUsedAnchorKeys,
+        recommendedAnchorsNorm: recommendedAnchorsNorm,
         checkCategory: true,
         checkAlreadyUsedPlace: true,
         checkAlreadyUsedAnchor: false,
+        applyQualityFloor: true,
+        applyVisitNameBlock: true,
       );
     }
     // Tier 3 : relax category.
@@ -387,18 +467,38 @@ TemplateDayBuildResult buildTemplateFirstDay(TemplateDayBuildInput input) {
         slot: slot,
         alreadyUsedPlaceKeys: alreadyUsedPlaceKeys,
         alreadyUsedAnchorKeys: alreadyUsedAnchorKeys,
+        recommendedAnchorsNorm: recommendedAnchorsNorm,
         checkCategory: false,
         checkAlreadyUsedPlace: true,
         checkAlreadyUsedAnchor: false,
+        applyQualityFloor: true,
+        applyVisitNameBlock: true,
       );
     }
-    // Tier 4 : relax alreadyUsedPlaceKeys (réutilisation autorisée).
+    // Tier 4 : relax quality floor + visit name block (mais
+    // recommendedAnchor reste exempt par construction du filtre).
+    if (tier.isEmpty) {
+      tier = _filterTier(
+        eligible,
+        slot: slot,
+        alreadyUsedPlaceKeys: alreadyUsedPlaceKeys,
+        alreadyUsedAnchorKeys: alreadyUsedAnchorKeys,
+        recommendedAnchorsNorm: recommendedAnchorsNorm,
+        checkCategory: false,
+        checkAlreadyUsedPlace: true,
+        checkAlreadyUsedAnchor: false,
+        applyQualityFloor: false,
+        applyVisitNameBlock: false,
+      );
+    }
+    // Tier 5 : relax alreadyUsedPlaceKeys (réutilisation autorisée).
     if (tier.isEmpty) {
       tier = eligible;
     }
 
     // Tri déterministe + pioche.
-    tier.sort((a, b) => _compareCandidate(a, b, recommendedAnchorsNorm));
+    tier.sort((a, b) =>
+        _compareCandidate(a, b, recommendedAnchorsNorm, zoneCenter));
     final pick = tier.first;
 
     // Émettre warnings selon le pick final.
@@ -432,10 +532,17 @@ TemplateDayBuildResult buildTemplateFirstDay(TemplateDayBuildInput input) {
     selectedThisDay.add(pick.placeKey);
   }
 
-  // ── isFallback : > 50% slots vides ────────────────────────────────
+  // ── isFallback : > 50% slots NON-freeTime vides ───────────────────
+  // 4.7 — Axe 2 : les slots `freeTime` volontairement vides ne
+  // sont pas comptés dans le ratio (sinon `free_day` serait
+  // toujours `isFallback`).
+  final nonFreeSlots = assignments
+      .where((a) => a.slot.expectedType != ExpectedSlotType.freeTime)
+      .toList();
   final emptyCount =
-      assignments.where((a) => a.candidate == null).length;
-  final isFallback = emptyCount > assignments.length / 2;
+      nonFreeSlots.where((a) => a.candidate == null).length;
+  final isFallback =
+      nonFreeSlots.isNotEmpty && emptyCount > nonFreeSlots.length / 2;
 
   return TemplateDayBuildResult(
     date: input.date,
@@ -449,14 +556,133 @@ TemplateDayBuildResult buildTemplateFirstDay(TemplateDayBuildInput input) {
 
 // ─── Helpers privés ───────────────────────────────────────────────────
 
+// ─── 4.7 — Constantes de stabilisation ────────────────────────────────
+
+/// Anti-zigzag — Axe 1 :
+/// - ≤ 2 km du centre de zone primaire : bucket 0 (très bon).
+/// - ]2, 5] km : bucket 1 (ok).
+/// - ]5, 10] km : bucket 2 (déprioriser fort).
+/// - > 10 km : rejet sauf anchor recommandé.
+/// - no-coord ou no-zone-center : bucket 3 (neutre, départage
+///   passe au score).
+const double _kZoneNearKm = 2.0;
+const double _kZoneFarKm = 5.0;
+const double _kZoneRejectKm = 10.0;
+
+/// Quality floor — Axe 3. Appliqué uniquement aux slots
+/// non-meal et non-rest. Exception : anchor recommandé du
+/// template échappe au filtre.
+const double _kMinRatingForVisit = 4.0;
+const int _kMinReviewsForVisit = 50;
+
+/// Hawker / food-centre block — Axe 4. Substrings comparées
+/// case-insensitive sur `candidate.title`. Bloque en slot
+/// non-meal. En slot `meal`, ces lieux sont au contraire les
+/// bienvenus (hawker centre = expérience food structurante).
+///
+/// Liste intentionnellement courte : on bloque les indicateurs
+/// génériques (« hawker centre », « food centre », « food court »)
+/// et quelques noms de hawker emblématiques de Singapour qui ont
+/// été observés comme rejets en V8.28b1 (cf. A/B 4.6). Pas de
+/// liste exhaustive — c'est le moteur, pas un catalogue.
+const List<String> _kVisitBlockedNamePatterns = <String>[
+  'hawker centre',
+  'hawker center',
+  'food centre',
+  'food center',
+  'food court',
+  'lau pa sat',
+  'maxwell food centre',
+  'maxwell food center',
+  'hong lim food centre',
+  'hong lim market',
+  'tekka centre',
+  'tekka market',
+];
+
+/// Distance haversine en km entre `c` et `center`. Retourne
+/// `null` si le candidat n'a pas de coordonnées (pas pénalisé,
+/// pas favorisé — c'est l'absence d'information).
+double? _candidateDistanceKm(TemplateCandidate c, GeoPoint center) {
+  if (c.lat == null || c.lng == null) return null;
+  return _haversineKm(c.lat!, c.lng!, center.lat, center.lng);
+}
+
+double _haversineKm(double lat1, double lng1, double lat2, double lng2) {
+  const earthKm = 6371.0;
+  final dLat = (lat2 - lat1) * math.pi / 180.0;
+  final dLng = (lng2 - lng1) * math.pi / 180.0;
+  final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+      math.cos(lat1 * math.pi / 180.0) *
+          math.cos(lat2 * math.pi / 180.0) *
+          math.sin(dLng / 2) *
+          math.sin(dLng / 2);
+  return earthKm * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+}
+
+/// Bucket de tri zone (0 = très proche, 3 = inconnu). Sert le
+/// critère 2 du comparator. `null` zoneCenter ou null coords →
+/// bucket 3 (neutre).
+int _zoneBucket(TemplateCandidate c, GeoPoint? zoneCenter) {
+  if (zoneCenter == null) return 3;
+  final dKm = _candidateDistanceKm(c, zoneCenter);
+  if (dKm == null) return 3;
+  if (dKm <= _kZoneNearKm) return 0;
+  if (dKm <= _kZoneFarKm) return 1;
+  if (dKm <= _kZoneRejectKm) return 2;
+  // > 10 km est censé être rejeté en amont (axe 1 pré-filtre)
+  // sauf si anchor recommandé : on retombe en bucket 2 pour ce
+  // cas (déprioriser fort mais accepter pour ne pas perdre
+  // l'anchor du template).
+  return 2;
+}
+
+/// 4.7 — Axe 3 quality floor : rejet si rating ou reviews
+/// sous le seuil. Exempté pour anchor recommandé.
+bool _passesQualityFloor(
+  TemplateCandidate c,
+  SlotSpec slot,
+  Set<String> recommendedAnchorsNorm,
+) {
+  if (slot.expectedType == ExpectedSlotType.meal ||
+      slot.expectedType == ExpectedSlotType.rest) {
+    return true;
+  }
+  final isRecommendedAnchor = c.anchorKey != null &&
+      recommendedAnchorsNorm
+          .contains(c.anchorKey!.trim().toLowerCase());
+  if (isRecommendedAnchor) return true;
+  if (c.rating != null && c.rating! < _kMinRatingForVisit) return false;
+  if (c.userRatingCount != null &&
+      c.userRatingCount! < _kMinReviewsForVisit) {
+    return false;
+  }
+  return true;
+}
+
+/// 4.7 — Axe 4 hawker / food-centre block en visit. Bloque
+/// les centres food en slots non-meal. Retourne `true` si le
+/// candidat passe (n'est PAS bloqué).
+bool _passesVisitNameBlock(TemplateCandidate c, SlotSpec slot) {
+  if (slot.expectedType == ExpectedSlotType.meal) return true;
+  final titleLower = c.title.toLowerCase();
+  for (final pattern in _kVisitBlockedNamePatterns) {
+    if (titleLower.contains(pattern)) return false;
+  }
+  return true;
+}
+
 List<TemplateCandidate> _filterTier(
   List<TemplateCandidate> base, {
   required SlotSpec slot,
   required Set<String> alreadyUsedPlaceKeys,
   required Set<String> alreadyUsedAnchorKeys,
+  required Set<String> recommendedAnchorsNorm,
   required bool checkCategory,
   required bool checkAlreadyUsedPlace,
   required bool checkAlreadyUsedAnchor,
+  required bool applyQualityFloor,
+  required bool applyVisitNameBlock,
 }) {
   return base.where((c) {
     if (checkCategory && !_categoryMatchesSlot(c.category, slot.expectedType)) {
@@ -471,21 +697,31 @@ List<TemplateCandidate> _filterTier(
         alreadyUsedAnchorKeys.contains(c.anchorKey)) {
       return false;
     }
+    if (applyQualityFloor &&
+        !_passesQualityFloor(c, slot, recommendedAnchorsNorm)) {
+      return false;
+    }
+    if (applyVisitNameBlock && !_passesVisitNameBlock(c, slot)) {
+      return false;
+    }
     return true;
   }).toList();
 }
 
-/// Tri déterministe stable conforme à la spec :
+/// Tri déterministe stable conforme à la spec étendue 4.7 :
 ///   1. anchor match recommandé (rang 0 = match, 1 = sinon)
-///   2. score DESC
-///   3. rating DESC nulls last
-///   4. userRatingCount DESC nulls last
-///   5. title ASC
-///   6. placeKey ASC (tiebreaker ultime)
+///   2. **zone bucket ASC** (0 ≤ 2km, 1 ∈ ]2,5]km, 2 ∈ ]5,10]km,
+///      3 = inconnu). Bypass effectif si pas de `zoneCenter`.
+///   3. score DESC
+///   4. rating DESC nulls last
+///   5. userRatingCount DESC nulls last
+///   6. title ASC
+///   7. placeKey ASC (tiebreaker ultime)
 int _compareCandidate(
   TemplateCandidate a,
   TemplateCandidate b,
   Set<String> recommendedAnchorsNorm,
+  GeoPoint? zoneCenter,
 ) {
   // 1. Anchor recommended match.
   final aMatch = a.anchorKey != null &&
@@ -500,27 +736,34 @@ int _compareCandidate(
       : 1;
   if (aMatch != bMatch) return aMatch.compareTo(bMatch);
 
-  // 2. score DESC.
+  // 2. Zone bucket ASC (4.7). Bypass si pas de zoneCenter
+  // (tous les buckets = 3 → égalité, départage passe au
+  // score, comportement identique à pré-4.7).
+  final aBucket = _zoneBucket(a, zoneCenter);
+  final bBucket = _zoneBucket(b, zoneCenter);
+  if (aBucket != bBucket) return aBucket.compareTo(bBucket);
+
+  // 3. score DESC.
   final scoreCmp = b.score.compareTo(a.score);
   if (scoreCmp != 0) return scoreCmp;
 
-  // 3. rating DESC nulls last (null = -inf).
+  // 4. rating DESC nulls last (null = -inf).
   final aRating = a.rating ?? double.negativeInfinity;
   final bRating = b.rating ?? double.negativeInfinity;
   final ratingCmp = bRating.compareTo(aRating);
   if (ratingCmp != 0) return ratingCmp;
 
-  // 4. userRatingCount DESC nulls last (null = -1).
+  // 5. userRatingCount DESC nulls last (null = -1).
   final aReviews = a.userRatingCount ?? -1;
   final bReviews = b.userRatingCount ?? -1;
   final reviewsCmp = bReviews.compareTo(aReviews);
   if (reviewsCmp != 0) return reviewsCmp;
 
-  // 5. title ASC.
+  // 6. title ASC.
   final titleCmp = a.title.compareTo(b.title);
   if (titleCmp != 0) return titleCmp;
 
-  // 6. placeKey ASC (tiebreaker final).
+  // 7. placeKey ASC (tiebreaker final).
   return a.placeKey.compareTo(b.placeKey);
 }
 
