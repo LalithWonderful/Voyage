@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:voyage/core/theme/app_theme.dart';
+import 'package:voyage/features/assistant/providers/assistant_provider.dart';
 
-class MainShell extends StatelessWidget {
+class MainShell extends ConsumerWidget {
   final Widget child;
   const MainShell({super.key, required this.child});
 
@@ -15,8 +17,20 @@ class MainShell extends StatelessWidget {
     return 0;
   }
 
+  /// Extrait le tripId de la route courante si elle matche `/trips/:id` ou
+  /// `/trips/:id/*`. Retourne `null` pour `/trips`, `/trips/create`, ou
+  /// toute route hors contexte voyage — dans ce cas l'assistant garde son
+  /// comportement default (`defaultAssistantTripId`).
+  String? _currentTripId(BuildContext context) {
+    final path = GoRouterState.of(context).uri.path;
+    final match = RegExp(r'^/trips/([^/]+)(?:/.*)?$').firstMatch(path);
+    final id = match?.group(1);
+    if (id == null || id.isEmpty || id == 'create') return null;
+    return id;
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       body: child,
       bottomNavigationBar: Container(
@@ -33,7 +47,13 @@ class MainShell extends StatelessWidget {
               children: [
                 _NavItem(icon: '🏠', label: 'Voyages', active: _selectedIndex(context) == 0, onTap: () => context.go('/trips')),
                 _NavItem(icon: '💳', label: 'Wallet', active: _selectedIndex(context) == 1, onTap: () => context.go('/wallet')),
-                _NavItem(icon: '💬', label: 'Assistant', active: _selectedIndex(context) == 2, onTap: () => context.go('/assistant')),
+                _NavItem(icon: '💬', label: 'Assistant', active: _selectedIndex(context) == 2, onTap: () {
+                  final tripId = _currentTripId(context);
+                  if (tripId != null) {
+                    ref.read(selectedAssistantTripIdProvider.notifier).state = tripId;
+                  }
+                  context.go('/assistant');
+                }),
                 _NavItem(icon: '👤', label: 'Profil', active: _selectedIndex(context) == 3, onTap: () => context.go('/profile')),
               ],
             ),
