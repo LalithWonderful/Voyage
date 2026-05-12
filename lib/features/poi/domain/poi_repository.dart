@@ -34,6 +34,22 @@ abstract class PoiRepository {
   /// Retourne le POI correspondant à [poiId], ou `null` si inconnu.
   Future<Poi?> getPoiById(String poiId);
 
+  /// Retourne les [limit] POIs les mieux notés de la destination.
+  ///
+  /// Ordre : score éditorial décroissant, puis nom croissant.
+  /// [limit] ≤ 0 → comportement indéfini (éviter).
+  Future<List<Poi>> getTopPoisForDestination(String destinationKey, int limit);
+
+  /// Retourne les POIs de la destination appartenant à l'une des
+  /// [categories] listées.
+  ///
+  /// Ordre : score éditorial décroissant, puis nom croissant.
+  /// Liste vide → liste vide (pas d'exception).
+  Future<List<Poi>> getPoisByCategories(
+    String destinationKey,
+    List<PoiCategory> categories,
+  );
+
   /// Recherche filtrée de POIs.
   ///
   /// Paramètres :

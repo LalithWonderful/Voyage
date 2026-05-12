@@ -40,6 +40,40 @@ class SupabasePoiRepository implements PoiRepository {
   }
 
   @override
+  Future<List<Poi>> getTopPoisForDestination(
+    String destinationKey,
+    int limit,
+  ) async {
+    final rows = await _client
+        .from('pois')
+        .select()
+        .eq('destination_key', destinationKey)
+        .order('editorial_score', ascending: false)
+        .order('name', ascending: true)
+        .limit(limit)
+        .execute();
+    return rows.map((r) => Poi.fromJson(r)).toList();
+  }
+
+  @override
+  Future<List<Poi>> getPoisByCategories(
+    String destinationKey,
+    List<PoiCategory> categories,
+  ) async {
+    if (categories.isEmpty) return [];
+    final categoryStrings = categories.map((c) => c.toJsonString()).toList();
+    final rows = await _client
+        .from('pois')
+        .select()
+        .eq('destination_key', destinationKey)
+        .inFilter('category', categoryStrings)
+        .order('editorial_score', ascending: false)
+        .order('name', ascending: true)
+        .execute();
+    return rows.map((r) => Poi.fromJson(r)).toList();
+  }
+
+  @override
   Future<List<Poi>> searchPois({
     required String destinationKey,
     String? query,

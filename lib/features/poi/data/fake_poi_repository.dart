@@ -59,6 +59,36 @@ class FakePoiRepository implements PoiRepository {
   }
 
   @override
+  Future<List<Poi>> getTopPoisForDestination(
+    String destinationKey,
+    int limit,
+  ) async {
+    final matched = _pois
+        .where((p) => p.destinationKey == destinationKey)
+        .toList(growable: false);
+    _sortPois(matched);
+    if (limit > 0 && matched.length > limit) {
+      return matched.sublist(0, limit);
+    }
+    return matched;
+  }
+
+  @override
+  Future<List<Poi>> getPoisByCategories(
+    String destinationKey,
+    List<PoiCategory> categories,
+  ) async {
+    if (categories.isEmpty) return [];
+    final categorySet = categories.toSet();
+    final matched = _pois
+        .where((p) =>
+            p.destinationKey == destinationKey && categorySet.contains(p.category))
+        .toList(growable: false);
+    _sortPois(matched);
+    return matched;
+  }
+
+  @override
   Future<List<Poi>> searchPois({
     required String destinationKey,
     String? query,

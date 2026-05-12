@@ -236,7 +236,89 @@ void main() {
   });
 
   // ═══════════════════════════════════════════════════════════════════
-  // 3. searchPois — query
+  // 3. getTopPoisForDestination
+  // ═══════════════════════════════════════════════════════════════════
+
+  group('getTopPoisForDestination', () {
+    test('returns top N POIs ordered by score desc', () async {
+      final fixture = _singaporeFixture();
+      final repo = _repo(pois: fixture.pois);
+
+      final results = await repo.getTopPoisForDestination('singapore', 2);
+      expect(results.length, equals(2));
+      expect(results[0].name, equals('Gardens by the Bay'));
+      expect(results[1].name, equals('Marina Bay Sands'));
+    });
+
+    test('limit larger than result set returns all', () async {
+      final fixture = _singaporeFixture();
+      final repo = _repo(pois: fixture.pois);
+
+      final results = await repo.getTopPoisForDestination('singapore', 100);
+      expect(results.length, equals(5));
+    });
+
+    test('unknown destination returns empty', () async {
+      final fixture = _singaporeFixture();
+      final repo = _repo(pois: fixture.pois);
+
+      final results = await repo.getTopPoisForDestination('unknown', 3);
+      expect(results, isEmpty);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 4. getPoisByCategories
+  // ═══════════════════════════════════════════════════════════════════
+
+  group('getPoisByCategories', () {
+    test('filters by single category', () async {
+      final fixture = _singaporeFixture();
+      final repo = _repo(pois: fixture.pois);
+
+      final results = await repo.getPoisByCategories(
+        'singapore',
+        [PoiCategory.museum],
+      );
+      expect(results.length, equals(1));
+      expect(results.first.name, equals('National Museum of Singapore'));
+    });
+
+    test('filters by multiple categories (OR)', () async {
+      final fixture = _singaporeFixture();
+      final repo = _repo(pois: fixture.pois);
+
+      final results = await repo.getPoisByCategories(
+        'singapore',
+        [PoiCategory.park, PoiCategory.museum],
+      );
+      final names = results.map((p) => p.name).toList();
+      expect(names, contains('Gardens by the Bay'));
+      expect(names, contains('National Museum of Singapore'));
+    });
+
+    test('empty categories list returns empty', () async {
+      final fixture = _singaporeFixture();
+      final repo = _repo(pois: fixture.pois);
+
+      final results = await repo.getPoisByCategories('singapore', []);
+      expect(results, isEmpty);
+    });
+
+    test('unknown destination returns empty', () async {
+      final fixture = _singaporeFixture();
+      final repo = _repo(pois: fixture.pois);
+
+      final results = await repo.getPoisByCategories(
+        'unknown',
+        [PoiCategory.park],
+      );
+      expect(results, isEmpty);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 5. searchPois — query
   // ═══════════════════════════════════════════════════════════════════
 
   group('searchPois by query', () {
