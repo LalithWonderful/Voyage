@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 import 'dart:typed_data';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:voyage/config/live_api_guards.dart';
 import 'package:voyage/core/constants/ai_constants.dart';
 import 'package:voyage/features/planning/models/activity_suggestion_model.dart';
 import 'package:voyage/features/planning/models/trip_activity_model.dart';
@@ -41,6 +42,14 @@ bool _isTransientAiError(Object e) {
       s.contains('Failed host lookup');
 }
 
+typedef AiGeminiTextGenerator =
+    Future<String> Function({
+      required List<Content> contents,
+      required double temperature,
+      required String tag,
+      required bool retry,
+    });
+
 class TransportSuggestion {
   final String fromTitle;
   final String toTitle;
@@ -54,16 +63,18 @@ class TransportSuggestion {
     required this.options,
   });
 
-  factory TransportSuggestion.fromJson(Map<String, dynamic> json) => TransportSuggestion(
-    fromTitle: (json['from_title'] as String?) ?? '',
-    toTitle: (json['to_title'] as String?) ?? '',
-    defaultMode: (json['default_mode'] as String?) ?? 'walk',
-    options: (json['options'] as List?)
-            ?.whereType<Map<String, dynamic>>()
-            .map((e) => TransportOption.fromJson(e))
-            .toList() ??
-        const [],
-  );
+  factory TransportSuggestion.fromJson(Map<String, dynamic> json) =>
+      TransportSuggestion(
+        fromTitle: (json['from_title'] as String?) ?? '',
+        toTitle: (json['to_title'] as String?) ?? '',
+        defaultMode: (json['default_mode'] as String?) ?? 'walk',
+        options:
+            (json['options'] as List?)
+                ?.whereType<Map<String, dynamic>>()
+                .map((e) => TransportOption.fromJson(e))
+                .toList() ??
+            const [],
+      );
 }
 
 /// Catégorie de suggestion demandée par l'utilisateur via le menu "Suggérer".
@@ -71,8 +82,10 @@ class TransportSuggestion {
 enum SuggestionCategory {
   /// Toutes catégories confondues — comportement historique.
   all,
+
   /// Repas uniquement (restos, cafés, street food, food tours, marchés gastro, cours de cuisine).
   restaurants,
+
   /// Activités hors repas (visites, culture, nature, wellness, nightlife, shopping...).
   activities,
 }
@@ -83,36 +96,60 @@ enum SuggestionCategory {
 /// Vocabulaire choisi pour coller aux termes qu'on trouve dans les guides de voyage
 /// (Lonely Planet, Routard, Fodor's...) — domaines où Gemini a le plus de contexte.
 const interestExplanations = <String, String>{
-  'Randonnée': 'sentiers balisés, treks, randonnées pédestres en montagne ou forêt, parcs nationaux, GR, balades nature avec points de vue',
-  'Shopping': 'boutiques de créateurs, marchés artisanaux, concept stores, friperies vintage, centres commerciaux, souvenirs authentiques et artisanat local',
-  'Nightlife': 'bars à cocktails, clubs, discothèques, rooftops, speakeasies, lounges, concerts tard le soir, DJ sets, pubs locaux',
-  'Spots populaires': 'sites emblématiques, monuments iconiques, attractions incontournables, points de vue célèbres, lieux très photographiés / Instagrammables',
-  'Hors circuit': 'lieux peu connus des touristes, quartiers alternatifs, bars et cafés fréquentés par les habitants, pépites locales hors des sentiers battus',
-  'Bons plans': 'excellents rapports qualité/prix, happy hours, menus du jour, musées gratuits certains jours, pass combinés, astuces pour économiser',
-  'Wellness': 'spas, centres de bien-être, yoga, massages, thermes, hammams, saunas, onsens (Japon), bains thermaux, retraites méditation',
-  'Esthétique': 'instituts de beauté, manucure/pédicure, salons de coiffure, barbershops, soins du visage, épilation, salons d\'onglerie',
-  'Gastronomie': 'restaurants recommandés, food tours, cours de cuisine, spécialités locales authentiques, street food, marchés gastronomiques, dégustations',
-  'Culture': 'musées, monuments historiques, sites archéologiques, patrimoine classé, galeries d\'art, théâtres, architecture remarquable',
-  'Plage': 'plages, criques, baignade en mer, activités balnéaires, snorkeling, farniente, beach clubs',
-  'Sports': 'sports outdoor (surf, ski, escalade, VTT, kayak, paddle), cours d\'initiation, matchs locaux au stade à aller voir, sports traditionnels du pays',
-  'Nature': 'parcs naturels, jardins botaniques, observation d\'animaux, réserves naturelles, cascades, panoramas naturels, zoos et aquariums',
-  'Événements': 'festivals en cours, concerts, expositions temporaires, spectacles, fêtes traditionnelles, marchés saisonniers, événements sportifs (vérifie qu\'ils ont lieu pendant les dates du voyage)',
+  'Randonnée':
+      'sentiers balisés, treks, randonnées pédestres en montagne ou forêt, parcs nationaux, GR, balades nature avec points de vue',
+  'Shopping':
+      'boutiques de créateurs, marchés artisanaux, concept stores, friperies vintage, centres commerciaux, souvenirs authentiques et artisanat local',
+  'Nightlife':
+      'bars à cocktails, clubs, discothèques, rooftops, speakeasies, lounges, concerts tard le soir, DJ sets, pubs locaux',
+  'Spots populaires':
+      'sites emblématiques, monuments iconiques, attractions incontournables, points de vue célèbres, lieux très photographiés / Instagrammables',
+  'Hors circuit':
+      'lieux peu connus des touristes, quartiers alternatifs, bars et cafés fréquentés par les habitants, pépites locales hors des sentiers battus',
+  'Bons plans':
+      'excellents rapports qualité/prix, happy hours, menus du jour, musées gratuits certains jours, pass combinés, astuces pour économiser',
+  'Wellness':
+      'spas, centres de bien-être, yoga, massages, thermes, hammams, saunas, onsens (Japon), bains thermaux, retraites méditation',
+  'Esthétique':
+      'instituts de beauté, manucure/pédicure, salons de coiffure, barbershops, soins du visage, épilation, salons d\'onglerie',
+  'Gastronomie':
+      'restaurants recommandés, food tours, cours de cuisine, spécialités locales authentiques, street food, marchés gastronomiques, dégustations',
+  'Culture':
+      'musées, monuments historiques, sites archéologiques, patrimoine classé, galeries d\'art, théâtres, architecture remarquable',
+  'Plage':
+      'plages, criques, baignade en mer, activités balnéaires, snorkeling, farniente, beach clubs',
+  'Sports':
+      'sports outdoor (surf, ski, escalade, VTT, kayak, paddle), cours d\'initiation, matchs locaux au stade à aller voir, sports traditionnels du pays',
+  'Nature':
+      'parcs naturels, jardins botaniques, observation d\'animaux, réserves naturelles, cascades, panoramas naturels, zoos et aquariums',
+  'Événements':
+      'festivals en cours, concerts, expositions temporaires, spectacles, fêtes traditionnelles, marchés saisonniers, événements sportifs (vérifie qu\'ils ont lieu pendant les dates du voyage)',
 };
 
 /// Descriptions concrètes des types de voyageur.
 /// Termes alignés sur le vocabulaire des guides/blogs voyage pour que Gemini
 /// calibre bien le niveau de gamme et le style d'activités attendu.
 const _travelerTypeExplanations = <String, String>{
-  'Road-trip': 'itinéraires pittoresques en voiture, villages authentiques, points de vue en chemin, étapes pittoresques, relais routiers typiques, diners/cafés d\'autoroute emblématiques',
-  'Grand luxe': 'lieux haut de gamme, restaurants étoilés Michelin, palaces, expériences VIP privées, spas de palace, boutiques de luxe, concierges, transferts privatifs',
-  'Meilleur prix': 'activités gratuites ou bon marché (<15€/personne), restos street food ou bouis-bouis authentiques, musées gratuits, marchés, évite systématiquement les lieux chers ou étoilés',
-  'Backpack': 'style sac à dos, auberges de jeunesse, activités gratuites ou très pas chères, authenticité locale, rencontres avec d\'autres voyageurs, aventure, street food',
-  'En famille': 'kid-friendly, parcs d\'attractions, zoos, aquariums, musées interactifs pour enfants, activités éducatives et ludiques, trajets courts, menus enfants. Pas d\'activités nightlife/clubs/bars (incompatibles avec enfants)',
-  'Voyage pro': 'restaurants business, lieux courts à visiter entre deux réunions, bars d\'hôtels, cafés coworking, options sans bagage, efficacité, ambiance calme',
-  'Couple': 'restaurants romantiques avec ambiance, bars à cocktails et rooftops, spas pour couple, points de vue / coucher de soleil, hébergements de charme, balades à 2 dans des quartiers pittoresques, expériences intimes',
-  'Chill': 'rythme lent (1-2 activités max par jour), beaucoup de temps libre, spas, parcs et jardins botaniques, cafés tranquilles, plages, lieux apaisants, peu de transport, pas d\'agenda chargé',
-  'Fun': 'lieux animés et photogéniques, bars/clubs, fin de journée et soirée, food halls, marchés nocturnes, parcs d\'attractions, plages festives, expériences fun en groupe, lieux Instagrammables',
-  'Senior': 'rythme tranquille, peu de marche entre activités (≤300m idéal), pauses fréquentes, musées avec sièges, restaurants confortables (pas trop bruyants), parcs accessibles, monuments historiques, éviter activités physiques intenses et fortes chaleurs',
+  'Road-trip':
+      'itinéraires pittoresques en voiture, villages authentiques, points de vue en chemin, étapes pittoresques, relais routiers typiques, diners/cafés d\'autoroute emblématiques',
+  'Grand luxe':
+      'lieux haut de gamme, restaurants étoilés Michelin, palaces, expériences VIP privées, spas de palace, boutiques de luxe, concierges, transferts privatifs',
+  'Meilleur prix':
+      'activités gratuites ou bon marché (<15€/personne), restos street food ou bouis-bouis authentiques, musées gratuits, marchés, évite systématiquement les lieux chers ou étoilés',
+  'Backpack':
+      'style sac à dos, auberges de jeunesse, activités gratuites ou très pas chères, authenticité locale, rencontres avec d\'autres voyageurs, aventure, street food',
+  'En famille':
+      'kid-friendly, parcs d\'attractions, zoos, aquariums, musées interactifs pour enfants, activités éducatives et ludiques, trajets courts, menus enfants. Pas d\'activités nightlife/clubs/bars (incompatibles avec enfants)',
+  'Voyage pro':
+      'restaurants business, lieux courts à visiter entre deux réunions, bars d\'hôtels, cafés coworking, options sans bagage, efficacité, ambiance calme',
+  'Couple':
+      'restaurants romantiques avec ambiance, bars à cocktails et rooftops, spas pour couple, points de vue / coucher de soleil, hébergements de charme, balades à 2 dans des quartiers pittoresques, expériences intimes',
+  'Chill':
+      'rythme lent (1-2 activités max par jour), beaucoup de temps libre, spas, parcs et jardins botaniques, cafés tranquilles, plages, lieux apaisants, peu de transport, pas d\'agenda chargé',
+  'Fun':
+      'lieux animés et photogéniques, bars/clubs, fin de journée et soirée, food halls, marchés nocturnes, parcs d\'attractions, plages festives, expériences fun en groupe, lieux Instagrammables',
+  'Senior':
+      'rythme tranquille, peu de marche entre activités (≤300m idéal), pauses fréquentes, musées avec sièges, restaurants confortables (pas trop bruyants), parcs accessibles, monuments historiques, éviter activités physiques intenses et fortes chaleurs',
 };
 
 /// Formate les préférences voyageur (type + intérêts) avec leurs descriptions
@@ -125,26 +162,40 @@ const _travelerTypeExplanations = <String, String>{
   final interestsStr = interests.isEmpty
       ? 'aucun spécifié'
       : interests
-          .map((i) {
-            final desc = interestExplanations[i];
-            return desc != null ? '  • $i → $desc' : '  • $i';
-          })
-          .join('\n');
+            .map((i) {
+              final desc = interestExplanations[i];
+              return desc != null ? '  • $i → $desc' : '  • $i';
+            })
+            .join('\n');
   final travelerTypeDescribed = travelerType == null
       ? 'non spécifié'
       : (_travelerTypeExplanations[travelerType] != null
-          ? '$travelerType → ${_travelerTypeExplanations[travelerType]}'
-          : travelerType);
-  return (interestsStr: interestsStr, travelerTypeDescribed: travelerTypeDescribed);
+            ? '$travelerType → ${_travelerTypeExplanations[travelerType]}'
+            : travelerType);
+  return (
+    interestsStr: interestsStr,
+    travelerTypeDescribed: travelerTypeDescribed,
+  );
 }
 
 class AiSuggestionsService {
   final SupabaseClient _client;
+
   /// Cache Gemini partagé (table `gemini_cache`). Nullable pour les usages legacy
   /// qui n'instancieraient pas le service via le provider Riverpod ; quand null,
   /// chaque appel Gemini est fait sans lookup ni upsert (= comportement d'origine).
   final GeminiCacheService? _cache;
-  AiSuggestionsService(this._client, {GeminiCacheService? cache}) : _cache = cache;
+  final LiveApiGuards _guards;
+  final AiGeminiTextGenerator? _geminiTextGenerator;
+
+  AiSuggestionsService(
+    this._client, {
+    GeminiCacheService? cache,
+    LiveApiGuards? guards,
+    AiGeminiTextGenerator? geminiTextGenerator,
+  }) : _cache = cache,
+       _guards = guards ?? LiveApiGuards.fromEnvironment(),
+       _geminiTextGenerator = geminiTextGenerator;
 
   // ⚠️ DÉSACTIVÉ TEMPORAIREMENT — À RÉACTIVER AVANT PUBLICATION.
   // Passer à `true` quand la fonction Postgres `check_and_log_ai_usage` est déployée en prod.
@@ -180,7 +231,8 @@ class AiSuggestionsService {
   /// "boucle autour du pays Y". Le radius vient de la région et `sameCountryOnly`
   /// est forcé à true (une région = un seul pays). Tags fournis comme contexte
   /// pour aider Gemini à orienter ses propositions.
-  Future<List<({String city, String country, int days, String description})>> suggestRegionalItinerary({
+  Future<List<({String city, String country, int days, String description})>>
+  suggestRegionalItinerary({
     required String mainDestination,
     required int durationDays,
     String? travelerType,
@@ -201,7 +253,8 @@ class AiSuggestionsService {
     // durée, profil, rayon, étapes déjà placées). On normalise les listes en les
     // triant pour stabiliser la clé.
     final sortedInterests = [...interests]..sort();
-    final sortedExcludes = [...excludeCities.map(GeminiCacheService.normKey)]..sort();
+    final sortedExcludes = [...excludeCities.map(GeminiCacheService.normKey)]
+      ..sort();
     final cacheKey = GeminiCacheService.hashKey([
       (k: 'main', v: GeminiCacheService.normKey(mainDestination)),
       (k: 'days', v: durationDays),
@@ -212,12 +265,16 @@ class AiSuggestionsService {
       (k: 'exclude', v: sortedExcludes),
       (k: 'placed', v: daysAlreadyPlaced),
       (k: 'kind', v: GeminiCacheService.normKey(destinationKind ?? '')),
-      (k: 'region', v: GeminiCacheService.normKey(selectedRegion?.regionName ?? '')),
+      (
+        k: 'region',
+        v: GeminiCacheService.normKey(selectedRegion?.regionName ?? ''),
+      ),
     ]);
     final cached = await _cache?.get('regional_itinerary', cacheKey);
     if (cached != null) {
       final segs = (cached['segments'] as List?) ?? const [];
-      final result = <({String city, String country, int days, String description})>[];
+      final result =
+          <({String city, String country, int days, String description})>[];
       for (final s in segs) {
         if (s is! Map) continue;
         final city = (s['city'] as String?)?.trim() ?? '';
@@ -225,14 +282,22 @@ class AiSuggestionsService {
         final days = (s['days'] as num?)?.toInt() ?? 0;
         final desc = (s['description'] as String?)?.trim() ?? '';
         if (city.isEmpty || days < 1) continue;
-        result.add((city: city, country: country, days: days, description: desc));
+        result.add((
+          city: city,
+          country: country,
+          days: days,
+          description: desc,
+        ));
       }
       if (result.isNotEmpty) return result;
     }
 
+    _assertGeminiAllowed('AiSuggestionsService.suggestRegionalItinerary');
     await _checkRateLimit('suggest_regional_itinerary');
-    final (:interestsStr, :travelerTypeDescribed) =
-        _describeProfile(travelerType: travelerType, interests: interests);
+    final (:interestsStr, :travelerTypeDescribed) = _describeProfile(
+      travelerType: travelerType,
+      interests: interests,
+    );
 
     // On suggère le reliquat de jours non encore couvert par les étapes existantes.
     // Ne JAMAIS dépasser ce reliquat sinon le total déborde la durée du voyage et
@@ -242,8 +307,8 @@ class AiSuggestionsService {
     final totalDays = remainingDays;
     final alreadyPlacedBlock = daysAlreadyPlaced > 0
         ? '\n- ⚠️ Le voyageur a DÉJÀ placé $daysAlreadyPlaced jour${daysAlreadyPlaced > 1 ? 's' : ''} dans son planning '
-            '(${excludeCities.isEmpty ? "étapes existantes" : excludeCities.join(', ')}). Tu ne dois proposer QUE des nouvelles étapes '
-            'pour combler les $remainingDays jour${remainingDays > 1 ? 's' : ''} restants (sur un total de $tripDaysTotal jours de voyage).'
+              '(${excludeCities.isEmpty ? "étapes existantes" : excludeCities.join(', ')}). Tu ne dois proposer QUE des nouvelles étapes '
+              'pour combler les $remainingDays jour${remainingDays > 1 ? 's' : ''} restants (sur un total de $tripDaysTotal jours de voyage).'
         : '';
     // Si la destination est un pays/région, on NE l'inclut PAS comme étape
     // (sinon Gemini propose "États-Unis 3 jours" comme première card → non-sens).
@@ -254,16 +319,17 @@ class AiSuggestionsService {
     final mustIncludeMain = selectedRegion != null
         ? '- ⚠️ Cible UNIQUEMENT la région **${selectedRegion.regionName}** dans $mainDestination. Villes principales de cette région : ${selectedRegion.label}. Tu peux inclure des villes voisines proches (dans le rayon de $radiusKm km) si elles enrichissent le circuit, mais reste DANS cette région — ne propose pas de villes d\'autres régions du pays.'
         : (isLargeDestination
-            ? '- ⚠️ $mainDestination est un ${destinationKind == 'country' ? 'pays' : 'une région'} — ne le propose JAMAIS comme étape. Propose UNIQUEMENT des villes précises situées DANS $mainDestination (et villes frontalières si transfrontalier autorisé).'
-            : (excludeCities
-                    .map((c) => c.trim().toLowerCase())
-                    .contains(mainDestination.trim().toLowerCase())
-                ? '- ⚠️ $mainDestination est déjà dans les étapes du voyageur — NE LA REPROPOSE PAS, propose UNIQUEMENT des villes voisines.'
-                : '- Inclus OBLIGATOIREMENT $mainDestination dans la boucle (avec assez de jours pour la visiter, 2-3 jours typiquement).'));
+              ? '- ⚠️ $mainDestination est un ${destinationKind == 'country' ? 'pays' : 'une région'} — ne le propose JAMAIS comme étape. Propose UNIQUEMENT des villes précises situées DANS $mainDestination (et villes frontalières si transfrontalier autorisé).'
+              : (excludeCities
+                        .map((c) => c.trim().toLowerCase())
+                        .contains(mainDestination.trim().toLowerCase())
+                    ? '- ⚠️ $mainDestination est déjà dans les étapes du voyageur — NE LA REPROPOSE PAS, propose UNIQUEMENT des villes voisines.'
+                    : '- Inclus OBLIGATOIREMENT $mainDestination dans la boucle (avec assez de jours pour la visiter, 2-3 jours typiquement).'));
     // Si une région ciblée, on enrichit le contexte avec ses tags pour orienter
     // les choix Gemini (mais sans imposer — Gemini reste libre du choix de villes
     // précises, on cadre juste le périmètre).
-    final regionTagsBlock = selectedRegion != null && selectedRegion.tags.isNotEmpty
+    final regionTagsBlock =
+        selectedRegion != null && selectedRegion.tags.isNotEmpty
         ? '\n- Mots-clés thématiques de cette région : ${selectedRegion.tags.join(", ")}. Privilégie des villes qui collent à cette ambiance.'
         : '';
     final excludeBlock = excludeCities.isEmpty
@@ -272,7 +338,8 @@ class AiSuggestionsService {
     final crossBorderRule = sameCountryOnly
         ? '''**RESTER DANS LE PAYS** : ne propose QUE des villes du même pays que $mainDestination. Pas de villes dans des pays voisins, même si elles sont dans le rayon de $radiusKm km.'''
         : '''**TRANSFRONTALIER OK** : si dans le rayon de $radiusKm km il y a des villes intéressantes dans des pays voisins, propose-les (ex: depuis Metz à 150km tu peux proposer Luxembourg-Ville, Trèves en Allemagne, Bruxelles si dans le rayon ; depuis Lille tu peux proposer Bruges). Le voyageur a fait 1000km pour son voyage, il sera ravi de découvrir un pays de plus à 100km.''';
-    final prompt = '''
+    final prompt =
+        '''
 Tu es un expert en voyage. Le voyageur va à **$mainDestination** pour $durationDays jours et ne connaît pas la région. Propose-lui une **boucle régionale logique** de 3 à 5 étapes max dans un rayon STRICT de **$radiusKm km à vol d'oiseau autour de $mainDestination**, en incluant la destination principale + des villes intéressantes à proximité.
 
 🚫 RAYON STRICT : aucune ville à plus de $radiusKm km de $mainDestination. Avant de proposer une ville, vérifie mentalement sa distance à vol d'oiseau (pas en temps de route). Exemples pour calibrer :
@@ -304,15 +371,17 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
 }
 ''';
 
-    developer.log('Gemini regional itinerary pour $mainDestination ($durationDays j)', name: 'ai');
-    final model = _buildModel();
-    final response = await _generateWithRetry(
-      model,
-      [Content.text(prompt)],
-      tag: 'regional_itinerary',
+    developer.log(
+      'Gemini regional itinerary pour $mainDestination ($durationDays j)',
+      name: 'ai',
     );
-    final raw = response.text;
-    if (raw == null || raw.isEmpty) throw Exception('Réponse vide de Gemini.');
+    final raw = await _generateGeminiText(
+      contents: [Content.text(prompt)],
+      temperature: 0.7,
+      tag: 'regional_itinerary',
+      retry: true,
+    );
+    if (raw.isEmpty) throw Exception('Réponse vide de Gemini.');
     final cleaned = _stripCodeFences(raw).trim();
     // Gemini peut ajouter un préambule type "Voici votre itinéraire :\n```json\n{...}```"
     // → après _stripCodeFences il reste "Voici votre itinéraire :\n{...}". On extrait
@@ -322,11 +391,19 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
     try {
       parsed = jsonDecode(jsonStr);
     } catch (e) {
-      developer.log('Gemini regional itinerary parse error: $e\nReponse brute (200 premiers car.): ${raw.substring(0, raw.length.clamp(0, 200))}', name: 'ai');
-      throw Exception('Réponse Gemini invalide. Réessaie ou simplifie la destination.');
+      developer.log(
+        'Gemini regional itinerary parse error: $e\nReponse brute (200 premiers car.): ${raw.substring(0, raw.length.clamp(0, 200))}',
+        name: 'ai',
+      );
+      throw Exception(
+        'Réponse Gemini invalide. Réessaie ou simplifie la destination.',
+      );
     }
-    final segs = (parsed is Map) ? (parsed['segments'] as List?) ?? const [] : const [];
-    final result = <({String city, String country, int days, String description})>[];
+    final segs = (parsed is Map)
+        ? (parsed['segments'] as List?) ?? const []
+        : const [];
+    final result =
+        <({String city, String country, int days, String description})>[];
     final mainDestNorm = mainDestination.trim().toLowerCase();
     for (final s in segs) {
       if (s is! Map<String, dynamic>) continue;
@@ -340,7 +417,10 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
       // Garde-fou : pour les destinations pays/région, Gemini retombe parfois
       // sur le nom de la destination malgré la consigne. On filtre.
       if (isLargeDestination && city.trim().toLowerCase() == mainDestNorm) {
-        developer.log('Gemini regional itinerary: skipping suggestion "$city" matching $destinationKind destination "$mainDestination"', name: 'ai');
+        developer.log(
+          'Gemini regional itinerary: skipping suggestion "$city" matching $destinationKind destination "$mainDestination"',
+          name: 'ai',
+        );
         continue;
       }
       result.add((city: city, country: country, days: days, description: desc));
@@ -348,12 +428,14 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
     if (result.isNotEmpty) {
       await _cache?.put('regional_itinerary', cacheKey, {
         'segments': result
-            .map((r) => {
-                  'city': r.city,
-                  'country': r.country,
-                  'days': r.days,
-                  'description': r.description,
-                })
+            .map(
+              (r) => {
+                'city': r.city,
+                'country': r.country,
+                'days': r.days,
+                'description': r.description,
+              },
+            )
             .toList(),
       });
     }
@@ -365,11 +447,14 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
     final cfg = _limits[action];
     if (cfg == null) return;
     try {
-      await _client.rpc('check_and_log_ai_usage', params: {
-        'p_action': action,
-        'p_max_per_window': cfg.maxPerWindow,
-        'p_window_minutes': cfg.windowMinutes,
-      });
+      await _client.rpc(
+        'check_and_log_ai_usage',
+        params: {
+          'p_action': action,
+          'p_max_per_window': cfg.maxPerWindow,
+          'p_window_minutes': cfg.windowMinutes,
+        },
+      );
     } on PostgrestException catch (e) {
       if (e.message.contains('rate_limit_exceeded')) {
         developer.log('Rate limit dépassé pour $action', name: 'ai');
@@ -377,7 +462,10 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
       }
       // Si la fonction n'existe pas encore (PGRST202), on laisse passer silencieusement
       if (e.code == 'PGRST202') {
-        developer.log('Fonction rate limit absente — skip ($action)', name: 'ai');
+        developer.log(
+          'Fonction rate limit absente — skip ($action)',
+          name: 'ai',
+        );
         return;
       }
       rethrow;
@@ -402,10 +490,14 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
       final raw = cached?['raw'] as String?;
       if (raw != null && raw.isNotEmpty) return raw;
     }
-    final model = _buildModel(temperature: temperature);
-    final response = await model.generateContent([Content.text(prompt)]);
-    final raw = response.text;
-    if (raw == null || raw.isEmpty) {
+    _assertGeminiAllowed('AiSuggestionsService.generateRaw');
+    final raw = await _generateGeminiText(
+      contents: [Content.text(prompt)],
+      temperature: temperature,
+      tag: cacheAction,
+      retry: false,
+    );
+    if (raw.isEmpty) {
       throw Exception('Réponse Gemini vide.');
     }
     if (cacheKey != null) {
@@ -428,13 +520,19 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
       return await model.generateContent(contents);
     } catch (e) {
       if (!_isTransientAiError(e)) rethrow;
-      developer.log('Gemini transient error sur $tag — retry dans 2s : $e', name: 'ai');
+      developer.log(
+        'Gemini transient error sur $tag — retry dans 2s : $e',
+        name: 'ai',
+      );
       await Future<void>.delayed(const Duration(seconds: 2));
       try {
         return await model.generateContent(contents);
       } catch (e2) {
         if (_isTransientAiError(e2)) {
-          developer.log('Gemini transient error persistant sur $tag : $e2', name: 'ai');
+          developer.log(
+            'Gemini transient error persistant sur $tag : $e2',
+            name: 'ai',
+          );
           throw AiTransientException(e2);
         }
         rethrow;
@@ -442,9 +540,39 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
     }
   }
 
+  void _assertGeminiAllowed(String operation) {
+    _guards.assertAllowed(LiveApiFamily.gemini, operation: operation);
+  }
+
+  Future<String> _generateGeminiText({
+    required List<Content> contents,
+    required double temperature,
+    required String tag,
+    required bool retry,
+  }) async {
+    final generator = _geminiTextGenerator;
+    if (generator != null) {
+      return generator(
+        contents: contents,
+        temperature: temperature,
+        tag: tag,
+        retry: retry,
+      );
+    }
+
+    final model = _buildModel(temperature: temperature);
+    final response = retry
+        ? await _generateWithRetry(model, contents, tag: tag)
+        : await model.generateContent(contents);
+    return response.text ?? '';
+  }
+
   GenerativeModel _buildModel({double temperature = 0.7}) {
-    if (AiConstants.geminiApiKey == 'COLLE_TA_CLE_ICI' || AiConstants.geminiApiKey.isEmpty) {
-      throw Exception('Clé Gemini manquante. Ajoute-la dans lib/core/constants/ai_constants.dart.');
+    if (AiConstants.geminiApiKey == 'COLLE_TA_CLE_ICI' ||
+        AiConstants.geminiApiKey.isEmpty) {
+      throw Exception(
+        'Clé Gemini manquante. Ajoute-la dans lib/core/constants/ai_constants.dart.',
+      );
     }
     return GenerativeModel(
       model: AiConstants.geminiModel,
@@ -465,15 +593,19 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
     required List<String> interests,
     required List<TripActivity> allActivities,
   }) async {
+    _assertGeminiAllowed('AiSuggestionsService.suggestAlternatives');
     await _checkRateLimit('suggest_alternatives');
     final otherTitles = allActivities
         .where((a) => a.id != current.id)
         .map((a) => '- ${a.title}')
         .join('\n');
-    final (:interestsStr, :travelerTypeDescribed) =
-        _describeProfile(travelerType: travelerType, interests: interests);
+    final (:interestsStr, :travelerTypeDescribed) = _describeProfile(
+      travelerType: travelerType,
+      interests: interests,
+    );
 
-    final prompt = '''
+    final prompt =
+        '''
 Tu es un expert en voyages. Propose 5 ALTERNATIVES pour remplacer l'activité suivante dans le planning, en gardant la même dynamique (jour, heure, type d'activité).
 
 Activité actuelle à remplacer :
@@ -518,10 +650,13 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
 ''';
 
     developer.log('Gemini alternatives pour ${current.title}', name: 'ai');
-    final model = _buildModel(temperature: 0.9);
-    final response = await model.generateContent([Content.text(prompt)]);
-    final rawText = response.text;
-    if (rawText == null || rawText.isEmpty) {
+    final rawText = await _generateGeminiText(
+      contents: [Content.text(prompt)],
+      temperature: 0.9,
+      tag: 'suggest_alternatives',
+      retry: false,
+    );
+    if (rawText.isEmpty) {
       throw Exception('Réponse vide de Gemini.');
     }
     final cleaned = _stripCodeFences(rawText).trim();
@@ -560,7 +695,8 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
 
     // 1. Lookup cache pour chaque item, en parallèle. Même clé que describeActivity.
     final destNorm = GeminiCacheService.normKey(destination);
-    String keyFor(({String title, String? detail, String? tag}) it) => GeminiCacheService.hashKey([
+    String keyFor(({String title, String? detail, String? tag}) it) =>
+        GeminiCacheService.hashKey([
           (k: 'title', v: GeminiCacheService.normKey(it.title)),
           (k: 'dest', v: destNorm),
           (k: 'tag', v: GeminiCacheService.normKey(it.tag ?? '')),
@@ -568,7 +704,9 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
     final keys = items.map(keyFor).toList();
     final cachedByIdx = <int, String>{};
     if (_cache != null) {
-      final lookups = await Future.wait(keys.map((k) => _cache.get('describe_activity', k)));
+      final lookups = await Future.wait(
+        keys.map((k) => _cache.get('describe_activity', k)),
+      );
       for (var i = 0; i < lookups.length; i++) {
         final desc = lookups[i]?['description'] as String?;
         if (desc != null && desc.isNotEmpty) cachedByIdx[i] = desc;
@@ -579,24 +717,31 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
         if (!cachedByIdx.containsKey(i)) i,
     ];
     if (missingIndices.isEmpty) {
-      developer.log('Batch describe — ${items.length} hits cache, 0 appel Gemini', name: 'gemini_cache');
+      developer.log(
+        'Batch describe — ${items.length} hits cache, 0 appel Gemini',
+        name: 'gemini_cache',
+      );
       return [for (var i = 0; i < items.length; i++) cachedByIdx[i] ?? ''];
     }
 
     // 2. Batch-call Gemini pour les misses uniquement.
+    _assertGeminiAllowed('AiSuggestionsService.describeActivitiesBatch');
     await _checkRateLimit('describe_activities_batch');
     final missingItems = [for (final i in missingIndices) items[i]];
 
     final bullets = missingItems
         .asMap()
         .entries
-        .map((e) =>
-            '${e.key + 1}. ${e.value.title}'
-            '${e.value.detail != null && e.value.detail!.isNotEmpty ? ' — ${e.value.detail}' : ''}'
-            ' (catégorie: ${e.value.tag ?? "non précisée"})')
+        .map(
+          (e) =>
+              '${e.key + 1}. ${e.value.title}'
+              '${e.value.detail != null && e.value.detail!.isNotEmpty ? ' — ${e.value.detail}' : ''}'
+              ' (catégorie: ${e.value.tag ?? "non précisée"})',
+        )
         .join('\n');
 
-    final prompt = '''
+    final prompt =
+        '''
 Tu es guide de voyage. Écris une description ENGAGEANTE de 3 à 5 phrases (en français) pour CHACUNE des activités ci-dessous.
 
 Destination commune : $destination
@@ -623,10 +768,13 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
       'Gemini describe BATCH — ${missingItems.length} miss / ${items.length} total',
       name: 'ai',
     );
-    final model = _buildModel(temperature: 0.7);
-    final response = await model.generateContent([Content.text(prompt)]);
-    final rawText = response.text;
-    if (rawText == null || rawText.isEmpty) {
+    final rawText = await _generateGeminiText(
+      contents: [Content.text(prompt)],
+      temperature: 0.7,
+      tag: 'describe_activities_batch',
+      retry: false,
+    );
+    if (rawText.isEmpty) {
       throw Exception('Réponse vide de Gemini.');
     }
     final cleaned = _stripCodeFences(rawText).trim();
@@ -649,9 +797,13 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
       newDescriptionsByIdx[missingIndices[j]] = desc;
     }
     if (_cache != null && newDescriptionsByIdx.isNotEmpty) {
-      await Future.wait(newDescriptionsByIdx.entries.map(
-        (e) => _cache.put('describe_activity', keys[e.key], {'description': e.value}),
-      ));
+      await Future.wait(
+        newDescriptionsByIdx.entries.map(
+          (e) => _cache.put('describe_activity', keys[e.key], {
+            'description': e.value,
+          }),
+        ),
+      );
     }
 
     // 4. Reconstruit la liste finale dans l'ordre original (cache + nouveau).
@@ -684,12 +836,18 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
       } catch (_) {}
     }
 
+    _assertGeminiAllowed('AiSuggestionsService.generateTransportBetween');
     await _checkRateLimit('suggest_alternatives');
 
-    final fromLoc = from.detail != null && from.detail!.isNotEmpty ? from.detail : from.title;
-    final toLoc = to.detail != null && to.detail!.isNotEmpty ? to.detail : to.title;
+    final fromLoc = from.detail != null && from.detail!.isNotEmpty
+        ? from.detail
+        : from.title;
+    final toLoc = to.detail != null && to.detail!.isNotEmpty
+        ? to.detail
+        : to.title;
 
-    final prompt = '''
+    final prompt =
+        '''
 Tu es un expert en voyages. Propose des options de trajet entre ces deux points à ${destination.isEmpty ? "la destination du voyage" : destination}.
 
 Départ : "${from.title}"${fromLoc != from.title ? " ($fromLoc)" : ""}
@@ -715,11 +873,17 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
 }
 ''';
 
-    developer.log('Gemini transport entre ${from.title} → ${to.title}', name: 'ai');
-    final model = _buildModel(temperature: 0.5);
-    final response = await model.generateContent([Content.text(prompt)]);
-    final rawText = response.text;
-    if (rawText == null || rawText.isEmpty) {
+    developer.log(
+      'Gemini transport entre ${from.title} → ${to.title}',
+      name: 'ai',
+    );
+    final rawText = await _generateGeminiText(
+      contents: [Content.text(prompt)],
+      temperature: 0.5,
+      tag: 'transport_pair',
+      retry: false,
+    );
+    if (rawText.isEmpty) {
       throw Exception('Réponse vide de Gemini.');
     }
     final cleaned = _stripCodeFences(rawText).trim();
@@ -751,8 +915,10 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
       if (desc != null && desc.isNotEmpty) return desc;
     }
 
+    _assertGeminiAllowed('AiSuggestionsService.describeActivity');
     await _checkRateLimit('describe_activity');
-    final prompt = '''
+    final prompt =
+        '''
 Tu es guide de voyage. Écris une description ENGAGEANTE de 3 à 5 phrases (en français) pour l'activité suivante, destinée à donner envie au voyageur.
 
 - Activité / lieu : $title
@@ -772,10 +938,13 @@ Retourne UNIQUEMENT ce JSON (sans balises, sans texte autour) :
 ''';
 
     developer.log('Gemini describe — $title', name: 'ai');
-    final model = _buildModel(temperature: 0.7);
-    final response = await model.generateContent([Content.text(prompt)]);
-    final rawText = response.text;
-    if (rawText == null || rawText.isEmpty) {
+    final rawText = await _generateGeminiText(
+      contents: [Content.text(prompt)],
+      temperature: 0.7,
+      tag: 'describe_activity',
+      retry: false,
+    );
+    if (rawText.isEmpty) {
       throw Exception('Réponse vide de Gemini.');
     }
     final cleaned = _stripCodeFences(rawText).trim();
@@ -792,9 +961,16 @@ Retourne UNIQUEMENT ce JSON (sans balises, sans texte autour) :
   }
 
   /// Extrait les infos d'un document de voyage depuis du texte collé.
-  Future<Map<String, dynamic>> extractDocumentFromText(String text, {String? hintCategory}) async {
+  Future<Map<String, dynamic>> extractDocumentFromText(
+    String text, {
+    String? hintCategory,
+  }) async {
+    _assertGeminiAllowed('AiSuggestionsService.extractDocumentFromText');
     await _checkRateLimit('extract_document');
-    final prompt = _buildExtractionPrompt(hintCategory, inputLabel: 'Texte :\n---\n$text\n---');
+    final prompt = _buildExtractionPrompt(
+      hintCategory,
+      inputLabel: 'Texte :\n---\n$text\n---',
+    );
     return _extractDocument([Content.text(prompt)]);
   }
 
@@ -804,23 +980,28 @@ Retourne UNIQUEMENT ce JSON (sans balises, sans texte autour) :
     required String mimeType,
     String? hintCategory,
   }) async {
+    _assertGeminiAllowed('AiSuggestionsService.extractDocumentFromImage');
     await _checkRateLimit('extract_document');
-    final prompt = _buildExtractionPrompt(hintCategory, inputLabel: 'Image fournie ci-dessous. Lis attentivement le texte visible et extrais les informations.');
+    final prompt = _buildExtractionPrompt(
+      hintCategory,
+      inputLabel:
+          'Image fournie ci-dessous. Lis attentivement le texte visible et extrais les informations.',
+    );
     return _extractDocument([
-      Content.multi([
-        TextPart(prompt),
-        DataPart(mimeType, imageBytes),
-      ]),
+      Content.multi([TextPart(prompt), DataPart(mimeType, imageBytes)]),
     ]);
   }
 
   Future<Map<String, dynamic>> _extractDocument(List<Content> contents) async {
     developer.log('Extraction doc — appel Gemini', name: 'ai');
-    final model = _buildModel(temperature: 0.1);
-    final response = await model.generateContent(contents);
-    final rawText = response.text;
+    final rawText = await _generateGeminiText(
+      contents: contents,
+      temperature: 0.1,
+      tag: 'extract_document',
+      retry: false,
+    );
     developer.log('Extraction doc — réponse: $rawText', name: 'ai');
-    if (rawText == null || rawText.isEmpty) {
+    if (rawText.isEmpty) {
       throw Exception('Réponse vide de Gemini.');
     }
     final cleaned = _stripCodeFences(rawText).trim();
@@ -830,12 +1011,17 @@ Retourne UNIQUEMENT ce JSON (sans balises, sans texte autour) :
     }
     final name = parsed['name'] as String?;
     if (name == null || name.isEmpty) {
-      throw Exception('Impossible d\'extraire un document de la source fournie.');
+      throw Exception(
+        'Impossible d\'extraire un document de la source fournie.',
+      );
     }
     return parsed;
   }
 
-  String _buildExtractionPrompt(String? hintCategory, {required String inputLabel}) {
+  String _buildExtractionPrompt(
+    String? hintCategory, {
+    required String inputLabel,
+  }) {
     final categoryHint = hintCategory == null
         ? 'Détecte d\'abord la catégorie parmi : hotel, flight, train, car_rental, ticket, other.'
         : 'Le document est de catégorie "$hintCategory".';
@@ -951,7 +1137,9 @@ $inputLabel
     final firstArr = text.indexOf('[');
     final start = (firstObj == -1)
         ? firstArr
-        : (firstArr == -1 ? firstObj : (firstObj < firstArr ? firstObj : firstArr));
+        : (firstArr == -1
+              ? firstObj
+              : (firstObj < firstArr ? firstObj : firstArr));
     if (start < 0) return text;
     final lastObj = text.lastIndexOf('}');
     final lastArr = text.lastIndexOf(']');
