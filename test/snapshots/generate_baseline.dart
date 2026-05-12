@@ -55,6 +55,7 @@ import 'package:voyage/features/planning/services/template_first_pipeline.dart';
 import 'package:voyage/features/planning/services/traveler_to_places_mapping.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/quality/planning_metrics.dart';
+import '../helpers/live_api_script_guards.dart';
 
 // ─── Trip fixture standard ────────────────────────────────────────────────
 //
@@ -535,6 +536,8 @@ void main() {
   // dedup intra-run interne.
 
   test('Singapore baseline — generate + dump JSON snapshot', () async {
+    assertLiveApisAllowedForGenerateBaseline();
+
     final trip = _buildSingaporeTrip();
     // ignore: avoid_print
     print('');

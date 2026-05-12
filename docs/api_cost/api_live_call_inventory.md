@@ -258,3 +258,7 @@ Ces fichiers sont des points d'appel live s'ils sont lances explicitement, mais 
 - `test/dev/places_first_harness.dart`
 - `test/snapshots/generate_baseline.dart`
 
+Note API-0.3: ces deux scripts sont desormais proteges par `LiveApiGuards`.
+Par defaut, ils refusent leurs runs live tant que
+`ALLOW_LIVE_GOOGLE_PLACES=true` et `ALLOW_LIVE_GOOGLE_GEOCODING=true`
+ne sont pas fournis explicitement via `--dart-define`.

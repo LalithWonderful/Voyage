@@ -30,6 +30,7 @@ import 'package:voyage/features/planning/services/places_first_pipeline.dart';
 import 'package:voyage/features/planning/services/places_nearby_service.dart';
 import 'package:voyage/features/planning/services/traveler_to_places_mapping.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
+import '../helpers/live_api_script_guards.dart';
 
 // ─── Scénarios ────────────────────────────────────────────────────────────
 
@@ -387,7 +388,9 @@ int _distMeters(double lat1, double lng1, double lat2, double lng2) {
   ActivitySuggestion v,
   List<DayCandidates> pool,
 ) {
-  if (v.latitude == null || v.longitude == null) return (rating: null, userRatingCount: null);
+  if (v.latitude == null || v.longitude == null) {
+    return (rating: null, userRatingCount: null);
+  }
   final vLat = v.latitude!;
   final vLng = v.longitude!;
   final vNameNorm = v.title.toLowerCase().trim();
@@ -968,6 +971,8 @@ String _renderTable(List<({_Scenario scenario, _Kpi kpi})> results) {
 void main() {
   test('Places-first harness — Marrakech + Essaouira (10 profils Lunao)',
       () async {
+    assertLiveApisAllowedForPlacesFirstHarness();
+
     final results = <({_Scenario scenario, _Kpi kpi})>[];
 
     // ⚠ Effet d'ordre observé 2026-05-08 : le profil en DERNIÈRE position
