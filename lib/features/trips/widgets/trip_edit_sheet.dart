@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:voyage/config/live_api_guards.dart';
 import 'package:voyage/core/theme/app_theme.dart';
 import 'package:voyage/core/widgets/city_autocomplete_field.dart';
 import 'package:voyage/features/auth/providers/auth_provider.dart';
@@ -1021,6 +1022,18 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
         Navigator.of(context, rootNavigator: true).pop();
       }
     }
+    void showError(String msg) {
+      if (cancelled) return;
+      if (!mounted) return;
+      closeLoader();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          backgroundColor: AppColors.error,
+          duration: const Duration(seconds: 6),
+        ),
+      );
+    }
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1089,23 +1102,14 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
           .findCityCoords(dest)
           .timeout(const Duration(seconds: 10));
       if (cancelled) return;
+    } on LiveApiBlockedException catch (_) {
+      showError('Optimisation indisponible : la géolocalisation Google Places est désactivée.');
+      return;
+    } on TimeoutException catch (_) {
+      showError('La géolocalisation a mis trop de temps à répondre. Vérifie ta connexion et réessaie.');
+      return;
     } catch (e) {
-      if (cancelled) return;
-      if (!mounted) return;
-      closeLoader();
-      final raw = e.toString();
-      final msg = e is TimeoutException
-          ? 'La géolocalisation a mis trop de temps à répondre. Vérifie ta connexion et réessaie.'
-          : raw.contains('LiveApiBlocked')
-              ? 'Optimisation indisponible : la géolocalisation Google Places est désactivée.'
-              : 'Impossible d\'optimiser l\'ordre : $raw';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(msg),
-          backgroundColor: AppColors.error,
-          duration: const Duration(seconds: 6),
-        ),
-      );
+      showError('Impossible d\'optimiser l\'ordre : $e');
       return;
     }
     if (!mounted) return;
