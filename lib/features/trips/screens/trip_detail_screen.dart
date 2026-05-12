@@ -11,6 +11,7 @@ import 'package:voyage/features/auth/providers/auth_provider.dart';
 import 'package:voyage/features/planning/providers/planning_provider.dart';
 import 'package:voyage/features/planning/services/ai_suggestions_service.dart';
 import 'package:voyage/features/planning/services/places_first_pipeline.dart';
+import 'package:voyage/features/poi/providers/poi_repository_provider.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
 import 'package:voyage/features/trips/widgets/regional_loop_sheet.dart';
@@ -445,6 +446,7 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
         category: SuggestionCategory.activities,
         existingTitlesNormalized: existingTitlesNormalized,
         languageCode: 'fr',
+        poiRepository: ref.read(poiRepositoryProvider),
       ).timeout(const Duration(seconds: 60));
       // GUARD CRITIQUE : empêche l'INSERT batch et le go() si l'utilisateur
       // a annulé pendant que runAutoPlacesFirst tournait. Sans ce guard, on

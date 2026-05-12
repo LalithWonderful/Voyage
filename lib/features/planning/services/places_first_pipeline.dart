@@ -6071,6 +6071,9 @@ Future<List<SuggestionGroup>> runCoPilotPlacesFirst({
 
   /// Langue Places (BCP-47). Cf. `gatherCandidatesForTrip`.
   String? languageCode,
+
+  /// POI-2.1 — Repository POI pour enrichir le pool avec des candidats curatés.
+  PoiRepository? poiRepository,
 }) async {
   // V7 (Lalith 2026-05-10 — Phase Cost-1) — démarre un budget pour
   // tracker les appels Places de cette génération. Tous les
@@ -6087,6 +6090,7 @@ Future<List<SuggestionGroup>> runCoPilotPlacesFirst({
       aiService: aiService,
       existingTitlesNormalized: existingTitlesNormalized,
       languageCode: languageCode,
+      poiRepository: poiRepository,
     );
   } finally {
     nearbyService.endRun(context: 'coPilot');
@@ -6101,6 +6105,7 @@ Future<List<SuggestionGroup>> _runCoPilotPlacesFirstBody({
   required AiSuggestionsService aiService,
   Set<String> existingTitlesNormalized = const {},
   String? languageCode,
+  PoiRepository? poiRepository,
 }) async {
   final pool = await gatherCandidatesForTrip(
     trip: trip,
@@ -6108,6 +6113,7 @@ Future<List<SuggestionGroup>> _runCoPilotPlacesFirstBody({
     geocoder: geocoder,
     nearbyService: nearbyService,
     languageCode: languageCode,
+    poiRepository: poiRepository,
   );
   if (pool.isEmpty) {
     debugPrint(
@@ -6473,6 +6479,9 @@ Future<List<ActivitySuggestion>> runAutoPlacesFirst({
 
   /// Langue Places (BCP-47). Cf. `gatherCandidatesForTrip`.
   String? languageCode,
+
+  /// POI-2.1 — Repository POI pour enrichir le pool avec des candidats curatés.
+  PoiRepository? poiRepository,
 }) async {
   // V7 (Lalith 2026-05-10 — Phase Cost-1) — budget Places scopé à la
   // run. Cf. runCoPilotPlacesFirst pour la motivation.
@@ -6487,6 +6496,7 @@ Future<List<ActivitySuggestion>> runAutoPlacesFirst({
       category: category,
       existingTitlesNormalized: existingTitlesNormalized,
       languageCode: languageCode,
+      poiRepository: poiRepository,
     );
   } finally {
     nearbyService.endRun(context: 'auto/${category.name}');
@@ -6502,6 +6512,7 @@ Future<List<ActivitySuggestion>> _runAutoPlacesFirstBody({
   required SuggestionCategory category,
   Set<String> existingTitlesNormalized = const {},
   String? languageCode,
+  PoiRepository? poiRepository,
 }) async {
   List<String>? interestsOverride;
   final tripInterests = trip.interests ?? const <String>[];
@@ -6524,6 +6535,7 @@ Future<List<ActivitySuggestion>> _runAutoPlacesFirstBody({
     nearbyService: nearbyService,
     interestsOverride: interestsOverride,
     languageCode: languageCode,
+    poiRepository: poiRepository,
   );
   if (pool.isEmpty) {
     debugPrint('[places_first] Auto Places-first : pool vide, rien à proposer');

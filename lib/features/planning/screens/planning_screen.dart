@@ -30,6 +30,7 @@ import 'package:voyage/features/planning/services/ai_suggestions_service.dart';
 import 'package:voyage/features/planning/services/document_to_activity.dart';
 import 'package:voyage/features/planning/services/places_first_pipeline.dart';
 import 'package:voyage/features/planning/services/routes_service.dart';
+import 'package:voyage/features/poi/providers/poi_repository_provider.dart';
 import 'package:voyage/features/planning/services/traveler_to_places_mapping.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:voyage/features/wallet/providers/wallet_provider.dart';
@@ -680,6 +681,7 @@ class PlanningScreen extends ConsumerWidget {
         final aiService = ref.read(aiSuggestionsServiceProvider);
         final nearbyService = ref.read(placesNearbyServiceProvider);
         final geocoder = ref.read(geocodingServiceProvider);
+        final poiRepository = ref.read(poiRepositoryProvider);
 
         // Titres normalisés des activités déjà au planning, pour pré-filtrer
         // la pool Places (pas la peine de reproposer ce que le voyageur a déjà).
@@ -699,6 +701,7 @@ class PlanningScreen extends ConsumerWidget {
             aiService: aiService,
             existingTitlesNormalized: existingTitlesNorm,
             languageCode: languageCode,
+            poiRepository: poiRepository,
           ).timeout(const Duration(seconds: 60));
           if (cancelled) return;
           closeDialog();
@@ -742,6 +745,7 @@ class PlanningScreen extends ConsumerWidget {
       final aiService = ref.read(aiSuggestionsServiceProvider);
       final nearbyService = ref.read(placesNearbyServiceProvider);
       final geocoder = ref.read(geocodingServiceProvider);
+      final poiRepository = ref.read(poiRepositoryProvider);
 
       String norm(String s) => s
           .toLowerCase()
@@ -759,6 +763,7 @@ class PlanningScreen extends ConsumerWidget {
         category: category,
         existingTitlesNormalized: existingTitlesNorm,
         languageCode: languageCode,
+        poiRepository: poiRepository,
       ).timeout(const Duration(seconds: 60));
       if (cancelled) return;
 
