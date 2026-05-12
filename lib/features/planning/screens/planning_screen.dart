@@ -14,6 +14,7 @@ import 'package:voyage/core/widgets/offline_banner.dart';
 import 'package:voyage/core/services/currency_service.dart';
 import 'package:voyage/core/theme/app_theme.dart';
 import 'package:voyage/core/widgets/converted_price.dart';
+import 'package:voyage/features/assistant/providers/assistant_provider.dart';
 import 'package:voyage/features/auth/providers/auth_provider.dart';
 import 'package:voyage/features/planning/models/activity_suggestion_model.dart';
 import 'package:voyage/features/planning/models/trip_activity_model.dart';
@@ -1056,12 +1057,12 @@ class _GradientHeader extends ConsumerWidget {
   }
 }
 
-class _TabBar extends StatelessWidget {
+class _TabBar extends ConsumerWidget {
   final String tripId;
   const _TabBar({required this.tripId});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       color: AppColors.surface,
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
@@ -1071,7 +1072,10 @@ class _TabBar extends StatelessWidget {
           _tab(context, 'Planning', active: true, onTap: null),
           _tab(context, '🗺️ Carte', onTap: () => context.go('/trips/$tripId/map')),
           _tab(context, '📄 Docs', onTap: () => context.go('/trips/$tripId')),
-          _tab(context, '💬 Assistant', onTap: () => context.go('/assistant')),
+          _tab(context, '💬 Assistant', onTap: () {
+            ref.read(selectedAssistantTripIdProvider.notifier).state = tripId;
+            context.go('/assistant');
+          }),
         ]),
       ),
     );
