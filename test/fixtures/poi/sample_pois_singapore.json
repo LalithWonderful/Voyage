@@ -1,0 +1,370 @@
+{
+  "_comment": "POI-0.1 — Fixtures exemples pour Singapour. Données basées sur des informations publiques et des connaissances générales. Aucun scraping. Coordonnées approximatives à usage de test uniquement.",
+  "sources": [
+    {
+      "source_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "name": "Singapore Tourism Board (Official)",
+      "source_type": "official_board",
+      "base_url": "https://www.visitsingapore.com",
+      "license_name": "Copyright Singapore Tourism Board",
+      "trust_level": 5,
+      "is_active": true
+    },
+    {
+      "source_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+      "name": "Wikidata",
+      "source_type": "wikidata",
+      "base_url": "https://www.wikidata.org",
+      "license_name": "CC0 1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "trust_level": 3,
+      "is_active": true
+    }
+  ],
+  "pois": [
+    {
+      "poi_id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+      "destination_key": "singapore",
+      "name": "Gardens by the Bay",
+      "normalized_name": "gardens by the bay",
+      "category": "park",
+      "subcategory": "botanic_garden",
+      "lat": 1.2816,
+      "lng": 103.8636,
+      "address": "18 Marina Gardens Drive, Singapore",
+      "country_code": "SG",
+      "zone_name": "Marina Bay",
+      "official_url": "https://www.gardensbythebay.com.sg",
+      "source_primary_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "editorial_score": 98,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 180,
+      "opening_notes": "Supertree Observatory ouvert jusqu'à 21h. Cloud Forest et Flower Dome payants.",
+      "price_level": 2,
+      "google_place_id": null,
+      "same_complex_group_key": null,
+      "aliases": [
+        {
+          "alias": "Gardens by the Bay",
+          "alias_normalized": "gardens by the bay",
+          "is_canonical": true
+        },
+        {
+          "alias": "GBTB",
+          "alias_normalized": "gbtb",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        { "tag": "night_photography", "tag_category": "vibe", "confidence": 95 },
+        { "tag": "indoor_conservatory", "tag_category": "activity_type", "confidence": 90 },
+        { "tag": "wheelchair_accessible", "tag_category": "accessibility", "confidence": 85 }
+      ]
+    },
+    {
+      "poi_id": "d4e5f6a7-b8c9-0123-defa-234567890123",
+      "destination_key": "singapore",
+      "name": "Marina Bay Sands",
+      "normalized_name": "marina bay sands",
+      "category": "must_see",
+      "subcategory": "integrated_resort",
+      "lat": 1.2834,
+      "lng": 103.8607,
+      "address": "10 Bayfront Avenue, Singapore",
+      "country_code": "SG",
+      "zone_name": "Marina Bay",
+      "official_url": "https://www.marinabaysands.com",
+      "source_primary_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "editorial_score": 95,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "opening_notes": "SkyPark Observation Deck ouvert. Accès hôtel réservé aux clients.",
+      "price_level": 3,
+      "google_place_id": null,
+      "same_complex_group_key": null,
+      "aliases": [
+        {
+          "alias": "Marina Bay Sands",
+          "alias_normalized": "marina bay sands",
+          "is_canonical": true
+        },
+        {
+          "alias": "MBS",
+          "alias_normalized": "mbs",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        { "tag": "rooftop_view", "tag_category": "vibe", "confidence": 98 },
+        { "tag": "shopping", "tag_category": "activity_type", "confidence": 90 },
+        { "tag": "casino", "tag_category": "activity_type", "confidence": 100 }
+      ]
+    },
+    {
+      "poi_id": "e5f6a7b8-c9d0-1234-efab-345678901234",
+      "destination_key": "singapore",
+      "name": "National Museum of Singapore",
+      "normalized_name": "national museum of singapore",
+      "category": "museum",
+      "subcategory": "history_museum",
+      "lat": 1.2966,
+      "lng": 103.8485,
+      "address": "93 Stamford Road, Singapore",
+      "country_code": "SG",
+      "zone_name": "Civic District",
+      "official_url": "https://nationalmuseum.sg",
+      "source_primary_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "editorial_score": 88,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 150,
+      "opening_notes": "Ouvert tous les jours 10h-19h. Nocturne le vendredi jusqu'à 21h.",
+      "price_level": 2,
+      "google_place_id": null,
+      "same_complex_group_key": null,
+      "aliases": [
+        {
+          "alias": "National Museum of Singapore",
+          "alias_normalized": "national museum of singapore",
+          "is_canonical": true
+        },
+        {
+          "alias": "NMS",
+          "alias_normalized": "nms",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        { "tag": "air_conditioned", "tag_category": "vibe", "confidence": 100 },
+        { "tag": "colonial_architecture", "tag_category": "vibe", "confidence": 90 },
+        { "tag": "rainy_day", "tag_category": "activity_type", "confidence": 95 }
+      ]
+    },
+    {
+      "poi_id": "f6a7b8c9-d0e1-2345-fabc-456789012345",
+      "destination_key": "singapore",
+      "name": "Maxwell Food Centre",
+      "normalized_name": "maxwell food centre",
+      "category": "food",
+      "subcategory": "hawker_centre",
+      "lat": 1.2804,
+      "lng": 103.8447,
+      "address": "1 Kadayanallur Street, Singapore",
+      "country_code": "SG",
+      "zone_name": "Chinatown",
+      "official_url": null,
+      "source_primary_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "editorial_score": 85,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 60,
+      "opening_notes": "Horaires des stalls variables. Peak lunch 12h-14h.",
+      "price_level": 1,
+      "google_place_id": null,
+      "same_complex_group_key": null,
+      "aliases": [
+        {
+          "alias": "Maxwell Food Centre",
+          "alias_normalized": "maxwell food centre",
+          "is_canonical": true
+        },
+        {
+          "alias": "Maxwell Hawker Centre",
+          "alias_normalized": "maxwell hawker centre",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        { "tag": "local_experience", "tag_category": "vibe", "confidence": 95 },
+        { "tag": "cheap_eats", "tag_category": "vibe", "confidence": 100 },
+        { "tag": "rainy_day", "tag_category": "activity_type", "confidence": 80 }
+      ]
+    },
+    {
+      "poi_id": "a7b8c9d0-e1f2-3456-abcd-567890123456",
+      "destination_key": "singapore",
+      "name": "Sentosa Island",
+      "normalized_name": "sentosa island",
+      "category": "family",
+      "subcategory": "island_resort",
+      "lat": 1.2494,
+      "lng": 103.8303,
+      "address": "Sentosa, Singapore",
+      "country_code": "SG",
+      "zone_name": "Sentosa",
+      "official_url": "https://www.sentosa.com.sg",
+      "source_primary_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "editorial_score": 90,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 360,
+      "opening_notes": "Accès gratuit à pied via Sentosa Boardwalk. Activités payantes à l'intérieur.",
+      "price_level": 2,
+      "google_place_id": null,
+      "same_complex_group_key": "sentosa",
+      "aliases": [
+        {
+          "alias": "Sentosa Island",
+          "alias_normalized": "sentosa island",
+          "is_canonical": true
+        },
+        {
+          "alias": "Sentosa",
+          "alias_normalized": "sentosa",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        { "tag": "beach", "tag_category": "activity_type", "confidence": 90 },
+        { "tag": "theme_park", "tag_category": "activity_type", "confidence": 85 },
+        { "tag": "outdoor", "tag_category": "vibe", "confidence": 95 }
+      ]
+    },
+    {
+      "poi_id": "b8c9d0e1-f2a3-4567-bcde-678901234567",
+      "destination_key": "singapore",
+      "name": "Universal Studios Singapore",
+      "normalized_name": "universal studios singapore",
+      "category": "family",
+      "subcategory": "theme_park",
+      "lat": 1.2540,
+      "lng": 103.8238,
+      "address": "8 Sentosa Gateway, Singapore",
+      "country_code": "SG",
+      "zone_name": "Sentosa",
+      "official_url": "https://www.rwsentosa.com/en/attractions/universal-studios-singapore",
+      "source_primary_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "editorial_score": 87,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 420,
+      "opening_notes": "Horaires saisonniers. Vérifier le calendrier en ligne.",
+      "price_level": 3,
+      "google_place_id": null,
+      "same_complex_group_key": "sentosa",
+      "aliases": [
+        {
+          "alias": "Universal Studios Singapore",
+          "alias_normalized": "universal studios singapore",
+          "is_canonical": true
+        },
+        {
+          "alias": "USS",
+          "alias_normalized": "uss",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        { "tag": "thrill_rides", "tag_category": "activity_type", "confidence": 95 },
+        { "tag": "indoor_shows", "tag_category": "activity_type", "confidence": 80 },
+        { "tag": "rainy_day_partial", "tag_category": "activity_type", "confidence": 60 }
+      ]
+    },
+    {
+      "poi_id": "c9d0e1f2-a3b4-5678-cdef-789012345678",
+      "destination_key": "singapore",
+      "name": "Merlion Park",
+      "normalized_name": "merlion park",
+      "category": "must_see",
+      "subcategory": "statue",
+      "lat": 1.2868,
+      "lng": 103.8545,
+      "address": "One Fullerton, Singapore",
+      "country_code": "SG",
+      "zone_name": "Marina Bay",
+      "official_url": null,
+      "source_primary_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "editorial_score": 92,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 30,
+      "opening_notes": "Accessible 24h/24. Illuminé le soir.",
+      "price_level": 1,
+      "google_place_id": null,
+      "same_complex_group_key": null,
+      "aliases": [
+        {
+          "alias": "Merlion Park",
+          "alias_normalized": "merlion park",
+          "is_canonical": true
+        },
+        {
+          "alias": "The Merlion",
+          "alias_normalized": "the merlion",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        { "tag": "photo_spot", "tag_category": "vibe", "confidence": 100 },
+        { "tag": "iconic", "tag_category": "vibe", "confidence": 100 },
+        { "tag": "quick_visit", "tag_category": "activity_type", "confidence": 95 }
+      ]
+    },
+    {
+      "poi_id": "d0e1f2a3-b4c5-6789-defa-890123456789",
+      "destination_key": "singapore",
+      "name": "Singapore Zoo",
+      "normalized_name": "singapore zoo",
+      "category": "family",
+      "subcategory": "zoo",
+      "lat": 1.4043,
+      "lng": 103.7930,
+      "address": "80 Mandai Lake Road, Singapore",
+      "country_code": "SG",
+      "zone_name": "Mandai",
+      "official_url": "https://www.mandai.com",
+      "source_primary_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "editorial_score": 89,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 240,
+      "opening_notes": "Ouvert 8h30-18h. Night Safari sur le même site, billet séparé.",
+      "price_level": 2,
+      "google_place_id": null,
+      "same_complex_group_key": null,
+      "aliases": [
+        {
+          "alias": "Singapore Zoo",
+          "alias_normalized": "singapore zoo",
+          "is_canonical": true
+        },
+        {
+          "alias": "Mandai Zoo",
+          "alias_normalized": "mandai zoo",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        { "tag": "wildlife", "tag_category": "activity_type", "confidence": 100 },
+        { "tag": "open_concept", "tag_category": "vibe", "confidence": 90 },
+        { "tag": "morning_visit", "tag_category": "season", "confidence": 80 }
+      ]
+    }
+  ]
+}

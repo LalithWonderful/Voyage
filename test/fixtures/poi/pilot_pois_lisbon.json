@@ -1,0 +1,344 @@
+{
+  "_comment": "POI-1.4 — Pilot fixture Lisbon. ~10 high-quality POIs for first real Supabase import validation. Manually curated, no scraping. Coordinates approximate.",
+  "sources": [
+    {
+      "source_id": "1ba6e190-7222-5c97-b7f1-b7cc2775473e",
+      "name": "Lunao Pilot Lisbon",
+      "source_type": "editorial",
+      "trust_level": 5,
+      "is_active": true
+    }
+  ],
+  "pois": [
+    {
+      "poi_id": "9b0fbc35-b124-5c19-8600-32e9a347fe8c",
+      "destination_key": "lisbon",
+      "name": "Belém Tower",
+      "normalized_name": "belém tower",
+      "category": "monument",
+      "subcategory": "fortress",
+      "lat": 38.6916,
+      "lng": -9.2160,
+      "address": "Av. Brasília, 1400-038 Lisboa",
+      "country_code": "PT",
+      "zone_name": "Belém",
+      "official_url": "https://www.torrebelem.pt",
+      "source_primary_id": "1ba6e190-7222-5c97-b7f1-b7cc2775473e",
+      "editorial_score": 96,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 1,
+      "aliases": [
+        { "alias": "Belém Tower", "alias_normalized": "belém tower", "is_canonical": true },
+        { "alias": "Torre de Belém", "alias_normalized": "torre de belém", "is_canonical": false }
+      ],
+      "tags": [
+        { "tag": "historic", "tag_category": "vibe", "confidence": 98 },
+        { "tag": "unesco", "tag_category": "vibe", "confidence": 100 },
+        { "tag": "riverside", "tag_category": "vibe", "confidence": 90 },
+        { "tag": "wheelchair_accessible", "tag_category": "accessibility", "confidence": 70 }
+      ]
+    },
+    {
+      "poi_id": "c021887a-ea3b-5892-b117-0c3dbd9cfd4b",
+      "destination_key": "lisbon",
+      "name": "Jerónimos Monastery",
+      "normalized_name": "jerónimos monastery",
+      "category": "monument",
+      "subcategory": "monastery",
+      "lat": 38.6979,
+      "lng": -9.2067,
+      "address": "Praça do Império, 1400-206 Lisboa",
+      "country_code": "PT",
+      "zone_name": "Belém",
+      "official_url": "https://www.mosteirojeronimos.pt",
+      "source_primary_id": "1ba6e190-7222-5c97-b7f1-b7cc2775473e",
+      "editorial_score": 95,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 1,
+      "aliases": [
+        { "alias": "Jerónimos Monastery", "alias_normalized": "jerónimos monastery", "is_canonical": true },
+        { "alias": "Mosteiro dos Jerónimos", "alias_normalized": "mosteiro dos jerónimos", "is_canonical": false }
+      ],
+      "tags": [
+        { "tag": "historic", "tag_category": "vibe", "confidence": 98 },
+        { "tag": "unesco", "tag_category": "vibe", "confidence": 100 },
+        { "tag": "indoor", "tag_category": "activity_type", "confidence": 85 },
+        { "tag": "architecture", "tag_category": "vibe", "confidence": 95 }
+      ]
+    },
+    {
+      "poi_id": "4132e571-2f09-576d-8e66-628ddab6eb54",
+      "destination_key": "lisbon",
+      "name": "São Jorge Castle",
+      "normalized_name": "são jorge castle",
+      "category": "monument",
+      "subcategory": "castle",
+      "lat": 38.7139,
+      "lng": -9.1336,
+      "address": "R. de Santa Cruz do Castelo, 1100-129 Lisboa",
+      "country_code": "PT",
+      "zone_name": "Alfama",
+      "official_url": "https://www.castelodesaojorge.pt",
+      "source_primary_id": "1ba6e190-7222-5c97-b7f1-b7cc2775473e",
+      "editorial_score": 92,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 1,
+      "aliases": [
+        { "alias": "São Jorge Castle", "alias_normalized": "são jorge castle", "is_canonical": true },
+        { "alias": "Castelo de São Jorge", "alias_normalized": "castelo de são jorge", "is_canonical": false }
+      ],
+      "tags": [
+        { "tag": "historic", "tag_category": "vibe", "confidence": 95 },
+        { "tag": "panoramic_view", "tag_category": "vibe", "confidence": 95 },
+        { "tag": "outdoor", "tag_category": "activity_type", "confidence": 90 },
+        { "tag": "peacock_sightings", "tag_category": "vibe", "confidence": 75 }
+      ]
+    },
+    {
+      "poi_id": "787a7cf7-4afe-5e7b-aba1-91949036bc21",
+      "destination_key": "lisbon",
+      "name": "Oceanário de Lisboa",
+      "normalized_name": "oceanário de lisboa",
+      "category": "family",
+      "subcategory": "aquarium",
+      "lat": 38.7636,
+      "lng": -9.0938,
+      "address": "Esplanada Dom Carlos I, 1990-005 Lisboa",
+      "country_code": "PT",
+      "zone_name": "Parque das Nações",
+      "official_url": "https://www.oceanario.pt",
+      "source_primary_id": "1ba6e190-7222-5c97-b7f1-b7cc2775473e",
+      "editorial_score": 90,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 150,
+      "price_level": 2,
+      "aliases": [
+        { "alias": "Oceanário de Lisboa", "alias_normalized": "oceanário de lisboa", "is_canonical": true },
+        { "alias": "Lisbon Oceanarium", "alias_normalized": "lisbon oceanarium", "is_canonical": false }
+      ],
+      "tags": [
+        { "tag": "family", "tag_category": "audience", "confidence": 100 },
+        { "tag": "indoor", "tag_category": "activity_type", "confidence": 95 },
+        { "tag": "educational", "tag_category": "vibe", "confidence": 90 },
+        { "tag": "rainy_day", "tag_category": "activity_type", "confidence": 95 }
+      ]
+    },
+    {
+      "poi_id": "fe0a2b0a-6b30-5429-a91b-5f6b712dc7c2",
+      "destination_key": "lisbon",
+      "name": "Calouste Gulbenkian Museum",
+      "normalized_name": "calouste gulbenkian museum",
+      "category": "museum",
+      "subcategory": "art_museum",
+      "lat": 38.7372,
+      "lng": -9.1534,
+      "address": "Av. de Berna 45A, 1067-001 Lisboa",
+      "country_code": "PT",
+      "zone_name": "Avenidas Novas",
+      "official_url": "https://gulbenkian.pt/museu",
+      "source_primary_id": "1ba6e190-7222-5c97-b7f1-b7cc2775473e",
+      "editorial_score": 88,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 150,
+      "price_level": 1,
+      "aliases": [
+        { "alias": "Calouste Gulbenkian Museum", "alias_normalized": "calouste gulbenkian museum", "is_canonical": true },
+        { "alias": "Museu Calouste Gulbenkian", "alias_normalized": "museu calouste gulbenkian", "is_canonical": false }
+      ],
+      "tags": [
+        { "tag": "art", "tag_category": "vibe", "confidence": 98 },
+        { "tag": "indoor", "tag_category": "activity_type", "confidence": 90 },
+        { "tag": "quiet", "tag_category": "vibe", "confidence": 85 },
+        { "tag": "gardens", "tag_category": "vibe", "confidence": 80 }
+      ]
+    },
+    {
+      "poi_id": "f84cd988-dc8c-5171-818b-92ce7e07f798",
+      "destination_key": "lisbon",
+      "name": "Alfama",
+      "normalized_name": "alfama",
+      "category": "neighborhood",
+      "subcategory": "historic_quarter",
+      "lat": 38.7127,
+      "lng": -9.1303,
+      "address": "Alfama, 1100 Lisboa",
+      "country_code": "PT",
+      "zone_name": "Alfama",
+      "official_url": null,
+      "source_primary_id": "1ba6e190-7222-5c97-b7f1-b7cc2775473e",
+      "editorial_score": 93,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 180,
+      "price_level": null,
+      "aliases": [
+        { "alias": "Alfama", "alias_normalized": "alfama", "is_canonical": true },
+        { "alias": "Bairro de Alfama", "alias_normalized": "bairro de alfama", "is_canonical": false }
+      ],
+      "tags": [
+        { "tag": "historic", "tag_category": "vibe", "confidence": 95 },
+        { "tag": "fado", "tag_category": "vibe", "confidence": 90 },
+        { "tag": "walking", "tag_category": "activity_type", "confidence": 95 },
+        { "tag": "photography", "tag_category": "activity_type", "confidence": 90 }
+      ]
+    },
+    {
+      "poi_id": "80352a76-492f-5c68-9b89-1ca1934134bf",
+      "destination_key": "lisbon",
+      "name": "LX Factory",
+      "normalized_name": "lx factory",
+      "category": "local_experience",
+      "subcategory": "creative_hub",
+      "lat": 38.7030,
+      "lng": -9.1784,
+      "address": "R. Rodrigues de Faria 103, 1300-501 Lisboa",
+      "country_code": "PT",
+      "zone_name": "Alcântara",
+      "official_url": "https://lxfactory.com",
+      "source_primary_id": "1ba6e190-7222-5c97-b7f1-b7cc2775473e",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 120,
+      "price_level": null,
+      "aliases": [
+        { "alias": "LX Factory", "alias_normalized": "lx factory", "is_canonical": true }
+      ],
+      "tags": [
+        { "tag": "street_art", "tag_category": "vibe", "confidence": 90 },
+        { "tag": "shopping", "tag_category": "activity_type", "confidence": 80 },
+        { "tag": "food_court", "tag_category": "activity_type", "confidence": 85 },
+        { "tag": "indoor_outdoor", "tag_category": "activity_type", "confidence": 75 }
+      ]
+    },
+    {
+      "poi_id": "f75e4219-0b14-5cb6-873e-716353c2a441",
+      "destination_key": "lisbon",
+      "name": "Time Out Market",
+      "normalized_name": "time out market",
+      "category": "food",
+      "subcategory": "food_hall",
+      "lat": 38.7069,
+      "lng": -9.1464,
+      "address": "Av. 24 de Julho 49, 1200-479 Lisboa",
+      "country_code": "PT",
+      "zone_name": "Cais do Sodré",
+      "official_url": "https://www.timeoutmarket.com/lisbon",
+      "source_primary_id": "1ba6e190-7222-5c97-b7f1-b7cc2775473e",
+      "editorial_score": 85,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        { "alias": "Time Out Market", "alias_normalized": "time out market", "is_canonical": true },
+        { "alias": "Mercado da Ribeira", "alias_normalized": "mercado da ribeira", "is_canonical": false }
+      ],
+      "tags": [
+        { "tag": "food_court", "tag_category": "activity_type", "confidence": 95 },
+        { "tag": "local_cuisine", "tag_category": "vibe", "confidence": 90 },
+        { "tag": "busy", "tag_category": "vibe", "confidence": 85 },
+        { "tag": "indoor", "tag_category": "activity_type", "confidence": 90 }
+      ]
+    },
+    {
+      "poi_id": "90601333-ffac-5dd5-904e-3f8b47823aad",
+      "destination_key": "lisbon",
+      "name": "Miradouro da Senhora do Monte",
+      "normalized_name": "miradouro da senhora do monte",
+      "category": "viewpoint",
+      "subcategory": "panoramic_viewpoint",
+      "lat": 38.7196,
+      "lng": -9.1311,
+      "address": "Largo da Senhora do Monte 22, 1170-346 Lisboa",
+      "country_code": "PT",
+      "zone_name": "Graça",
+      "official_url": null,
+      "source_primary_id": "1ba6e190-7222-5c97-b7f1-b7cc2775473e",
+      "editorial_score": 91,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 45,
+      "price_level": null,
+      "aliases": [
+        { "alias": "Miradouro da Senhora do Monte", "alias_normalized": "miradouro da senhora do monte", "is_canonical": true },
+        { "alias": "Senhora do Monte Viewpoint", "alias_normalized": "senhora do monte viewpoint", "is_canonical": false }
+      ],
+      "tags": [
+        { "tag": "panoramic_view", "tag_category": "vibe", "confidence": 98 },
+        { "tag": "sunset", "tag_category": "vibe", "confidence": 90 },
+        { "tag": "photography", "tag_category": "activity_type", "confidence": 95 },
+        { "tag": "outdoor", "tag_category": "activity_type", "confidence": 95 }
+      ]
+    },
+    {
+      "poi_id": "652f06d1-2162-550c-8a97-960d60fe5bc6",
+      "destination_key": "lisbon",
+      "name": "Praça do Comércio",
+      "normalized_name": "praça do comércio",
+      "category": "must_see",
+      "subcategory": "historic_square",
+      "lat": 38.7077,
+      "lng": -9.1366,
+      "address": "Praça do Comércio, 1100-148 Lisboa",
+      "country_code": "PT",
+      "zone_name": "Baixa",
+      "official_url": null,
+      "source_primary_id": "1ba6e190-7222-5c97-b7f1-b7cc2775473e",
+      "editorial_score": 94,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 60,
+      "price_level": null,
+      "aliases": [
+        { "alias": "Praça do Comércio", "alias_normalized": "praça do comércio", "is_canonical": true },
+        { "alias": "Terreiro do Paço", "alias_normalized": "terreiro do paço", "is_canonical": false },
+        { "alias": "Commerce Square", "alias_normalized": "commerce square", "is_canonical": false }
+      ],
+      "tags": [
+        { "tag": "historic", "tag_category": "vibe", "confidence": 95 },
+        { "tag": "open_space", "tag_category": "vibe", "confidence": 90 },
+        { "tag": "outdoor", "tag_category": "activity_type", "confidence": 95 },
+        { "tag": "photography", "tag_category": "activity_type", "confidence": 85 }
+      ]
+    }
+  ]
+}
