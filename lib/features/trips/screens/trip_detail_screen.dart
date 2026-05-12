@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:voyage/config/live_api_guards.dart';
 import 'package:voyage/core/theme/app_theme.dart';
 import 'package:voyage/core/providers/currency_provider.dart';
 import 'package:voyage/core/services/currency_service.dart';
@@ -375,21 +377,52 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
     final messenger = ScaffoldMessenger.of(context);
     final router = GoRouter.of(context);
 
+    var dialogClosed = false;
+    void closeLoader() {
+      if (!dialogClosed) {
+        dialogClosed = true;
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+    }
+    var cancelled = false;
+    void showInfo(String msg) {
+      if (cancelled) return;
+      if (!mounted) return;
+      closeLoader();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(msg, maxLines: 4),
+          duration: const Duration(seconds: 8),
+          backgroundColor: AppColors.accent,
+        ),
+      );
+    }
+
     // Loader bloquant : barrierDismissible: false + PopScope dans le widget
     // pour empêcher aussi le bouton retour Android pendant la génération.
+    // Le bouton « Annuler la génération » (onCancel) est le SEUL moyen de
+    // sortir : il lève `cancelled` qui bloque l'INSERT batch et le go().
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const _TurnkeyPlanningLoaderDialog(),
+      builder: (_) => _TurnkeyPlanningLoaderDialog(
+        onCancel: () {
+          cancelled = true;
+          closeLoader();
+        },
+      ),
     );
 
     try {
       // Trip frais (avec les segments fraîchement créés). On lit via le
       // provider pour bénéficier du cache + invalidations.
       final freshTrip = await ref.read(tripByIdProvider(trip.id).future);
+      if (cancelled) return;
       if (freshTrip == null) throw Exception('Voyage introuvable');
       final hotels = await ref.read(tripHotelsProvider(trip.id).future);
+      if (cancelled) return;
       final existingActivities = await ref.read(tripActivitiesProvider(trip.id).future);
+      if (cancelled) return;
       String norm(String s) => s.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
       final existingTitlesNormalized = existingActivities.map((a) => norm(a.title)).toSet();
 
@@ -413,28 +446,35 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
         existingTitlesNormalized: existingTitlesNormalized,
         languageCode: 'fr',
       ).timeout(const Duration(seconds: 60));
+      // GUARD CRITIQUE : empêche l'INSERT batch et le go() si l'utilisateur
+      // a annulé pendant que runAutoPlacesFirst tournait. Sans ce guard, on
+      // créerait des activités fantômes en DB et on naviguerait de force
+      // alors que l'utilisateur a explicitement demandé d'annuler.
+      if (cancelled) return;
 
       if (suggestions.isNotEmpty) {
         final rows = suggestions.map((s) => s.toInsertJson(trip.id)).toList();
         await ref.read(supabaseProvider).from('trip_activities').insert(rows);
+        if (cancelled) return;
       }
       ref.invalidate(tripActivitiesProvider(trip.id));
       ref.invalidate(tripTransportsProvider(trip.id));
 
+      if (cancelled) return;
       if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop(); // ferme le loader
+      closeLoader();
       router.go('/trips/${trip.id}/planning');
+    } on LiveApiBlockedException catch (_) {
+      showInfo(
+        '✓ Étapes créées. Génération indisponible : les services de géolocalisation ou Gemini sont désactivés. Réessaie depuis « Générer mon planning ».',
+      );
+    } on TimeoutException catch (_) {
+      showInfo(
+        '✓ Étapes créées. La génération a mis trop de temps à répondre. Vérifie ta connexion et réessaie depuis « Générer mon planning ».',
+      );
     } catch (e) {
-      if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop(); // ferme le loader
-      messenger.showSnackBar(
-        SnackBar(
-          content: const Text(
-            '✓ Étapes créées. La génération du planning a échoué — réessaie depuis "Générer mon planning".',
-          ),
-          duration: const Duration(seconds: 8),
-          backgroundColor: AppColors.accent,
-        ),
+      showInfo(
+        '✓ Étapes créées. La génération du planning a échoué — réessaie depuis « Générer mon planning ».',
       );
       // Pas de navigation : l'user reste sur le détail voyage et voit
       // le _NextStepCard Cas 2 ("Ton planning n'est pas encore prêt").
@@ -1584,7 +1624,8 @@ class _TripStatusBadge extends StatelessWidget {
 /// terminée (✓), la phase 2/2 (construction du planning) est en cours
 /// (spinner). Texte rassurant pour normaliser le délai.
 class _TurnkeyPlanningLoaderDialog extends StatelessWidget {
-  const _TurnkeyPlanningLoaderDialog();
+  final VoidCallback? onCancel;
+  const _TurnkeyPlanningLoaderDialog({this.onCancel});
 
   @override
   Widget build(BuildContext context) {
@@ -1628,6 +1669,19 @@ class _TurnkeyPlanningLoaderDialog extends StatelessWidget {
                   height: 1.4,
                 ),
               ),
+              if (onCancel != null) ...[
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                    ),
+                    onPressed: onCancel,
+                    child: const Text('Annuler la génération'),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
