@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:voyage/config/live_api_guards.dart';
 import 'package:voyage/core/constants/ai_constants.dart';
 import 'package:voyage/features/planning/services/airport_city_overrides.dart';
+import 'package:voyage/features/planning/services/autocomplete_guard.dart';
 import 'package:voyage/features/planning/services/place_components.dart';
 
 class PlacePhoto {
@@ -190,17 +191,48 @@ class PlacesService {
   final LiveApiGuards _guards;
   final http.Client? _httpClient;
   final String _apiKey;
+  final AutocompleteGuard _autocompleteGuard;
 
   PlacesService({
     LiveApiGuards? guards,
     http.Client? httpClient,
     String? apiKey,
+    AutocompleteGuard? autocompleteGuard,
   }) : _guards = guards ?? LiveApiGuards.fromEnvironment(),
        _httpClient = httpClient,
-       _apiKey = apiKey ?? AiConstants.googleMapsApiKey;
+       _apiKey = apiKey ?? AiConstants.googleMapsApiKey,
+       _autocompleteGuard = autocompleteGuard ?? AutocompleteGuard();
 
   bool get _hasApiKey =>
       _apiKey.isNotEmpty && _apiKey != 'COLLE_TA_CLE_MAPS_ICI';
+
+  // ─── API-0.6a — Lunao-first destination source ───
+  static const _lunaoDestinations = <String, ({
+    String description,
+    String mainText,
+    String placeId,
+    String kind,
+  })>{
+    'lisbon': (description: 'Lisbonne, Portugal', mainText: 'Lisbonne', placeId: 'lunao:lisbon', kind: 'city'),
+    'lisbonne': (description: 'Lisbonne, Portugal', mainText: 'Lisbonne', placeId: 'lunao:lisbon', kind: 'city'),
+    'lisboa': (description: 'Lisbonne, Portugal', mainText: 'Lisbonne', placeId: 'lunao:lisbon', kind: 'city'),
+    'lisbon portugal': (description: 'Lisbonne, Portugal', mainText: 'Lisbonne', placeId: 'lunao:lisbon', kind: 'city'),
+    'lisbonne portugal': (description: 'Lisbonne, Portugal', mainText: 'Lisbonne', placeId: 'lunao:lisbon', kind: 'city'),
+    'lisboa portugal': (description: 'Lisbonne, Portugal', mainText: 'Lisbonne', placeId: 'lunao:lisbon', kind: 'city'),
+  };
+
+  static const _lunaoCities = <String, ({
+    String description,
+    String mainText,
+    String placeId,
+  })>{
+    'lisbon': (description: 'Lisbonne, Portugal', mainText: 'Lisbonne', placeId: 'lunao:lisbon'),
+    'lisbonne': (description: 'Lisbonne, Portugal', mainText: 'Lisbonne', placeId: 'lunao:lisbon'),
+    'lisboa': (description: 'Lisbonne, Portugal', mainText: 'Lisbonne', placeId: 'lunao:lisbon'),
+    'lisbon portugal': (description: 'Lisbonne, Portugal', mainText: 'Lisbonne', placeId: 'lunao:lisbon'),
+    'lisbonne portugal': (description: 'Lisbonne, Portugal', mainText: 'Lisbonne', placeId: 'lunao:lisbon'),
+    'lisboa portugal': (description: 'Lisbonne, Portugal', mainText: 'Lisbonne', placeId: 'lunao:lisbon'),
+  };
 
   void _assertGooglePlacesAllowed(String operation) {
     _guards.assertAllowed(LiveApiFamily.googlePlaces, operation: operation);
@@ -333,6 +365,31 @@ class PlacesService {
   /// pays — sécurise les étapes sur les voyages "Pays".
   Future<List<({String description, String mainText, String placeId})>>
   autocompleteCities(String query, {String? countryCode}) async {
+    final normalized = query.trim().toLowerCase();
+
+    // API-0.6a — Lunao-first for covered destinations
+    final lunao = _lunaoCities[normalized];
+    if (lunao != null) {
+      // ignore: avoid_print
+      print(
+        '[autocomplete] source=lunao '
+        'query="$normalized" '
+        'context=city '
+        'results=1',
+      );
+      return [lunao];
+    }
+
+    // API-0.6a — guard: min-length, cache, timeout, error safety
+    return _autocompleteGuard.execute(
+      query: query,
+      context: 'city',
+      fallback: () => _autocompleteCitiesImpl(query, countryCode: countryCode),
+    );
+  }
+
+  Future<List<({String description, String mainText, String placeId})>>
+  _autocompleteCitiesImpl(String query, {String? countryCode}) async {
     final key = _apiKey;
     final trimmed = query.trim();
     if (trimmed.length < 2 || !_hasApiKey) return const [];
@@ -498,6 +555,33 @@ class PlacesService {
     List<({String description, String mainText, String placeId, String kind})>
   >
   autocompleteDestinations(String query) async {
+    final normalized = query.trim().toLowerCase();
+
+    // API-0.6a — Lunao-first for covered destinations
+    final lunao = _lunaoDestinations[normalized];
+    if (lunao != null) {
+      // ignore: avoid_print
+      print(
+        '[autocomplete] source=lunao '
+        'query="$normalized" '
+        'context=destination '
+        'results=1',
+      );
+      return [lunao];
+    }
+
+    // API-0.6a — guard: min-length, cache, timeout, error safety
+    return _autocompleteGuard.execute(
+      query: query,
+      context: 'destination',
+      fallback: () => _autocompleteDestinationsImpl(query),
+    );
+  }
+
+  Future<
+    List<({String description, String mainText, String placeId, String kind})>
+  >
+  _autocompleteDestinationsImpl(String query) async {
     final key = _apiKey;
     final trimmed = query.trim();
     if (trimmed.length < 2 || !_hasApiKey) return const [];
@@ -596,6 +680,25 @@ class PlacesService {
   /// Charles-de-Gaulle" plutôt que "Charles de Gaulle Airport").
   Future<List<({String description, String mainText, String placeId})>>
   autocompleteTransport(
+    String query, {
+    required String type,
+    String? sessionToken,
+  }) async {
+    // API-0.6a — guard: min-length, cache, timeout, error safety
+    // No Lunao-first for transport (airport/train station ≠ destination)
+    return _autocompleteGuard.execute(
+      query: query,
+      context: 'transport',
+      fallback: () => _autocompleteTransportImpl(
+        query,
+        type: type,
+        sessionToken: sessionToken,
+      ),
+    );
+  }
+
+  Future<List<({String description, String mainText, String placeId})>>
+  _autocompleteTransportImpl(
     String query, {
     required String type,
     String? sessionToken,

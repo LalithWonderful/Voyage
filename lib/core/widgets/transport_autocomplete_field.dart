@@ -114,7 +114,7 @@ class _TransportAutocompleteFieldState extends ConsumerState<TransportAutocomple
 
   Future<void> _runSearch(String value) async {
     final query = value.trim();
-    if (query.length < 2) {
+    if (query.length < 4) {
       setState(() {
         _suggestions = const [];
         _loading = false;
