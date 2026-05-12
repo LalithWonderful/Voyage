@@ -69,9 +69,21 @@ class PlanningScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 18),
-              Text(
-                'Comment veux-tu planifier ce voyage ?',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Comment veux-tu planifier ce voyage ?',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    tooltip: 'Annuler',
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
               ),
               const SizedBox(height: 6),
               Text(
