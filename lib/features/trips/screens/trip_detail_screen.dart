@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -241,7 +242,7 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
     }
     try {
       final places = ref.read(placesServiceProvider);
-      final results = await places.autocompleteDestinations(dest);
+      final results = await places.autocompleteDestinations(dest).timeout(const Duration(seconds: 5));
       if (!mounted) return;
       if (results.isEmpty) {
         setState(() => _destinationKind = 'unknown');
@@ -252,7 +253,8 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
       final exact = results.where((r) => r.mainText.toLowerCase() == dest.toLowerCase());
       final pick = exact.isNotEmpty ? exact.first : results.first;
       setState(() => _destinationKind = pick.kind);
-    } catch (_) {
+    } catch (e) {
+      developer.log('[api-0.6d] _detectDestinationKind error for "$dest": $e', name: 'api_guard');
       if (mounted) setState(() => _destinationKind = 'unknown');
     }
   }

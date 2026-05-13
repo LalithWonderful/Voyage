@@ -161,7 +161,13 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
     final dest = widget.trip.destination.trim();
     if (dest.isEmpty) return;
     final places = ref.read(placesServiceProvider);
-    final results = await places.autocompleteDestinations(dest);
+    final List<({String description, String mainText, String placeId, String kind})> results;
+    try {
+      results = await places.autocompleteDestinations(dest).timeout(const Duration(seconds: 5));
+    } catch (e) {
+      developer.log('[api-0.6d] _detectInitialKind timeout/error for "$dest": $e', name: 'api_guard');
+      return;
+    }
     if (!mounted || results.isEmpty) return;
     // Prend la 1ère suggestion dont le mainText correspond à la destination
     // (évite de prendre une homonymie au cas où la destination est ambiguë).
@@ -186,7 +192,12 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
     // (le pays de la ville est utile aussi pour proposer d'autres villes du
     // même pays comme étapes additionnelles).
     if (pick.placeId.isNotEmpty) {
-      final code = await places.getCountryCodeFromPlaceId(pick.placeId);
+      String? code;
+      try {
+        code = await places.getCountryCodeFromPlaceId(pick.placeId).timeout(const Duration(seconds: 5));
+      } catch (e) {
+        developer.log('[api-0.6d] getCountryCodeFromPlaceId timeout/error for ${pick.placeId}: $e', name: 'api_guard');
+      }
       if (mounted && code != null) {
         setState(() => _destinationCountryCode = code);
         // Persiste les champs `destination_*` sur le trip pour que le flow

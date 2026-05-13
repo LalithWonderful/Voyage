@@ -144,12 +144,17 @@ class PlanningScreen extends ConsumerWidget {
     // Places ne sait pas où chercher (centroïde du pays = milieu de désert).
     if (trip.itinerarySegments.isEmpty) {
       final places = ref.read(placesServiceProvider);
-      final results = await places.autocompleteDestinations(trip.destination);
-      if (!context.mounted) return;
       String? kind;
-      if (results.isNotEmpty) {
-        final exact = results.where((r) => r.mainText.toLowerCase() == trip.destination.trim().toLowerCase());
-        kind = (exact.isNotEmpty ? exact.first : results.first).kind;
+      try {
+        final results = await places.autocompleteDestinations(trip.destination).timeout(const Duration(seconds: 5));
+        if (!context.mounted) return;
+        if (results.isNotEmpty) {
+          final exact = results.where((r) => r.mainText.toLowerCase() == trip.destination.trim().toLowerCase());
+          kind = (exact.isNotEmpty ? exact.first : results.first).kind;
+        }
+      } catch (e) {
+        developer.log('[api-0.6d] _openSuggestionMenu timeout/error for "${trip.destination}": $e', name: 'api_guard');
+        // En cas d'erreur, on laisse passer (kind reste null → pas de blocage).
       }
       if (kind == 'country' || kind == 'region') {
         final goEdit = await showDialog<bool>(

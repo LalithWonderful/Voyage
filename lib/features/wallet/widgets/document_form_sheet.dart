@@ -768,32 +768,37 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
         return;
       }
       final cache = ref.read(placeLookupCacheServiceProvider);
-      final resolved = await cache.resolveCoords(
-        placeId: existingPlaceId,
-        kind: kind,
-        sessionToken: _sessionTokens[fieldKey],
-      );
-      if (resolved != null) {
-        meta[placeIdKey] = existingPlaceId;
-        meta[latKey] = resolved.lat;
-        meta[lngKey] = resolved.lng;
-        if (resolved.countryCode != null) {
-          meta[countryKey] = resolved.countryCode;
-        } else {
-          meta.remove(countryKey);
+      try {
+        final resolved = await cache.resolveCoords(
+          placeId: existingPlaceId,
+          kind: kind,
+          sessionToken: _sessionTokens[fieldKey],
+        ).timeout(const Duration(seconds: 5));
+        if (resolved != null) {
+          meta[placeIdKey] = existingPlaceId;
+          meta[latKey] = resolved.lat;
+          meta[lngKey] = resolved.lng;
+          if (resolved.countryCode != null) {
+            meta[countryKey] = resolved.countryCode;
+          } else {
+            meta.remove(countryKey);
+          }
+          if (resolved.city != null) {
+            meta[cityKey] = resolved.city;
+          } else {
+            meta.remove(cityKey);
+          }
+          // Si Place Details renvoie un nom différent (ex: "BKK" → "Aéroport
+          // de Bangkok-Suvarnabhumi"), on écrase le name pour cohérence avec
+          // ce que l'user a vu dans le dropdown — c'est déjà le cas si pick
+          // frais, on garantit aussi pour le hit cache pur.
+          if (resolved.name.isNotEmpty) meta[fieldKey] = resolved.name;
+          meta.remove(failKey);
+          return;
         }
-        if (resolved.city != null) {
-          meta[cityKey] = resolved.city;
-        } else {
-          meta.remove(cityKey);
-        }
-        // Si Place Details renvoie un nom différent (ex: "BKK" → "Aéroport
-        // de Bangkok-Suvarnabhumi"), on écrase le name pour cohérence avec
-        // ce que l'user a vu dans le dropdown — c'est déjà le cas si pick
-        // frais, on garantit aussi pour le hit cache pur.
-        if (resolved.name.isNotEmpty) meta[fieldKey] = resolved.name;
-        meta.remove(failKey);
-        return;
+      } catch (e) {
+        developer.log('[api-0.6d] resolveCoords timeout/error for $existingPlaceId: $e', name: 'api_guard');
+        // Fall through to geocode fallback.
       }
       // Place Details a foiré (rare) → on tombe en fallback Geocoding texte.
     }
@@ -835,28 +840,39 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
     final lower = newVal.toLowerCase();
     final alreadyTyped = equivalents.any(lower.contains);
     final query = alreadyTyped ? newVal : '$prefix$newVal';
-    final geo = await ref
-        .read(geocodingServiceProvider)
-        .geocode(query, regionHint: regionHint);
-    if (geo != null) {
-      meta[latKey] = geo.latitude;
-      meta[lngKey] = geo.longitude;
-      meta.remove(failKey);
-      meta.remove(placeIdKey);
-      // Geocoding API extrait country_code et city depuis address_components
-      // quand dispo. Permet le warning "vol hors pays" + l'auto-création
-      // d'étape même en fallback texte sans placeId.
-      if (geo.countryCode != null && geo.countryCode!.isNotEmpty) {
-        meta[countryKey] = geo.countryCode;
+    try {
+      final geo = await ref
+          .read(geocodingServiceProvider)
+          .geocode(query, regionHint: regionHint)
+          .timeout(const Duration(seconds: 5));
+      if (geo != null) {
+        meta[latKey] = geo.latitude;
+        meta[lngKey] = geo.longitude;
+        meta.remove(failKey);
+        meta.remove(placeIdKey);
+        // Geocoding API extrait country_code et city depuis address_components
+        // quand dispo. Permet le warning "vol hors pays" + l'auto-création
+        // d'étape même en fallback texte sans placeId.
+        if (geo.countryCode != null && geo.countryCode!.isNotEmpty) {
+          meta[countryKey] = geo.countryCode;
+        } else {
+          meta.remove(countryKey);
+        }
+        if (geo.city != null && geo.city!.isNotEmpty) {
+          meta[cityKey] = geo.city;
+        } else {
+          meta.remove(cityKey);
+        }
       } else {
+        meta[failKey] = true;
+        meta.remove(latKey);
+        meta.remove(lngKey);
+        meta.remove(placeIdKey);
         meta.remove(countryKey);
-      }
-      if (geo.city != null && geo.city!.isNotEmpty) {
-        meta[cityKey] = geo.city;
-      } else {
         meta.remove(cityKey);
       }
-    } else {
+    } catch (e) {
+      developer.log('[api-0.6d] _resolveTransportEndpoint geocode timeout/error for "$query": $e', name: 'api_guard');
       meta[failKey] = true;
       meta.remove(latKey);
       meta.remove(lngKey);
@@ -922,26 +938,40 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
   Future<void> _geocodeTransportDocument(Map<String, dynamic> meta) async {
     String? regionHint;
     if (_tripId != null) {
-      final trip = await ref.read(tripByIdProvider(_tripId!).future);
-      regionHint = trip?.destinationCountryCode;
+      try {
+        final trip = await ref.read(tripByIdProvider(_tripId!).future).timeout(const Duration(seconds: 5));
+        regionHint = trip?.destinationCountryCode;
+      } catch (e) {
+        developer.log('[api-0.6d] trip lookup timeout/error: $e', name: 'api_guard');
+      }
     }
     final isFlight = _category == DocumentCategory.flight;
     final kind = isFlight ? 'airport' : 'train_station';
     final prefix = isFlight ? 'airport ' : 'train station ';
-    await _resolveTransportEndpoint(
-      meta: meta,
-      fieldKey: 'from',
-      kind: kind,
-      prefix: prefix,
-      regionHint: regionHint,
-    );
-    await _resolveTransportEndpoint(
-      meta: meta,
-      fieldKey: 'to',
-      kind: kind,
-      prefix: prefix,
-      regionHint: regionHint,
-    );
+    try {
+      await _resolveTransportEndpoint(
+        meta: meta,
+        fieldKey: 'from',
+        kind: kind,
+        prefix: prefix,
+        regionHint: regionHint,
+      ).timeout(const Duration(seconds: 5));
+    } catch (e) {
+      developer.log('[api-0.6d] _resolveTransportEndpoint(from) timeout/error: $e', name: 'api_guard');
+      meta['from_geocoding_failed'] = true;
+    }
+    try {
+      await _resolveTransportEndpoint(
+        meta: meta,
+        fieldKey: 'to',
+        kind: kind,
+        prefix: prefix,
+        regionHint: regionHint,
+      ).timeout(const Duration(seconds: 5));
+    } catch (e) {
+      developer.log('[api-0.6d] _resolveTransportEndpoint(to) timeout/error: $e', name: 'api_guard');
+      meta['to_geocoding_failed'] = true;
+    }
   }
 
   Future<void> _geocodeHotelAddress(Map<String, dynamic> meta) async {
@@ -965,14 +995,22 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
       final trip = await ref.read(tripByIdProvider(_tripId!).future);
       regionHint = trip?.destinationCountryCode;
     }
-    final geo = await ref
-        .read(geocodingServiceProvider)
-        .geocode(newAddress, regionHint: regionHint);
-    if (geo != null) {
-      meta['latitude'] = geo.latitude;
-      meta['longitude'] = geo.longitude;
-      meta.remove('geocoding_failed');
-    } else {
+    try {
+      final geo = await ref
+          .read(geocodingServiceProvider)
+          .geocode(newAddress, regionHint: regionHint)
+          .timeout(const Duration(seconds: 5));
+      if (geo != null) {
+        meta['latitude'] = geo.latitude;
+        meta['longitude'] = geo.longitude;
+        meta.remove('geocoding_failed');
+      } else {
+        meta['geocoding_failed'] = true;
+        meta.remove('latitude');
+        meta.remove('longitude');
+      }
+    } catch (e) {
+      developer.log('[api-0.6d] _geocodeHotelAddress timeout/error for "$newAddress": $e', name: 'api_guard');
       meta['geocoding_failed'] = true;
       meta.remove('latitude');
       meta.remove('longitude');
