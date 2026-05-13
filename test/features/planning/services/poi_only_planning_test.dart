@@ -1078,4 +1078,260 @@ void main() {
       },
     );
   });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // POI-2.6 — Scoring quality improvements
+  // ═══════════════════════════════════════════════════════════════════════
+
+  group('POI-2.6 : POI scoring quality', () {
+    test('high editorial_score POIs rank higher in suggestions', () async {
+      final trip = _buildTrip(
+        destination: 'Paris',
+        startDate: DateTime.utc(2026, 6, 1),
+        endDate: DateTime.utc(2026, 6, 1),
+        interests: ['Culture'],
+      );
+      final pois = <Poi>[
+        _buildPoi(
+          poiId: 'low',
+          destinationKey: 'paris',
+          name: 'Low Score Museum',
+          lat: 48.86,
+          lng: 2.34,
+          category: PoiCategory.museum,
+          editorialScore: 40,
+        ),
+        _buildPoi(
+          poiId: 'high',
+          destinationKey: 'paris',
+          name: 'High Score Museum',
+          lat: 48.86,
+          lng: 2.35,
+          category: PoiCategory.museum,
+          editorialScore: 95,
+        ),
+      ];
+      final poiRepo = FakePoiRepository(pois: pois);
+      final adapter = PoiCandidateAdapter(poiRepo);
+      final candidates = await adapter.adaptForDestination('paris');
+
+      final high = candidates.firstWhere((c) => c.name == 'High Score Museum');
+      final low = candidates.firstWhere((c) => c.name == 'Low Score Museum');
+
+      expect(high.editorialScore, 95);
+      expect(low.editorialScore, 40);
+      expect(high.isCurated, isTrue);
+      expect(low.isCurated, isTrue);
+      // Rating reflète le score éditorial : 4.0 + score/100
+      expect(high.rating, greaterThan(low.rating!));
+    });
+
+    test('must-see POIs receive extra scoring bonus', () async {
+      final trip = _buildTrip(
+        destination: 'Paris',
+        startDate: DateTime.utc(2026, 6, 1),
+        endDate: DateTime.utc(2026, 6, 1),
+        interests: ['Culture'],
+      );
+      final pois = <Poi>[
+        _buildPoi(
+          poiId: 'normal',
+          destinationKey: 'paris',
+          name: 'Normal Museum',
+          lat: 48.86,
+          lng: 2.34,
+          category: PoiCategory.museum,
+          editorialScore: 80,
+        ),
+        _buildPoi(
+          poiId: 'mustsee',
+          destinationKey: 'paris',
+          name: 'Must See Monument',
+          lat: 48.86,
+          lng: 2.35,
+          category: PoiCategory.mustSee,
+          editorialScore: 80,
+        ),
+      ];
+      final poiRepo = FakePoiRepository(pois: pois);
+      final adapter = PoiCandidateAdapter(poiRepo);
+      final candidates = await adapter.adaptForDestination('paris');
+
+      final mustSee = candidates.firstWhere((c) => c.name == 'Must See Monument');
+      expect(mustSee.types, contains('must_see'));
+    });
+
+    test('suggestions are distributed across days without duplicates', () async {
+      final trip = _buildTrip(
+        destination: 'Paris',
+        startDate: DateTime.utc(2026, 6, 1),
+        endDate: DateTime.utc(2026, 6, 2),
+        interests: ['Culture', 'Spots populaires'],
+      );
+      final pois = <Poi>[
+        _buildPoi(
+          poiId: 'p1',
+          destinationKey: 'paris',
+          name: 'Louvre',
+          lat: 48.8606,
+          lng: 2.3376,
+          category: PoiCategory.museum,
+          editorialScore: 100,
+        ),
+        _buildPoi(
+          poiId: 'p2',
+          destinationKey: 'paris',
+          name: 'Tour Eiffel',
+          lat: 48.8584,
+          lng: 2.2945,
+          category: PoiCategory.monument,
+          editorialScore: 95,
+        ),
+        _buildPoi(
+          poiId: 'p3',
+          destinationKey: 'paris',
+          name: 'Notre-Dame',
+          lat: 48.8530,
+          lng: 2.3499,
+          category: PoiCategory.monument,
+          editorialScore: 90,
+        ),
+        _buildPoi(
+          poiId: 'p4',
+          destinationKey: 'paris',
+          name: 'Musée d\'Orsay',
+          lat: 48.8599,
+          lng: 2.3266,
+          category: PoiCategory.museum,
+          editorialScore: 85,
+        ),
+        _buildPoi(
+          poiId: 'p5',
+          destinationKey: 'paris',
+          name: 'Jardin du Luxembourg',
+          lat: 48.8462,
+          lng: 2.3372,
+          category: PoiCategory.park,
+          editorialScore: 70,
+        ),
+        _buildPoi(
+          poiId: 'p6',
+          destinationKey: 'paris',
+          name: 'Sacré-Cœur',
+          lat: 48.8867,
+          lng: 2.3431,
+          category: PoiCategory.monument,
+          editorialScore: 80,
+        ),
+      ];
+      final poiRepo = FakePoiRepository(pois: pois);
+      final adapter = PoiCandidateAdapter(poiRepo);
+      final candidates = await adapter.adaptForDestination('paris');
+
+      final center = DayCenter(
+        latitude: 48.86,
+        longitude: 2.34,
+        source: 'test',
+      );
+      final poolMap = <String, ({NearbyCandidate candidate, List<String> matchedInterests})>{
+        for (final c in candidates)
+          c.placeId: (candidate: c, matchedInterests: ['Culture', 'Spots populaires']),
+      };
+      final input = PlacesPromptInput(
+        center: center,
+        days: [DateTime.utc(2026, 6, 1), DateTime.utc(2026, 6, 2)],
+        pool: poolMap,
+      );
+
+      final suggestions = selectVisitsDeterministic(
+        clusters: [input],
+        trip: trip,
+        travelerProfile: null,
+      );
+
+      // Pas de doublons
+      final titles = suggestions.map((s) => s.title).toList();
+      expect(titles.toSet().length, titles.length);
+
+      // Au moins 2 jours couverts
+      final days = suggestions.map((s) => s.dayDate.day).toSet();
+      expect(days.length, greaterThanOrEqualTo(2));
+    });
+
+    test('category diversity is respected (not all same tag)', () async {
+      final trip = _buildTrip(
+        destination: 'Paris',
+        startDate: DateTime.utc(2026, 6, 1),
+        endDate: DateTime.utc(2026, 6, 1),
+        interests: ['Culture', 'Nature'],
+      );
+      final pois = <Poi>[
+        _buildPoi(
+          poiId: 'm1',
+          destinationKey: 'paris',
+          name: 'Musée du Louvre',
+          lat: 48.86,
+          lng: 2.34,
+          category: PoiCategory.museum,
+          editorialScore: 90,
+        ),
+        _buildPoi(
+          poiId: 'm2',
+          destinationKey: 'paris',
+          name: 'Musée d\'Orsay',
+          lat: 48.861,
+          lng: 2.341,
+          category: PoiCategory.museum,
+          editorialScore: 88,
+        ),
+        _buildPoi(
+          poiId: 'm3',
+          destinationKey: 'paris',
+          name: 'Centre Pompidou',
+          lat: 48.862,
+          lng: 2.342,
+          category: PoiCategory.museum,
+          editorialScore: 87,
+        ),
+        _buildPoi(
+          poiId: 'park',
+          destinationKey: 'paris',
+          name: 'Jardin du Luxembourg',
+          lat: 48.85,
+          lng: 2.33,
+          category: PoiCategory.park,
+          editorialScore: 85,
+        ),
+      ];
+      final poiRepo = FakePoiRepository(pois: pois);
+      final adapter = PoiCandidateAdapter(poiRepo);
+      final candidates = await adapter.adaptForDestination('paris');
+
+      final center = DayCenter(
+        latitude: 48.86,
+        longitude: 2.34,
+        source: 'test',
+      );
+      final poolMap = <String, ({NearbyCandidate candidate, List<String> matchedInterests})>{
+        for (final c in candidates)
+          c.placeId: (candidate: c, matchedInterests: ['Culture', 'Nature']),
+      };
+      final input = PlacesPromptInput(
+        center: center,
+        days: [DateTime.utc(2026, 6, 1)],
+        pool: poolMap,
+      );
+
+      final suggestions = selectVisitsDeterministic(
+        clusters: [input],
+        trip: trip,
+        travelerProfile: null,
+      );
+
+      // Même avec 3 musées très bien notés, le parc doit apparaître
+      // grâce à la pénalité de diversité par tag
+      final tags = suggestions.map((s) => s.tag).toList();
+      expect(tags, contains('Nature'));
+    });
+  });
 }

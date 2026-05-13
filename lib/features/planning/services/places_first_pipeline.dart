@@ -4858,15 +4858,15 @@ List<ActivitySuggestion> selectVisitsDeterministic({
               ? 25.0
               : 0.0;
           // 2026-05-08 calibrage #1 : pénalité diversité PAR TAG dans la
-          // journée. -10 par occurrence du même tag déjà pické. Casse les
-          // 4× Culture consécutifs observés sur Meilleur prix / Couple.
-          // Force la rotation tags sans bloquer dur (un tag dominant peut
-          // toujours gagner si l'écart de qualité > 10 × count).
+          // journée. Casse les 4× Culture consécutifs observés sur
+          // Meilleur prix / Couple. Force la rotation tags sans bloquer
+          // dur (un tag dominant peut toujours gagner si l'écart de
+          // qualité > 15 × count).
+          // POI-2.6 renforcé : 10 → 15.
           final candidateTag = _tagFromPrimaryType(
             c.types.isNotEmpty ? c.types.first : '',
           );
           final sameTagCountInDay = tagCountThisDay[candidateTag] ?? 0;
-          final tagDiversityPenalty = sameTagCountInDay * 10.0;
           // V8.13 (Quality-1D) — bonus blueprint must-see/experience.
           // Échelle pensée pour DOMINER les autres signaux :
           //   +100 must-see > tout filler nearby (un must-see à
@@ -4877,11 +4877,32 @@ List<ActivitySuggestion> selectVisitsDeterministic({
           final blueprintBonus = isBlueprintMustSee
               ? 100.0
               : (isBlueprintExperience ? 70.0 : 0.0);
+          // POI-2.6 — bonus curation pour les candidats POI internes.
+          // editorialScore 0-100 → bonus 0-40. curated non-POI → +5.
+          final poiQualityBonus =
+              (c.isCurated && c.editorialScore != null)
+                  ? c.editorialScore! * 0.4
+                  : 0.0;
+          final curatedBonus = c.isCurated ? 5.0 : 0.0;
+          // POI-2.6 — bonus durée : favorise les visites de 60-180 min
+          // (durée touristique standard). Null ou hors zone → 0.
+          final duration = c.typicalDurationMinutes;
+          final durationBonus = (duration != null &&
+                  duration >= 60 &&
+                  duration <= 180)
+              ? 3.0
+              : 0.0;
+          // POI-2.6 — pénalité diversité renforcée (10 → 15) pour casser
+          // les séries de même tag dans une journée.
+          final tagDiversityPenalty = sameTagCountInDay * 15.0;
           return qualityScore +
               interestBonus +
               iconicMuseumBonus +
               iconicTouristBonus +
-              blueprintBonus -
+              blueprintBonus +
+              poiQualityBonus +
+              curatedBonus +
+              durationBonus -
               distancePenalty -
               diversityPenalty -
               wellnessConsecutivePenalty -

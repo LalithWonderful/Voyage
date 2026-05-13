@@ -29,6 +29,18 @@ class NearbyCandidate {
   final double latitude;
   final double longitude;
 
+  /// POI-2.6 — Signal curation POI. Vrai pour les candidats issus de la
+  /// base POI interne (pas Google Places).
+  final bool isCurated;
+
+  /// POI-2.6 — Score éditorial 0-100 du POI, transmis au sélecteur
+  /// déterministe pour un scoring POI-aware.
+  final int? editorialScore;
+
+  /// POI-2.6 — Durée typique de visite en minutes (POI uniquement).
+  /// Utilisé par le sélecteur pour favoriser les durées standard.
+  final int? typicalDurationMinutes;
+
   const NearbyCandidate({
     required this.placeId,
     required this.name,
@@ -39,6 +51,9 @@ class NearbyCandidate {
     this.userRatingCount,
     this.priceLevel,
     this.types = const [],
+    this.isCurated = false,
+    this.editorialScore,
+    this.typicalDurationMinutes,
   });
 
   factory NearbyCandidate.fromPlacesV1(Map<String, dynamic> json) {
