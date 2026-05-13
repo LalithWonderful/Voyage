@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,8 +10,11 @@ import 'package:voyage/features/planning/models/activity_suggestion_model.dart';
 import 'package:voyage/features/planning/models/trip_activity_model.dart';
 import 'package:voyage/features/planning/providers/planning_provider.dart';
 import 'package:voyage/features/planning/services/places_service.dart';
+import 'package:voyage/features/planning/services/poi_alternatives_provider.dart';
+import 'package:voyage/features/poi/providers/poi_repository_provider.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
+import 'package:voyage/config/live_api_guards.dart';
 
 Future<bool> openAlternativesSheet(
   BuildContext context,
@@ -61,16 +66,49 @@ class _AlternativesSheetState extends ConsumerState<_AlternativesSheet> {
       final allActivities = await ref.read(
         tripActivitiesProvider(widget.current.tripId).future,
       );
-      final service = ref.read(aiSuggestionsServiceProvider);
-      final alts = await service.suggestAlternatives(
+
+      // 1. POI-first — aucun appel réseau
+      final poiRepo = ref.read(poiRepositoryProvider);
+      final poiProvider = PoiAlternativesProvider(poiRepo);
+      var alts = await poiProvider.suggestAlternatives(
         current: widget.current,
         trip: trip,
-        travelerType: trip.travelerType ?? profile?['traveler_type'] as String?,
-        interests: (trip.interests != null && trip.interests!.isNotEmpty)
-            ? trip.interests!
-            : interests,
         allActivities: allActivities,
       );
+
+      // 2. Fallback Gemini si aucune alternative POI
+      if (alts.isEmpty) {
+        try {
+          final service = ref.read(aiSuggestionsServiceProvider);
+          alts = await service.suggestAlternatives(
+            current: widget.current,
+            trip: trip,
+            travelerType: trip.travelerType ?? profile?['traveler_type'] as String?,
+            interests: (trip.interests != null && trip.interests!.isNotEmpty)
+                ? trip.interests!
+                : interests,
+            allActivities: allActivities,
+          );
+          developer.log(
+            '[alternatives] source=gemini_fallback '
+            'reason=no_poi_alternatives current="${widget.current.title}"',
+            name: 'planning',
+          );
+        } on LiveApiBlockedException catch (e) {
+          developer.log(
+            '[alternatives] gemini_blocked reason=${e.operation}',
+            name: 'planning',
+          );
+          // Non bloquant : on laisse la liste vide
+        } catch (e) {
+          developer.log(
+            '[alternatives] gemini_blocked reason=$e',
+            name: 'planning',
+          );
+          // Non bloquant : on laisse la liste vide
+        }
+      }
+
       if (!mounted) return;
       setState(() {
         _alternatives = alts;
