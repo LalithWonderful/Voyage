@@ -1950,6 +1950,113 @@ class DayCandidates {
   int get uniqueCandidates => allUnique.length;
 }
 
+// ─── POI-2.4 : POI-only candidate gather for covered destinations ─────────
+
+/// Tente de construire un pool de candidats 100 % POI (sans appel Google
+/// Places) quand la destination est couverte par la base POI et que le
+/// nombre de POI est suffisant.
+///
+/// Retourne `null` si :
+/// - la destination n'est pas couverte (`destinationKey == null`)
+/// - le repository POI n'est pas disponible
+/// - le nombre de POI est inférieur au seuil (minimum 5 total ET au
+///   moins 1 POI par jour valide)
+///
+/// Dans tous les cas `null`, le caller doit tomber en fallback sur le
+/// flux Google Places existant.
+Future<List<DayCandidates>?> _tryGatherPoiOnlyCandidates({
+  required Trip trip,
+  required Map<String, ({DayCenter center, List<DateTime> days})> groups,
+  required List<({DateTime day, DayCenter center})> validDayCenters,
+  required List<String> interests,
+  required PoiRepository? poiRepository,
+  required int walkRadius,
+  String? languageCode,
+}) async {
+  final destinationKey = DestinationKeyMapper.map(trip.destination);
+  if (destinationKey == null) {
+    // ignore: avoid_print
+    print(
+      '[poi_planning] destination="${trip.destination}" '
+      'destinationKey=null fallback=google reason=not_covered',
+    );
+    return null;
+  }
+  if (poiRepository == null) {
+    // ignore: avoid_print
+    print(
+      '[poi_planning] destination="${trip.destination}" '
+      'destinationKey=$destinationKey fallback=google reason=no_repository',
+    );
+    return null;
+  }
+
+  final poiAdapter = PoiCandidateAdapter(poiRepository);
+  final poiCandidates = await poiAdapter.adaptForDestination(destinationKey);
+
+  // Seuil déterministe : minimum 5 total ET au moins 1 par jour valide.
+  const minTotalThreshold = 5;
+  final minPerDayThreshold = validDayCenters.length;
+  final insufficient = poiCandidates.length < minTotalThreshold ||
+      poiCandidates.length < minPerDayThreshold;
+
+  if (insufficient) {
+    // ignore: avoid_print
+    print(
+      '[poi_planning] destination="${trip.destination}" '
+      'destinationKey=$destinationKey fallback=google reason=insufficient_poi '
+      'poiCandidates=${poiCandidates.length} '
+      'thresholdTotal=$minTotalThreshold thresholdPerDay=$minPerDayThreshold',
+    );
+    return null;
+  }
+
+  // Construit le pool par groupe : chaque intérêt reçoit tous les POIs.
+  // Cohérent avec l'enrichissement POI-2.0 qui injecte les POIs dans
+  // TOUS les intérêts existants.
+  final poolBySig = <String, Map<String, List<NearbyCandidate>>>{};
+  final travelerProfile = trip.travelerType != null
+      ? travelerPlacesProfiles[trip.travelerType]
+      : null;
+  for (final entry in groups.entries) {
+    final sig = entry.key;
+    final byInterest = <String, List<NearbyCandidate>>{};
+    for (final interest in interests) {
+      final query = interestPlacesQueries[interest];
+      if (query == null) continue;
+      if (travelerProfile != null &&
+          travelerProfile.excludedInterests.contains(interest)) {
+        continue;
+      }
+      byInterest[interest] = poiCandidates;
+    }
+    poolBySig[sig] = byInterest;
+  }
+
+  // Assemble List<DayCandidates> de la même façon que le flux Places.
+  final pool = <DayCandidates>[];
+  for (final dc in validDayCenters) {
+    final sig = placesPoolSignature(
+      center: dc.center,
+      radius: walkRadius,
+      languageCode: languageCode,
+    );
+    final byInterest = poolBySig[sig];
+    if (byInterest == null) continue;
+    pool.add(
+      DayCandidates(day: dc.day, center: dc.center, byInterest: byInterest),
+    );
+  }
+
+  // ignore: avoid_print
+  print(
+    '[poi_planning] destination="${trip.destination}" '
+    'destinationKey=$destinationKey poiCandidates=${poiCandidates.length} '
+    'source=poi_only days=${validDayCenters.length}',
+  );
+  return pool;
+}
+
 /// Récolte les candidats Places pour CHAQUE jour du voyage. Brique de base
 /// du flow Places-first (refonte du suggesteur 2026-04-25). Le pipeline
 /// complet enchaîne ici puis :
@@ -2283,6 +2390,21 @@ Future<List<DayCandidates>> gatherCandidatesForTrip({
       existing.days.add(dc.day);
     }
   }
+
+  // ─── POI-2.4 : tentative POI-only pour destinations couvertes ────────────
+  final poiOnlyResult = await _tryGatherPoiOnlyCandidates(
+    trip: trip,
+    groups: groups,
+    validDayCenters: validDayCenters,
+    interests: interests,
+    poiRepository: poiRepository,
+    walkRadius: walkRadius,
+    languageCode: languageCode,
+  );
+  if (poiOnlyResult != null) {
+    return poiOnlyResult;
+  }
+  // ─── Fin POI-2.4 — fallback Google Places ci-dessous ─────────────────────
 
   // V8.15 (Lalith 2026-05-10 — Quality-1D budget priority fix) —
   // blueprint fetch DÉPLACÉ AVANT l'étape 3. Sans ce déplacement,
