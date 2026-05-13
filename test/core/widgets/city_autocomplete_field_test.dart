@@ -103,5 +103,19 @@ void main() {
         expect(selectedKind, 'city');
       },
     );
+
+    testWidgets(
+      'typing "fran" with acceptAnyDestination shows Lunao France suggestion',
+      (tester) async {
+        await tester.pumpWidget(buildField(acceptAnyDestination: true));
+        await tester.pumpAndSettle();
+
+        final field = find.byType(TextField);
+        await tester.enterText(field, 'fran');
+        await tester.pump(const Duration(milliseconds: 400));
+
+        expect(find.text('France'), findsOneWidget);
+      },
+    );
   });
 }

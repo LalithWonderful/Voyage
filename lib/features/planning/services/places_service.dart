@@ -256,6 +256,114 @@ class PlacesService {
     return null;
   }
 
+  // API-0.6b — Local country list prevents Google fallback for country searches.
+  static const _lunaoCountries = <String, ({
+    String description,
+    String mainText,
+    String placeId,
+    String kind,
+  })>{
+    // Europe
+    'france': (description: 'France', mainText: 'France', placeId: 'lunao:country:fr', kind: 'country'),
+    'espagne': (description: 'Espagne', mainText: 'Espagne', placeId: 'lunao:country:es', kind: 'country'),
+    'italie': (description: 'Italie', mainText: 'Italie', placeId: 'lunao:country:it', kind: 'country'),
+    'portugal': (description: 'Portugal', mainText: 'Portugal', placeId: 'lunao:country:pt', kind: 'country'),
+    'grèce': (description: 'Grèce', mainText: 'Grèce', placeId: 'lunao:country:gr', kind: 'country'),
+    'grece': (description: 'Grèce', mainText: 'Grèce', placeId: 'lunao:country:gr', kind: 'country'),
+    'croatie': (description: 'Croatie', mainText: 'Croatie', placeId: 'lunao:country:hr', kind: 'country'),
+    'royaume-uni': (description: 'Royaume-Uni', mainText: 'Royaume-Uni', placeId: 'lunao:country:gb', kind: 'country'),
+    'angleterre': (description: 'Angleterre', mainText: 'Angleterre', placeId: 'lunao:country:gb', kind: 'country'),
+    'irlande': (description: 'Irlande', mainText: 'Irlande', placeId: 'lunao:country:ie', kind: 'country'),
+    'islande': (description: 'Islande', mainText: 'Islande', placeId: 'lunao:country:is', kind: 'country'),
+    'norvège': (description: 'Norvège', mainText: 'Norvège', placeId: 'lunao:country:no', kind: 'country'),
+    'norvege': (description: 'Norvège', mainText: 'Norvège', placeId: 'lunao:country:no', kind: 'country'),
+    'suède': (description: 'Suède', mainText: 'Suède', placeId: 'lunao:country:se', kind: 'country'),
+    'suede': (description: 'Suède', mainText: 'Suède', placeId: 'lunao:country:se', kind: 'country'),
+    'finlande': (description: 'Finlande', mainText: 'Finlande', placeId: 'lunao:country:fi', kind: 'country'),
+    'danemark': (description: 'Danemark', mainText: 'Danemark', placeId: 'lunao:country:dk', kind: 'country'),
+    'allemagne': (description: 'Allemagne', mainText: 'Allemagne', placeId: 'lunao:country:de', kind: 'country'),
+    'suisse': (description: 'Suisse', mainText: 'Suisse', placeId: 'lunao:country:ch', kind: 'country'),
+    'autriche': (description: 'Autriche', mainText: 'Autriche', placeId: 'lunao:country:at', kind: 'country'),
+    'belgique': (description: 'Belgique', mainText: 'Belgique', placeId: 'lunao:country:be', kind: 'country'),
+    'pays-bas': (description: 'Pays-Bas', mainText: 'Pays-Bas', placeId: 'lunao:country:nl', kind: 'country'),
+    'hollande': (description: 'Pays-Bas', mainText: 'Pays-Bas', placeId: 'lunao:country:nl', kind: 'country'),
+    'tchéquie': (description: 'Tchéquie', mainText: 'Tchéquie', placeId: 'lunao:country:cz', kind: 'country'),
+    'tchequie': (description: 'Tchéquie', mainText: 'Tchéquie', placeId: 'lunao:country:cz', kind: 'country'),
+    'hongrie': (description: 'Hongrie', mainText: 'Hongrie', placeId: 'lunao:country:hu', kind: 'country'),
+    'pologne': (description: 'Pologne', mainText: 'Pologne', placeId: 'lunao:country:pl', kind: 'country'),
+    // Afrique & Moyen-Orient
+    'maroc': (description: 'Maroc', mainText: 'Maroc', placeId: 'lunao:country:ma', kind: 'country'),
+    'tunisie': (description: 'Tunisie', mainText: 'Tunisie', placeId: 'lunao:country:tn', kind: 'country'),
+    'égypte': (description: 'Égypte', mainText: 'Égypte', placeId: 'lunao:country:eg', kind: 'country'),
+    'egypte': (description: 'Égypte', mainText: 'Égypte', placeId: 'lunao:country:eg', kind: 'country'),
+    'turquie': (description: 'Turquie', mainText: 'Turquie', placeId: 'lunao:country:tr', kind: 'country'),
+    'afrique du sud': (description: 'Afrique du Sud', mainText: 'Afrique du Sud', placeId: 'lunao:country:za', kind: 'country'),
+    'kenya': (description: 'Kenya', mainText: 'Kenya', placeId: 'lunao:country:ke', kind: 'country'),
+    'tanzanie': (description: 'Tanzanie', mainText: 'Tanzanie', placeId: 'lunao:country:tz', kind: 'country'),
+    'jordanie': (description: 'Jordanie', mainText: 'Jordanie', placeId: 'lunao:country:jo', kind: 'country'),
+    'israël': (description: 'Israël', mainText: 'Israël', placeId: 'lunao:country:il', kind: 'country'),
+    'israel': (description: 'Israël', mainText: 'Israël', placeId: 'lunao:country:il', kind: 'country'),
+    'émirats arabes unis': (description: 'Émirats arabes unis', mainText: 'Émirats arabes unis', placeId: 'lunao:country:ae', kind: 'country'),
+    'emirats arabes unis': (description: 'Émirats arabes unis', mainText: 'Émirats arabes unis', placeId: 'lunao:country:ae', kind: 'country'),
+    'dubai': (description: 'Dubaï, Émirats arabes unis', mainText: 'Dubaï', placeId: 'lunao:country:ae', kind: 'country'),
+    'dubaï': (description: 'Dubaï, Émirats arabes unis', mainText: 'Dubaï', placeId: 'lunao:country:ae', kind: 'country'),
+    'oman': (description: 'Oman', mainText: 'Oman', placeId: 'lunao:country:om', kind: 'country'),
+    'qatar': (description: 'Qatar', mainText: 'Qatar', placeId: 'lunao:country:qa', kind: 'country'),
+    // Asie
+    'thaïlande': (description: 'Thaïlande', mainText: 'Thaïlande', placeId: 'lunao:country:th', kind: 'country'),
+    'thailande': (description: 'Thaïlande', mainText: 'Thaïlande', placeId: 'lunao:country:th', kind: 'country'),
+    'japon': (description: 'Japon', mainText: 'Japon', placeId: 'lunao:country:jp', kind: 'country'),
+    'vietnam': (description: 'Vietnam', mainText: 'Vietnam', placeId: 'lunao:country:vn', kind: 'country'),
+    'indonésie': (description: 'Indonésie', mainText: 'Indonésie', placeId: 'lunao:country:id', kind: 'country'),
+    'indonesie': (description: 'Indonésie', mainText: 'Indonésie', placeId: 'lunao:country:id', kind: 'country'),
+    'malaisie': (description: 'Malaisie', mainText: 'Malaisie', placeId: 'lunao:country:my', kind: 'country'),
+    'singapour': (description: 'Singapour', mainText: 'Singapour', placeId: 'lunao:country:sg', kind: 'country'),
+    'philippines': (description: 'Philippines', mainText: 'Philippines', placeId: 'lunao:country:ph', kind: 'country'),
+    'cambodge': (description: 'Cambodge', mainText: 'Cambodge', placeId: 'lunao:country:kh', kind: 'country'),
+    'laos': (description: 'Laos', mainText: 'Laos', placeId: 'lunao:country:la', kind: 'country'),
+    'chine': (description: 'Chine', mainText: 'Chine', placeId: 'lunao:country:cn', kind: 'country'),
+    'inde': (description: 'Inde', mainText: 'Inde', placeId: 'lunao:country:in', kind: 'country'),
+    'sri lanka': (description: 'Sri Lanka', mainText: 'Sri Lanka', placeId: 'lunao:country:lk', kind: 'country'),
+    'maldives': (description: 'Maldives', mainText: 'Maldives', placeId: 'lunao:country:mv', kind: 'country'),
+    'népal': (description: 'Népal', mainText: 'Népal', placeId: 'lunao:country:np', kind: 'country'),
+    'nepal': (description: 'Népal', mainText: 'Népal', placeId: 'lunao:country:np', kind: 'country'),
+    // Océanie & Amériques
+    'australie': (description: 'Australie', mainText: 'Australie', placeId: 'lunao:country:au', kind: 'country'),
+    'nouvelle-zélande': (description: 'Nouvelle-Zélande', mainText: 'Nouvelle-Zélande', placeId: 'lunao:country:nz', kind: 'country'),
+    'nouvelle-zelande': (description: 'Nouvelle-Zélande', mainText: 'Nouvelle-Zélande', placeId: 'lunao:country:nz', kind: 'country'),
+    'états-unis': (description: 'États-Unis', mainText: 'États-Unis', placeId: 'lunao:country:us', kind: 'country'),
+    'etats-unis': (description: 'États-Unis', mainText: 'États-Unis', placeId: 'lunao:country:us', kind: 'country'),
+    'etats unis': (description: 'États-Unis', mainText: 'États-Unis', placeId: 'lunao:country:us', kind: 'country'),
+    'usa': (description: 'États-Unis', mainText: 'États-Unis', placeId: 'lunao:country:us', kind: 'country'),
+    'canada': (description: 'Canada', mainText: 'Canada', placeId: 'lunao:country:ca', kind: 'country'),
+    'mexique': (description: 'Mexique', mainText: 'Mexique', placeId: 'lunao:country:mx', kind: 'country'),
+    'brésil': (description: 'Brésil', mainText: 'Brésil', placeId: 'lunao:country:br', kind: 'country'),
+    'bresil': (description: 'Brésil', mainText: 'Brésil', placeId: 'lunao:country:br', kind: 'country'),
+    'argentine': (description: 'Argentine', mainText: 'Argentine', placeId: 'lunao:country:ar', kind: 'country'),
+    'pérou': (description: 'Pérou', mainText: 'Pérou', placeId: 'lunao:country:pe', kind: 'country'),
+    'perou': (description: 'Pérou', mainText: 'Pérou', placeId: 'lunao:country:pe', kind: 'country'),
+    'chili': (description: 'Chili', mainText: 'Chili', placeId: 'lunao:country:cl', kind: 'country'),
+    'colombie': (description: 'Colombie', mainText: 'Colombie', placeId: 'lunao:country:co', kind: 'country'),
+    'costa rica': (description: 'Costa Rica', mainText: 'Costa Rica', placeId: 'lunao:country:cr', kind: 'country'),
+    'cuba': (description: 'Cuba', mainText: 'Cuba', placeId: 'lunao:country:cu', kind: 'country'),
+    // DOM-TOM
+    'réunion': (description: 'La Réunion', mainText: 'La Réunion', placeId: 'lunao:country:re', kind: 'country'),
+    'reunion': (description: 'La Réunion', mainText: 'La Réunion', placeId: 'lunao:country:re', kind: 'country'),
+    'guadeloupe': (description: 'Guadeloupe', mainText: 'Guadeloupe', placeId: 'lunao:country:gp', kind: 'country'),
+    'martinique': (description: 'Martinique', mainText: 'Martinique', placeId: 'lunao:country:mq', kind: 'country'),
+  };
+
+  static ({String description, String mainText, String placeId, String kind})?
+  _matchLunaoCountry(String normalized) {
+    final exact = _lunaoCountries[normalized];
+    if (exact != null) return exact;
+    if (normalized.length < 4) return null;
+    for (final entry in _lunaoCountries.entries) {
+      if (entry.key.startsWith(normalized)) return entry.value;
+    }
+    return null;
+  }
+
   void _assertGooglePlacesAllowed(String operation) {
     _guards.assertAllowed(LiveApiFamily.googlePlaces, operation: operation);
   }
@@ -416,19 +524,26 @@ class PlacesService {
     final trimmed = query.trim();
     if (trimmed.length < 2 || !_hasApiKey) return const [];
     _assertGooglePlacesAllowed('PlacesService.autocompleteCities');
-    // 3 appels en parallèle pour latence constante (3 round-trips simultanés).
-    final results = await Future.wait([
+    // Phase 1 : (cities) + geocode couvrent la grande majorité des destinations.
+    // Phase 2 (conditionnelle) : establishment uniquement si peu de résultats.
+    // Certaines îles touristiques et natural_feature (Ko Samet, Mont Saint-
+    // Michel) sont classées establishment par Google et absentes des 2 premiers.
+    final phase1 = await Future.wait([
       _autocompleteEtape(trimmed, '(cities)', countryCode, key),
       _autocompleteEtape(trimmed, 'geocode', countryCode, key),
-      _autocompleteEtape(trimmed, 'establishment', countryCode, key),
     ]);
-    // Dédup par placeId. Ordre : (cities) en premier (priorité villes),
-    // puis geocode, puis establishment (tourist_attraction / natural_feature
-    // après les vraies villes pour ne pas saturer le top de la liste).
     final seen = <String>{};
     final merged = <({String description, String mainText, String placeId})>[];
-    for (final list in results) {
+    for (final list in phase1) {
       for (final item in list) {
+        if (item.placeId.isEmpty) continue;
+        if (seen.add(item.placeId)) merged.add(item);
+      }
+    }
+    if (merged.length < 3) {
+      final establishments =
+          await _autocompleteEtape(trimmed, 'establishment', countryCode, key);
+      for (final item in establishments) {
         if (item.placeId.isEmpty) continue;
         if (seen.add(item.placeId)) merged.add(item);
       }
@@ -590,6 +705,19 @@ class PlacesService {
         'results=1',
       );
       return [lunao];
+    }
+
+    // API-0.6b — Country-first: local list prevents Google fallback
+    final country = _matchLunaoCountry(normalized);
+    if (country != null) {
+      // ignore: avoid_print
+      print(
+        '[autocomplete] source=lunao '
+        'query="$normalized" '
+        'context=destination '
+        'results=1',
+      );
+      return [country];
     }
 
     // API-0.6a — guard: min-length, cache, timeout, error safety
@@ -891,6 +1019,12 @@ class PlacesService {
   /// Coût : 1 appel Place Details (~$0.017). Stocker le résultat côté caller
   /// pour ne pas re-payer à chaque ouverture du dialog d'étape.
   Future<String?> getCountryCodeFromPlaceId(String placeId) async {
+    // API-0.6b — Lunao synthetic placeIds carry embedded country codes.
+    if (placeId == 'lunao:lisbon') return 'pt';
+    if (placeId.startsWith('lunao:country:')) {
+      return placeId.substring('lunao:country:'.length).toLowerCase();
+    }
+
     final key = _apiKey;
     if (placeId.isEmpty || !_hasApiKey) return null;
     _assertGooglePlacesAllowed('PlacesService.getCountryCodeFromPlaceId');
