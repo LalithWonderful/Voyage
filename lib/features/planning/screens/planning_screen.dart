@@ -31,6 +31,7 @@ import 'package:voyage/features/planning/services/document_to_activity.dart';
 import 'package:voyage/features/planning/data/destination_key_mapper.dart';
 import 'package:voyage/features/planning/services/places_first_pipeline.dart';
 import 'package:voyage/features/planning/services/suggestion_transport_builder.dart';
+import 'package:voyage/features/planning/services/transport_between_resolver.dart';
 import 'package:voyage/features/poi/providers/poi_repository_provider.dart';
 import 'package:voyage/features/planning/services/traveler_to_places_mapping.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -3310,13 +3311,68 @@ class _AddTransportButtonState extends ConsumerState<_AddTransportButton> {
     try {
       final trip = await ref.read(tripByIdProvider(widget.tripId).future);
       final profile = await ref.read(userProfileProvider.future);
-      final service = ref.read(aiSuggestionsServiceProvider);
-      final suggestion = await service.generateTransportBetween(
+      final travelerType = trip?.travelerType ?? profile?['traveler_type'] as String?;
+
+      // 1. Déterministe d'abord — aucun appel réseau
+      final resolver = TransportBetweenResolver(travelerType: travelerType);
+      var suggestion = resolver.resolve(
         from: widget.fromActivity,
         to: widget.toActivity,
-        destination: trip?.destination ?? '',
-        travelerType: trip?.travelerType ?? profile?['traveler_type'] as String?,
       );
+
+      // 2. Fallback manuel : essayer Gemini en option, mais rester non-bloquant
+      if (suggestion.defaultMode == 'manual') {
+        try {
+          final service = ref.read(aiSuggestionsServiceProvider);
+          suggestion = await service.generateTransportBetween(
+            from: widget.fromActivity,
+            to: widget.toActivity,
+            destination: trip?.destination ?? '',
+            travelerType: travelerType,
+          );
+          developer.log(
+            '[transport_between] source=gemini '
+            'from="${widget.fromActivity.title}" to="${widget.toActivity.title}"',
+            name: 'planning',
+          );
+        } on LiveApiBlockedException catch (e) {
+          developer.log(
+            '[transport_between] gemini_skipped_or_blocked reason=${e.operation}',
+            name: 'planning',
+          );
+          // Insérer le fallback manuel directement
+          await _insertManualFallback(suggestion);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Trajet ajouté. Les détails pourront être complétés plus tard.',
+                ),
+              ),
+            );
+          }
+          if (mounted) setState(() => _loading = false);
+          return;
+        } catch (e) {
+          developer.log(
+            '[transport_between] gemini_skipped_or_blocked reason=$e',
+            name: 'planning',
+          );
+          await _insertManualFallback(suggestion);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Trajet ajouté. Les détails pourront être complétés plus tard.',
+                ),
+              ),
+            );
+          }
+          if (mounted) setState(() => _loading = false);
+          return;
+        }
+      }
+
       if (!mounted) return;
       await showModalBottomSheet(
         context: context,
@@ -3339,6 +3395,19 @@ class _AddTransportButtonState extends ConsumerState<_AddTransportButton> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _insertManualFallback(TransportSuggestion suggestion) async {
+    await ref.read(supabaseProvider).from('trip_transports').insert({
+      'trip_id': widget.tripId,
+      'from_activity_id': widget.fromActivity.id,
+      'to_activity_id': widget.toActivity.id,
+      'selected_mode': 'manual',
+      'selected_duration_minutes': 0,
+      'selected_price_estimate': '—',
+      'options': suggestion.options.map((o) => o.toJson()).toList(),
+    });
+    ref.invalidate(tripTransportsProvider(widget.tripId));
   }
 
   @override
