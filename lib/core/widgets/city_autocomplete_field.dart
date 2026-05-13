@@ -141,11 +141,10 @@ class _CityAutocompleteFieldState extends ConsumerState<CityAutocompleteField> {
             .toList();
       }
     } catch (e, st) {
-      debugPrint('[city_autocomplete] error query="$query" error="$e"');
-      debugPrint(st.toString());
+      // Silently ignore autocomplete errors so the widget behaves like a plain
+      // TextField when the service is unavailable.
     }
     if (!mounted) return;
-    debugPrint('[city_autocomplete] query="$query" results=${results.length}');
     setState(() {
       _suggestions = results;
       _loading = false;
