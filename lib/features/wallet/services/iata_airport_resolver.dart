@@ -29,6 +29,12 @@ class ResolvedAirport {
   /// pour un libellé complet.
   final String? name;
 
+  /// Code pays ISO 3166-1 alpha-2 (ex: 'FR', 'TH', 'US'). Lot A2
+  /// 2026-05-13 : renseigné pour toutes les entrées éditoriales.
+  /// `null` ne devrait pas se produire en pratique mais reste possible
+  /// pour rétro-compat si une entrée future est ajoutée sans pays.
+  final String? countryCode;
+
   final double lat;
   final double lng;
 
@@ -38,6 +44,7 @@ class ResolvedAirport {
     required this.lat,
     required this.lng,
     this.name,
+    this.countryCode,
   });
 }
 
@@ -45,10 +52,9 @@ class ResolvedAirport {
 ///  - l'entrée est `null` / vide / pas 3 caractères après trim ;
 ///  - le code n'est pas dans la table Lunao.
 ///
-/// La résolution normalise la casse (UPPER) et retire les espaces. La
-/// table source ne porte pas (encore) le `country_code` — c'est laissé
-/// au caller de décider si un fallback Geocoding est nécessaire pour
-/// l'enrichir.
+/// La résolution normalise la casse (UPPER) et retire les espaces.
+/// `countryCode` (ISO 3166-1 alpha-2) est renseigné pour toutes les
+/// entrées éditoriales depuis Lot A2 (2026-05-13).
 ResolvedAirport? resolveAirportByIata(String? raw) {
   if (raw == null) return null;
   final code = raw.trim().toUpperCase();
@@ -61,6 +67,7 @@ ResolvedAirport? resolveAirportByIata(String? raw) {
     iata: code,
     city: info.city,
     name: info.name,
+    countryCode: info.countryCode,
     lat: coords.lat,
     lng: coords.lng,
   );

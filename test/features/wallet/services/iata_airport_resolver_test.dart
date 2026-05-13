@@ -12,32 +12,62 @@ import 'package:voyage/features/wallet/services/iata_airport_resolver.dart';
 
 void main() {
   group('resolveAirportByIata', () {
-    test('BKK → Bangkok Suvarnabhumi avec coords', () {
+    test('BKK → Bangkok Suvarnabhumi avec coords + countryCode TH', () {
       final r = resolveAirportByIata('BKK');
       expect(r, isNotNull);
       expect(r!.iata, 'BKK');
       expect(r.city, 'Bangkok');
       expect(r.name, 'Suvarnabhumi');
+      expect(r.countryCode, 'TH');
       // Suvarnabhumi : ~13.69N, 100.75E (source Wikipedia/OpenFlights).
       expect(r.lat, closeTo(13.69, 0.1));
       expect(r.lng, closeTo(100.75, 0.1));
     });
 
-    test('CDG → Paris Charles de Gaulle', () {
+    test('CDG → Paris Charles de Gaulle + countryCode FR', () {
       final r = resolveAirportByIata('CDG');
       expect(r, isNotNull);
       expect(r!.iata, 'CDG');
       expect(r.city, 'Paris');
       expect(r.name, 'Charles de Gaulle');
+      expect(r.countryCode, 'FR');
       expect(r.lat, closeTo(49.0, 0.1));
       expect(r.lng, closeTo(2.55, 0.1));
     });
 
-    test('LUX → Luxembourg', () {
+    test('LUX → Luxembourg + countryCode LU', () {
       final r = resolveAirportByIata('LUX');
       expect(r, isNotNull);
       expect(r!.iata, 'LUX');
       expect(r.city, 'Luxembourg');
+      expect(r.countryCode, 'LU');
+    });
+
+    test('countryCode pour chaque continent (smoke test)', () {
+      // Vérifie qu'au moins un aéroport par grande région porte un
+      // countryCode valide. Évite qu'un futur ajout fasse régresser
+      // silencieusement le champ.
+      expect(resolveAirportByIata('LHR')?.countryCode, 'GB');
+      expect(resolveAirportByIata('DUB')?.countryCode, 'IE');
+      expect(resolveAirportByIata('AMS')?.countryCode, 'NL');
+      expect(resolveAirportByIata('FRA')?.countryCode, 'DE');
+      expect(resolveAirportByIata('FCO')?.countryCode, 'IT');
+      expect(resolveAirportByIata('MAD')?.countryCode, 'ES');
+      expect(resolveAirportByIata('JFK')?.countryCode, 'US');
+      expect(resolveAirportByIata('YUL')?.countryCode, 'CA');
+      expect(resolveAirportByIata('HND')?.countryCode, 'JP');
+      expect(resolveAirportByIata('SIN')?.countryCode, 'SG');
+      expect(resolveAirportByIata('PQC')?.countryCode, 'VN');
+      expect(resolveAirportByIata('DXB')?.countryCode, 'AE');
+      expect(resolveAirportByIata('RAK')?.countryCode, 'MA');
+      expect(resolveAirportByIata('JNB')?.countryCode, 'ZA');
+      expect(resolveAirportByIata('SYD')?.countryCode, 'AU');
+      expect(resolveAirportByIata('AKL')?.countryCode, 'NZ');
+      expect(resolveAirportByIata('NAN')?.countryCode, 'FJ');
+      // DOM-TOM : codes pays spécifiques (pas FR).
+      expect(resolveAirportByIata('PTP')?.countryCode, 'GP');
+      expect(resolveAirportByIata('RUN')?.countryCode, 'RE');
+      expect(resolveAirportByIata('PPT')?.countryCode, 'PF');
     });
 
     test('lowercase est normalisé en MAJUSCULES', () {

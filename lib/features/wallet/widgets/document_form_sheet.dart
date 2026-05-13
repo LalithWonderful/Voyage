@@ -690,20 +690,21 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
       return;
     }
 
-    // Chemin 0 (Lot A 2026-05-13) — IATA-first via base offline Lunao.
-    // Aéroports uniquement (les gares n'ont pas encore de base Lunao
-    // équivalente). Si `${fieldKey}_iata` matche la table éditoriale,
-    // on pose coords + ville + IATA canonique SANS aucun appel Google.
+    // Chemin 0 (Lot A 2026-05-13, Lot A2 2026-05-13) — IATA-first via
+    // base offline Lunao. Aéroports uniquement (les gares n'ont pas
+    // encore de base Lunao équivalente). Si `${fieldKey}_iata` matche
+    // la table éditoriale, on pose coords + ville + pays + IATA
+    // canonique SANS aucun appel Google.
     //
     // Garde-fou : on vérifie que le texte affiché (`newVal`) est
     // cohérent avec l'aéroport résolu (contient code/ville/nom). Évite
     // qu'un IATA stash devienne obsolète si l'utilisateur a édité le
     // texte après extract sans toucher au code stocké.
     //
-    // La table source ne porte pas (encore) `country_code` → on laisse
-    // l'éventuelle valeur héritée intacte. Sans country_code, le warning
-    // « vol hors pays » peut être dégradé pour les nouveaux docs IATA-
-    // first ; gap connu, Lot A2 enrichira `_AirportInfo`.
+    // Depuis Lot A2 la table source porte aussi `countryCode` (ISO
+    // 3166-1 alpha-2) — on pose donc `${fieldKey}_country_code` quand
+    // disponible. Restaure le warning « vol hors pays » sur les vols
+    // IATA-first.
     if (kind == 'airport') {
       final resolved = resolveAirportByIata(meta[iataKey] as String?);
       if (resolved != null) {
@@ -712,6 +713,10 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
           meta[latKey] = resolved.lat;
           meta[lngKey] = resolved.lng;
           meta[cityKey] = resolved.city;
+          if (resolved.countryCode != null &&
+              resolved.countryCode!.isNotEmpty) {
+            meta[countryKey] = resolved.countryCode;
+          }
           meta.remove(failKey);
           return;
         }
