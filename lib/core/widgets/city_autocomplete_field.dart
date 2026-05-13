@@ -84,6 +84,9 @@ class _CityAutocompleteFieldState extends ConsumerState<CityAutocompleteField> {
   bool _loading = false;
   // Évite de relancer une recherche après une sélection (sinon le dropdown rouvre).
   bool _justSelected = false;
+  // Affiche le message empty-state quand une recherche valide (>= 4 caractères)
+  // retourne zéro résultat. Caché dès que l'utilisateur modifie sa saisie.
+  bool _showEmptyState = false;
 
   @override
   void initState() {
@@ -104,6 +107,7 @@ class _CityAutocompleteFieldState extends ConsumerState<CityAutocompleteField> {
       _justSelected = false;
       return;
     }
+    setState(() => _showEmptyState = false);
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 350), () => _runSearch(value));
   }
@@ -114,10 +118,14 @@ class _CityAutocompleteFieldState extends ConsumerState<CityAutocompleteField> {
       setState(() {
         _suggestions = const [];
         _loading = false;
+        _showEmptyState = false;
       });
       return;
     }
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _showEmptyState = false;
+    });
     final placesService = ref.read(placesServiceProvider);
     List<({String description, String mainText, String placeId, String kind})> results = const [];
     try {
@@ -148,6 +156,7 @@ class _CityAutocompleteFieldState extends ConsumerState<CityAutocompleteField> {
     setState(() {
       _suggestions = results;
       _loading = false;
+      _showEmptyState = results.isEmpty && query.length >= 4;
     });
   }
 
@@ -165,7 +174,10 @@ class _CityAutocompleteFieldState extends ConsumerState<CityAutocompleteField> {
     _justSelected = true;
     _ctrl.text = item.mainText;
     _ctrl.selection = TextSelection.collapsed(offset: item.mainText.length);
-    setState(() => _suggestions = const []);
+    setState(() {
+      _suggestions = const [];
+      _showEmptyState = false;
+    });
     final country = _extractCountry(item.description, item.mainText);
     widget.onSelected?.call(item.mainText);
     widget.onSelectedDetailed?.call(item.mainText, country, item.placeId.isEmpty ? null : item.placeId, item.kind);
@@ -208,7 +220,10 @@ class _CityAutocompleteFieldState extends ConsumerState<CityAutocompleteField> {
                         icon: const Icon(Icons.clear, size: 18),
                         onPressed: () {
                           _ctrl.clear();
-                          setState(() => _suggestions = const []);
+                          setState(() {
+                            _suggestions = const [];
+                            _showEmptyState = false;
+                          });
                           // Notifie le parent que la saisie est vidée — sinon le state
                           // parent garde l'ancienne valeur (bug : "destination Lisbonne
                           // → X → save → réouvre → Lisbonne toujours là").
@@ -276,6 +291,28 @@ class _CityAutocompleteFieldState extends ConsumerState<CityAutocompleteField> {
                     ),
                   ),
                 ],
+              ],
+            ),
+          )
+        else if (_showEmptyState)
+          Container(
+            margin: const EdgeInsets.only(top: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              border: Border.all(color: AppColors.border),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, size: 16, color: AppColors.textSecondary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "Aucun résultat trouvé. Tu peux continuer avec cette destination.",
+                    style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  ),
+                ),
               ],
             ),
           ),

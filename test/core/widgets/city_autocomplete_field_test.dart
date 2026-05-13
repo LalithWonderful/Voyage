@@ -131,5 +131,81 @@ void main() {
         expect(find.text('Bali'), findsOneWidget);
       },
     );
+
+    testWidgets(
+      'typing "tok" (too short) does not show empty-state message',
+      (tester) async {
+        await tester.pumpWidget(buildField(acceptAnyDestination: true));
+        await tester.pumpAndSettle();
+
+        final field = find.byType(TextField);
+        await tester.enterText(field, 'tok');
+        await tester.pump(const Duration(milliseconds: 400));
+
+        expect(find.textContaining('Aucun résultat'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'typing "tokyo" with no API key shows empty-state message',
+      (tester) async {
+        await tester.pumpWidget(buildField(acceptAnyDestination: true));
+        await tester.pumpAndSettle();
+
+        final field = find.byType(TextField);
+        await tester.enterText(field, 'tokyo');
+        await tester.pump(const Duration(milliseconds: 400));
+
+        expect(find.textContaining('Aucun résultat'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'typing "lisbo" does not show empty-state message because Lunao match exists',
+      (tester) async {
+        await tester.pumpWidget(buildField(acceptAnyDestination: true));
+        await tester.pumpAndSettle();
+
+        final field = find.byType(TextField);
+        await tester.enterText(field, 'lisbo');
+        await tester.pump(const Duration(milliseconds: 400));
+
+        expect(find.text('Lisbonne'), findsOneWidget);
+        expect(find.textContaining('Aucun résultat'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'user can submit free text after empty-state when acceptAnyDestination=true',
+      (tester) async {
+        String? submittedCity;
+        String? submittedKind;
+
+        await tester.pumpWidget(
+          buildField(
+            acceptAnyDestination: true,
+            onSelectedDetailed: (city, country, placeId, kind) {
+              submittedCity = city;
+              submittedKind = kind;
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final field = find.byType(TextField);
+        await tester.enterText(field, 'tokyo');
+        await tester.pump(const Duration(milliseconds: 400));
+
+        // Empty-state is visible
+        expect(find.textContaining('Aucun résultat'), findsOneWidget);
+
+        // Submit the text field (tap done / press enter)
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await tester.pumpAndSettle();
+
+        expect(submittedCity, 'tokyo');
+        expect(submittedKind, 'unknown');
+      },
+    );
   });
 }
