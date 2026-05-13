@@ -718,5 +718,364 @@ void main() {
         expect(suggestions.length, greaterThanOrEqualTo(1));
       },
     );
+
+    // ─── Regression POI-2.5 : destination isolation ─────────────────────────
+
+    test(
+      'Barcelona trip returns only Barcelona POIs via PoiCandidateAdapter',
+      () async {
+        final barcelonaPois = <Poi>[
+          _buildPoi(
+            poiId: 'b1',
+            destinationKey: 'barcelona',
+            name: 'Sagrada Família',
+            lat: 41.4036,
+            lng: 2.1744,
+            editorialScore: 100,
+          ),
+          _buildPoi(
+            poiId: 'b2',
+            destinationKey: 'barcelona',
+            name: 'Park Güell',
+            lat: 41.4145,
+            lng: 2.1527,
+            editorialScore: 95,
+          ),
+          _buildPoi(
+            poiId: 'b3',
+            destinationKey: 'barcelona',
+            name: 'Casa Batlló',
+            lat: 41.3916,
+            lng: 2.1649,
+            editorialScore: 90,
+          ),
+          _buildPoi(
+            poiId: 'b4',
+            destinationKey: 'barcelona',
+            name: 'La Rambla',
+            lat: 41.3808,
+            lng: 2.1734,
+            editorialScore: 85,
+          ),
+          _buildPoi(
+            poiId: 'b5',
+            destinationKey: 'barcelona',
+            name: 'Camp Nou',
+            lat: 41.3809,
+            lng: 2.1228,
+            editorialScore: 80,
+          ),
+          _buildPoi(
+            poiId: 'b6',
+            destinationKey: 'barcelona',
+            name: 'Picasso Museum',
+            lat: 41.3852,
+            lng: 2.1809,
+            editorialScore: 78,
+          ),
+        ];
+        // Inject Rome POIs with wrong destination_key to simulate DB corruption.
+        final romePois = <Poi>[
+          _buildPoi(
+            poiId: 'r1',
+            destinationKey: 'rome',
+            name: 'Colosseum',
+            lat: 41.8902,
+            lng: 12.4924,
+            editorialScore: 100,
+          ),
+          _buildPoi(
+            poiId: 'r2',
+            destinationKey: 'rome',
+            name: 'Pantheon',
+            lat: 41.8986,
+            lng: 12.4769,
+            editorialScore: 95,
+          ),
+        ];
+        final repo = FakePoiRepository(pois: [...barcelonaPois, ...romePois]);
+        final adapter = PoiCandidateAdapter(repo);
+        final candidates = await adapter.adaptForDestination('barcelona');
+
+        // Must contain only Barcelona names
+        final names = candidates.map((c) => c.name).toSet();
+        expect(names, contains('Sagrada Família'));
+        expect(names, contains('Park Güell'));
+        expect(names, isNot(contains('Colosseum')));
+        expect(names, isNot(contains('Pantheon')));
+        expect(candidates.length, equals(6));
+      },
+    );
+
+    test(
+      'Rome trip returns only Rome POIs via PoiCandidateAdapter',
+      () async {
+        final romePois = <Poi>[
+          _buildPoi(
+            poiId: 'r1',
+            destinationKey: 'rome',
+            name: 'Colosseum',
+            lat: 41.8902,
+            lng: 12.4924,
+            editorialScore: 100,
+          ),
+          _buildPoi(
+            poiId: 'r2',
+            destinationKey: 'rome',
+            name: 'Pantheon',
+            lat: 41.8986,
+            lng: 12.4769,
+            editorialScore: 95,
+          ),
+          _buildPoi(
+            poiId: 'r3',
+            destinationKey: 'rome',
+            name: 'Trevi Fountain',
+            lat: 41.9009,
+            lng: 12.4833,
+            editorialScore: 90,
+          ),
+          _buildPoi(
+            poiId: 'r4',
+            destinationKey: 'rome',
+            name: 'Roman Forum',
+            lat: 41.8925,
+            lng: 12.4853,
+            editorialScore: 88,
+          ),
+          _buildPoi(
+            poiId: 'r5',
+            destinationKey: 'rome',
+            name: 'Capitoline Museums',
+            lat: 41.8931,
+            lng: 12.4828,
+            editorialScore: 85,
+          ),
+          _buildPoi(
+            poiId: 'r6',
+            destinationKey: 'rome',
+            name: 'Vatican Museums',
+            lat: 41.9065,
+            lng: 12.4536,
+            editorialScore: 98,
+          ),
+        ];
+        final barcelonaPois = <Poi>[
+          _buildPoi(
+            poiId: 'b1',
+            destinationKey: 'barcelona',
+            name: 'Sagrada Família',
+            lat: 41.4036,
+            lng: 2.1744,
+            editorialScore: 100,
+          ),
+        ];
+        final repo = FakePoiRepository(pois: [...romePois, ...barcelonaPois]);
+        final adapter = PoiCandidateAdapter(repo);
+        final candidates = await adapter.adaptForDestination('rome');
+
+        final names = candidates.map((c) => c.name).toSet();
+        expect(names, contains('Colosseum'));
+        expect(names, contains('Pantheon'));
+        expect(names, isNot(contains('Sagrada Família')));
+        expect(candidates.length, equals(6));
+      },
+    );
+
+    test(
+      'gatherCandidatesForTrip isolates Barcelona from Rome POIs in mixed repo',
+      () async {
+        final trip = _buildTrip(
+          destination: 'Barcelona',
+          startDate: DateTime.utc(2026, 6, 1),
+          endDate: DateTime.utc(2026, 6, 2),
+        );
+        final mixedPois = <Poi>[
+          _buildPoi(
+            poiId: 'b1',
+            destinationKey: 'barcelona',
+            name: 'Sagrada Família',
+            lat: 41.4036,
+            lng: 2.1744,
+            editorialScore: 100,
+          ),
+          _buildPoi(
+            poiId: 'b2',
+            destinationKey: 'barcelona',
+            name: 'Park Güell',
+            lat: 41.4145,
+            lng: 2.1527,
+            editorialScore: 95,
+          ),
+          _buildPoi(
+            poiId: 'b3',
+            destinationKey: 'barcelona',
+            name: 'Casa Batlló',
+            lat: 41.3916,
+            lng: 2.1649,
+            editorialScore: 90,
+          ),
+          _buildPoi(
+            poiId: 'b4',
+            destinationKey: 'barcelona',
+            name: 'La Rambla',
+            lat: 41.3808,
+            lng: 2.1734,
+            editorialScore: 85,
+          ),
+          _buildPoi(
+            poiId: 'b5',
+            destinationKey: 'barcelona',
+            name: 'Camp Nou',
+            lat: 41.3809,
+            lng: 2.1228,
+            editorialScore: 80,
+          ),
+          _buildPoi(
+            poiId: 'b6',
+            destinationKey: 'barcelona',
+            name: 'Picasso Museum',
+            lat: 41.3852,
+            lng: 2.1809,
+            editorialScore: 78,
+          ),
+          _buildPoi(
+            poiId: 'r1',
+            destinationKey: 'rome',
+            name: 'Colosseum',
+            lat: 41.8902,
+            lng: 12.4924,
+            editorialScore: 100,
+          ),
+          _buildPoi(
+            poiId: 'r2',
+            destinationKey: 'rome',
+            name: 'Pantheon',
+            lat: 41.8986,
+            lng: 12.4769,
+            editorialScore: 95,
+          ),
+        ];
+        final poiRepo = FakePoiRepository(pois: mixedPois);
+        final geocoder = _ThrowingGeocodingService();
+        final placesService = _RecordingPlacesNearbyService(throwIfCalled: true);
+
+        final pool = await gatherCandidatesForTrip(
+          trip: trip,
+          hotels: [],
+          geocoder: geocoder,
+          nearbyService: placesService,
+          poiRepository: poiRepo,
+        );
+
+        expect(pool, isNotEmpty);
+        final allCandidates = pool.expand((d) => d.byInterest.values).expand((l) => l);
+        final names = allCandidates.map((c) => c.name).toSet();
+        expect(names, contains('Sagrada Família'));
+        expect(names, isNot(contains('Colosseum')));
+        expect(names, isNot(contains('Pantheon')));
+      },
+    );
+
+    test(
+      'selectVisitsDeterministic from Barcelona POIs produces Barcelona suggestions',
+      () async {
+        final trip = _buildTrip(
+          destination: 'Barcelona',
+          startDate: DateTime.utc(2026, 6, 1),
+          endDate: DateTime.utc(2026, 6, 2),
+          interests: ['Culture', 'Spots populaires'],
+        );
+        final barcelonaPois = <Poi>[
+          _buildPoi(
+            poiId: 'b1',
+            destinationKey: 'barcelona',
+            name: 'Sagrada Família',
+            lat: 41.4036,
+            lng: 2.1744,
+            category: PoiCategory.monument,
+            editorialScore: 100,
+          ),
+          _buildPoi(
+            poiId: 'b2',
+            destinationKey: 'barcelona',
+            name: 'Park Güell',
+            lat: 41.4145,
+            lng: 2.1527,
+            category: PoiCategory.park,
+            editorialScore: 95,
+          ),
+          _buildPoi(
+            poiId: 'b3',
+            destinationKey: 'barcelona',
+            name: 'Casa Batlló',
+            lat: 41.3916,
+            lng: 2.1649,
+            category: PoiCategory.monument,
+            editorialScore: 90,
+          ),
+          _buildPoi(
+            poiId: 'b4',
+            destinationKey: 'barcelona',
+            name: 'La Rambla',
+            lat: 41.3808,
+            lng: 2.1734,
+            category: PoiCategory.neighborhood,
+            editorialScore: 85,
+          ),
+          _buildPoi(
+            poiId: 'b5',
+            destinationKey: 'barcelona',
+            name: 'Camp Nou',
+            lat: 41.3809,
+            lng: 2.1228,
+            category: PoiCategory.monument,
+            editorialScore: 80,
+          ),
+          _buildPoi(
+            poiId: 'b6',
+            destinationKey: 'barcelona',
+            name: 'Picasso Museum',
+            lat: 41.3852,
+            lng: 2.1809,
+            category: PoiCategory.museum,
+            editorialScore: 78,
+          ),
+        ];
+        final poiRepo = FakePoiRepository(pois: barcelonaPois);
+        final adapter = PoiCandidateAdapter(poiRepo);
+        final candidates = await adapter.adaptForDestination('barcelona');
+
+        final center = DayCenter(
+          latitude: 41.3851,
+          longitude: 2.1734,
+          source: 'test',
+        );
+        final poolMap = <String, ({NearbyCandidate candidate, List<String> matchedInterests})>{
+          for (final c in candidates)
+            c.placeId: (candidate: c, matchedInterests: ['Culture', 'Spots populaires']),
+        };
+        final input = PlacesPromptInput(
+          center: center,
+          days: [DateTime.utc(2026, 6, 1), DateTime.utc(2026, 6, 2)],
+          pool: poolMap,
+        );
+
+        final suggestions = selectVisitsDeterministic(
+          clusters: [input],
+          trip: trip,
+          travelerProfile: null,
+        );
+
+        expect(suggestions, isNotEmpty);
+        for (final s in suggestions) {
+          expect(s.title, isNot(equals('Colosseum')));
+          expect(s.title, isNot(equals('Pantheon')));
+          expect(s.title, isNot(equals('Trevi Fountain')));
+          expect(s.title, isNot(equals('Roman Forum')));
+          expect(s.title, isNot(equals('Capitoline Museums')));
+        }
+      },
+    );
   });
 }

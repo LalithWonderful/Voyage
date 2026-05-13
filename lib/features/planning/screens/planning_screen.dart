@@ -726,6 +726,14 @@ class PlanningScreen extends ConsumerWidget {
             );
             return;
           }
+
+          // POI-2.5 diagnostic : log des suggestions coPilot affichées.
+          final coPilotTitles = groups.expand((g) => g.options).map((s) => '"${s.title}"').toList();
+          debugPrint(
+            '[poi_destination] tripId=$tripId destination="${effectiveTrip.destination}" '
+            'coPilotSuggestionTitles=$coPilotTitles',
+          );
+
           await showModalBottomSheet(
             context: context,
             isScrollControlled: true,
@@ -900,6 +908,14 @@ class PlanningScreen extends ConsumerWidget {
         );
         return;
       }
+
+      // POI-2.5 diagnostic : log des suggestions affichées avant ouverture modal.
+      final suggestionTitles = afterOverlap.map((s) => '"${s.title}"').toList();
+      debugPrint(
+        '[poi_destination] tripId=$tripId destination="${effectiveTrip.destination}" '
+        'suggestionTitles=$suggestionTitles',
+      );
+
       await showModalBottomSheet(
         context: context,
         isScrollControlled: true,
@@ -1383,6 +1399,23 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
       _selected = <int>{};
     } else {
       _selected = Set<int>.from(List.generate(widget.suggestions.length, (i) => i));
+    }
+  }
+
+  @override
+  void didUpdateWidget(_SuggestionsSheet oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // POI-2.5 guard : détecter si le widget est recyclé avec des données
+    // d'un autre voyage ou une autre destination (ne devrait jamais arriver
+    // car showModalBottomSheet crée un nouveau widget à chaque fois).
+    if (oldWidget.tripId != widget.tripId) {
+      debugPrint(
+        '[poi_destination] _SuggestionsSheet tripId changed : '
+        '${oldWidget.tripId} → ${widget.tripId} — resetting state',
+      );
+      _selected.clear();
+      _selectedByGroup.clear();
+      _placeCache.clear();
     }
   }
 

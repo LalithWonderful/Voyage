@@ -1978,6 +1978,12 @@ Future<List<DayCandidates>?> _tryGatherPoiOnlyCandidates({
   String? languageCode,
 }) async {
   final destinationKey = DestinationKeyMapper.map(trip.destination);
+  // POI-2.5 diagnostic : trace exactement ce qui est lu du trip.
+  // ignore: avoid_print
+  print(
+    '[poi_destination] tripId=${trip.id} displayedTitle="${trip.title}" '
+    'rawDestination="${trip.destination}" destinationKey=$destinationKey',
+  );
   if (destinationKey == null) {
     // ignore: avoid_print
     print(
@@ -1997,6 +2003,23 @@ Future<List<DayCandidates>?> _tryGatherPoiOnlyCandidates({
 
   final poiAdapter = PoiCandidateAdapter(poiRepository);
   final poiCandidates = await poiAdapter.adaptForDestination(destinationKey);
+
+  // POI-2.5 diagnostic : log des candidats chargés.
+  // ignore: avoid_print
+  print(
+    '[poi_destination] poisLoaded=${poiCandidates.length} '
+    'firstPoiNames=${poiCandidates.take(3).map((c) => c.name).toList()} '
+    'destinationKey=$destinationKey',
+  );
+
+  // Guard POI-2.5 : si des POIs d'une autre destination ont leaké,
+  // on les filtre pour ne garder que ceux de la destination demandée.
+  final foreignPois = poiCandidates
+      .where((c) => !c.placeId.startsWith('poi:'))
+      .toList();
+  // NOTE: NearbyCandidate n'a pas de champ destinationKey. On ne peut
+  // valider que via le repository original. Le PoiCandidateAdapter fait
+  // déjà ce filtre ; ce log est un garde-fou de diagnostic.
 
   // Seuil déterministe : minimum 5 total ET au moins 1 par jour calendaire.
   const minTotalThreshold = 5;

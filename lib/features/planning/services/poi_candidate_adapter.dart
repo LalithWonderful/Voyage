@@ -9,10 +9,30 @@ class PoiCandidateAdapter {
 
   Future<List<NearbyCandidate>> adaptForDestination(String destinationKey) async {
     final pois = await _repo.listPoisByDestination(destinationKey);
+
+    // POI-2.5 diagnostic + guard : valider que tous les POIs retournés
+    // appartiennent bien à la destination demandée.
+    final foreignPois = pois.where((p) => p.destinationKey != destinationKey).toList();
+    if (foreignPois.isNotEmpty) {
+      // ignore: avoid_print
+      print(
+        '[poi_destination] CRITICAL foreign POIs detected : '
+        'requested=$destinationKey foreign=${foreignPois.map((p) => '"${p.name}"(${p.destinationKey})').toList()}',
+      );
+    }
+    // Filtre défensif : on ne garde que les POIs de la destination demandée.
+    final validPois = pois.where((p) => p.destinationKey == destinationKey).toList();
+    // ignore: avoid_print
+    print(
+      '[poi_destination] poiDestinationKeys='
+      '${validPois.map((p) => p.destinationKey).toSet().toList()} '
+      'count=${validPois.length}',
+    );
+
     final candidates = <NearbyCandidate>[];
     final seenPlaceIds = <String>{};
 
-    for (final poi in pois) {
+    for (final poi in validPois) {
       // Skip POIs sans coordonnées valides (hard constraint POI-2.0)
       if (poi.lat == null || poi.lng == null) continue;
       if (poi.lat!.isNaN || poi.lng!.isNaN) continue;
