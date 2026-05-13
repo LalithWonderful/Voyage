@@ -19,6 +19,7 @@ import 'package:voyage/features/trips/widgets/trip_edit_sheet.dart';
 import 'package:voyage/features/wallet/models/document_model.dart';
 import 'package:voyage/features/wallet/providers/wallet_provider.dart';
 import 'package:voyage/features/wallet/screens/wallet_screen.dart';
+import 'package:voyage/features/wallet/utils/trip_documents_grouping.dart';
 import 'package:voyage/features/wallet/widgets/document_form_sheet.dart';
 import 'package:voyage/features/wallet/widgets/hotel_doc_warnings.dart';
 
@@ -627,7 +628,15 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
     final docs = docsAsync.valueOrNull ?? const <TripDocument>[];
     final hotelsAsync = ref.watch(tripHotelsProvider(trip.id));
     final hotels = hotelsAsync.valueOrNull ?? const <TripDocument>[];
-    final others = docs.where((d) => d.category != DocumentCategory.hotel).toList();
+    // Refonte UX 2026-05-13 : on découpe les non-hôtels en transports /
+    // réservations & activités / autres pour éviter une longue liste
+    // verticale de DocumentCard. Les groupes sont déjà triés chrono par
+    // [classifyTripDocuments]. Aucun doc n'est jeté : le groupe `others`
+    // est le fallback.
+    final grouped = classifyTripDocuments(docs);
+    final transports = grouped.transports;
+    final tickets = grouped.tickets;
+    final otherDocs = grouped.others;
 
     final budget = ref.watch(tripBudgetProvider(trip.id)).valueOrNull;
     final userCurrency = ref.watch(userCurrencyProvider);
@@ -816,13 +825,39 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
                 ),
               ],
 
-              // Autres documents du voyage — affichage condensé en lecture
-              // (la card "Documents" en bas reste le point d'accès consolidé).
-              if (others.isNotEmpty) ...[
+              // Transports — carrousel positionné par défaut sur le prochain
+              // transport à venir (vol/train/location). Évite d'empiler un
+              // flight, un train et un bus sous "Autres documents".
+              if (transports.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Text('TRANSPORTS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+                const SizedBox(height: 10),
+                _DocumentsCarousel(
+                  documents: transports,
+                  group: TripDocumentGroup.transport,
+                ),
+              ],
+
+              // Réservations & activités (billets : spectacles, parcs, musées,
+              // tours, événements). Même logique de carrousel chronologique.
+              if (tickets.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Text('RÉSERVATIONS & ACTIVITÉS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+                const SizedBox(height: 10),
+                _DocumentsCarousel(
+                  documents: tickets,
+                  group: TripDocumentGroup.ticket,
+                ),
+              ],
+
+              // Fallback : documents non classifiés (catégorie `other` ou
+              // inconnue). Affichage liste verticale historique pour ne
+              // jamais cacher un document.
+              if (otherDocs.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 Text('AUTRES DOCUMENTS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
                 const SizedBox(height: 10),
-                for (final d in others)
+                for (final d in otherDocs)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 10),
                     child: DocumentCard(
@@ -835,7 +870,9 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
               const SizedBox(height: 12),
               _QuickActionTile(
                 emoji: '📄',
-                label: others.isEmpty ? 'Ajoute tes réservations' : 'Ajouter une réservation',
+                label: (transports.isEmpty && tickets.isEmpty && otherDocs.isEmpty)
+                    ? 'Ajoute tes réservations'
+                    : 'Ajouter une réservation',
                 subtitle: 'Vols, billets, confirmations',
                 onTap: () => openDocumentFormSheet(context, ref, initialTripId: trip.id),
               ),
@@ -1006,30 +1043,8 @@ class _HotelsCarouselState extends State<_HotelsCarousel> {
   // introuvable) sans overflow, même quand les 2 sont présents simultanément.
   static const double _cardHeight = 150;
 
-  int _initialIndex() {
-    final today = DateTime.now();
-    final d = DateTime(today.year, today.month, today.day);
-    // 1. Hôtel couvrant aujourd'hui
-    for (var i = 0; i < widget.hotels.length; i++) {
-      final h = widget.hotels[i];
-      final ci = h.metadata['check_in'] is String ? DateTime.tryParse(h.metadata['check_in'] as String) : null;
-      final co = h.metadata['check_out'] is String ? DateTime.tryParse(h.metadata['check_out'] as String) : null;
-      if (ci == null || co == null) continue;
-      final start = DateTime(ci.year, ci.month, ci.day);
-      final end = DateTime(co.year, co.month, co.day);
-      if (!d.isBefore(start) && !d.isAfter(end)) return i;
-    }
-    // 2. Premier hôtel à venir (check_in ≥ aujourd'hui)
-    for (var i = 0; i < widget.hotels.length; i++) {
-      final h = widget.hotels[i];
-      final ci = h.metadata['check_in'] is String ? DateTime.tryParse(h.metadata['check_in'] as String) : null;
-      if (ci == null) continue;
-      final start = DateTime(ci.year, ci.month, ci.day);
-      if (!start.isBefore(d)) return i;
-    }
-    // 3. Fallback : premier
-    return 0;
-  }
+  int _initialIndex() =>
+      findInitialAccommodationIndex(widget.hotels, DateTime.now());
 
   @override
   void initState() {
@@ -1249,6 +1264,193 @@ class _HotelCard extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Carrousel horizontal générique pour les groupes "transports" et
+/// "réservations & activités". Réutilise [DocumentCard] (badge catégorie,
+/// route, date, n° de réservation, chevron) — un swipe = un document.
+///
+/// L'index initial est calculé par [findInitialTransportIndex] /
+/// [findInitialTicketIndex] : prochain à venir > plus récent passé > 0.
+/// L'auto-recalage post-mutation (ajout/suppression) garde l'index dans
+/// les bornes même quand la liste change.
+class _DocumentsCarousel extends ConsumerStatefulWidget {
+  final List<TripDocument> documents;
+  final TripDocumentGroup group;
+  const _DocumentsCarousel({
+    required this.documents,
+    required this.group,
+  });
+
+  @override
+  ConsumerState<_DocumentsCarousel> createState() =>
+      _DocumentsCarouselState();
+}
+
+class _DocumentsCarouselState extends ConsumerState<_DocumentsCarousel> {
+  late final PageController _controller;
+  late int _currentPage;
+
+  int _initialIndex() {
+    final now = DateTime.now();
+    switch (widget.group) {
+      case TripDocumentGroup.transport:
+        return findInitialTransportIndex(widget.documents, now);
+      case TripDocumentGroup.ticket:
+        return findInitialTicketIndex(widget.documents, now);
+      case TripDocumentGroup.accommodation:
+      case TripDocumentGroup.other:
+        return 0;
+    }
+  }
+
+  TripDocumentStatus _statusOf(TripDocument doc) {
+    final now = DateTime.now();
+    switch (widget.group) {
+      case TripDocumentGroup.transport:
+        return transportStatus(doc, now);
+      case TripDocumentGroup.ticket:
+        return ticketStatus(doc, now);
+      case TripDocumentGroup.accommodation:
+        return accommodationStatus(doc, now);
+      case TripDocumentGroup.other:
+        return TripDocumentStatus.unknown;
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _currentPage = _initialIndex();
+    _controller = PageController(initialPage: _currentPage);
+  }
+
+  @override
+  void didUpdateWidget(covariant _DocumentsCarousel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_currentPage >= widget.documents.length) {
+      _currentPage = (widget.documents.length - 1)
+          .clamp(0, widget.documents.length);
+      if (_controller.hasClients && widget.documents.isNotEmpty) {
+        _controller.jumpToPage(_currentPage);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  String? _statusLabel(TripDocumentStatus s) {
+    switch (s) {
+      case TripDocumentStatus.current:
+        return 'En cours';
+      case TripDocumentStatus.upcoming:
+        return 'Prochain';
+      case TripDocumentStatus.past:
+        return 'Passé';
+      case TripDocumentStatus.unknown:
+        return null;
+    }
+  }
+
+  Color _statusColor(TripDocumentStatus s) {
+    switch (s) {
+      case TripDocumentStatus.current:
+        return AppColors.success;
+      case TripDocumentStatus.upcoming:
+        return AppColors.primary;
+      case TripDocumentStatus.past:
+        return AppColors.textSecondary;
+      case TripDocumentStatus.unknown:
+        return AppColors.textSecondary;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final docs = widget.documents;
+    if (docs.isEmpty) return const SizedBox.shrink();
+    final current = docs[_currentPage.clamp(0, docs.length - 1)];
+    final status = _statusOf(current);
+    final statusLabel = _statusLabel(status);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (statusLabel != null)
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 180),
+            switchInCurve: Curves.easeOut,
+            switchOutCurve: Curves.easeIn,
+            child: Padding(
+              key: ValueKey('doc-status-$_currentPage-$statusLabel'),
+              padding: const EdgeInsets.only(bottom: 8, left: 2),
+              child: Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _statusColor(status),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    statusLabel,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: _statusColor(status),
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        // Hauteur fixée pour absorber 2 lignes de subtitle + warnings sans
+        // overflow ; alignée sur la DocumentCard standard utilisée ailleurs.
+        SizedBox(
+          height: 112,
+          child: PageView.builder(
+            controller: _controller,
+            itemCount: docs.length,
+            onPageChanged: (i) => setState(() => _currentPage = i),
+            itemBuilder: (_, i) => DocumentCard(
+              doc: docs[i],
+              onTap: () =>
+                  openDocumentFormSheet(context, ref, existing: docs[i]),
+            ),
+          ),
+        ),
+        if (docs.length > 1) ...[
+          const SizedBox(height: 8),
+          Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: List.generate(docs.length, (i) {
+                final active = i == _currentPage;
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  width: active ? 18 : 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: active ? AppColors.primary : AppColors.border,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                );
+              }),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
