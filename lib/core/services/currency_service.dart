@@ -1,12 +1,19 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
+import 'package:voyage/config/live_api_guards.dart';
 
 /// Service de conversion de devises via frankfurter.app (ECB, gratuit, sans clé).
 /// Cache les taux ~6h en mémoire pour limiter les appels.
 class CurrencyService {
   final Map<String, _RateEntry> _cache = {};
+  final LiveApiGuards _guards;
+  final http.Client? _httpClient;
   static const _ttl = Duration(hours: 6);
+
+  CurrencyService({LiveApiGuards? guards, http.Client? httpClient})
+    : _guards = guards ?? LiveApiGuards.fromEnvironment(),
+      _httpClient = httpClient;
 
   /// Récupère le taux FROM → TO. Retourne null en cas d'échec.
   Future<double?> getRate(String from, String to) async {
@@ -18,9 +25,17 @@ class CurrencyService {
     if (cached != null && DateTime.now().difference(cached.fetchedAt) < _ttl) {
       return cached.rate;
     }
+    _guards.assertAllowed(
+      LiveApiFamily.currencyApi,
+      operation: 'CurrencyService.getRate exchange rates',
+    );
     try {
-      final uri = Uri.parse('https://api.frankfurter.app/latest?from=$fromU&to=$toU');
-      final resp = await http.get(uri).timeout(const Duration(seconds: 8));
+      final uri = Uri.parse(
+        'https://api.frankfurter.app/latest?from=$fromU&to=$toU',
+      );
+      final resp = await (_httpClient?.get(uri) ?? http.get(uri)).timeout(
+        const Duration(seconds: 8),
+      );
       if (resp.statusCode != 200) {
         developer.log('Frankfurter HTTP ${resp.statusCode}', name: 'currency');
         return null;
@@ -45,7 +60,12 @@ class CurrencyService {
     final s = raw.trim();
     if (s.isEmpty) return null;
     // Ignore "Gratuit", "Free", etc.
-    if (RegExp(r'^(gratuit|free|offert|inclus)', caseSensitive: false).hasMatch(s)) return null;
+    if (RegExp(
+      r'^(gratuit|free|offert|inclus)',
+      caseSensitive: false,
+    ).hasMatch(s)) {
+      return null;
+    }
 
     // Détection du code/symbole de devise (ordre important : symbol d'abord)
     final currencyPatterns = <RegExp, String>{
@@ -82,7 +102,10 @@ class CurrencyService {
     // Extrait le nombre (prend la première séquence de chiffres avec virgule/point/espace)
     final numMatch = RegExp(r'([\d\s]+(?:[.,]\d+)?)').firstMatch(s);
     if (numMatch == null) return null;
-    final cleaned = numMatch.group(1)!.replaceAll(RegExp(r'\s'), '').replaceAll(',', '.');
+    final cleaned = numMatch
+        .group(1)!
+        .replaceAll(RegExp(r'\s'), '')
+        .replaceAll(',', '.');
     final amount = double.tryParse(cleaned);
     if (amount == null) return null;
     return (amount: amount, currency: currency);
@@ -100,15 +123,24 @@ class CurrencyService {
 
   static String? _currencySymbol(String currency) {
     switch (currency.toUpperCase()) {
-      case 'EUR': return '€';
-      case 'USD': return r'$';
-      case 'GBP': return '£';
-      case 'JPY': return '¥';
-      case 'CNY': return '¥';
-      case 'INR': return '₹';
-      case 'KRW': return '₩';
-      case 'THB': return '฿';
-      default: return null;
+      case 'EUR':
+        return '€';
+      case 'USD':
+        return r'$';
+      case 'GBP':
+        return '£';
+      case 'JPY':
+        return '¥';
+      case 'CNY':
+        return '¥';
+      case 'INR':
+        return '₹';
+      case 'KRW':
+        return '₩';
+      case 'THB':
+        return '฿';
+      default:
+        return null;
     }
   }
 }

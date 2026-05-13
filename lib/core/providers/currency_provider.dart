@@ -1,8 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:voyage/config/live_api_guards.dart';
 import 'package:voyage/core/services/currency_service.dart';
 import 'package:voyage/features/auth/providers/auth_provider.dart';
 
-final currencyServiceProvider = Provider<CurrencyService>((ref) => CurrencyService());
+// Product runtime is allowed to fetch live exchange rates for user-facing price
+// conversion. Tests and scripts should override this provider or instantiate
+// CurrencyService without this explicit opt-in.
+final currencyServiceProvider = Provider<CurrencyService>(
+  (ref) => CurrencyService(guards: const LiveApiGuards(allowCurrencyApi: true)),
+);
 
 /// Devise préférée de l'utilisateur (fallback EUR).
 final userCurrencyProvider = Provider<String>((ref) {
@@ -12,8 +18,10 @@ final userCurrencyProvider = Provider<String>((ref) {
 
 /// Retourne un prix converti formaté : "~800 ฿ (~20€)" ou juste "~20€" si déjà en devise utilisateur.
 /// Si pas de taux ou prix non parsable, retourne le prix brut.
-final convertedPriceProvider =
-    FutureProvider.family<String, String?>((ref, rawPrice) async {
+final convertedPriceProvider = FutureProvider.family<String, String?>((
+  ref,
+  rawPrice,
+) async {
   if (rawPrice == null || rawPrice.trim().isEmpty) return '';
   final parsed = CurrencyService.parsePrice(rawPrice);
   if (parsed == null) return rawPrice;
