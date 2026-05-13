@@ -28,6 +28,7 @@ import 'package:voyage/features/planning/widgets/activity_edit_sheet.dart';
 import 'package:voyage/features/planning/widgets/suggestion_detail_sheet.dart';
 import 'package:voyage/features/planning/services/ai_suggestions_service.dart';
 import 'package:voyage/features/planning/services/document_to_activity.dart';
+import 'package:voyage/features/planning/data/destination_key_mapper.dart';
 import 'package:voyage/features/planning/services/places_first_pipeline.dart';
 import 'package:voyage/features/planning/services/routes_service.dart';
 import 'package:voyage/features/poi/providers/poi_repository_provider.dart';
@@ -712,8 +713,16 @@ class PlanningScreen extends ConsumerWidget {
           closeDialog();
           if (!context.mounted) return;
           if (groups.isEmpty) {
+            final destinationKey = DestinationKeyMapper.map(effectiveTrip.destination);
+            final isCovered = destinationKey != null;
             messenger.showSnackBar(
-              const SnackBar(content: Text('Aucune nouvelle suggestion — Places n\'a rien retourné dans le périmètre.')),
+              SnackBar(
+                content: Text(
+                  isCovered
+                      ? 'Aucune suggestion POI disponible pour ce planning.'
+                      : 'Aucune nouvelle suggestion — Places n\'a rien retourné dans le périmètre.',
+                ),
+              ),
             );
             return;
           }
@@ -878,8 +887,16 @@ class PlanningScreen extends ConsumerWidget {
       closeDialog();
       if (!context.mounted) return;
       if (afterOverlap.isEmpty) {
+        final destinationKey = DestinationKeyMapper.map(effectiveTrip.destination);
+        final isCovered = destinationKey != null;
         messenger.showSnackBar(
-          const SnackBar(content: Text('Aucune nouvelle suggestion — Places n\'a rien retourné dans le périmètre ou ton planning est déjà bien rempli.')),
+          SnackBar(
+            content: Text(
+              isCovered
+                  ? 'Aucune suggestion POI disponible pour ce planning.'
+                  : 'Aucune nouvelle suggestion — Places n\'a rien retourné dans le périmètre ou ton planning est déjà bien rempli.',
+            ),
+          ),
         );
         return;
       }

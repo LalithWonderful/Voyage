@@ -1,8 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:voyage/config/live_api_guards.dart';
+import 'package:voyage/features/planning/services/day_center_service.dart';
 import 'package:voyage/features/planning/services/geocoding_service.dart';
 import 'package:voyage/features/planning/services/places_first_pipeline.dart';
 import 'package:voyage/features/planning/services/places_nearby_service.dart';
+import 'package:voyage/features/planning/services/poi_candidate_adapter.dart';
 import 'package:voyage/features/poi/data/fake_poi_repository.dart';
 import 'package:voyage/features/poi/domain/poi.dart';
 import 'package:voyage/features/trips/models/trip_model.dart';
@@ -609,6 +611,111 @@ void main() {
         // Success means geocoding was bypassed.
         expect(pool, isNotEmpty);
         expect(pool.length, equals(2));
+      },
+    );
+
+    test(
+      'POI candidates pass deterministic selector and produce ActivitySuggestions',
+      () async {
+        final trip = _buildTrip(
+          destination: 'Paris',
+          startDate: DateTime.utc(2026, 6, 1),
+          endDate: DateTime.utc(2026, 6, 2),
+          interests: ['Culture', 'Spots populaires'],
+        );
+        final pois = <Poi>[
+          _buildPoi(
+            poiId: 'poi-1',
+            destinationKey: 'paris',
+            name: 'Louvre',
+            lat: 48.8606,
+            lng: 2.3376,
+            category: PoiCategory.museum,
+            editorialScore: 100,
+          ),
+          _buildPoi(
+            poiId: 'poi-2',
+            destinationKey: 'paris',
+            name: 'Tour Eiffel',
+            lat: 48.8584,
+            lng: 2.2945,
+            category: PoiCategory.monument,
+            editorialScore: 100,
+          ),
+          _buildPoi(
+            poiId: 'poi-3',
+            destinationKey: 'paris',
+            name: 'Musée d\'Orsay',
+            lat: 48.8599,
+            lng: 2.3266,
+            category: PoiCategory.museum,
+            editorialScore: 90,
+          ),
+          _buildPoi(
+            poiId: 'poi-4',
+            destinationKey: 'paris',
+            name: 'Notre-Dame',
+            lat: 48.8530,
+            lng: 2.3499,
+            category: PoiCategory.monument,
+            editorialScore: 95,
+          ),
+          _buildPoi(
+            poiId: 'poi-5',
+            destinationKey: 'paris',
+            name: 'Sacré-Cœur',
+            lat: 48.8867,
+            lng: 2.3431,
+            category: PoiCategory.viewpoint,
+            editorialScore: 85,
+          ),
+          _buildPoi(
+            poiId: 'poi-6',
+            destinationKey: 'paris',
+            name: 'Jardin du Luxembourg',
+            lat: 48.8462,
+            lng: 2.3372,
+            category: PoiCategory.park,
+            editorialScore: 80,
+          ),
+        ];
+        final poiRepo = FakePoiRepository(pois: pois);
+        final adapter = PoiCandidateAdapter(poiRepo);
+        final candidates = await adapter.adaptForDestination('paris');
+
+        // Verify candidates pass quality gates
+        expect(candidates, isNotEmpty);
+        for (final c in candidates) {
+          expect(c.rating, isNotNull);
+          expect(c.rating! >= 4.0, isTrue);
+          expect(c.userRatingCount, isNotNull);
+          expect(c.userRatingCount! >= 5, isTrue);
+        }
+
+        // Build a PlacesPromptInput and run selector
+        final center = DayCenter(
+          latitude: 48.8566,
+          longitude: 2.3522,
+          source: 'test',
+        );
+        final poolMap = <String, ({NearbyCandidate candidate, List<String> matchedInterests})>{
+          for (final c in candidates)
+            c.placeId: (candidate: c, matchedInterests: ['Culture', 'Spots populaires']),
+        };
+        final input = PlacesPromptInput(
+          center: center,
+          days: [DateTime.utc(2026, 6, 1), DateTime.utc(2026, 6, 2)],
+          pool: poolMap,
+        );
+
+        final suggestions = selectVisitsDeterministic(
+          clusters: [input],
+          trip: trip,
+          travelerProfile: null,
+        );
+
+        expect(suggestions, isNotEmpty);
+        expect(suggestions.length, greaterThanOrEqualTo(1));
       },
     );
   });

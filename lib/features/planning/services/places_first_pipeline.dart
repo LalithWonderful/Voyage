@@ -3973,6 +3973,19 @@ List<ActivitySuggestion> selectVisitsDeterministic({
     );
   }).toList();
 
+  // POI-2.5 diagnostic : log quand un cluster a un pool vide après le final gate.
+  for (var i = 0; i < filteredClusters.length; i++) {
+    if (filteredClusters[i].pool.isEmpty) {
+      // ignore: avoid_print
+      print(
+        '[places_selector_pool_empty] cluster=$i/${filteredClusters.length} '
+        'center=${filteredClusters[i].center.latitude.toStringAsFixed(3)},'
+        '${filteredClusters[i].center.longitude.toStringAsFixed(3)} '
+        'days=${filteredClusters[i].days.length} reason=final_gate_filtered_all',
+      );
+    }
+  }
+
   final maxPerDay = travelerProfile?.maxActivitiesPerDay ?? 4;
   final slots = _visitSlotsForCount(maxPerDay);
   // Distance max entre 2 activités successives. Croise profil voyageur ET

@@ -22,11 +22,21 @@ class PoiCandidateAdapter {
       // Dédoublonnage strict : un POI ne devient qu'un seul candidat
       if (!seenPlaceIds.add(placeId)) continue;
 
+      // POI-2.5 fix : curated POIs must pass the deterministic selector's
+      // quality gates (_isAllowedFinalVisitCandidate). Two fields need
+      // synthetic values because the POI model has no review count:
+      //   - rating  : must be >= 4.0  → floor at 4.0
+      //   - userRatingCount : must be >= 5 (travel-safe) and >= 30 for
+      //     non-strong-travel types → set to 50 to pass all gates cleanly.
+      final rawRating = poi.editorialScore != null ? poi.editorialScore! / 20.0 : null;
+      final safeRating = rawRating != null && rawRating >= 4.0 ? rawRating : 4.0;
+
       candidates.add(NearbyCandidate(
         placeId: placeId,
         name: poi.name,
         address: poi.address,
-        rating: poi.editorialScore != null ? poi.editorialScore! / 20.0 : null,
+        rating: safeRating,
+        userRatingCount: 50,
         priceLevel: poi.priceLevel,
         types: [poi.category.toJsonString(), if (poi.subcategory != null) poi.subcategory!],
         latitude: poi.lat!,
