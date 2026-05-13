@@ -129,6 +129,15 @@ Then re-run verification and confirm counts are identical to the first run.
 | **Barcelona** | **25** | **54** | **100** | **25** | **0** |
 | **Total** | **85** | **175** | **340** | **85** | **0** |
 
+## Execution Status
+
+| Date | Action | Result |
+|------|--------|--------|
+| 2026-05-12 | Dry-run Paris, Rome, Barcelona | All clean (0 blocking errors) |
+| 2026-05-12 | Pre-check Supabase counts | 0 POIs for all 3 cities |
+| 2026-05-12 | Prepare manual commands | Committed to docs |
+| 2026-05-13 | Re-check Supabase counts | **Still 0 POIs for all 3 cities** — real imports not yet executed |
+
 ## Checklist
 
 - [ ] Paris real import executed
