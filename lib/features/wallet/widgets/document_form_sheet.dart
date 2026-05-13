@@ -1,5 +1,4 @@
 import 'dart:developer' as developer;
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -408,74 +407,13 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
       );
     }
 
-    // Pour les docs Vol/Train extraits par Gemini : résolution silencieuse en
-    // arrière-plan des placeIds Google pour `from`/`to`. Sans ça, le save
-    // tomberait en fallback Geocoding texte (chemin 3) qui n'alimente pas
-    // `place_lookup_cache` → un user qui chercherait le même aéroport plus
-    // tard manuellement repaierait Place Details. Ici on harmonise les deux
-    // modes : Gemini extraction = même bénéfice cache que pick manuel.
-    if (newCategory == DocumentCategory.flight ||
-        newCategory == DocumentCategory.train) {
-      // Fire-and-forget : pas d'await pour ne pas bloquer l'UX. Si l'user
-      // édite/save avant que le lookup résolve, le save retombe en chemin 3.
-      // ignore: unawaited_futures
-      _autoResolveTransportPlaceIds();
-    }
-  }
-
-  /// Pour chaque endpoint (`from`/`to`) qui a un texte mais pas de placeId,
-  /// fait un autocomplete Places avec la 1ère suggestion. Si l'user n'a pas
-  /// modifié le champ entre-temps, on persiste le placeId trouvé pour que le
-  /// save bénéficie du cache. Silencieux : aucun feedback UI, aucun blocage.
-  Future<void> _autoResolveTransportPlaceIds() async {
-    final type = _category == DocumentCategory.flight
-        ? 'airport'
-        : 'train_station';
-    final placesService = ref.read(placesServiceProvider);
-    for (final fieldKey in const ['from', 'to']) {
-      final value = _ctrl(fieldKey).text.trim();
-      if (value.isEmpty) continue;
-      if (_placeIds.containsKey(fieldKey)) continue; // déjà résolu
-      // Session token unique pour ce lookup silencieux. Sera ré-utilisé au
-      // save pour le Place Details (continuité tarif session).
-      final token = _newSessionToken();
-      try {
-        final results = await placesService.autocompleteTransport(
-          value,
-          type: type,
-          sessionToken: token,
-        );
-        if (!mounted) return;
-        if (results.isEmpty) continue;
-        // Si l'user a édité entre-temps, on n'écrase pas sa saisie.
-        if (_ctrl(fieldKey).text.trim() != value) continue;
-        final picked = results.first;
-        _placeIds[fieldKey] = picked.placeId;
-        _sessionTokens[fieldKey] = token;
-        // On peut aligner le name sur la 1ère suggestion (ex: "BKK" → "Aéroport
-        // de Bangkok-Suvarnabhumi") pour cohérence avec le mode pick manuel.
-        // setState pour rafraîchir l'affichage du TextField.
-        setState(() {
-          _ctrl(fieldKey).text = picked.mainText;
-        });
-      } catch (e) {
-        developer.log(
-          '[gemini-extract] auto-resolve $fieldKey failed: $e',
-          name: 'wallet',
-        );
-      }
-    }
-  }
-
-  /// UUID v4-like pour les session tokens Google Places. Mêmes contraintes
-  /// que le widget : juste un identifiant unique côté client, opaque côté
-  /// Google. Dupliqué ici (vs le widget) car cette résolution silencieuse
-  /// court-circuite le widget.
-  String _newSessionToken() {
-    final rng = math.Random.secure();
-    final bytes = List<int>.generate(16, (_) => rng.nextInt(256));
-    final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
+    // 2026-05-13 — l'extract email/image ne déclenche plus aucun appel
+    // Google Places. La règle cible (POI Lunao + base IATA Supabase) est
+    // que la source primaire des coords from/to soit hors-Google ; Places
+    // devient un fallback explicite déclenché à l'écran (jamais
+    // fire-and-forget). Tant que cette source n'existe pas, l'utilisateur
+    // garde la saisie manuelle + le picker explicite déjà branché sur les
+    // champs from/to.
   }
 
   /// Retourne la date "principale" d'un document selon sa catégorie.
