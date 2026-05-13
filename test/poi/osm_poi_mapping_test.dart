@@ -1,11 +1,14 @@
 /// POI-1.1 — Tests offline du mapping OSM → Fixture Lunao.
+// ignore_for_file: avoid_print
 ///
 /// Aucun appel réseau. Tous les tests utilisent des réponses Overpass
 /// mockées en mémoire. L'extraction live est testée séparément et
-/// skipped par défaut (opt-in via `RUN_LIVE_OVERPASS=true`).
+/// skipped par défaut (opt-in via `ALLOW_LIVE_OVERPASS=true`).
 library;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:voyage/config/live_api_guards.dart';
 import 'package:voyage/features/poi/tools/osm_overpass_extractor.dart';
 
 import 'package:voyage/features/poi/tools/poi_fixture_validator.dart';
@@ -14,12 +17,10 @@ import 'package:voyage/features/poi/tools/poi_fixture_validator.dart';
 //  Helpers de construction de mock Overpass
 // ═══════════════════════════════════════════════════════════
 
-Map<String, dynamic> _mockOverpassResponse(List<Map<String, dynamic>> elements) {
-  return {
-    'version': 0.6,
-    'generator': 'test-mock',
-    'elements': elements,
-  };
+Map<String, dynamic> _mockOverpassResponse(
+  List<Map<String, dynamic>> elements,
+) {
+  return {'version': 0.6, 'generator': 'test-mock', 'elements': elements};
 }
 
 Map<String, dynamic> _node({
@@ -28,13 +29,7 @@ Map<String, dynamic> _node({
   required double lon,
   required Map<String, dynamic> tags,
 }) {
-  return {
-    'type': 'node',
-    'id': id,
-    'lat': lat,
-    'lon': lon,
-    'tags': tags,
-  };
+  return {'type': 'node', 'id': id, 'lat': lat, 'lon': lon, 'tags': tags};
 }
 
 Map<String, dynamic> _way({
@@ -375,7 +370,8 @@ void main() {
       ]);
 
       final scoreNo = noWiki.fixtureJson['pois'][0]['editorial_score'] as int;
-      final scoreYes = withWiki.fixtureJson['pois'][0]['editorial_score'] as int;
+      final scoreYes =
+          withWiki.fixtureJson['pois'][0]['editorial_score'] as int;
       expect(scoreYes, greaterThan(scoreNo));
       expect(scoreYes, lessThanOrEqualTo(100));
     });
@@ -386,11 +382,7 @@ void main() {
           id: 600,
           lat: 1.0,
           lon: 103.0,
-          tags: {
-            'name': 'Free Park',
-            'leisure': 'park',
-            'fee': 'no',
-          },
+          tags: {'name': 'Free Park', 'leisure': 'park', 'fee': 'no'},
         ),
       ]);
       final poi = r.fixtureJson['pois'][0];
@@ -404,11 +396,7 @@ void main() {
           id: 601,
           lat: 1.0,
           lon: 103.0,
-          tags: {
-            'name': 'Paid Museum',
-            'tourism': 'museum',
-            'fee': 'yes',
-          },
+          tags: {'name': 'Paid Museum', 'tourism': 'museum', 'fee': 'yes'},
         ),
       ]);
       expect(r.fixtureJson['pois'][0]['price_level'], 2);
@@ -442,10 +430,20 @@ void main() {
 
     test('touristic_importance selon catégorie', () {
       final mustSee = _extract([
-        _node(id: 800, lat: 1.0, lon: 103.0, tags: {'name': 'Icon', 'tourism': 'attraction'}),
+        _node(
+          id: 800,
+          lat: 1.0,
+          lon: 103.0,
+          tags: {'name': 'Icon', 'tourism': 'attraction'},
+        ),
       ]);
       final park = _extract([
-        _node(id: 801, lat: 1.0, lon: 103.0, tags: {'name': 'Park', 'leisure': 'park'}),
+        _node(
+          id: 801,
+          lat: 1.0,
+          lon: 103.0,
+          tags: {'name': 'Park', 'leisure': 'park'},
+        ),
       ]);
       expect(mustSee.fixtureJson['pois'][0]['touristic_importance'], 5);
       expect(park.fixtureJson['pois'][0]['touristic_importance'], 3);
@@ -470,11 +468,7 @@ void main() {
           id: 901,
           lat: 1.29,
           lon: 103.87,
-          tags: {
-            'name': 'National Museum',
-            'tourism': 'museum',
-            'fee': 'yes',
-          },
+          tags: {'name': 'National Museum', 'tourism': 'museum', 'fee': 'yes'},
         ),
         _way(
           id: 902,
@@ -523,6 +517,33 @@ void main() {
     });
   });
 
+  group('OsmOverpassExtractor — live API guard', () {
+    test('fetchOverpass bloque par défaut avant tout appel HTTP', () async {
+      final extractor = OsmOverpassExtractor(guards: LiveApiGuards.defaults());
+      final client = _FailingHttpClient();
+
+      await expectLater(
+        extractor.fetchOverpass(BoundingBox.singapore, client: client),
+        throwsA(
+          isA<LiveApiBlockedException>()
+              .having((e) => e.family, 'family', LiveApiFamily.overpass)
+              .having(
+                (e) => e.operation,
+                'operation',
+                'OsmOverpassExtractor.fetchOverpass',
+              )
+              .having((e) => e.message, 'message', contains('Overpass'))
+              .having(
+                (e) => e.message,
+                'message',
+                contains('--dart-define=ALLOW_LIVE_OVERPASS=true'),
+              ),
+        ),
+      );
+      expect(client.sentRequests, isZero);
+    });
+  });
+
   // ═══════════════════════════════════════════════════════════
   //  Test live — skipped par défaut
   // ═══════════════════════════════════════════════════════════
@@ -532,7 +553,9 @@ void main() {
       'fetchOverpass pour Singapore retourne des éléments',
       () async {
         final extractor = OsmOverpassExtractor();
-        final overpassJson = await extractor.fetchOverpass(BoundingBox.singapore);
+        final overpassJson = await extractor.fetchOverpass(
+          BoundingBox.singapore,
+        );
         expect(overpassJson['elements'], isA<List>());
         expect((overpassJson['elements'] as List).isNotEmpty, isTrue);
 
@@ -548,9 +571,21 @@ void main() {
         final report = PoiFixtureValidator().validate(result.fixtureJson);
         expect(report.isValid, isTrue);
       },
-      skip: const bool.fromEnvironment('RUN_LIVE_OVERPASS')
+      skip: const bool.fromEnvironment('ALLOW_LIVE_OVERPASS')
           ? false
-          : 'Live Overpass test — set RUN_LIVE_OVERPASS=true to run',
+          : 'Live Overpass test — set ALLOW_LIVE_OVERPASS=true to run',
     );
   });
+}
+
+class _FailingHttpClient extends http.BaseClient {
+  int sentRequests = 0;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    sentRequests++;
+    throw StateError(
+      'HTTP client should not be reached while Overpass is blocked',
+    );
+  }
 }

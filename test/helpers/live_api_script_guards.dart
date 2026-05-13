@@ -19,6 +19,7 @@ const _dartDefineByFamily = <LiveApiFamily, String>{
   LiveApiFamily.networkImages: 'ALLOW_LIVE_NETWORK_IMAGES=true',
   LiveApiFamily.deviceLocation: 'ALLOW_LIVE_DEVICE_LOCATION=true',
   LiveApiFamily.currencyApi: 'ALLOW_LIVE_CURRENCY_API=true',
+  LiveApiFamily.overpass: 'ALLOW_LIVE_OVERPASS=true',
 };
 
 List<LiveApiFamily> missingLiveApiFamiliesForGenerateBaseline(

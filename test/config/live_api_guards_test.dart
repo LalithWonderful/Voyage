@@ -15,6 +15,7 @@ void main() {
     'networkImages',
     'deviceLocation',
     'currencyApi',
+    'overpass',
   };
 
   group('LiveApiGuards — defaults', () {
@@ -29,6 +30,7 @@ void main() {
       expect(guards.allowNetworkImages, isFalse);
       expect(guards.allowDeviceLocation, isFalse);
       expect(guards.allowCurrencyApi, isFalse);
+      expect(guards.allowOverpass, isFalse);
       expect(guards.allowsAnyLiveApi, isFalse);
     });
 
@@ -55,6 +57,7 @@ void main() {
         'ALLOW_LIVE_NETWORK_IMAGES': LiveApiFamily.networkImages,
         'ALLOW_LIVE_DEVICE_LOCATION': LiveApiFamily.deviceLocation,
         'ALLOW_LIVE_CURRENCY_API': LiveApiFamily.currencyApi,
+        'ALLOW_LIVE_OVERPASS': LiveApiFamily.overpass,
       };
 
       for (final entry in cases.entries) {
@@ -169,7 +172,7 @@ void main() {
       const guards = LiveApiGuards();
       final map = guards.toMap();
 
-      expect(map, hasLength(8));
+      expect(map, hasLength(9));
       expect(map.keys.toSet(), equals(expectedMapKeys));
     });
 
@@ -178,6 +181,7 @@ void main() {
         allowGooglePlaces: true,
         allowGemini: true,
         allowCurrencyApi: true,
+        allowOverpass: true,
       );
 
       expect(guards.toMap(), {
@@ -189,6 +193,7 @@ void main() {
         'networkImages': false,
         'deviceLocation': false,
         'currencyApi': true,
+        'overpass': true,
       });
     });
 
@@ -202,6 +207,7 @@ void main() {
         allowNetworkImages: false,
         allowDeviceLocation: true,
         allowCurrencyApi: false,
+        allowOverpass: true,
       );
 
       expect(guards.allows(LiveApiFamily.googlePlaces), isTrue);
@@ -212,10 +218,11 @@ void main() {
       expect(guards.allows(LiveApiFamily.networkImages), isFalse);
       expect(guards.allows(LiveApiFamily.deviceLocation), isTrue);
       expect(guards.allows(LiveApiFamily.currencyApi), isFalse);
+      expect(guards.allows(LiveApiFamily.overpass), isTrue);
     });
 
     test('every enum family is represented in toMap', () {
-      expect(LiveApiFamily.values, hasLength(8));
+      expect(LiveApiFamily.values, hasLength(9));
       expect(LiveApiFamily.values.map((f) => f.name).toSet(), {
         'googlePlaces',
         'googleRoutes',
@@ -225,6 +232,7 @@ void main() {
         'networkImages',
         'deviceLocation',
         'currencyApi',
+        'overpass',
       });
       expect(
         LiveApiGuards.fromEnvironmentMap(const {
@@ -268,5 +276,39 @@ void main() {
         ),
       );
     });
+
+    test(
+      'blocked Overpass message names family, operation, and dart-define',
+      () {
+        const guards = LiveApiGuards();
+
+        expect(
+          () => guards.assertAllowed(
+            LiveApiFamily.overpass,
+            operation: 'OsmOverpassExtractor.fetchOverpass',
+          ),
+          throwsA(
+            isA<LiveApiBlockedException>()
+                .having((e) => e.family, 'family', LiveApiFamily.overpass)
+                .having(
+                  (e) => e.operation,
+                  'operation',
+                  'OsmOverpassExtractor.fetchOverpass',
+                )
+                .having((e) => e.message, 'message', contains('Overpass'))
+                .having(
+                  (e) => e.message,
+                  'message',
+                  contains('OsmOverpassExtractor.fetchOverpass'),
+                )
+                .having(
+                  (e) => e.message,
+                  'message',
+                  contains('--dart-define=ALLOW_LIVE_OVERPASS=true'),
+                ),
+          ),
+        );
+      },
+    );
   });
 }

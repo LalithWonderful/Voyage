@@ -11,9 +11,11 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:voyage/config/live_api_guards.dart';
 import 'package:voyage/features/poi/tools/osm_overpass_extractor.dart';
 
-final _usage = '''
+final _usage =
+    '''
 Usage: dart tool/poi/extract_osm_pois.dart [options]
 
 Options:
@@ -26,7 +28,8 @@ Options:
 Exemples:
   dart tool/poi/extract_osm_pois.dart --destination singapore --country SG > singapore_osm.json
   dart tool/poi/extract_osm_pois.dart --destination paris --country FR --bbox 48.81,2.22,48.90,2.47 > paris_osm.json
-'''.trim();
+'''
+        .trim();
 
 void main(List<String> args) async {
   final parser = _parseArgs(args);
@@ -42,7 +45,9 @@ void main(List<String> args) async {
   final bbox = _resolveBbox(parser['bbox'], destinationKey);
   final sourceId = parser['source-id'] ?? _randomUuid();
 
-  stderr.writeln('// Extraction Overpass pour "$destinationKey" ($countryCode)');
+  stderr.writeln(
+    '// Extraction Overpass pour "$destinationKey" ($countryCode)',
+  );
   stderr.writeln('// Bbox: $bbox');
   stderr.writeln('// Source ID: $sourceId');
   stderr.writeln('// Appel Overpass...');
@@ -51,7 +56,9 @@ void main(List<String> args) async {
 
   try {
     final overpassJson = await extractor.fetchOverpass(bbox);
-    stderr.writeln('// Éléments reçus: ${(overpassJson['elements'] as List).length}');
+    stderr.writeln(
+      '// Éléments reçus: ${(overpassJson['elements'] as List).length}',
+    );
 
     final result = extractor.extractFromResponse(
       overpassJson,
@@ -73,6 +80,9 @@ void main(List<String> args) async {
     const encoder = JsonEncoder.withIndent('  ');
     // ignore: avoid_print
     print(encoder.convert(result.fixtureJson));
+  } on LiveApiBlockedException catch (e) {
+    stderr.writeln('ERREUR live API: $e');
+    exit(2);
   } on OverpassException catch (e) {
     stderr.writeln('ERREUR Overpass: $e');
     exit(2);
@@ -118,8 +128,8 @@ BoundingBox _resolveBbox(String? raw, String destinationKey) {
     'singapore' => BoundingBox.singapore,
     'paris' => BoundingBox.paris,
     _ => throw ArgumentError(
-        'Bbox inconnue pour "$destinationKey". Utilisez --bbox.',
-      ),
+      'Bbox inconnue pour "$destinationKey". Utilisez --bbox.',
+    ),
   };
 }
 
@@ -128,5 +138,3 @@ String _randomUuid() {
   final rnd = DateTime.now().millisecondsSinceEpoch.toRadixString(16);
   return '${rnd.substring(0, 8)}-${rnd.substring(8, 12)}-4${rnd.substring(13, 16)}-a${rnd.substring(17, 20)}-${rnd.substring(20, 32)}';
 }
-
-

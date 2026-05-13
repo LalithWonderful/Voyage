@@ -25,6 +25,7 @@ void main() {
     LiveApiFamily.networkImages,
     LiveApiFamily.deviceLocation,
     LiveApiFamily.currencyApi,
+    LiveApiFamily.overpass,
   };
 
   group('API-0.5 — no live API by default', () {
@@ -71,7 +72,7 @@ void main() {
   });
 
   group('API-0.5 — critical families covered by LiveApiFamily', () {
-    test('LiveApiFamily exposes exactly the 8 critical families', () {
+    test('LiveApiFamily exposes exactly the 9 critical families', () {
       expect(LiveApiFamily.values.toSet(), equals(criticalFamilies));
     });
 
@@ -85,6 +86,7 @@ void main() {
         'networkImages',
         'deviceLocation',
         'currencyApi',
+        'overpass',
       };
 
       expect(
@@ -155,11 +157,7 @@ void main() {
           ),
           throwsA(
             isA<LiveApiBlockedException>()
-                .having(
-                  (e) => e.family,
-                  'family',
-                  LiveApiFamily.gemini,
-                )
+                .having((e) => e.family, 'family', LiveApiFamily.gemini)
                 .having(
                   (e) => e.operation,
                   'operation',

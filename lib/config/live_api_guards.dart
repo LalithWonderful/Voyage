@@ -26,6 +26,7 @@ const _envKeySupabase = 'ALLOW_LIVE_SUPABASE';
 const _envKeyNetworkImages = 'ALLOW_LIVE_NETWORK_IMAGES';
 const _envKeyDeviceLocation = 'ALLOW_LIVE_DEVICE_LOCATION';
 const _envKeyCurrencyApi = 'ALLOW_LIVE_CURRENCY_API';
+const _envKeyOverpass = 'ALLOW_LIVE_OVERPASS';
 
 const _flagKeyGooglePlaces = 'googlePlaces';
 const _flagKeyGoogleRoutes = 'googleRoutes';
@@ -35,6 +36,7 @@ const _flagKeySupabase = 'supabase';
 const _flagKeyNetworkImages = 'networkImages';
 const _flagKeyDeviceLocation = 'deviceLocation';
 const _flagKeyCurrencyApi = 'currencyApi';
+const _flagKeyOverpass = 'overpass';
 
 /// Families of live APIs that can be guarded centrally.
 enum LiveApiFamily {
@@ -46,6 +48,7 @@ enum LiveApiFamily {
   networkImages,
   deviceLocation,
   currencyApi,
+  overpass,
 }
 
 /// Parse a string as a permissive bool:
@@ -79,6 +82,7 @@ class LiveApiGuards {
   final bool allowNetworkImages;
   final bool allowDeviceLocation;
   final bool allowCurrencyApi;
+  final bool allowOverpass;
 
   const LiveApiGuards({
     this.allowGooglePlaces = false,
@@ -89,6 +93,7 @@ class LiveApiGuards {
     this.allowNetworkImages = false,
     this.allowDeviceLocation = false,
     this.allowCurrencyApi = false,
+    this.allowOverpass = false,
   });
 
   /// Default closed policy: no live API family is allowed.
@@ -107,6 +112,7 @@ class LiveApiGuards {
       _envKeyNetworkImages: String.fromEnvironment(_envKeyNetworkImages),
       _envKeyDeviceLocation: String.fromEnvironment(_envKeyDeviceLocation),
       _envKeyCurrencyApi: String.fromEnvironment(_envKeyCurrencyApi),
+      _envKeyOverpass: String.fromEnvironment(_envKeyOverpass),
     });
   }
 
@@ -126,6 +132,7 @@ class LiveApiGuards {
       allowNetworkImages: resolve(_envKeyNetworkImages),
       allowDeviceLocation: resolve(_envKeyDeviceLocation),
       allowCurrencyApi: resolve(_envKeyCurrencyApi),
+      allowOverpass: resolve(_envKeyOverpass),
     );
   }
 
@@ -151,6 +158,8 @@ class LiveApiGuards {
         return allowDeviceLocation;
       case LiveApiFamily.currencyApi:
         return allowCurrencyApi;
+      case LiveApiFamily.overpass:
+        return allowOverpass;
     }
   }
 
@@ -170,6 +179,7 @@ class LiveApiGuards {
     _flagKeyNetworkImages: allowNetworkImages,
     _flagKeyDeviceLocation: allowDeviceLocation,
     _flagKeyCurrencyApi: allowCurrencyApi,
+    _flagKeyOverpass: allowOverpass,
   };
 
   @override
@@ -183,7 +193,8 @@ class LiveApiGuards {
         allowSupabase == other.allowSupabase &&
         allowNetworkImages == other.allowNetworkImages &&
         allowDeviceLocation == other.allowDeviceLocation &&
-        allowCurrencyApi == other.allowCurrencyApi;
+        allowCurrencyApi == other.allowCurrencyApi &&
+        allowOverpass == other.allowOverpass;
   }
 
   @override
@@ -196,6 +207,7 @@ class LiveApiGuards {
     allowNetworkImages,
     allowDeviceLocation,
     allowCurrencyApi,
+    allowOverpass,
   );
 
   @override
@@ -214,9 +226,58 @@ class LiveApiBlockedException implements Exception {
     String? message,
   }) : message =
            message ??
-           'Live API call blocked for ${family.name}: $operation. '
-               'Enable it with the matching ALLOW_LIVE_* dart-define.';
+           'Live API call blocked for ${_liveApiFamilyDisplayName(family)}: '
+               '$operation. Family id: ${family.name}. '
+               'Enable it intentionally with '
+               '--dart-define=${_liveApiFamilyDartDefine(family)}=true '
+               'or --dart-define=ALLOW_LIVE_APIS=true.';
 
   @override
   String toString() => message;
+}
+
+String _liveApiFamilyDisplayName(LiveApiFamily family) {
+  switch (family) {
+    case LiveApiFamily.googlePlaces:
+      return 'Google Places';
+    case LiveApiFamily.googleRoutes:
+      return 'Google Routes';
+    case LiveApiFamily.googleGeocoding:
+      return 'Google Geocoding';
+    case LiveApiFamily.gemini:
+      return 'Gemini';
+    case LiveApiFamily.supabase:
+      return 'Supabase';
+    case LiveApiFamily.networkImages:
+      return 'Network Images';
+    case LiveApiFamily.deviceLocation:
+      return 'Device Location';
+    case LiveApiFamily.currencyApi:
+      return 'Currency API';
+    case LiveApiFamily.overpass:
+      return 'Overpass';
+  }
+}
+
+String _liveApiFamilyDartDefine(LiveApiFamily family) {
+  switch (family) {
+    case LiveApiFamily.googlePlaces:
+      return _envKeyGooglePlaces;
+    case LiveApiFamily.googleRoutes:
+      return _envKeyGoogleRoutes;
+    case LiveApiFamily.googleGeocoding:
+      return _envKeyGoogleGeocoding;
+    case LiveApiFamily.gemini:
+      return _envKeyGemini;
+    case LiveApiFamily.supabase:
+      return _envKeySupabase;
+    case LiveApiFamily.networkImages:
+      return _envKeyNetworkImages;
+    case LiveApiFamily.deviceLocation:
+      return _envKeyDeviceLocation;
+    case LiveApiFamily.currencyApi:
+      return _envKeyCurrencyApi;
+    case LiveApiFamily.overpass:
+      return _envKeyOverpass;
+  }
 }
