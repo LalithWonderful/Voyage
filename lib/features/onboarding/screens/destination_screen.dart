@@ -701,6 +701,7 @@ class _DestinationScreenState extends ConsumerState<DestinationScreen> {
                         });
                       },
                       onSelectedDetailed: (city, _, placeId, kind) {
+                        debugPrint('[destination_screen] onSelectedDetailed city="$city" kind=$kind placeId=$placeId');
                         setState(() {
                           _typedDestination = city;
                           _destinationKind = kind;

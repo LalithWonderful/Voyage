@@ -119,27 +119,33 @@ class _CityAutocompleteFieldState extends ConsumerState<CityAutocompleteField> {
     }
     setState(() => _loading = true);
     final placesService = ref.read(placesServiceProvider);
-    final List<({String description, String mainText, String placeId, String kind})> results;
-    if (widget.acceptAnyDestination) {
-      results = await placesService.autocompleteDestinations(query);
-    } else {
-      // Mode villes seules : on uniformise vers la même struct, kind='city'.
-      // `restrictToCountryCode` filtre les suggestions au pays choisi (ex:
-      // étapes d'un voyage Thaïlande → uniquement villes thaï).
-      final cities = await placesService.autocompleteCities(
-        query,
-        countryCode: widget.restrictToCountryCode,
-      );
-      results = cities
-          .map((c) => (
-                description: c.description,
-                mainText: c.mainText,
-                placeId: c.placeId,
-                kind: 'city',
-              ))
-          .toList();
+    List<({String description, String mainText, String placeId, String kind})> results = const [];
+    try {
+      if (widget.acceptAnyDestination) {
+        results = await placesService.autocompleteDestinations(query);
+      } else {
+        // Mode villes seules : on uniformise vers la même struct, kind='city'.
+        // `restrictToCountryCode` filtre les suggestions au pays choisi (ex:
+        // étapes d'un voyage Thaïlande → uniquement villes thaï).
+        final cities = await placesService.autocompleteCities(
+          query,
+          countryCode: widget.restrictToCountryCode,
+        );
+        results = cities
+            .map((c) => (
+                  description: c.description,
+                  mainText: c.mainText,
+                  placeId: c.placeId,
+                  kind: 'city',
+                ))
+            .toList();
+      }
+    } catch (e, st) {
+      debugPrint('[city_autocomplete] error query="$query" error="$e"');
+      debugPrint(st.toString());
     }
     if (!mounted) return;
+    debugPrint('[city_autocomplete] query="$query" results=${results.length}');
     setState(() {
       _suggestions = results;
       _loading = false;
