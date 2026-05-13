@@ -234,6 +234,28 @@ class PlacesService {
     'lisboa portugal': (description: 'Lisbonne, Portugal', mainText: 'Lisbonne', placeId: 'lunao:lisbon'),
   };
 
+  static ({String description, String mainText, String placeId, String kind})?
+  _matchLunaoDestination(String normalized) {
+    final exact = _lunaoDestinations[normalized];
+    if (exact != null) return exact;
+    if (normalized.length < 4) return null;
+    for (final entry in _lunaoDestinations.entries) {
+      if (entry.key.startsWith(normalized)) return entry.value;
+    }
+    return null;
+  }
+
+  static ({String description, String mainText, String placeId})?
+  _matchLunaoCity(String normalized) {
+    final exact = _lunaoCities[normalized];
+    if (exact != null) return exact;
+    if (normalized.length < 4) return null;
+    for (final entry in _lunaoCities.entries) {
+      if (entry.key.startsWith(normalized)) return entry.value;
+    }
+    return null;
+  }
+
   void _assertGooglePlacesAllowed(String operation) {
     _guards.assertAllowed(LiveApiFamily.googlePlaces, operation: operation);
   }
@@ -368,7 +390,7 @@ class PlacesService {
     final normalized = query.trim().toLowerCase();
 
     // API-0.6a — Lunao-first for covered destinations
-    final lunao = _lunaoCities[normalized];
+    final lunao = _matchLunaoCity(normalized);
     if (lunao != null) {
       // ignore: avoid_print
       print(
@@ -558,7 +580,7 @@ class PlacesService {
     final normalized = query.trim().toLowerCase();
 
     // API-0.6a — Lunao-first for covered destinations
-    final lunao = _lunaoDestinations[normalized];
+    final lunao = _matchLunaoDestination(normalized);
     if (lunao != null) {
       // ignore: avoid_print
       print(
