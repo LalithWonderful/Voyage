@@ -1047,8 +1047,10 @@ Champs de "metadata" selon "category" (tous optionnels, mets les strings vides o
 - flight :
   "airline" (compagnie)
   "flight_number" (ex "AF1234". Pour un vol AVEC ESCALE — multi-segment — concatène TOUS les numéros de vol séparés par " + ", dans l'ordre chronologique. Ex : un Luxembourg → Istanbul → Bangkok donne "TK1354 + TK0058". L'utilisateur a besoin de voir l'ensemble du parcours.)
-  "from" (code IATA ou nom aéroport de DÉPART INITIAL — pas l'escale)
-  "to" (aéroport d'ARRIVÉE FINALE — pas l'escale)
+  "from" (nom HUMAIN de l'aéroport de DÉPART INITIAL — pas l'escale ; ex. "Aéroport Suvarnabhumi de Bangkok". Si seul un code IATA est visible, accepte-le ici.)
+  "to" (nom HUMAIN de l'aéroport d'ARRIVÉE FINALE — pas l'escale)
+  "from_iata" (code IATA 3 lettres de l'aéroport de DÉPART INITIAL, ex. "BKK". OBLIGATOIRE si visible sur le document ; permet à Lunao de résoudre l'aéroport hors-ligne sans Google. Si absent du document, omets la clé.)
+  "to_iata" (code IATA 3 lettres de l'aéroport d'ARRIVÉE FINALE, ex. "CDG". Mêmes règles que from_iata.)
   "date" (YYYY-MM-DD, date de DÉPART du 1er segment)
   "departure_time" ("HH:MM" du 1er segment)
   "arrival_date" (YYYY-MM-DD, date d'ARRIVÉE FINALE — peut différer de "date" pour les vols overnight long-courriers ; si non explicite mais arrival_time < departure_time, mettre "date" + 1 jour ; sinon = "date")
@@ -1059,8 +1061,10 @@ Champs de "metadata" selon "category" (tous optionnels, mets les strings vides o
   "return_leg" (objet, présent UNIQUEMENT si is_round_trip == true) :
     {
       "flight_number" (mêmes règles que ci-dessus : si retour multi-segment, concatène avec " + ". Ex : Bangkok → Istanbul → Luxembourg donne "TK0069 + TK1353"),
-      "from" (aéroport de départ du retour, généralement = "to" du vol aller),
-      "to" (aéroport d'arrivée du retour, généralement = "from" du vol aller),
+      "from" (nom HUMAIN de l'aéroport de départ du retour, généralement = "to" du vol aller),
+      "to" (nom HUMAIN de l'aéroport d'arrivée du retour, généralement = "from" du vol aller),
+      "from_iata" (code IATA 3 lettres ; mêmes règles que pour l'aller),
+      "to_iata" (code IATA 3 lettres ; mêmes règles que pour l'aller),
       "date" (YYYY-MM-DD, date de départ du retour),
       "departure_time" ("HH:MM"),
       "arrival_date" (YYYY-MM-DD),

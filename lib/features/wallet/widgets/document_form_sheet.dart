@@ -11,6 +11,7 @@ import 'package:voyage/features/wallet/services/round_trip_helper.dart';
 import 'package:voyage/features/trips/providers/trips_provider.dart';
 import 'package:voyage/features/trips/widgets/detected_segments_sheet.dart';
 import 'package:voyage/features/wallet/models/document_model.dart';
+import 'package:voyage/features/wallet/services/iata_airport_resolver.dart';
 import 'package:voyage/features/wallet/providers/wallet_provider.dart';
 import 'package:voyage/features/wallet/utils/transport_dates.dart';
 import 'package:voyage/features/wallet/widgets/overlap_nights_sheet.dart';
@@ -76,6 +77,14 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
   // dans `trip_documents` pour le retour. Booking_reference partagé.
   Map<String, dynamic>? _pendingReturnLegMetadata;
   String? _pendingReturnLegName;
+
+  // Lot A 2026-05-13 — codes IATA des endpoints `from`/`to` extraits
+  // par Gemini. Pas de champ formulaire dédié (donnée technique pure)
+  // → on les stash ici pour les ré-injecter dans la metadata au save.
+  // Vide tant qu'aucune extraction n'a eu lieu ; sinon `{from, to}` →
+  // `BKK`, `CDG`. Permet au chemin 0 IATA-first du resolver de court-
+  // circuiter Geocoding / Place Details sur ~80% des vols mainstream.
+  final Map<String, String> _pendingIataCodes = {};
 
   @override
   void initState() {
@@ -367,6 +376,24 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
     final capturedReturnLegName = rt.returnName;
     final capturedSuspectedAR = rt.suspectedRoundTripWithoutReturn;
 
+    // Lot A 2026-05-13 — stash des codes IATA `from_iata`/`to_iata`
+    // extraits par Gemini. Pas de champ formulaire dédié → on les met
+    // de côté pour les ré-injecter dans la metadata au save (cf.
+    // `_buildMetadata`). Validation légère : 3 caractères alpha,
+    // normalisés UPPER. Vide pour les catégories non-Vol.
+    _pendingIataCodes.clear();
+    if (newCategory == DocumentCategory.flight) {
+      for (final key in const ['from', 'to']) {
+        final raw = metadata['${key}_iata'];
+        if (raw is String) {
+          final code = raw.trim().toUpperCase();
+          if (code.length == 3 && RegExp(r'^[A-Z]{3}$').hasMatch(code)) {
+            _pendingIataCodes[key] = code;
+          }
+        }
+      }
+    }
+
     if (!mounted) return;
     setState(() {
       _category = newCategory;
@@ -517,6 +544,21 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
         }
       }
     }
+    // Lot A 2026-05-13 — ré-injection des codes IATA stashés au moment
+    // de l'extraction Gemini. Pas de champ formulaire associé (donnée
+    // technique pure). Le resolver IATA-first du SAVE
+    // (`_resolveTransportEndpoint` chemin 0) s'en sert pour court-
+    // circuiter Geocoding / Place Details sur les vols mainstream.
+    // On ne pose que si le champ texte `from`/`to` n'est pas vide
+    // (sinon le resolver nettoiera tout de toute façon).
+    if (_category == DocumentCategory.flight) {
+      for (final key in const ['from', 'to']) {
+        final iata = _pendingIataCodes[key];
+        if (iata == null) continue;
+        final hasText = (m[key] as String?)?.trim().isNotEmpty ?? false;
+        if (hasText) m['${key}_iata'] = iata;
+      }
+    }
     // V2.3 transport — auto-fill `arrival_date` via le helper pur
     // `autoFillArrivalDate` partagé. Cas typique (Lalith 2026-05-09) :
     // Gemini extrait departure_time + arrival_time mais oublie
@@ -633,16 +675,52 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
     final countryKey = '${fieldKey}_country_code';
     final cityKey = '${fieldKey}_city';
 
+    final iataKey = '${fieldKey}_iata';
     final newVal = (meta[fieldKey] as String?)?.trim() ?? '';
     if (newVal.isEmpty) {
-      // Champ vidé → on nettoie tout (coords, flag, placeId, pays, ville).
+      // Champ vidé → on nettoie tout (coords, flag, placeId, pays, ville,
+      // IATA).
       meta.remove(latKey);
       meta.remove(lngKey);
       meta.remove(failKey);
       meta.remove(placeIdKey);
       meta.remove(countryKey);
       meta.remove(cityKey);
+      meta.remove(iataKey);
       return;
+    }
+
+    // Chemin 0 (Lot A 2026-05-13) — IATA-first via base offline Lunao.
+    // Aéroports uniquement (les gares n'ont pas encore de base Lunao
+    // équivalente). Si `${fieldKey}_iata` matche la table éditoriale,
+    // on pose coords + ville + IATA canonique SANS aucun appel Google.
+    //
+    // Garde-fou : on vérifie que le texte affiché (`newVal`) est
+    // cohérent avec l'aéroport résolu (contient code/ville/nom). Évite
+    // qu'un IATA stash devienne obsolète si l'utilisateur a édité le
+    // texte après extract sans toucher au code stocké.
+    //
+    // La table source ne porte pas (encore) `country_code` → on laisse
+    // l'éventuelle valeur héritée intacte. Sans country_code, le warning
+    // « vol hors pays » peut être dégradé pour les nouveaux docs IATA-
+    // first ; gap connu, Lot A2 enrichira `_AirportInfo`.
+    if (kind == 'airport') {
+      final resolved = resolveAirportByIata(meta[iataKey] as String?);
+      if (resolved != null) {
+        if (isAirportConsistentWithName(resolved, newVal)) {
+          meta[iataKey] = resolved.iata;
+          meta[latKey] = resolved.lat;
+          meta[lngKey] = resolved.lng;
+          meta[cityKey] = resolved.city;
+          meta.remove(failKey);
+          return;
+        }
+        // IATA stash incohérente avec le texte (utilisateur a édité
+        // sans toucher au code) → on retire la clé pour ne pas
+        // persister une valeur obsolète. Les chemins 1/3 prennent le
+        // relais à partir du texte saisi.
+        meta.remove(iataKey);
+      }
     }
 
     // Chemin 1 : placeId fraîchement posé par autocomplete OU déjà en metadata
