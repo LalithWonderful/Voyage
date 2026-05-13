@@ -446,6 +446,10 @@ Format OBLIGATOIRE — UNIQUEMENT ce JSON, sans balises, sans texte autour :
     if (!_rateLimitEnabled) return;
     final cfg = _limits[action];
     if (cfg == null) return;
+    _guards.assertAllowed(
+      LiveApiFamily.supabase,
+      operation: 'AiSuggestionsService._checkRateLimit',
+    );
     try {
       await _client.rpc(
         'check_and_log_ai_usage',

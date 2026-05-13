@@ -9,11 +9,21 @@
 
 import 'dart:io';
 
+// ignore: depend_on_referenced_packages
 import 'package:supabase/supabase.dart';
+import 'package:voyage/config/live_api_guards.dart';
 import 'package:voyage/features/poi/tools/poi_supabase_import_checker.dart';
+import 'package:voyage/features/poi/tools/supabase_live_guard.dart';
 
 void main(List<String> args) async {
   final destination = _argValue(args, '--destination') ?? 'lisbon';
+
+  try {
+    assertLiveSupabaseAllowedForPoiTool(operation: poiVerifyImportOperation);
+  } on LiveApiBlockedException catch (e) {
+    stderr.writeln('ERROR: $e');
+    exit(2);
+  }
 
   final url = const String.fromEnvironment('SUPABASE_URL');
   final secretKey = const String.fromEnvironment('SUPABASE_SECRET_KEY');
