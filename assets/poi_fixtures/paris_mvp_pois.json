@@ -1,0 +1,767 @@
+{
+  "schema_version": "poi_mvp_fixture_v1",
+  "fixture_name": "Paris MVP POIs",
+  "destination_key": "paris",
+  "generated_for": "supabase/sql/poi_knowledge_base_mvp.sql",
+  "notes": "Hand-curated offline MVP fixture. No live API calls, no Google Places IDs, no ratings, no reviews, no opening hours, no media.",
+  "import_batch": {
+    "batch_id": "8b8d7e0f-4f57-5fb4-9ef7-000000000001",
+    "batch_type": "fixture",
+    "destination_key": "paris",
+    "status": "planned",
+    "dry_run": true,
+    "input_hash": "paris_mvp_pois_v1",
+    "summary": {
+      "poi_count": 10,
+      "deferred": [
+        "opening_hours",
+        "media",
+        "ratings",
+        "reviews",
+        "google_places_enrichment"
+      ]
+    }
+  },
+  "sources": [
+    {
+      "source_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+      "name": "Lunao Editorial MVP",
+      "source_type": "editorial",
+      "trust_level": 5,
+      "is_active": true,
+      "notes": "Static common-knowledge tourism seed curated for offline tests."
+    }
+  ],
+  "categories": [
+    {
+      "category_key": "monument",
+      "label_en": "Monument",
+      "label_fr": "Monument",
+      "priority": 95,
+      "default_duration_minutes": 90
+    },
+    {
+      "category_key": "museum",
+      "label_en": "Museum",
+      "label_fr": "Musée",
+      "priority": 90,
+      "default_duration_minutes": 150
+    },
+    {
+      "category_key": "park",
+      "label_en": "Park",
+      "label_fr": "Parc",
+      "priority": 70,
+      "default_duration_minutes": 90
+    },
+    {
+      "category_key": "neighborhood",
+      "label_en": "Neighborhood",
+      "label_fr": "Quartier",
+      "priority": 80,
+      "default_duration_minutes": 150
+    }
+  ],
+  "pois": [
+    {
+      "poi_id": "7b1a28f4-b143-5fae-b180-96a5bebe418b",
+      "poi_slug": "paris_eiffel_tower",
+      "destination_key": "paris",
+      "name": "Eiffel Tower",
+      "canonical_name": "Eiffel Tower",
+      "normalized_name": "eiffel tower",
+      "category": "monument",
+      "primary_category_key": "monument",
+      "country_code": "FR",
+      "locality": "Paris",
+      "neighborhood": "Champ de Mars",
+      "lat": 48.8584,
+      "lng": 2.2945,
+      "is_must_see": true,
+      "is_hidden_gem": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "typical_duration_minutes": 120,
+      "localized_names": [
+        {
+          "locale": "en",
+          "name": "Eiffel Tower",
+          "normalized_name": "eiffel tower",
+          "name_type": "canonical",
+          "is_primary": true
+        },
+        {
+          "locale": "fr",
+          "name": "Tour Eiffel",
+          "normalized_name": "tour eiffel",
+          "name_type": "local",
+          "is_primary": true
+        }
+      ],
+      "destination_links": [
+        {
+          "destination_key": "paris",
+          "destination_scope": "city",
+          "country_code": "FR",
+          "city_key": "paris",
+          "zone_key": "champ_de_mars",
+          "relevance_score": 100,
+          "is_primary": true
+        }
+      ],
+      "external_refs": [
+        {
+          "source_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+          "ref_type": "manual_slug",
+          "ref_value": "paris/eiffel_tower"
+        }
+      ],
+      "quality_scores": {
+        "touristic_importance": 5,
+        "editorial_score": 98,
+        "source_confidence": 95,
+        "category_priority": 95,
+        "duplicate_confidence": 90,
+        "freshness_score": 80,
+        "overall_score": 97,
+        "score_version": "mvp_fixture_v1"
+      },
+      "tags": [
+        "historic",
+        "panoramic_view",
+        "photography",
+        "outdoor"
+      ]
+    },
+    {
+      "poi_id": "bf68af7e-846d-5833-83bc-907c4d5b0240",
+      "poi_slug": "paris_louvre_museum",
+      "destination_key": "paris",
+      "name": "Louvre Museum",
+      "canonical_name": "Louvre Museum",
+      "normalized_name": "louvre museum",
+      "category": "museum",
+      "primary_category_key": "museum",
+      "country_code": "FR",
+      "locality": "Paris",
+      "neighborhood": "1st Arrondissement",
+      "lat": 48.8606,
+      "lng": 2.3376,
+      "is_must_see": true,
+      "is_hidden_gem": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "typical_duration_minutes": 180,
+      "localized_names": [
+        {
+          "locale": "en",
+          "name": "Louvre Museum",
+          "normalized_name": "louvre museum",
+          "name_type": "canonical",
+          "is_primary": true
+        },
+        {
+          "locale": "fr",
+          "name": "Musée du Louvre",
+          "normalized_name": "musée du louvre",
+          "name_type": "local",
+          "is_primary": true
+        }
+      ],
+      "destination_links": [
+        {
+          "destination_key": "paris",
+          "destination_scope": "city",
+          "country_code": "FR",
+          "city_key": "paris",
+          "zone_key": "1st_arrondissement",
+          "relevance_score": 100,
+          "is_primary": true
+        }
+      ],
+      "external_refs": [
+        {
+          "source_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+          "ref_type": "manual_slug",
+          "ref_value": "paris/louvre_museum"
+        }
+      ],
+      "quality_scores": {
+        "touristic_importance": 5,
+        "editorial_score": 97,
+        "source_confidence": 95,
+        "category_priority": 90,
+        "duplicate_confidence": 90,
+        "freshness_score": 80,
+        "overall_score": 96,
+        "score_version": "mvp_fixture_v1"
+      },
+      "tags": [
+        "art",
+        "indoor",
+        "historic",
+        "family"
+      ]
+    },
+    {
+      "poi_id": "79a3bd60-80ba-57ef-8af0-29db7394bfbb",
+      "poi_slug": "paris_notre_dame_cathedral",
+      "destination_key": "paris",
+      "name": "Notre-Dame Cathedral",
+      "canonical_name": "Notre-Dame Cathedral",
+      "normalized_name": "notre-dame cathedral",
+      "category": "monument",
+      "primary_category_key": "monument",
+      "country_code": "FR",
+      "locality": "Paris",
+      "neighborhood": "Île de la Cité",
+      "lat": 48.853,
+      "lng": 2.3499,
+      "is_must_see": true,
+      "is_hidden_gem": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "typical_duration_minutes": 90,
+      "localized_names": [
+        {
+          "locale": "en",
+          "name": "Notre-Dame Cathedral",
+          "normalized_name": "notre-dame cathedral",
+          "name_type": "canonical",
+          "is_primary": true
+        },
+        {
+          "locale": "fr",
+          "name": "Cathédrale Notre-Dame de Paris",
+          "normalized_name": "cathédrale notre-dame de paris",
+          "name_type": "local",
+          "is_primary": true
+        }
+      ],
+      "destination_links": [
+        {
+          "destination_key": "paris",
+          "destination_scope": "city",
+          "country_code": "FR",
+          "city_key": "paris",
+          "zone_key": "ile_de_la_cite",
+          "relevance_score": 98,
+          "is_primary": true
+        }
+      ],
+      "external_refs": [
+        {
+          "source_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+          "ref_type": "manual_slug",
+          "ref_value": "paris/notre_dame_cathedral"
+        }
+      ],
+      "quality_scores": {
+        "touristic_importance": 5,
+        "editorial_score": 96,
+        "source_confidence": 95,
+        "category_priority": 95,
+        "duplicate_confidence": 90,
+        "freshness_score": 80,
+        "overall_score": 95,
+        "score_version": "mvp_fixture_v1"
+      },
+      "tags": [
+        "historic",
+        "architecture",
+        "gothic",
+        "indoor"
+      ]
+    },
+    {
+      "poi_id": "c3b52b13-c0a8-573d-8020-b689923bd937",
+      "poi_slug": "paris_sacre_coeur",
+      "destination_key": "paris",
+      "name": "Sacré-Cœur",
+      "canonical_name": "Sacré-Cœur",
+      "normalized_name": "sacré-cœur",
+      "category": "monument",
+      "primary_category_key": "monument",
+      "country_code": "FR",
+      "locality": "Paris",
+      "neighborhood": "Montmartre",
+      "lat": 48.8867,
+      "lng": 2.3431,
+      "is_must_see": true,
+      "is_hidden_gem": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "typical_duration_minutes": 60,
+      "localized_names": [
+        {
+          "locale": "fr",
+          "name": "Sacré-Cœur",
+          "normalized_name": "sacré-cœur",
+          "name_type": "canonical",
+          "is_primary": true
+        },
+        {
+          "locale": "en",
+          "name": "Basilica of the Sacré-Cœur",
+          "normalized_name": "basilica of the sacré-cœur",
+          "name_type": "alias",
+          "is_primary": true
+        }
+      ],
+      "destination_links": [
+        {
+          "destination_key": "paris",
+          "destination_scope": "city",
+          "country_code": "FR",
+          "city_key": "paris",
+          "zone_key": "montmartre",
+          "relevance_score": 96,
+          "is_primary": true
+        }
+      ],
+      "external_refs": [
+        {
+          "source_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+          "ref_type": "manual_slug",
+          "ref_value": "paris/sacre_coeur"
+        }
+      ],
+      "quality_scores": {
+        "touristic_importance": 5,
+        "editorial_score": 92,
+        "source_confidence": 95,
+        "category_priority": 95,
+        "duplicate_confidence": 88,
+        "freshness_score": 80,
+        "overall_score": 93,
+        "score_version": "mvp_fixture_v1"
+      },
+      "tags": [
+        "panoramic_view",
+        "architecture",
+        "indoor",
+        "photography"
+      ]
+    },
+    {
+      "poi_id": "70a03a89-79c0-5148-b101-f7b270c3397a",
+      "poi_slug": "paris_musee_d_orsay",
+      "destination_key": "paris",
+      "name": "Musée d'Orsay",
+      "canonical_name": "Musée d'Orsay",
+      "normalized_name": "musée d'orsay",
+      "category": "museum",
+      "primary_category_key": "museum",
+      "country_code": "FR",
+      "locality": "Paris",
+      "neighborhood": "7th Arrondissement",
+      "lat": 48.8599,
+      "lng": 2.3266,
+      "is_must_see": false,
+      "is_hidden_gem": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "typical_duration_minutes": 150,
+      "localized_names": [
+        {
+          "locale": "fr",
+          "name": "Musée d'Orsay",
+          "normalized_name": "musée d'orsay",
+          "name_type": "canonical",
+          "is_primary": true
+        },
+        {
+          "locale": "en",
+          "name": "Orsay Museum",
+          "normalized_name": "orsay museum",
+          "name_type": "alias",
+          "is_primary": true
+        }
+      ],
+      "destination_links": [
+        {
+          "destination_key": "paris",
+          "destination_scope": "city",
+          "country_code": "FR",
+          "city_key": "paris",
+          "zone_key": "7th_arrondissement",
+          "relevance_score": 92,
+          "is_primary": true
+        }
+      ],
+      "external_refs": [
+        {
+          "source_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+          "ref_type": "manual_slug",
+          "ref_value": "paris/musee_d_orsay"
+        }
+      ],
+      "quality_scores": {
+        "touristic_importance": 4,
+        "editorial_score": 93,
+        "source_confidence": 95,
+        "category_priority": 90,
+        "duplicate_confidence": 90,
+        "freshness_score": 80,
+        "overall_score": 92,
+        "score_version": "mvp_fixture_v1"
+      },
+      "tags": [
+        "art",
+        "impressionism",
+        "indoor",
+        "quiet"
+      ]
+    },
+    {
+      "poi_id": "6d2ce2fe-08f8-5e67-89e6-4fffe06d1bef",
+      "poi_slug": "paris_arc_de_triomphe",
+      "destination_key": "paris",
+      "name": "Arc de Triomphe",
+      "canonical_name": "Arc de Triomphe",
+      "normalized_name": "arc de triomphe",
+      "category": "monument",
+      "primary_category_key": "monument",
+      "country_code": "FR",
+      "locality": "Paris",
+      "neighborhood": "8th Arrondissement",
+      "lat": 48.8738,
+      "lng": 2.295,
+      "is_must_see": true,
+      "is_hidden_gem": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "typical_duration_minutes": 60,
+      "localized_names": [
+        {
+          "locale": "fr",
+          "name": "Arc de Triomphe",
+          "normalized_name": "arc de triomphe",
+          "name_type": "canonical",
+          "is_primary": true
+        },
+        {
+          "locale": "en",
+          "name": "Arc de Triomphe",
+          "normalized_name": "arc de triomphe",
+          "name_type": "canonical",
+          "is_primary": true
+        }
+      ],
+      "destination_links": [
+        {
+          "destination_key": "paris",
+          "destination_scope": "city",
+          "country_code": "FR",
+          "city_key": "paris",
+          "zone_key": "8th_arrondissement",
+          "relevance_score": 94,
+          "is_primary": true
+        }
+      ],
+      "external_refs": [
+        {
+          "source_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+          "ref_type": "manual_slug",
+          "ref_value": "paris/arc_de_triomphe"
+        }
+      ],
+      "quality_scores": {
+        "touristic_importance": 5,
+        "editorial_score": 91,
+        "source_confidence": 95,
+        "category_priority": 95,
+        "duplicate_confidence": 90,
+        "freshness_score": 80,
+        "overall_score": 92,
+        "score_version": "mvp_fixture_v1"
+      },
+      "tags": [
+        "historic",
+        "panoramic_view",
+        "outdoor",
+        "photography"
+      ]
+    },
+    {
+      "poi_id": "e6efaebc-8c2f-5f2d-a60f-06ca66695849",
+      "poi_slug": "paris_luxembourg_gardens",
+      "destination_key": "paris",
+      "name": "Jardin du Luxembourg",
+      "canonical_name": "Jardin du Luxembourg",
+      "normalized_name": "jardin du luxembourg",
+      "category": "park",
+      "primary_category_key": "park",
+      "country_code": "FR",
+      "locality": "Paris",
+      "neighborhood": "6th Arrondissement",
+      "lat": 48.8462,
+      "lng": 2.3372,
+      "is_must_see": false,
+      "is_hidden_gem": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "typical_duration_minutes": 90,
+      "localized_names": [
+        {
+          "locale": "fr",
+          "name": "Jardin du Luxembourg",
+          "normalized_name": "jardin du luxembourg",
+          "name_type": "canonical",
+          "is_primary": true
+        },
+        {
+          "locale": "en",
+          "name": "Luxembourg Gardens",
+          "normalized_name": "luxembourg gardens",
+          "name_type": "alias",
+          "is_primary": true
+        }
+      ],
+      "destination_links": [
+        {
+          "destination_key": "paris",
+          "destination_scope": "city",
+          "country_code": "FR",
+          "city_key": "paris",
+          "zone_key": "6th_arrondissement",
+          "relevance_score": 86,
+          "is_primary": true
+        }
+      ],
+      "external_refs": [
+        {
+          "source_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+          "ref_type": "manual_slug",
+          "ref_value": "paris/luxembourg_gardens"
+        }
+      ],
+      "quality_scores": {
+        "touristic_importance": 4,
+        "editorial_score": 89,
+        "source_confidence": 95,
+        "category_priority": 70,
+        "duplicate_confidence": 86,
+        "freshness_score": 80,
+        "overall_score": 87,
+        "score_version": "mvp_fixture_v1"
+      },
+      "tags": [
+        "nature",
+        "relaxing",
+        "family",
+        "outdoor"
+      ]
+    },
+    {
+      "poi_id": "282f57c5-240f-5460-a4c8-21119e0756d4",
+      "poi_slug": "paris_montmartre",
+      "destination_key": "paris",
+      "name": "Montmartre",
+      "canonical_name": "Montmartre",
+      "normalized_name": "montmartre",
+      "category": "neighborhood",
+      "primary_category_key": "neighborhood",
+      "country_code": "FR",
+      "locality": "Paris",
+      "neighborhood": "Montmartre",
+      "lat": 48.8867,
+      "lng": 2.3431,
+      "is_must_see": true,
+      "is_hidden_gem": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "typical_duration_minutes": 180,
+      "localized_names": [
+        {
+          "locale": "fr",
+          "name": "Montmartre",
+          "normalized_name": "montmartre",
+          "name_type": "canonical",
+          "is_primary": true
+        },
+        {
+          "locale": "fr",
+          "name": "Butte Montmartre",
+          "normalized_name": "butte montmartre",
+          "name_type": "alias",
+          "is_primary": false
+        }
+      ],
+      "destination_links": [
+        {
+          "destination_key": "paris",
+          "destination_scope": "city",
+          "country_code": "FR",
+          "city_key": "paris",
+          "zone_key": "montmartre",
+          "relevance_score": 94,
+          "is_primary": true
+        }
+      ],
+      "external_refs": [
+        {
+          "source_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+          "ref_type": "manual_slug",
+          "ref_value": "paris/montmartre"
+        }
+      ],
+      "quality_scores": {
+        "touristic_importance": 5,
+        "editorial_score": 90,
+        "source_confidence": 95,
+        "category_priority": 80,
+        "duplicate_confidence": 90,
+        "freshness_score": 80,
+        "overall_score": 91,
+        "score_version": "mvp_fixture_v1"
+      },
+      "tags": [
+        "artistic",
+        "walking",
+        "photography",
+        "historic"
+      ]
+    },
+    {
+      "poi_id": "b8eb1f31-ec4a-530b-b574-dfa3cfbdd070",
+      "poi_slug": "paris_champs_elysees",
+      "destination_key": "paris",
+      "name": "Champs-Élysées",
+      "canonical_name": "Champs-Élysées",
+      "normalized_name": "champs-élysées",
+      "category": "neighborhood",
+      "primary_category_key": "neighborhood",
+      "country_code": "FR",
+      "locality": "Paris",
+      "neighborhood": "8th Arrondissement",
+      "lat": 48.8698,
+      "lng": 2.3209,
+      "is_must_see": false,
+      "is_hidden_gem": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "typical_duration_minutes": 120,
+      "localized_names": [
+        {
+          "locale": "fr",
+          "name": "Champs-Élysées",
+          "normalized_name": "champs-élysées",
+          "name_type": "canonical",
+          "is_primary": true
+        },
+        {
+          "locale": "fr",
+          "name": "Avenue des Champs-Élysées",
+          "normalized_name": "avenue des champs-élysées",
+          "name_type": "alias",
+          "is_primary": false
+        }
+      ],
+      "destination_links": [
+        {
+          "destination_key": "paris",
+          "destination_scope": "city",
+          "country_code": "FR",
+          "city_key": "paris",
+          "zone_key": "8th_arrondissement",
+          "relevance_score": 82,
+          "is_primary": true
+        }
+      ],
+      "external_refs": [
+        {
+          "source_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+          "ref_type": "manual_slug",
+          "ref_value": "paris/champs_elysees"
+        }
+      ],
+      "quality_scores": {
+        "touristic_importance": 4,
+        "editorial_score": 86,
+        "source_confidence": 95,
+        "category_priority": 80,
+        "duplicate_confidence": 84,
+        "freshness_score": 80,
+        "overall_score": 84,
+        "score_version": "mvp_fixture_v1"
+      },
+      "tags": [
+        "walking",
+        "historic",
+        "city_axis",
+        "photography"
+      ]
+    },
+    {
+      "poi_id": "81fe4e4d-b15e-52cf-b0b3-5ce56f24ca14",
+      "poi_slug": "paris_pere_lachaise_cemetery",
+      "destination_key": "paris",
+      "name": "Père Lachaise Cemetery",
+      "canonical_name": "Père Lachaise Cemetery",
+      "normalized_name": "père lachaise cemetery",
+      "category": "monument",
+      "primary_category_key": "monument",
+      "country_code": "FR",
+      "locality": "Paris",
+      "neighborhood": "20th Arrondissement",
+      "lat": 48.8614,
+      "lng": 2.393,
+      "is_must_see": false,
+      "is_hidden_gem": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "typical_duration_minutes": 120,
+      "localized_names": [
+        {
+          "locale": "en",
+          "name": "Père Lachaise Cemetery",
+          "normalized_name": "père lachaise cemetery",
+          "name_type": "canonical",
+          "is_primary": true
+        },
+        {
+          "locale": "fr",
+          "name": "Cimetière du Père-Lachaise",
+          "normalized_name": "cimetière du père-lachaise",
+          "name_type": "local",
+          "is_primary": true
+        }
+      ],
+      "destination_links": [
+        {
+          "destination_key": "paris",
+          "destination_scope": "city",
+          "country_code": "FR",
+          "city_key": "paris",
+          "zone_key": "20th_arrondissement",
+          "relevance_score": 84,
+          "is_primary": true
+        }
+      ],
+      "external_refs": [
+        {
+          "source_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+          "ref_type": "manual_slug",
+          "ref_value": "paris/pere_lachaise_cemetery"
+        }
+      ],
+      "quality_scores": {
+        "touristic_importance": 4,
+        "editorial_score": 85,
+        "source_confidence": 95,
+        "category_priority": 95,
+        "duplicate_confidence": 86,
+        "freshness_score": 80,
+        "overall_score": 85,
+        "score_version": "mvp_fixture_v1"
+      },
+      "tags": [
+        "historic",
+        "walking",
+        "quiet",
+        "outdoor"
+      ]
+    }
+  ]
+}

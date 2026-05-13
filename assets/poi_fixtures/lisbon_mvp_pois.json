@@ -1,0 +1,768 @@
+{
+  "schema_version": "poi_mvp_fixture_v1",
+  "fixture_name": "Lisbon MVP POIs",
+  "destination_key": "lisbon",
+  "generated_for": "supabase/sql/poi_knowledge_base_mvp.sql",
+  "notes": "Hand-curated offline MVP fixture. No live API calls, no Google Places IDs, no ratings, no reviews, no opening hours, no media.",
+  "import_batch": {
+    "batch_id": "8b8d7e0f-4f57-5fb4-9ef7-000000000002",
+    "batch_type": "fixture",
+    "destination_key": "lisbon",
+    "status": "planned",
+    "dry_run": true,
+    "input_hash": "lisbon_mvp_pois_v1",
+    "summary": {
+      "poi_count": 10,
+      "deferred": [
+        "opening_hours",
+        "media",
+        "ratings",
+        "reviews",
+        "google_places_enrichment"
+      ]
+    }
+  },
+  "sources": [
+    {
+      "source_id": "1ba6e190-7222-5c97-b7f1-b7cc2775473e",
+      "name": "Lunao Editorial MVP",
+      "source_type": "editorial",
+      "trust_level": 5,
+      "is_active": true,
+      "notes": "Static common-knowledge tourism seed curated for offline tests."
+    }
+  ],
+  "categories": [
+    {
+      "category_key": "monument",
+      "label_en": "Monument",
+      "label_fr": "Monument",
+      "priority": 95,
+      "default_duration_minutes": 90
+    },
+    {
+      "category_key": "museum",
+      "label_en": "Museum",
+      "label_fr": "Musée",
+      "priority": 90,
+      "default_duration_minutes": 150
+    },
+    {
+      "category_key": "viewpoint",
+      "label_en": "Viewpoint",
+      "label_fr": "Belvédère",
+      "priority": 80,
+      "default_duration_minutes": 45
+    },
+    {
+      "category_key": "neighborhood",
+      "label_en": "Neighborhood",
+      "label_fr": "Quartier",
+      "priority": 80,
+      "default_duration_minutes": 150
+    }
+  ],
+  "pois": [
+    {
+      "poi_id": "9b0fbc35-b124-5c19-8600-32e9a347fe8c",
+      "poi_slug": "lisbon_belem_tower",
+      "destination_key": "lisbon",
+      "name": "Belém Tower",
+      "canonical_name": "Belém Tower",
+      "normalized_name": "belém tower",
+      "category": "monument",
+      "primary_category_key": "monument",
+      "country_code": "PT",
+      "locality": "Lisbon",
+      "neighborhood": "Belém",
+      "lat": 38.6916,
+      "lng": -9.216,
+      "is_must_see": true,
+      "is_hidden_gem": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "typical_duration_minutes": 90,
+      "localized_names": [
+        {
+          "locale": "en",
+          "name": "Belém Tower",
+          "normalized_name": "belém tower",
+          "name_type": "canonical",
+          "is_primary": true
+        },
+        {
+          "locale": "pt",
+          "name": "Torre de Belém",
+          "normalized_name": "torre de belém",
+          "name_type": "local",
+          "is_primary": true
+        }
+      ],
+      "destination_links": [
+        {
+          "destination_key": "lisbon",
+          "destination_scope": "city",
+          "country_code": "PT",
+          "city_key": "lisbon",
+          "zone_key": "belem",
+          "relevance_score": 100,
+          "is_primary": true
+        }
+      ],
+      "external_refs": [
+        {
+          "source_id": "1ba6e190-7222-5c97-b7f1-b7cc2775473e",
+          "ref_type": "manual_slug",
+          "ref_value": "lisbon/belem_tower"
+        }
+      ],
+      "quality_scores": {
+        "touristic_importance": 5,
+        "editorial_score": 96,
+        "source_confidence": 95,
+        "category_priority": 95,
+        "duplicate_confidence": 90,
+        "freshness_score": 80,
+        "overall_score": 95,
+        "score_version": "mvp_fixture_v1"
+      },
+      "tags": [
+        "historic",
+        "riverside",
+        "architecture",
+        "outdoor"
+      ]
+    },
+    {
+      "poi_id": "c021887a-ea3b-5892-b117-0c3dbd9cfd4b",
+      "poi_slug": "lisbon_jeronimos_monastery",
+      "destination_key": "lisbon",
+      "name": "Jerónimos Monastery",
+      "canonical_name": "Jerónimos Monastery",
+      "normalized_name": "jerónimos monastery",
+      "category": "monument",
+      "primary_category_key": "monument",
+      "country_code": "PT",
+      "locality": "Lisbon",
+      "neighborhood": "Belém",
+      "lat": 38.6979,
+      "lng": -9.2067,
+      "is_must_see": true,
+      "is_hidden_gem": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "typical_duration_minutes": 120,
+      "localized_names": [
+        {
+          "locale": "en",
+          "name": "Jerónimos Monastery",
+          "normalized_name": "jerónimos monastery",
+          "name_type": "canonical",
+          "is_primary": true
+        },
+        {
+          "locale": "pt",
+          "name": "Mosteiro dos Jerónimos",
+          "normalized_name": "mosteiro dos jerónimos",
+          "name_type": "local",
+          "is_primary": true
+        }
+      ],
+      "destination_links": [
+        {
+          "destination_key": "lisbon",
+          "destination_scope": "city",
+          "country_code": "PT",
+          "city_key": "lisbon",
+          "zone_key": "belem",
+          "relevance_score": 100,
+          "is_primary": true
+        }
+      ],
+      "external_refs": [
+        {
+          "source_id": "1ba6e190-7222-5c97-b7f1-b7cc2775473e",
+          "ref_type": "manual_slug",
+          "ref_value": "lisbon/jeronimos_monastery"
+        }
+      ],
+      "quality_scores": {
+        "touristic_importance": 5,
+        "editorial_score": 95,
+        "source_confidence": 95,
+        "category_priority": 95,
+        "duplicate_confidence": 90,
+        "freshness_score": 80,
+        "overall_score": 95,
+        "score_version": "mvp_fixture_v1"
+      },
+      "tags": [
+        "historic",
+        "architecture",
+        "indoor",
+        "family"
+      ]
+    },
+    {
+      "poi_id": "4132e571-2f09-576d-8e66-628ddab6eb54",
+      "poi_slug": "lisbon_sao_jorge_castle",
+      "destination_key": "lisbon",
+      "name": "São Jorge Castle",
+      "canonical_name": "São Jorge Castle",
+      "normalized_name": "são jorge castle",
+      "category": "monument",
+      "primary_category_key": "monument",
+      "country_code": "PT",
+      "locality": "Lisbon",
+      "neighborhood": "Alfama",
+      "lat": 38.7139,
+      "lng": -9.1336,
+      "is_must_see": true,
+      "is_hidden_gem": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "typical_duration_minutes": 120,
+      "localized_names": [
+        {
+          "locale": "en",
+          "name": "São Jorge Castle",
+          "normalized_name": "são jorge castle",
+          "name_type": "canonical",
+          "is_primary": true
+        },
+        {
+          "locale": "pt",
+          "name": "Castelo de São Jorge",
+          "normalized_name": "castelo de são jorge",
+          "name_type": "local",
+          "is_primary": true
+        }
+      ],
+      "destination_links": [
+        {
+          "destination_key": "lisbon",
+          "destination_scope": "city",
+          "country_code": "PT",
+          "city_key": "lisbon",
+          "zone_key": "alfama",
+          "relevance_score": 96,
+          "is_primary": true
+        }
+      ],
+      "external_refs": [
+        {
+          "source_id": "1ba6e190-7222-5c97-b7f1-b7cc2775473e",
+          "ref_type": "manual_slug",
+          "ref_value": "lisbon/sao_jorge_castle"
+        }
+      ],
+      "quality_scores": {
+        "touristic_importance": 5,
+        "editorial_score": 92,
+        "source_confidence": 95,
+        "category_priority": 95,
+        "duplicate_confidence": 88,
+        "freshness_score": 80,
+        "overall_score": 92,
+        "score_version": "mvp_fixture_v1"
+      },
+      "tags": [
+        "historic",
+        "panoramic_view",
+        "outdoor",
+        "architecture"
+      ]
+    },
+    {
+      "poi_id": "652f06d1-2162-550c-8a97-960d60fe5bc6",
+      "poi_slug": "lisbon_praca_do_comercio",
+      "destination_key": "lisbon",
+      "name": "Praça do Comércio",
+      "canonical_name": "Praça do Comércio",
+      "normalized_name": "praça do comércio",
+      "category": "monument",
+      "primary_category_key": "monument",
+      "country_code": "PT",
+      "locality": "Lisbon",
+      "neighborhood": "Baixa",
+      "lat": 38.7077,
+      "lng": -9.1366,
+      "is_must_see": true,
+      "is_hidden_gem": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "typical_duration_minutes": 60,
+      "localized_names": [
+        {
+          "locale": "pt",
+          "name": "Praça do Comércio",
+          "normalized_name": "praça do comércio",
+          "name_type": "canonical",
+          "is_primary": true
+        },
+        {
+          "locale": "pt",
+          "name": "Terreiro do Paço",
+          "normalized_name": "terreiro do paço",
+          "name_type": "alias",
+          "is_primary": false
+        },
+        {
+          "locale": "en",
+          "name": "Commerce Square",
+          "normalized_name": "commerce square",
+          "name_type": "alias",
+          "is_primary": true
+        }
+      ],
+      "destination_links": [
+        {
+          "destination_key": "lisbon",
+          "destination_scope": "city",
+          "country_code": "PT",
+          "city_key": "lisbon",
+          "zone_key": "baixa",
+          "relevance_score": 95,
+          "is_primary": true
+        }
+      ],
+      "external_refs": [
+        {
+          "source_id": "1ba6e190-7222-5c97-b7f1-b7cc2775473e",
+          "ref_type": "manual_slug",
+          "ref_value": "lisbon/praca_do_comercio"
+        }
+      ],
+      "quality_scores": {
+        "touristic_importance": 5,
+        "editorial_score": 94,
+        "source_confidence": 95,
+        "category_priority": 95,
+        "duplicate_confidence": 90,
+        "freshness_score": 80,
+        "overall_score": 94,
+        "score_version": "mvp_fixture_v1"
+      },
+      "tags": [
+        "historic",
+        "open_space",
+        "outdoor",
+        "photography"
+      ]
+    },
+    {
+      "poi_id": "f84cd988-dc8c-5171-818b-92ce7e07f798",
+      "poi_slug": "lisbon_alfama",
+      "destination_key": "lisbon",
+      "name": "Alfama",
+      "canonical_name": "Alfama",
+      "normalized_name": "alfama",
+      "category": "neighborhood",
+      "primary_category_key": "neighborhood",
+      "country_code": "PT",
+      "locality": "Lisbon",
+      "neighborhood": "Alfama",
+      "lat": 38.7127,
+      "lng": -9.1303,
+      "is_must_see": true,
+      "is_hidden_gem": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "typical_duration_minutes": 180,
+      "localized_names": [
+        {
+          "locale": "pt",
+          "name": "Alfama",
+          "normalized_name": "alfama",
+          "name_type": "canonical",
+          "is_primary": true
+        },
+        {
+          "locale": "pt",
+          "name": "Bairro de Alfama",
+          "normalized_name": "bairro de alfama",
+          "name_type": "alias",
+          "is_primary": false
+        }
+      ],
+      "destination_links": [
+        {
+          "destination_key": "lisbon",
+          "destination_scope": "city",
+          "country_code": "PT",
+          "city_key": "lisbon",
+          "zone_key": "alfama",
+          "relevance_score": 94,
+          "is_primary": true
+        }
+      ],
+      "external_refs": [
+        {
+          "source_id": "1ba6e190-7222-5c97-b7f1-b7cc2775473e",
+          "ref_type": "manual_slug",
+          "ref_value": "lisbon/alfama"
+        }
+      ],
+      "quality_scores": {
+        "touristic_importance": 5,
+        "editorial_score": 93,
+        "source_confidence": 95,
+        "category_priority": 80,
+        "duplicate_confidence": 90,
+        "freshness_score": 80,
+        "overall_score": 92,
+        "score_version": "mvp_fixture_v1"
+      },
+      "tags": [
+        "historic",
+        "walking",
+        "photography",
+        "local_culture"
+      ]
+    },
+    {
+      "poi_id": "90601333-ffac-5dd5-904e-3f8b47823aad",
+      "poi_slug": "lisbon_miradouro_senhora_do_monte",
+      "destination_key": "lisbon",
+      "name": "Miradouro da Senhora do Monte",
+      "canonical_name": "Miradouro da Senhora do Monte",
+      "normalized_name": "miradouro da senhora do monte",
+      "category": "viewpoint",
+      "primary_category_key": "viewpoint",
+      "country_code": "PT",
+      "locality": "Lisbon",
+      "neighborhood": "Graça",
+      "lat": 38.7196,
+      "lng": -9.1311,
+      "is_must_see": false,
+      "is_hidden_gem": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "typical_duration_minutes": 45,
+      "localized_names": [
+        {
+          "locale": "pt",
+          "name": "Miradouro da Senhora do Monte",
+          "normalized_name": "miradouro da senhora do monte",
+          "name_type": "canonical",
+          "is_primary": true
+        },
+        {
+          "locale": "en",
+          "name": "Senhora do Monte Viewpoint",
+          "normalized_name": "senhora do monte viewpoint",
+          "name_type": "alias",
+          "is_primary": true
+        }
+      ],
+      "destination_links": [
+        {
+          "destination_key": "lisbon",
+          "destination_scope": "city",
+          "country_code": "PT",
+          "city_key": "lisbon",
+          "zone_key": "graca",
+          "relevance_score": 88,
+          "is_primary": true
+        }
+      ],
+      "external_refs": [
+        {
+          "source_id": "1ba6e190-7222-5c97-b7f1-b7cc2775473e",
+          "ref_type": "manual_slug",
+          "ref_value": "lisbon/miradouro_senhora_do_monte"
+        }
+      ],
+      "quality_scores": {
+        "touristic_importance": 4,
+        "editorial_score": 91,
+        "source_confidence": 95,
+        "category_priority": 80,
+        "duplicate_confidence": 86,
+        "freshness_score": 80,
+        "overall_score": 88,
+        "score_version": "mvp_fixture_v1"
+      },
+      "tags": [
+        "panoramic_view",
+        "sunset",
+        "photography",
+        "outdoor"
+      ]
+    },
+    {
+      "poi_id": "fe0a2b0a-6b30-5429-a91b-5f6b712dc7c2",
+      "poi_slug": "lisbon_calouste_gulbenkian_museum",
+      "destination_key": "lisbon",
+      "name": "Calouste Gulbenkian Museum",
+      "canonical_name": "Calouste Gulbenkian Museum",
+      "normalized_name": "calouste gulbenkian museum",
+      "category": "museum",
+      "primary_category_key": "museum",
+      "country_code": "PT",
+      "locality": "Lisbon",
+      "neighborhood": "Avenidas Novas",
+      "lat": 38.7372,
+      "lng": -9.1534,
+      "is_must_see": false,
+      "is_hidden_gem": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "typical_duration_minutes": 150,
+      "localized_names": [
+        {
+          "locale": "en",
+          "name": "Calouste Gulbenkian Museum",
+          "normalized_name": "calouste gulbenkian museum",
+          "name_type": "canonical",
+          "is_primary": true
+        },
+        {
+          "locale": "pt",
+          "name": "Museu Calouste Gulbenkian",
+          "normalized_name": "museu calouste gulbenkian",
+          "name_type": "local",
+          "is_primary": true
+        }
+      ],
+      "destination_links": [
+        {
+          "destination_key": "lisbon",
+          "destination_scope": "city",
+          "country_code": "PT",
+          "city_key": "lisbon",
+          "zone_key": "avenidas_novas",
+          "relevance_score": 86,
+          "is_primary": true
+        }
+      ],
+      "external_refs": [
+        {
+          "source_id": "1ba6e190-7222-5c97-b7f1-b7cc2775473e",
+          "ref_type": "manual_slug",
+          "ref_value": "lisbon/calouste_gulbenkian_museum"
+        }
+      ],
+      "quality_scores": {
+        "touristic_importance": 4,
+        "editorial_score": 88,
+        "source_confidence": 95,
+        "category_priority": 90,
+        "duplicate_confidence": 88,
+        "freshness_score": 80,
+        "overall_score": 87,
+        "score_version": "mvp_fixture_v1"
+      },
+      "tags": [
+        "art",
+        "indoor",
+        "quiet",
+        "garden"
+      ]
+    },
+    {
+      "poi_id": "10000000-0000-5000-8000-000000000101",
+      "poi_slug": "lisbon_national_tile_museum",
+      "destination_key": "lisbon",
+      "name": "National Tile Museum",
+      "canonical_name": "National Tile Museum",
+      "normalized_name": "national tile museum",
+      "category": "museum",
+      "primary_category_key": "museum",
+      "country_code": "PT",
+      "locality": "Lisbon",
+      "neighborhood": "Xabregas",
+      "is_must_see": false,
+      "is_hidden_gem": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "typical_duration_minutes": 120,
+      "localized_names": [
+        {
+          "locale": "en",
+          "name": "National Tile Museum",
+          "normalized_name": "national tile museum",
+          "name_type": "canonical",
+          "is_primary": true
+        },
+        {
+          "locale": "pt",
+          "name": "Museu Nacional do Azulejo",
+          "normalized_name": "museu nacional do azulejo",
+          "name_type": "local",
+          "is_primary": true
+        }
+      ],
+      "destination_links": [
+        {
+          "destination_key": "lisbon",
+          "destination_scope": "city",
+          "country_code": "PT",
+          "city_key": "lisbon",
+          "zone_key": "xabregas",
+          "relevance_score": 80,
+          "is_primary": true
+        }
+      ],
+      "external_refs": [
+        {
+          "source_id": "1ba6e190-7222-5c97-b7f1-b7cc2775473e",
+          "ref_type": "manual_slug",
+          "ref_value": "lisbon/national_tile_museum"
+        }
+      ],
+      "quality_scores": {
+        "touristic_importance": 4,
+        "editorial_score": 86,
+        "source_confidence": 90,
+        "category_priority": 90,
+        "duplicate_confidence": 84,
+        "freshness_score": 80,
+        "overall_score": 84,
+        "score_version": "mvp_fixture_v1"
+      },
+      "tags": [
+        "art",
+        "history",
+        "indoor",
+        "quiet"
+      ]
+    },
+    {
+      "poi_id": "10000000-0000-5000-8000-000000000102",
+      "poi_slug": "lisbon_lisbon_cathedral",
+      "destination_key": "lisbon",
+      "name": "Lisbon Cathedral",
+      "canonical_name": "Lisbon Cathedral",
+      "normalized_name": "lisbon cathedral",
+      "category": "monument",
+      "primary_category_key": "monument",
+      "country_code": "PT",
+      "locality": "Lisbon",
+      "neighborhood": "Alfama",
+      "is_must_see": false,
+      "is_hidden_gem": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "typical_duration_minutes": 45,
+      "localized_names": [
+        {
+          "locale": "en",
+          "name": "Lisbon Cathedral",
+          "normalized_name": "lisbon cathedral",
+          "name_type": "canonical",
+          "is_primary": true
+        },
+        {
+          "locale": "pt",
+          "name": "Sé de Lisboa",
+          "normalized_name": "sé de lisboa",
+          "name_type": "local",
+          "is_primary": true
+        }
+      ],
+      "destination_links": [
+        {
+          "destination_key": "lisbon",
+          "destination_scope": "city",
+          "country_code": "PT",
+          "city_key": "lisbon",
+          "zone_key": "alfama",
+          "relevance_score": 82,
+          "is_primary": true
+        }
+      ],
+      "external_refs": [
+        {
+          "source_id": "1ba6e190-7222-5c97-b7f1-b7cc2775473e",
+          "ref_type": "manual_slug",
+          "ref_value": "lisbon/lisbon_cathedral"
+        }
+      ],
+      "quality_scores": {
+        "touristic_importance": 4,
+        "editorial_score": 84,
+        "source_confidence": 90,
+        "category_priority": 95,
+        "duplicate_confidence": 84,
+        "freshness_score": 80,
+        "overall_score": 84,
+        "score_version": "mvp_fixture_v1"
+      },
+      "tags": [
+        "historic",
+        "architecture",
+        "indoor",
+        "walking"
+      ]
+    },
+    {
+      "poi_id": "10000000-0000-5000-8000-000000000103",
+      "poi_slug": "lisbon_santa_justa_lift",
+      "destination_key": "lisbon",
+      "name": "Santa Justa Lift",
+      "canonical_name": "Santa Justa Lift",
+      "normalized_name": "santa justa lift",
+      "category": "monument",
+      "primary_category_key": "monument",
+      "country_code": "PT",
+      "locality": "Lisbon",
+      "neighborhood": "Baixa",
+      "is_must_see": false,
+      "is_hidden_gem": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "typical_duration_minutes": 45,
+      "localized_names": [
+        {
+          "locale": "en",
+          "name": "Santa Justa Lift",
+          "normalized_name": "santa justa lift",
+          "name_type": "canonical",
+          "is_primary": true
+        },
+        {
+          "locale": "pt",
+          "name": "Elevador de Santa Justa",
+          "normalized_name": "elevador de santa justa",
+          "name_type": "local",
+          "is_primary": true
+        }
+      ],
+      "destination_links": [
+        {
+          "destination_key": "lisbon",
+          "destination_scope": "city",
+          "country_code": "PT",
+          "city_key": "lisbon",
+          "zone_key": "baixa",
+          "relevance_score": 82,
+          "is_primary": true
+        }
+      ],
+      "external_refs": [
+        {
+          "source_id": "1ba6e190-7222-5c97-b7f1-b7cc2775473e",
+          "ref_type": "manual_slug",
+          "ref_value": "lisbon/santa_justa_lift"
+        }
+      ],
+      "quality_scores": {
+        "touristic_importance": 4,
+        "editorial_score": 83,
+        "source_confidence": 90,
+        "category_priority": 95,
+        "duplicate_confidence": 84,
+        "freshness_score": 80,
+        "overall_score": 83,
+        "score_version": "mvp_fixture_v1"
+      },
+      "tags": [
+        "historic",
+        "viewpoint",
+        "architecture",
+        "photography"
+      ]
+    }
+  ]
+}
