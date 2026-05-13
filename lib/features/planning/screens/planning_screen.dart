@@ -30,7 +30,7 @@ import 'package:voyage/features/planning/services/ai_suggestions_service.dart';
 import 'package:voyage/features/planning/services/document_to_activity.dart';
 import 'package:voyage/features/planning/data/destination_key_mapper.dart';
 import 'package:voyage/features/planning/services/places_first_pipeline.dart';
-import 'package:voyage/features/planning/services/routes_service.dart';
+import 'package:voyage/features/planning/services/suggestion_transport_builder.dart';
 import 'package:voyage/features/poi/providers/poi_repository_provider.dart';
 import 'package:voyage/features/planning/services/traveler_to_places_mapping.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -1586,40 +1586,6 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
   ///
   /// Règles :
   /// - Trajet à pied ≤12 min : on privilégie "walk" (sauf Grand luxe).
-  /// - Grand luxe / Voyage pro : taxi si dispo.
-  /// - Backpack / Meilleur prix : walk → transit → premier dispo.
-  /// - En famille : transit → taxi → premier dispo.
-  /// - Default : transit si dispo, sinon le premier mode retourné.
-  String _pickDefaultMode(List<TransportOption> options, String? travelerType) {
-    if (options.isEmpty) return 'walk';
-    TransportOption? findMode(String m) {
-      for (final o in options) {
-        if (o.mode == m) return o;
-      }
-      return null;
-    }
-    // 'transit' = générique Routes API (couvre métro/tram/bus). On regarde aussi
-    // 'metro' pour rétrocompat avec d'éventuelles options Gemini fallback.
-    TransportOption? findTransit() => findMode('transit') ?? findMode('metro');
-
-    final walk = findMode('walk');
-    if (walk != null && walk.durationMinutes <= 12 && travelerType != 'Grand luxe') {
-      return 'walk';
-    }
-    switch (travelerType) {
-      case 'Grand luxe':
-      case 'Voyage pro':
-        return findMode('taxi')?.mode ?? options.first.mode;
-      case 'Backpack':
-      case 'Meilleur prix':
-        return findMode('walk')?.mode ?? findTransit()?.mode ?? options.first.mode;
-      case 'En famille':
-        return findTransit()?.mode ?? findMode('taxi')?.mode ?? options.first.mode;
-      default:
-        return findTransit()?.mode ?? options.first.mode;
-    }
-  }
-
   /// Liste plate des suggestions cochées, indépendamment du mode (auto/coPilot).
   /// Mode auto = `widget.suggestions[i]` pour `i ∈ _selected`.
   /// Mode coPilot = options cochées dans chaque groupe.
@@ -1871,97 +1837,47 @@ class _SuggestionsSheetState extends ConsumerState<_SuggestionsSheet> {
           .map((e) => '${e['from_activity_id']}|${e['to_activity_id']}')
           .toSet();
 
-      // ─── Construction des transports pour chaque paire consécutive même jour ──
-      // Routes API (Google Maps) si on a les place_id des 2 activités → durées
-      // RÉELLES. Sinon skip : pas de transport pour cette paire.
-      // (Le fallback Gemini historique a disparu avec la bascule Places-first :
-      // les suggestions ne contiennent plus de bloc transport hallucinable.)
-
-      // Identifie les paires à traiter (consécutives même jour, pas déjà en DB).
-      final pairs = <(TripActivity, TripActivity)>[];
-      for (var i = 0; i < allActivities.length - 1; i++) {
-        final a = allActivities[i];
-        final b = allActivities[i + 1];
-        final sameDay = a.dayDate.year == b.dayDate.year &&
-            a.dayDate.month == b.dayDate.month &&
-            a.dayDate.day == b.dayDate.day;
-        if (!sameDay) continue;
-        if (existingPairs.contains('${a.id}|${b.id}')) continue;
-        pairs.add((a, b));
-      }
-
-      final routesService = ref.read(routesServiceProvider);
-      final placesService = ref.read(placesCacheServiceProvider);
-      final trip = ref.read(tripByIdProvider(widget.tripId)).valueOrNull;
-      final destination = trip?.destination ?? '';
-
-      developer.log(
-        'Construction transports : ${pairs.length} paire(s) consécutive(s) à traiter',
-        name: 'planning',
-      );
-      // Lance les calculs Routes en parallèle pour limiter la latence sur les
-      // gros plannings. Chaque slot construit 2 RouteEndpoints :
-      // - Si l'activité a déjà lat/lng (cas hôtel virtual géocodé au save),
-      //   on les utilise directement → pas de Places lookup, pas de coût.
-      // - Sinon (activité réelle Places), on fait le findInfo() pour obtenir
-      //   le placeId.
-      Future<RouteEndpoint?> resolveEndpoint(TripActivity act) async {
-        if (act.hasCoordinates) {
-          return RouteEndpoint.coords(lat: act.latitude!, lng: act.longitude!);
-        }
-        final info = await placesService.findInfo(title: act.title, destination: destination);
-        if (info.placeId != null && info.placeId!.isNotEmpty) {
-          return RouteEndpoint.placeId(info.placeId!);
-        }
-        return null;
-      }
-
-      final transportResults = await Future.wait(pairs.map((pair) async {
-        final (a, b) = pair;
-        final epA = await resolveEndpoint(a);
-        final epB = await resolveEndpoint(b);
-
-        List<TransportOption>? routesOptions;
-        if (epA != null && epB != null) {
-          routesOptions = await routesService.computeOptionsFromEndpoints(
-            from: epA,
-            to: epB,
-          );
-          developer.log(
-            'Routes "${a.title}" → "${b.title}" : '
-            '${routesOptions == null ? "ÉCHEC (null)" : "${routesOptions.length} options [${routesOptions.map((o) => o.mode).join(", ")}]"}',
-            name: 'planning',
-          );
-        } else {
-          developer.log(
-            'Routes "${a.title}" → "${b.title}" : SKIP (endpoint introuvable — A=${epA == null ? "null" : "ok"}, B=${epB == null ? "null" : "ok"})',
-            name: 'planning',
-          );
-        }
-
-        if (routesOptions == null || routesOptions.isEmpty) return null;
-        final finalOptions = routesOptions;
-        final defaultMode = _pickDefaultMode(finalOptions, widget.travelerType);
-
-        final defaultOpt = finalOptions.firstWhere(
-          (o) => o.mode == defaultMode,
-          orElse: () => finalOptions.first,
+      // ─── Construction des transports (optionnel, non-blocking) ───────────────
+      try {
+        final trip = ref.read(tripByIdProvider(widget.tripId)).valueOrNull;
+        final builder = SuggestionTransportBuilder(
+          routesService: ref.read(routesServiceProvider),
+          placesService: ref.read(placesCacheServiceProvider),
+          destination: trip?.destination ?? '',
+          travelerType: widget.travelerType,
         );
-        return {
-          'trip_id': widget.tripId,
-          'from_activity_id': a.id,
-          'to_activity_id': b.id,
-          'selected_mode': defaultOpt.mode,
-          'selected_duration_minutes': defaultOpt.durationMinutes,
-          'selected_price_estimate': defaultOpt.priceEstimate,
-          'options': finalOptions.map((o) => o.toJson()).toList(),
-        };
-      }));
-      final transportRows = transportResults.whereType<Map<String, dynamic>>().toList();
-
-      if (transportRows.isNotEmpty) {
-        developer.log('Insertion de ${transportRows.length} trajet(s) dans trip_transports (Routes API)', name: 'planning');
-        await client.from('trip_transports').insert(transportRows);
+        final transportRows = await builder.buildRows(
+          allActivities: allActivities,
+          existingPairs: existingPairs,
+        );
+        if (transportRows.isNotEmpty) {
+          developer.log('Insertion de ${transportRows.length} trajet(s) dans trip_transports (Routes API)', name: 'planning');
+          await client.from('trip_transports').insert(transportRows);
+        }
+      } on LiveApiBlockedException catch (e) {
+        developer.log(
+          '[routes_optional] activitiesInserted=${insertedActivities.length} routesComputed=false reason=${e.operation}',
+          name: 'planning',
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Activités ajoutées. Les trajets n\'ont pas pu être calculés pour le moment.'),
+            ),
+          );
+        }
+      } catch (e) {
+        developer.log(
+          '[routes_optional] activitiesInserted=${insertedActivities.length} routesComputed=false reason=$e',
+          name: 'planning',
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Activités ajoutées. Les trajets n\'ont pas pu être calculés pour le moment.'),
+            ),
+          );
+        }
       }
 
       ref.invalidate(tripActivitiesProvider(widget.tripId));
