@@ -136,12 +136,35 @@ Then re-run verification and confirm counts are identical to the first run.
 | 2026-05-12 | Dry-run Paris, Rome, Barcelona | All clean (0 blocking errors) |
 | 2026-05-12 | Pre-check Supabase counts | 0 POIs for all 3 cities |
 | 2026-05-12 | Prepare manual commands | Committed to docs |
-| 2026-05-13 | Re-check Supabase counts | **Still 0 POIs for all 3 cities** — real imports not yet executed |
+| 2026-05-13 | Real import + verify + idempotence | **All 3 cities imported successfully** |
+
+## Final Import Results
+
+### Paris
+```
+POIs: 25, Aliases: 49, Links: 25, Tags: 100, Flags: 0
+Healthy: true
+Idempotence: confirmed
+```
+
+### Rome
+```
+POIs: 25, Aliases: 52, Links: 25, Tags: 100, Flags: 0
+Healthy: true
+Idempotence: confirmed
+```
+
+### Barcelona
+```
+POIs: 25, Aliases: 54, Links: 25, Tags: 100, Flags: 0
+Healthy: true
+Idempotence: confirmed
+```
 
 ## Checklist
 
-- [ ] Paris real import executed
-- [ ] Rome real import executed
-- [ ] Barcelona real import executed
-- [ ] Post-import verification passed for all 3 cities
-- [ ] Idempotence test passed (re-run + counts unchanged)
+- [x] Paris real import executed
+- [x] Rome real import executed
+- [x] Barcelona real import executed
+- [x] Post-import verification passed for all 3 cities
+- [x] Idempotence test passed (re-run + counts unchanged)
