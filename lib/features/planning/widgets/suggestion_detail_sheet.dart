@@ -18,35 +18,66 @@ Future<void> openSuggestionDetailSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: AppColors.background,
-    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-    builder: (_) => _SuggestionDetailSheet(suggestion: suggestion, destination: destination),
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (_) => _SuggestionDetailSheet(
+      suggestion: suggestion,
+      destination: destination,
+    ),
   );
 }
 
 class _SuggestionDetailSheet extends ConsumerStatefulWidget {
   final ActivitySuggestion suggestion;
   final String destination;
-  const _SuggestionDetailSheet({required this.suggestion, required this.destination});
+  const _SuggestionDetailSheet({
+    required this.suggestion,
+    required this.destination,
+  });
 
   @override
-  ConsumerState<_SuggestionDetailSheet> createState() => _SuggestionDetailSheetState();
+  ConsumerState<_SuggestionDetailSheet> createState() =>
+      _SuggestionDetailSheetState();
 }
 
-class _SuggestionDetailSheetState extends ConsumerState<_SuggestionDetailSheet> {
+class _SuggestionDetailSheetState
+    extends ConsumerState<_SuggestionDetailSheet> {
   late Future<PlaceInfo> _placeInfoFuture;
   late Future<String> _descriptionFuture;
 
-  static const _weekdays = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+  static const _weekdays = [
+    'Lundi',
+    'Mardi',
+    'Mercredi',
+    'Jeudi',
+    'Vendredi',
+    'Samedi',
+    'Dimanche',
+  ];
   static const _months = [
-    'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
-    'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
+    'janvier',
+    'février',
+    'mars',
+    'avril',
+    'mai',
+    'juin',
+    'juillet',
+    'août',
+    'septembre',
+    'octobre',
+    'novembre',
+    'décembre',
   ];
 
   @override
   void initState() {
     super.initState();
     final cache = ref.read(placesCacheServiceProvider);
-    _placeInfoFuture = cache.findInfo(title: widget.suggestion.title, destination: widget.destination);
+    _placeInfoFuture = cache.findInfo(
+      title: widget.suggestion.title,
+      destination: widget.destination,
+    );
 
     final ai = ref.read(aiSuggestionsServiceProvider);
     _descriptionFuture = ai.describeActivity(
@@ -70,9 +101,13 @@ class _SuggestionDetailSheetState extends ConsumerState<_SuggestionDetailSheet> 
       final info = await _placeInfoFuture;
       placeId = info.placeId;
     } catch (_) {}
-    final label = Uri.encodeComponent('${widget.suggestion.title} ${widget.destination}');
+    final label = Uri.encodeComponent(
+      '${widget.suggestion.title} ${widget.destination}',
+    );
     final uri = (placeId != null && placeId.isNotEmpty)
-        ? Uri.parse('https://www.google.com/maps/search/?api=1&query=$label&query_place_id=$placeId')
+        ? Uri.parse(
+            'https://www.google.com/maps/search/?api=1&query=$label&query_place_id=$placeId',
+          )
         : Uri.parse('https://www.google.com/maps/search/?api=1&query=$label');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -87,7 +122,14 @@ class _SuggestionDetailSheetState extends ConsumerState<_SuggestionDetailSheet> 
       child: Column(
         children: [
           const SizedBox(height: 10),
-          Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2))),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.border,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
           const SizedBox(height: 8),
           Expanded(
             child: SingleChildScrollView(
@@ -99,7 +141,8 @@ class _SuggestionDetailSheetState extends ConsumerState<_SuggestionDetailSheet> 
                     children: [
                       _PhotosArea(future: _placeInfoFuture),
                       Positioned(
-                        top: 10, left: 10,
+                        top: 10,
+                        left: 10,
                         child: Material(
                           color: Colors.black54,
                           shape: const CircleBorder(),
@@ -108,7 +151,11 @@ class _SuggestionDetailSheetState extends ConsumerState<_SuggestionDetailSheet> 
                             onTap: () => Navigator.of(context).pop(),
                             child: const Padding(
                               padding: EdgeInsets.all(6),
-                              child: Icon(Icons.close, color: Colors.white, size: 20),
+                              child: Icon(
+                                Icons.close,
+                                color: Colors.white,
+                                size: 20,
+                              ),
                             ),
                           ),
                         ),
@@ -121,12 +168,32 @@ class _SuggestionDetailSheetState extends ConsumerState<_SuggestionDetailSheet> 
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(color: AppColors.primaryLight, borderRadius: BorderRadius.circular(4)),
-                          child: Text(s.tag, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.primary)),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryLight,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            s.tag,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primary,
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 6),
-                        Text(s.title, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                        Text(
+                          s.title,
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
                         FutureBuilder<PlaceInfo>(
                           future: _placeInfoFuture,
                           builder: (_, snap) {
@@ -134,7 +201,10 @@ class _SuggestionDetailSheetState extends ConsumerState<_SuggestionDetailSheet> 
                             if (rating == null) return const SizedBox.shrink();
                             return Padding(
                               padding: const EdgeInsets.only(top: 6),
-                              child: _StarsRow(rating: rating, count: snap.data?.ratingsCount),
+                              child: _StarsRow(
+                                rating: rating,
+                                count: snap.data?.ratingsCount,
+                              ),
                             );
                           },
                         ),
@@ -148,41 +218,86 @@ class _SuggestionDetailSheetState extends ConsumerState<_SuggestionDetailSheet> 
                                 padding: const EdgeInsets.only(bottom: 16),
                                 child: Row(
                                   children: [
-                                    SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+                                    SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
                                     SizedBox(width: 10),
-                                    Expanded(child: Text('Rédaction de la description…', style: TextStyle(fontSize: 12, color: AppColors.textSecondary, fontStyle: FontStyle.italic))),
+                                    Expanded(
+                                      child: Text(
+                                        'Rédaction de la description…',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: AppColors.textSecondary,
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                    ),
                                   ],
                                 ),
                               );
                             }
-                            if (snap.hasError || snap.data == null || snap.data!.isEmpty) {
+                            if (snap.hasError ||
+                                snap.data == null ||
+                                snap.data!.isEmpty) {
                               return const SizedBox.shrink();
                             }
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 16),
                               child: Container(
                                 padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(color: AppColors.primaryLight.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(10)),
-                                child: Text(snap.data!, style: TextStyle(fontSize: 13, color: AppColors.textPrimary, height: 1.5)),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primaryLight.withValues(
+                                    alpha: 0.4,
+                                  ),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  snap.data!,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: AppColors.textPrimary,
+                                    height: 1.5,
+                                  ),
+                                ),
                               ),
                             );
                           },
                         ),
 
-                        _InfoTile(icon: Icons.calendar_today, text: _formattedDate()),
-                        _InfoTile(icon: Icons.access_time, text: '${s.startTime}${s.durationMinutes != null ? ' · ${formatDuration(s.durationMinutes)}' : ''}'),
-                        if (s.priceEstimate != null && s.priceEstimate!.isNotEmpty)
+                        _InfoTile(
+                          icon: Icons.calendar_today,
+                          text: _formattedDate(),
+                        ),
+                        _InfoTile(
+                          icon: Icons.access_time,
+                          text:
+                              '${s.startTime}${s.durationMinutes != null ? ' · ${formatDuration(s.durationMinutes)}' : ''}',
+                        ),
+                        if (s.priceEstimate != null &&
+                            s.priceEstimate!.isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(bottom: 10),
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Icon(Icons.euro_symbol, size: 18, color: AppColors.primary),
+                                Icon(
+                                  Icons.euro_symbol,
+                                  size: 18,
+                                  color: AppColors.primary,
+                                ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: ConvertedPriceText(
                                     rawPrice: s.priceEstimate,
-                                    style: TextStyle(fontSize: 14, color: AppColors.textPrimary, height: 1.4),
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: AppColors.textPrimary,
+                                      height: 1.4,
+                                    ),
                                     maxLines: 2,
                                   ),
                                 ),
@@ -190,7 +305,10 @@ class _SuggestionDetailSheetState extends ConsumerState<_SuggestionDetailSheet> 
                             ),
                           ),
                         if (s.detail != null && s.detail!.isNotEmpty)
-                          _InfoTile(icon: Icons.place_outlined, text: s.detail!),
+                          _InfoTile(
+                            icon: Icons.place_outlined,
+                            text: s.detail!,
+                          ),
 
                         const SizedBox(height: 20),
                         OutlinedButton.icon(
@@ -228,7 +346,10 @@ class _PhotosArea extends StatelessWidget {
         future: future,
         builder: (_, snap) {
           if (snap.connectionState != ConnectionState.done) {
-            return Container(color: AppColors.primaryLight, child: const Center(child: CircularProgressIndicator()));
+            return Container(
+              color: AppColors.primaryLight,
+              child: const Center(child: CircularProgressIndicator()),
+            );
           }
           final photos = snap.data?.photos ?? const <PlacePhoto>[];
           if (photos.isEmpty) return _empty('Pas de photo trouvée');
@@ -238,8 +359,11 @@ class _PhotosArea extends StatelessWidget {
               imageUrl: photos[i].url,
               fit: BoxFit.cover,
               width: double.infinity,
-              placeholder: (_, __) => Container(color: AppColors.primaryLight, child: const Center(child: CircularProgressIndicator())),
-              errorWidget: (_, __, ___) => _empty('Photo indisponible'),
+              placeholder: (_, _) => Container(
+                color: AppColors.primaryLight,
+                child: const Center(child: CircularProgressIndicator()),
+              ),
+              errorWidget: (_, _, _) => _empty('Photo indisponible'),
             ),
           );
         },
@@ -254,7 +378,10 @@ class _PhotosArea extends StatelessWidget {
       children: [
         Icon(Icons.image_outlined, size: 40, color: AppColors.textSecondary),
         const SizedBox(height: 8),
-        Text(label, style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+        Text(
+          label,
+          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+        ),
       ],
     ),
   );
@@ -283,11 +410,18 @@ class _StarsRow extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           rating.toStringAsFixed(1),
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textPrimary,
+          ),
         ),
         if (count != null) ...[
           const SizedBox(width: 4),
-          Text('($count avis)', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+          Text(
+            '($count avis)',
+            style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+          ),
         ],
       ],
     );
@@ -308,7 +442,16 @@ class _InfoTile extends StatelessWidget {
         children: [
           Icon(icon, size: 18, color: AppColors.primary),
           const SizedBox(width: 12),
-          Expanded(child: Text(text, style: TextStyle(fontSize: 14, color: AppColors.textPrimary, height: 1.4))),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 14,
+                color: AppColors.textPrimary,
+                height: 1.4,
+              ),
+            ),
+          ),
         ],
       ),
     );

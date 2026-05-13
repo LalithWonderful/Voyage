@@ -1572,6 +1572,20 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // ─── Nom du voyage ────────────────────────────────────
+                          Text('NOM DU VOYAGE *', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+                          const SizedBox(height: 6),
+                          TextField(
+                            controller: _titleCtrl,
+                            onChanged: (_) => setState(() {}),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Nom libre affiché dans ta liste de voyages.',
+                            style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.3),
+                          ),
+                          const SizedBox(height: 14),
+                          // ─── Emoji ────────────────────────────────────────────
                           Text('EMOJI', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
                           const SizedBox(height: 8),
                           Wrap(
@@ -1605,76 +1619,95 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
                             }).toList(),
                           ),
                           const SizedBox(height: 16),
-                          Text('TITRE *', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
-                          const SizedBox(height: 6),
-                          TextField(controller: _titleCtrl),
-                          const SizedBox(height: 14),
-                          Text('DESTINATION *', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
+                          // ─── Destination principale ───────────────────────────
+                          Text('DESTINATION PRINCIPALE *', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 0.5)),
                           const SizedBox(height: 6),
                           // Autocomplete élargi : accepte aussi pays/région pour
                           // imposer ensuite le découpage en étapes (cf. _destinationKind).
                           CityAutocompleteField(
-                      key: ValueKey('dest-${widget.trip.id}'),
-                      initialValue: _destCtrl.text,
-                      acceptAnyDestination: true,
-                      hintText: 'Ville, pays ou région (ex: Nancy, Maroc, Bali)',
-                      onSelectedDetailed: (dest, _, placeId, kind) {
-                        setState(() {
-                          // Auto-sync de la 1ère étape avec la nouvelle destination
-                          // si elle correspondait à l'ancienne (cas auto-créée).
-                          // Ex: destination Lisbonne + étape Lisbonne → modifier
-                          // destination en Bangkok devrait mettre à jour l'étape,
-                          // pas la conserver à Lisbonne.
-                          final oldCity = _firstWordBeforeComma(_destCtrl.text);
-                          final newCity = _firstWordBeforeComma(dest);
-                          final firstSegMatchesOld = _segments.isNotEmpty &&
-                              _segments[0].city.toLowerCase() == oldCity.toLowerCase();
-                          if (firstSegMatchesOld) {
-                            if (kind == 'country' || kind == 'region') {
-                              // Nouvelle dest = pays/région → l'ancienne ville n'a
-                              // plus de sens comme étape (l'IA proposera des villes
-                              // via le bandeau orange + CTAs). On la supprime.
-                              _segments.removeAt(0);
-                            } else {
-                              // Nouvelle dest = ville/place/unknown → on remplace
-                              // la 1ère étape par la nouvelle ville (préserve days
-                              // et country qui seront re-normalisés).
-                              _segments[0] = _segments[0].copyWith(city: newCity, country: null);
-                            }
-                            _enforceSingleSegmentRule();
-                          }
-                          _destCtrl.text = dest;
-                          _destinationKind = kind;
-                          // On reset le code pays — il sera rafraîchi par le
-                          // fetch async ci-dessous. Évite de garder un code
-                          // périmé entre 2 sélections.
-                          _destinationCountryCode = null;
-                          // Si pays/région sans étapes, déplie automatiquement
-                          // la card étapes pour que les CTAs soient visibles
-                          // immédiatement.
-                          if (_needsSegments && _segments.isEmpty) {
-                            _segmentsCardExpanded = true;
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              final ctx = _segmentsCardKey.currentContext;
-                              if (ctx != null) {
-                                Scrollable.ensureVisible(
-                                  ctx,
-                                  duration: const Duration(milliseconds: 350),
-                                  alignment: 0.1,
-                                );
+                            key: ValueKey('dest-${widget.trip.id}'),
+                            initialValue: _destCtrl.text,
+                            acceptAnyDestination: true,
+                            hintText: 'Ville, pays ou région (ex: Nancy, Maroc, Bali)',
+                            onChanged: (_) => setState(() {}),
+                            onSelectedDetailed: (dest, _, placeId, kind) {
+                              setState(() {
+                                // Auto-sync de la 1ère étape avec la nouvelle destination
+                                // si elle correspondait à l'ancienne (cas auto-créée).
+                                // Ex: destination Lisbonne + étape Lisbonne → modifier
+                                // destination en Bangkok devrait mettre à jour l'étape,
+                                // pas la conserver à Lisbonne.
+                                final oldCity = _firstWordBeforeComma(_destCtrl.text);
+                                final newCity = _firstWordBeforeComma(dest);
+                                final firstSegMatchesOld = _segments.isNotEmpty &&
+                                    _segments[0].city.toLowerCase() == oldCity.toLowerCase();
+                                if (firstSegMatchesOld) {
+                                  if (kind == 'country' || kind == 'region') {
+                                    // Nouvelle dest = pays/région → l'ancienne ville n'a
+                                    // plus de sens comme étape (l'IA proposera des villes
+                                    // via le bandeau orange + CTAs). On la supprime.
+                                    _segments.removeAt(0);
+                                  } else {
+                                    // Nouvelle dest = ville/place/unknown → on remplace
+                                    // la 1ère étape par la nouvelle ville (préserve days
+                                    // et country qui seront re-normalisés).
+                                    _segments[0] = _segments[0].copyWith(city: newCity, country: null);
+                                  }
+                                  _enforceSingleSegmentRule();
+                                }
+                                _destCtrl.text = dest;
+                                _destinationKind = kind;
+                                // On reset le code pays — il sera rafraîchi par le
+                                // fetch async ci-dessous. Évite de garder un code
+                                // périmé entre 2 sélections.
+                                _destinationCountryCode = null;
+                                // Si pays/région sans étapes, déplie automatiquement
+                                // la card étapes pour que les CTAs soient visibles
+                                // immédiatement.
+                                if (_needsSegments && _segments.isEmpty) {
+                                  _segmentsCardExpanded = true;
+                                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                                    final ctx = _segmentsCardKey.currentContext;
+                                    if (ctx != null) {
+                                      Scrollable.ensureVisible(
+                                        ctx,
+                                        duration: const Duration(milliseconds: 350),
+                                        alignment: 0.1,
+                                      );
+                                    }
+                                  });
+                                }
+                              });
+                              // Fetch async du code pays ISO pour filtrer les étapes.
+                              if (placeId != null && placeId.isNotEmpty) {
+                                ref.read(placesServiceProvider).getCountryCodeFromPlaceId(placeId).then((code) {
+                                  if (!mounted || code == null) return;
+                                  setState(() => _destinationCountryCode = code);
+                                });
                               }
-                            });
-                          }
-                        });
-                        // Fetch async du code pays ISO pour filtrer les étapes.
-                        if (placeId != null && placeId.isNotEmpty) {
-                          ref.read(placesServiceProvider).getCountryCodeFromPlaceId(placeId).then((code) {
-                            if (!mounted || code == null) return;
-                            setState(() => _destinationCountryCode = code);
-                          });
-                        }
-                      },
-                    ),
+                            },
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Utilisée par Lunao pour les suggestions, POI, transports et planning.',
+                            style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.3),
+                          ),
+                          if (_titleCtrl.text.trim().toLowerCase() !=
+                              _destCtrl.text.trim().toLowerCase()) ...[
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Icon(Icons.info_outline, size: 14, color: AppColors.accent),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    'Suggestions basées sur : ${_destCtrl.text.trim()}',
+                                    style: TextStyle(fontSize: 11, color: AppColors.accent, height: 1.3),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                           const SizedBox(height: 14),
                           // Dates départ / retour incluses dans Informations générales
                           Row(

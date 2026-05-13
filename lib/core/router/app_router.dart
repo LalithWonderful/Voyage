@@ -16,13 +16,14 @@ import 'package:voyage/features/planning/screens/planning_screen.dart';
 import 'package:voyage/features/map/screens/trip_map_screen.dart';
 import 'package:voyage/features/wallet/screens/wallet_screen.dart';
 import 'package:voyage/features/assistant/screens/assistant_screen.dart';
+import 'package:voyage/features/poi/debug/poi_debug_screen.dart';
 import 'package:voyage/features/profile/screens/profile_screen.dart';
 import 'package:voyage/shared/widgets/main_shell.dart';
 
 // Notifier qui écoute l'auth sans recréer le router
 class _AuthNotifier extends ChangeNotifier {
   _AuthNotifier(Ref ref) {
-    ref.listen(authStateProvider, (_, __) => notifyListeners());
+    ref.listen(authStateProvider, (_, _) => notifyListeners());
   }
 }
 
@@ -32,7 +33,8 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/onboarding',
     refreshListenable: notifier,
-    errorBuilder: (context, state) => _NotFoundScreen(location: state.matchedLocation),
+    errorBuilder: (context, state) =>
+        _NotFoundScreen(location: state.matchedLocation),
     redirect: (context, state) {
       final authState = ref.read(authStateProvider);
       if (authState.isLoading) return null;
@@ -52,7 +54,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (loc == '/reset-password') return null;
 
       // Utilisateur connecté sur login/register/intro → trips
-      if (isAuthenticated && (loc == '/login' || loc == '/register' || loc == '/onboarding')) {
+      if (isAuthenticated &&
+          (loc == '/login' || loc == '/register' || loc == '/onboarding')) {
         return '/trips';
       }
 
@@ -60,20 +63,32 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (isAuthenticated && onboardingPages.contains(loc)) return null;
 
       // Utilisateur non connecté sur route protégée → login
-      if (!isAuthenticated && !onboardingPages.contains(loc) &&
-          loc != '/onboarding' && loc != '/login' && loc != '/register') {
+      if (!isAuthenticated &&
+          !onboardingPages.contains(loc) &&
+          loc != '/onboarding' &&
+          loc != '/login' &&
+          loc != '/register') {
         return '/login';
       }
 
       return null;
     },
     routes: [
-      GoRoute(path: '/onboarding', builder: (_, __) => const OnboardingScreen()),
-      GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
-      GoRoute(path: '/register', builder: (_, __) => const RegisterScreen()),
-      GoRoute(path: '/reset-password', builder: (_, __) => const ResetPasswordScreen()),
-      GoRoute(path: '/onboarding/traveler-type', builder: (_, __) => const TravelerTypeScreen()),
-      GoRoute(path: '/onboarding/interests', builder: (_, __) => const InterestsScreen()),
+      GoRoute(path: '/onboarding', builder: (_, _) => const OnboardingScreen()),
+      GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
+      GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),
+      GoRoute(
+        path: '/reset-password',
+        builder: (_, _) => const ResetPasswordScreen(),
+      ),
+      GoRoute(
+        path: '/onboarding/traveler-type',
+        builder: (_, _) => const TravelerTypeScreen(),
+      ),
+      GoRoute(
+        path: '/onboarding/interests',
+        builder: (_, _) => const InterestsScreen(),
+      ),
       // `?from=onboarding` distingue le 3e step du tunnel post-signup vs la
       // création standalone depuis la liste de voyages (bouton "+"). Cf.
       // commentaire de la classe `DestinationScreen`.
@@ -83,34 +98,50 @@ final routerProvider = Provider<GoRouter>((ref) {
           isFromOnboarding: state.uri.queryParameters['from'] == 'onboarding',
         ),
       ),
-      GoRoute(path: '/trips/create', builder: (_, __) => const CreateTripScreen()),
+      GoRoute(
+        path: '/trips/create',
+        builder: (_, _) => const CreateTripScreen(),
+      ),
       ShellRoute(
         builder: (context, state, child) => MainShell(child: child),
         routes: [
-          GoRoute(path: '/trips', builder: (_, __) => const TripsScreen()),
+          GoRoute(path: '/trips', builder: (_, _) => const TripsScreen()),
           GoRoute(
             path: '/trips/:id',
-            builder: (_, state) => TripDetailScreen(tripId: state.pathParameters['id']!),
+            builder: (_, state) =>
+                TripDetailScreen(tripId: state.pathParameters['id']!),
           ),
           GoRoute(
             path: '/trips/:id/planning',
-            builder: (_, state) => PlanningScreen(tripId: state.pathParameters['id']!),
+            builder: (_, state) =>
+                PlanningScreen(tripId: state.pathParameters['id']!),
           ),
           GoRoute(
             path: '/trips/:id/map',
-            builder: (_, state) => TripMapScreen(tripId: state.pathParameters['id']!),
+            builder: (_, state) =>
+                TripMapScreen(tripId: state.pathParameters['id']!),
           ),
-          GoRoute(path: '/wallet', builder: (_, __) => const WalletScreen()),
+          GoRoute(path: '/wallet', builder: (_, _) => const WalletScreen()),
           // Vue Wallet filtrée sur un voyage (depuis le détail voyage). Réutilise
           // WalletScreen avec filterTripId pré-rempli — le filtre par voyage est
           // alors caché (déjà imposé par la route).
           GoRoute(
             path: '/trips/:id/documents',
-            builder: (_, state) => WalletScreen(filterTripId: state.pathParameters['id']!),
+            builder: (_, state) =>
+                WalletScreen(filterTripId: state.pathParameters['id']!),
           ),
-          GoRoute(path: '/assistant', builder: (_, __) => const AssistantScreen()),
-          GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
+          GoRoute(
+            path: '/assistant',
+            builder: (_, _) => const AssistantScreen(),
+          ),
+          GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),
         ],
+      ),
+      // Route debug interne — hors ShellRoute pour éviter le bottom nav.
+      // Gated par kDebugMode à l'appel site (ProfileScreen).
+      GoRoute(
+        path: '/debug/poi',
+        builder: (_, _) => const PoiDebugScreen(),
       ),
     ],
   );
@@ -130,7 +161,11 @@ class _NotFoundScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('🚧', style: TextStyle(fontSize: 64), textAlign: TextAlign.center),
+              const Text(
+                '🚧',
+                style: TextStyle(fontSize: 64),
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 20),
               const Text(
                 'Cette page n\'existe pas encore',
@@ -140,7 +175,11 @@ class _NotFoundScreen extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 'La route "$location" n\'est pas disponible pour l\'instant.',
-                style: const TextStyle(fontSize: 13, color: Colors.black54, height: 1.5),
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: Colors.black54,
+                  height: 1.5,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 32),

@@ -20,7 +20,9 @@ bool _looksLikeAddress(String s) {
   // Code postal 5 chiffres (FR/EU/US) — signal très fort qu'on a une adresse.
   if (RegExp(r'\b\d{5}\b').hasMatch(s)) return true;
   // Commence par un numéro suivi d'un mot (typique adresse "19 Rue X").
-  if (RegExp(r'^\d+[a-z]?\s+\w', caseSensitive: false).hasMatch(s.trim())) return true;
+  if (RegExp(r'^\d+[a-z]?\s+\w', caseSensitive: false).hasMatch(s.trim())) {
+    return true;
+  }
   return false;
 }
 
@@ -33,7 +35,9 @@ Future<void> openActivityDetailSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: AppColors.background,
-    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
     builder: (_) => _ActivityDetailSheet(activity: activity),
   );
 }
@@ -42,10 +46,28 @@ class _ActivityDetailSheet extends ConsumerWidget {
   final TripActivity activity;
   const _ActivityDetailSheet({required this.activity});
 
-  static const _weekdays = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+  static const _weekdays = [
+    'Lundi',
+    'Mardi',
+    'Mercredi',
+    'Jeudi',
+    'Vendredi',
+    'Samedi',
+    'Dimanche',
+  ];
   static const _months = [
-    'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
-    'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
+    'janvier',
+    'février',
+    'mars',
+    'avril',
+    'mai',
+    'juin',
+    'juillet',
+    'août',
+    'septembre',
+    'octobre',
+    'novembre',
+    'décembre',
   ];
 
   String _formattedDate() {
@@ -63,7 +85,10 @@ class _ActivityDetailSheet extends ConsumerWidget {
           'Elle se reverrouillera automatiquement à la prochaine ouverture de l\'app.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogCtx, false), child: const Text('Annuler')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text('Annuler'),
+          ),
           ElevatedButton(
             onPressed: () => Navigator.pop(dialogCtx, true),
             child: const Text('Déverrouiller'),
@@ -72,7 +97,9 @@ class _ActivityDetailSheet extends ConsumerWidget {
       ),
     );
     if (confirmed == true) {
-      ref.read(unlockedPastActivitiesProvider.notifier).update((set) => {...set, activity.id});
+      ref
+          .read(unlockedPastActivitiesProvider.notifier)
+          .update((set) => {...set, activity.id});
     }
   }
 
@@ -80,22 +107,33 @@ class _ActivityDetailSheet extends ConsumerWidget {
     // Priorité : place_id (pin exact) > coordonnées (pin sur lat/lng) > texte fuzzy.
     // Le texte fuzzy seul donne une liste de résultats quand le titre est verbeux
     // (ex. "Dîner au restaurant O P'tit Bonheur" → page de résultats au lieu de la fiche).
-    final placeId = ref.read(activityPlaceInfoProvider(activity)).valueOrNull?.placeId;
+    final placeId = ref
+        .read(activityPlaceInfoProvider(activity))
+        .valueOrNull
+        ?.placeId;
     final isHebergement = activity.tag == 'Hébergement';
     final String uri;
     if (placeId != null && placeId.isNotEmpty) {
-      final label = Uri.encodeComponent(activity.detail?.isNotEmpty == true ? activity.detail! : activity.title);
-      uri = 'https://www.google.com/maps/search/?api=1&query=$label&query_place_id=$placeId';
+      final label = Uri.encodeComponent(
+        activity.detail?.isNotEmpty == true ? activity.detail! : activity.title,
+      );
+      uri =
+          'https://www.google.com/maps/search/?api=1&query=$label&query_place_id=$placeId';
     } else if (activity.hasCoordinates) {
-      uri = 'https://www.google.com/maps/search/?api=1&query=${activity.latitude},${activity.longitude}';
-    } else if (isHebergement && activity.detail != null && activity.detail!.isNotEmpty) {
+      uri =
+          'https://www.google.com/maps/search/?api=1&query=${activity.latitude},${activity.longitude}';
+    } else if (isHebergement &&
+        activity.detail != null &&
+        activity.detail!.isNotEmpty) {
       // Pour un hébergement, utiliser UNIQUEMENT l'adresse. Le titre contient souvent
       // l'emoji 🏨 + préfixe "Arrivée · " ou "Départ · " qui brouille la recherche Maps
       // et peut faire freezer l'app Google Maps.
       final q = Uri.encodeComponent(activity.detail!);
       uri = 'https://www.google.com/maps/search/?api=1&query=$q';
     } else {
-      final q = Uri.encodeComponent('${activity.title} ${activity.detail ?? ''}'.trim());
+      final q = Uri.encodeComponent(
+        '${activity.title} ${activity.detail ?? ''}'.trim(),
+      );
       uri = 'https://www.google.com/maps/search/?api=1&query=$q';
     }
     final parsed = Uri.parse(uri);
@@ -109,22 +147,36 @@ class _ActivityDetailSheet extends ConsumerWidget {
     final placeInfoAsync = ref.watch(activityPlaceInfoProvider(activity));
     final photosAsync = placeInfoAsync.whenData((info) => info.photos);
     final descriptionAsync = ref.watch(activityDescriptionProvider(activity));
-    final locked = isActivityLocked(activity, ref.watch(unlockedPastActivitiesProvider));
+    final locked = isActivityLocked(
+      activity,
+      ref.watch(unlockedPastActivitiesProvider),
+    );
 
     // Rating : priorité au live fetch (Places), fallback sur la valeur persistée en DB.
     // Exception : pour les hébergements, on ignore AUSSI le cache DB — les notes stockées
     // sont issues d'un faux match Places (ex: "Maison LOU" → resto "Loulou"). Forcer null
     // masque la note même si elle avait été persistée avant le fix.
     final isHebergement = activity.tag == 'Hébergement';
-    final liveRating = isHebergement ? null : (placeInfoAsync.valueOrNull?.rating ?? activity.rating);
-    final liveRatingsCount = isHebergement ? null : (placeInfoAsync.valueOrNull?.ratingsCount ?? activity.ratingsCount);
+    final liveRating = isHebergement
+        ? null
+        : (placeInfoAsync.valueOrNull?.rating ?? activity.rating);
+    final liveRatingsCount = isHebergement
+        ? null
+        : (placeInfoAsync.valueOrNull?.ratingsCount ?? activity.ratingsCount);
 
     return SizedBox(
       height: MediaQuery.of(context).size.height * 0.88,
       child: Column(
         children: [
           const SizedBox(height: 10),
-          Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2))),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.border,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
           const SizedBox(height: 8),
           Expanded(
             child: SingleChildScrollView(
@@ -147,7 +199,11 @@ class _ActivityDetailSheet extends ConsumerWidget {
                             onTap: () => Navigator.of(context).pop(),
                             child: const Padding(
                               padding: EdgeInsets.all(6),
-                              child: Icon(Icons.close, color: Colors.white, size: 20),
+                              child: Icon(
+                                Icons.close,
+                                color: Colors.white,
+                                size: 20,
+                              ),
                             ),
                           ),
                         ),
@@ -164,9 +220,22 @@ class _ActivityDetailSheet extends ConsumerWidget {
                         Row(
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(color: AppColors.primaryLight, borderRadius: BorderRadius.circular(4)),
-                              child: Text(activity.tag, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.primary)),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryLight,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                activity.tag,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.primary,
+                                ),
+                              ),
                             ),
                             const Spacer(),
                             if (locked)
@@ -180,7 +249,11 @@ class _ActivityDetailSheet extends ConsumerWidget {
                               IconButton(
                                 onPressed: () async {
                                   Navigator.of(context).pop();
-                                  await openActivityEditSheet(context, ref, activity: activity);
+                                  await openActivityEditSheet(
+                                    context,
+                                    ref,
+                                    activity: activity,
+                                  );
                                 },
                                 icon: const Icon(Icons.edit_outlined),
                                 tooltip: 'Modifier',
@@ -191,7 +264,10 @@ class _ActivityDetailSheet extends ConsumerWidget {
                         if (locked) ...[
                           const SizedBox(height: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFFF3F4F6),
                               borderRadius: BorderRadius.circular(8),
@@ -199,12 +275,20 @@ class _ActivityDetailSheet extends ConsumerWidget {
                             ),
                             child: Row(
                               children: [
-                                Icon(Icons.lock_outline, size: 16, color: AppColors.textSecondary),
+                                Icon(
+                                  Icons.lock_outline,
+                                  size: 16,
+                                  color: AppColors.textSecondary,
+                                ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     'Activité passée verrouillée. Déverrouille-la pour la modifier ou la supprimer.',
-                                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.3),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textSecondary,
+                                      height: 1.3,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -212,10 +296,20 @@ class _ActivityDetailSheet extends ConsumerWidget {
                           ),
                         ],
                         const SizedBox(height: 6),
-                        Text(activity.title, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                        Text(
+                          activity.title,
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
                         if (liveRating != null) ...[
                           const SizedBox(height: 6),
-                          _StarsRow(rating: liveRating, count: liveRatingsCount),
+                          _StarsRow(
+                            rating: liveRating,
+                            count: liveRatingsCount,
+                          ),
                         ],
                         _OpeningStatusRow(activity: activity),
                         const SizedBox(height: 14),
@@ -224,20 +318,36 @@ class _ActivityDetailSheet extends ConsumerWidget {
                         _DescriptionSection(descriptionAsync: descriptionAsync),
 
                         // Infos clés
-                        _InfoTile(icon: Icons.calendar_today, text: _formattedDate()),
-                        _InfoTile(icon: Icons.access_time, text: '${activity.startTime}${activity.durationMinutes != null ? ' · ${formatDuration(activity.durationMinutes)}' : ''}'),
-                        if (activity.priceEstimate != null && activity.priceEstimate!.isNotEmpty)
+                        _InfoTile(
+                          icon: Icons.calendar_today,
+                          text: _formattedDate(),
+                        ),
+                        _InfoTile(
+                          icon: Icons.access_time,
+                          text:
+                              '${activity.startTime}${activity.durationMinutes != null ? ' · ${formatDuration(activity.durationMinutes)}' : ''}',
+                        ),
+                        if (activity.priceEstimate != null &&
+                            activity.priceEstimate!.isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(bottom: 10),
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Icon(Icons.euro_symbol, size: 18, color: AppColors.primary),
+                                Icon(
+                                  Icons.euro_symbol,
+                                  size: 18,
+                                  color: AppColors.primary,
+                                ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: ConvertedPriceText(
                                     rawPrice: activity.priceEstimate,
-                                    style: TextStyle(fontSize: 14, color: AppColors.textPrimary, height: 1.4),
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: AppColors.textPrimary,
+                                      height: 1.4,
+                                    ),
                                     maxLines: 2,
                                   ),
                                 ),
@@ -247,30 +357,40 @@ class _ActivityDetailSheet extends ConsumerWidget {
                         // Adresse formatée Google Places (quand un lieu précis est matché).
                         // Priorité sur activity.detail qui est souvent une description Gemini
                         // vague ("Centre de bien-être local...") plutôt qu'une vraie adresse.
-                        Builder(builder: (_) {
-                          final placesAddr = !isHebergement
-                              ? placeInfoAsync.valueOrNull?.address
-                              : null;
-                          final hasPlacesAddr = placesAddr != null && placesAddr.isNotEmpty;
-                          final detail = activity.detail;
-                          // On supprime le detail Gemini quand il fait doublon avec
-                          // l'adresse Places (typique : Gemini a halluciné une adresse
-                          // bidon en parallèle de Places qui pointe vers un autre lieu).
-                          // Si le detail est une description (pas une adresse), on le garde.
-                          final showDetail = detail != null &&
-                              detail.isNotEmpty &&
-                              !(hasPlacesAddr && _looksLikeAddress(detail));
-                          return Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (hasPlacesAddr)
-                                _InfoTile(icon: Icons.place_outlined, text: placesAddr),
-                              if (showDetail)
-                                _InfoTile(icon: Icons.info_outline, text: detail),
-                            ],
-                          );
-                        }),
+                        Builder(
+                          builder: (_) {
+                            final placesAddr = !isHebergement
+                                ? placeInfoAsync.valueOrNull?.address
+                                : null;
+                            final hasPlacesAddr =
+                                placesAddr != null && placesAddr.isNotEmpty;
+                            final detail = activity.detail;
+                            // On supprime le detail Gemini quand il fait doublon avec
+                            // l'adresse Places (typique : Gemini a halluciné une adresse
+                            // bidon en parallèle de Places qui pointe vers un autre lieu).
+                            // Si le detail est une description (pas une adresse), on le garde.
+                            final showDetail =
+                                detail != null &&
+                                detail.isNotEmpty &&
+                                !(hasPlacesAddr && _looksLikeAddress(detail));
+                            return Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (hasPlacesAddr)
+                                  _InfoTile(
+                                    icon: Icons.place_outlined,
+                                    text: placesAddr,
+                                  ),
+                                if (showDetail)
+                                  _InfoTile(
+                                    icon: Icons.info_outline,
+                                    text: detail,
+                                  ),
+                              ],
+                            );
+                          },
+                        ),
 
                         const SizedBox(height: 20),
 
@@ -283,49 +403,69 @@ class _ActivityDetailSheet extends ConsumerWidget {
                         // Actions — on ne montre "Voir sur Maps" / "Y aller" que si on a une
                         // cible exploitable (coords, placeId, ou adresse Places). Un `detail`
                         // purement descriptif ("Un bon petit déjeuner") fait planter Maps.
-                        Builder(builder: (_) {
-                          final placeId = placeInfoAsync.valueOrNull?.placeId;
-                          final placesAddress = placeInfoAsync.valueOrNull?.address;
-                          final hasMapsTarget = activity.hasCoordinates ||
-                              (placeId != null && placeId.isNotEmpty) ||
-                              (placesAddress != null && placesAddress.trim().isNotEmpty) ||
-                              (isHebergement && activity.detail != null && activity.detail!.trim().isNotEmpty);
-                          if (!hasMapsTarget) return const SizedBox.shrink();
-                          return Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: () => _openInMaps(context, ref),
-                                  icon: const Icon(Icons.place, size: 18),
-                                  label: const Text('Voir sur Maps'),
-                                  style: OutlinedButton.styleFrom(
-                                    minimumSize: const Size(0, 48),
-                                    foregroundColor: AppColors.primary,
-                                    side: BorderSide(color: AppColors.primary),
-                                  ),
-                                ),
-                              ),
-                              if (activity.hasCoordinates) ...[
-                                const SizedBox(width: 10),
+                        Builder(
+                          builder: (_) {
+                            final placeId = placeInfoAsync.valueOrNull?.placeId;
+                            final placesAddress =
+                                placeInfoAsync.valueOrNull?.address;
+                            final hasMapsTarget =
+                                activity.hasCoordinates ||
+                                (placeId != null && placeId.isNotEmpty) ||
+                                (placesAddress != null &&
+                                    placesAddress.trim().isNotEmpty) ||
+                                (isHebergement &&
+                                    activity.detail != null &&
+                                    activity.detail!.trim().isNotEmpty);
+                            if (!hasMapsTarget) return const SizedBox.shrink();
+                            return Row(
+                              children: [
                                 Expanded(
-                                  child: ElevatedButton.icon(
-                                    onPressed: () async {
-                                      final lat = activity.latitude!;
-                                      final lng = activity.longitude!;
-                                      final uri = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng');
-                                      if (await canLaunchUrl(uri)) {
-                                        await launchUrl(uri, mode: LaunchMode.externalApplication);
-                                      }
-                                    },
-                                    icon: const Icon(Icons.navigation, size: 18),
-                                    label: const Text('Y aller'),
-                                    style: ElevatedButton.styleFrom(minimumSize: const Size(0, 48)),
+                                  child: OutlinedButton.icon(
+                                    onPressed: () => _openInMaps(context, ref),
+                                    icon: const Icon(Icons.place, size: 18),
+                                    label: const Text('Voir sur Maps'),
+                                    style: OutlinedButton.styleFrom(
+                                      minimumSize: const Size(0, 48),
+                                      foregroundColor: AppColors.primary,
+                                      side: BorderSide(
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
                                   ),
                                 ),
+                                if (activity.hasCoordinates) ...[
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      onPressed: () async {
+                                        final lat = activity.latitude!;
+                                        final lng = activity.longitude!;
+                                        final uri = Uri.parse(
+                                          'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng',
+                                        );
+                                        if (await canLaunchUrl(uri)) {
+                                          await launchUrl(
+                                            uri,
+                                            mode:
+                                                LaunchMode.externalApplication,
+                                          );
+                                        }
+                                      },
+                                      icon: const Icon(
+                                        Icons.navigation,
+                                        size: 18,
+                                      ),
+                                      label: const Text('Y aller'),
+                                      style: ElevatedButton.styleFrom(
+                                        minimumSize: const Size(0, 48),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ],
-                            ],
-                          );
-                        }),
+                            );
+                          },
+                        ),
                         // Les alternatives sont du "forward-looking" : on les cache dès que
                         // l'activité a commencé (jour passé OU aujourd'hui avec startTime
                         // déjà dépassée). L'édition reste possible via le bouton Modifier
@@ -334,8 +474,14 @@ class _ActivityDetailSheet extends ConsumerWidget {
                           const SizedBox(height: 10),
                           OutlinedButton.icon(
                             onPressed: () async {
-                              final changed = await openAlternativesSheet(context, ref, current: activity);
-                              if (changed && context.mounted) Navigator.of(context).pop();
+                              final changed = await openAlternativesSheet(
+                                context,
+                                ref,
+                                current: activity,
+                              );
+                              if (changed && context.mounted) {
+                                Navigator.of(context).pop();
+                              }
                             },
                             icon: const Icon(Icons.autorenew, size: 18),
                             label: const Text('Voir des alternatives'),
@@ -379,7 +525,7 @@ class _PhotosSectionState extends State<_PhotosSection> {
           color: AppColors.primaryLight,
           child: const Center(child: CircularProgressIndicator()),
         ),
-        error: (_, __) => _emptyPlaceholder('Pas de photo disponible'),
+        error: (_, _) => _emptyPlaceholder('Pas de photo disponible'),
         data: (photos) {
           if (photos is! List || photos.isEmpty) {
             return _emptyPlaceholder('Pas de photo trouvée');
@@ -395,11 +541,12 @@ class _PhotosSectionState extends State<_PhotosSection> {
                     imageUrl: photo.url as String,
                     fit: BoxFit.cover,
                     width: double.infinity,
-                    placeholder: (_, __) => Container(
+                    placeholder: (_, _) => Container(
                       color: AppColors.primaryLight,
                       child: const Center(child: CircularProgressIndicator()),
                     ),
-                    errorWidget: (_, __, ___) => _emptyPlaceholder('Photo indisponible'),
+                    errorWidget: (_, _, _) =>
+                        _emptyPlaceholder('Photo indisponible'),
                   );
                 },
               ),
@@ -417,7 +564,9 @@ class _PhotosSectionState extends State<_PhotosSection> {
                           width: _currentPage == i ? 16 : 6,
                           height: 6,
                           decoration: BoxDecoration(
-                            color: _currentPage == i ? Colors.white : Colors.white.withValues(alpha: 0.5),
+                            color: _currentPage == i
+                                ? Colors.white
+                                : Colors.white.withValues(alpha: 0.5),
                             borderRadius: BorderRadius.circular(3),
                           ),
                         ),
@@ -439,7 +588,10 @@ class _PhotosSectionState extends State<_PhotosSection> {
         children: [
           Icon(Icons.image_outlined, size: 40, color: AppColors.textSecondary),
           const SizedBox(height: 8),
-          Text(label, style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+          Text(
+            label,
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          ),
         ],
       ),
     );
@@ -469,11 +621,18 @@ class _StarsRow extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           rating.toStringAsFixed(1),
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textPrimary,
+          ),
         ),
         if (count != null) ...[
           const SizedBox(width: 4),
-          Text('($count avis)', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+          Text(
+            '($count avis)',
+            style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+          ),
         ],
       ],
     );
@@ -491,18 +650,26 @@ class _DescriptionSection extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: 16),
         child: Row(
           children: [
-            SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
             SizedBox(width: 10),
             Expanded(
               child: Text(
                 'Rédaction de la description…',
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary, fontStyle: FontStyle.italic),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                  fontStyle: FontStyle.italic,
+                ),
               ),
             ),
           ],
         ),
       ),
-      error: (_, __) => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
       data: (description) => Padding(
         padding: const EdgeInsets.only(bottom: 16),
         child: Container(
@@ -513,7 +680,11 @@ class _DescriptionSection extends StatelessWidget {
           ),
           child: Text(
             description,
-            style: TextStyle(fontSize: 13, color: AppColors.textPrimary, height: 1.5),
+            style: TextStyle(
+              fontSize: 13,
+              color: AppColors.textPrimary,
+              height: 1.5,
+            ),
           ),
         ),
       ),
@@ -530,7 +701,7 @@ class _OpeningStatusRow extends ConsumerWidget {
     final hoursAsync = ref.watch(activityOpeningHoursProvider(activity));
     return hoursAsync.when(
       loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
       data: (hours) {
         if (hours == null || hours.weekdayText.isEmpty) {
           // Levée d'ambiguïté : sans cette pastille, le voyageur ne sait pas si
@@ -566,7 +737,9 @@ class _OpeningStatusRow extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: isOpen ? const Color(0xFFD1FAE5) : const Color(0xFFFEE2E2),
+                  color: isOpen
+                      ? const Color(0xFFD1FAE5)
+                      : const Color(0xFFFEE2E2),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
@@ -574,7 +747,9 @@ class _OpeningStatusRow extends ConsumerWidget {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: isOpen ? const Color(0xFF065F46) : const Color(0xFF991B1B),
+                    color: isOpen
+                        ? const Color(0xFF065F46)
+                        : const Color(0xFF991B1B),
                   ),
                 ),
               ),
@@ -583,7 +758,10 @@ class _OpeningStatusRow extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     todayText,
-                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -602,7 +780,14 @@ class _BookingSection extends StatelessWidget {
   const _BookingSection({required this.activity});
 
   // Catégories pour lesquelles une réservation via partenaire a du sens.
-  static const _bookableTags = {'Visite', 'Culture', 'Nightlife', 'Wellness', 'Sport', 'Nature'};
+  static const _bookableTags = {
+    'Visite',
+    'Culture',
+    'Nightlife',
+    'Wellness',
+    'Sport',
+    'Nature',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -624,9 +809,23 @@ class _BookingSection extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Réserver', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                  Text(
+                    'Réserver',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text('La réservation via partenaires (GetYourGuide, Viator) arrive bientôt.', style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.4)),
+                  Text(
+                    'La réservation via partenaires (GetYourGuide, Viator) arrive bientôt.',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                      height: 1.4,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -649,13 +848,26 @@ class _ReviewsSection extends ConsumerWidget {
         padding: const EdgeInsets.only(bottom: 16),
         child: Row(
           children: [
-            const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+            const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
             const SizedBox(width: 10),
-            Expanded(child: Text('Chargement des avis…', style: TextStyle(fontSize: 12, color: AppColors.textSecondary, fontStyle: FontStyle.italic))),
+            Expanded(
+              child: Text(
+                'Chargement des avis…',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
           ],
         ),
       ),
-      error: (_, __) => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
       data: (reviews) {
         if (reviews.isEmpty) return const SizedBox.shrink();
         final visible = reviews.take(3).toList();
@@ -668,7 +880,14 @@ class _ReviewsSection extends ConsumerWidget {
                 children: [
                   const Text('💬', style: TextStyle(fontSize: 16)),
                   const SizedBox(width: 8),
-                  Text('Avis Google (${reviews.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                  Text(
+                    'Avis Google (${reviews.length})',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 10),
@@ -676,11 +895,29 @@ class _ReviewsSection extends ConsumerWidget {
               if (activity.hasCoordinates)
                 TextButton(
                   onPressed: () async {
-                    final uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=${activity.latitude},${activity.longitude}');
-                    if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    final uri = Uri.parse(
+                      'https://www.google.com/maps/search/?api=1&query=${activity.latitude},${activity.longitude}',
+                    );
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(
+                        uri,
+                        mode: LaunchMode.externalApplication,
+                      );
+                    }
                   },
-                  style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                  child: Text('Voir tous les avis sur Google →', style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w600)),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    'Voir tous les avis sur Google →',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
             ],
           ),
@@ -712,7 +949,11 @@ class _ReviewCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   review.authorName,
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -731,11 +972,23 @@ class _ReviewCard extends StatelessWidget {
           ),
           if (review.relativeTime.isNotEmpty) ...[
             const SizedBox(height: 2),
-            Text(review.relativeTime, style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+            Text(
+              review.relativeTime,
+              style: TextStyle(fontSize: 10, color: AppColors.textSecondary),
+            ),
           ],
           if (review.text.isNotEmpty) ...[
             const SizedBox(height: 6),
-            Text(review.text, style: TextStyle(fontSize: 12, color: AppColors.textPrimary, height: 1.4), maxLines: 4, overflow: TextOverflow.ellipsis),
+            Text(
+              review.text,
+              style: TextStyle(
+                fontSize: 12,
+                color: AppColors.textPrimary,
+                height: 1.4,
+              ),
+              maxLines: 4,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ],
       ),
@@ -757,7 +1010,16 @@ class _InfoTile extends StatelessWidget {
         children: [
           Icon(icon, size: 18, color: AppColors.primary),
           const SizedBox(width: 12),
-          Expanded(child: Text(text, style: TextStyle(fontSize: 14, color: AppColors.textPrimary, height: 1.4))),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 14,
+                color: AppColors.textPrimary,
+                height: 1.4,
+              ),
+            ),
+          ),
         ],
       ),
     );

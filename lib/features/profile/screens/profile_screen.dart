@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -143,6 +144,16 @@ class ProfileScreen extends ConsumerWidget {
               if (context.mounted) context.go('/login');
             }),
           ]),
+          if (kDebugMode) ...[
+            const SizedBox(height: 16),
+            _section('DÉVELOPPEMENT', [
+              _tile(
+                context, '🔍', 'Debug POI',
+                'Inspecter la base de connaissances POI',
+                onTap: () => context.go('/debug/poi'),
+              ),
+            ]),
+          ],
         ],
       ),
     );

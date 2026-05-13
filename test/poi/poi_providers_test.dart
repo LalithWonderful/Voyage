@@ -52,10 +52,7 @@ PoiAlias _alias({
   );
 }
 
-PoiTag _tag({
-  required String poiId,
-  required String tag,
-}) {
+PoiTag _tag({required String poiId, required String tag}) {
   return PoiTag(
     tagId: 'tag-${tag.hashCode}-$poiId',
     poiId: poiId,
@@ -106,9 +103,7 @@ PoiRepository _singaporeRepo() {
 
 ProviderContainer _container(PoiRepository repo) {
   return ProviderContainer(
-    overrides: [
-      poiRepositoryProvider.overrideWithValue(repo),
-    ],
+    overrides: [poiRepositoryProvider.overrideWithValue(repo)],
   );
 }
 
@@ -118,25 +113,24 @@ void main() {
   // ═══════════════════════════════════════════════════════════════════
 
   group('poiRepositoryProvider default', () {
-    test('returns FakePoiRepository by default', () {
+    test('returns an offline repository by default', () {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
       final repo = container.read(poiRepositoryProvider);
-      expect(repo, isA<FakePoiRepository>());
+      expect(repo, isA<PoiRepository>());
     });
 
-    test('default repo returns empty results', () async {
+    test('default repo reads local MVP fixtures', () async {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
       final repo = container.read(poiRepositoryProvider);
+      expect(await repo.listPoisByDestination('paris'), hasLength(10));
+      expect(await repo.listPoisByDestination('lisbon'), hasLength(10));
       expect(await repo.listPoisByDestination('singapore'), isEmpty);
       expect(await repo.getPoiById('any'), isNull);
-      expect(
-        await repo.searchPois(destinationKey: 'singapore'),
-        isEmpty,
-      );
+      expect(await repo.searchPois(destinationKey: 'singapore'), isEmpty);
     });
   });
 
@@ -268,10 +262,7 @@ void main() {
       addTearDown(container.dispose);
 
       final pois = await container.read(
-        const PoiSearchParams(
-          destinationKey: 'singapore',
-          limit: 1,
-        ).future,
+        const PoiSearchParams(destinationKey: 'singapore', limit: 1).future,
       );
       expect(pois.length, equals(1));
     });

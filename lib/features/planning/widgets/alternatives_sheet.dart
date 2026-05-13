@@ -20,7 +20,9 @@ Future<bool> openAlternativesSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: AppColors.background,
-    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
     builder: (_) => _AlternativesSheet(current: current),
   );
   return result ?? false;
@@ -50,17 +52,23 @@ class _AlternativesSheetState extends ConsumerState<_AlternativesSheet> {
 
   Future<void> _load() async {
     try {
-      final trip = await ref.read(tripByIdProvider(widget.current.tripId).future);
+      final trip = await ref.read(
+        tripByIdProvider(widget.current.tripId).future,
+      );
       if (trip == null) throw Exception('Voyage introuvable.');
       final profile = await ref.read(userProfileProvider.future);
       final interests = await ref.read(userInterestsProvider.future);
-      final allActivities = await ref.read(tripActivitiesProvider(widget.current.tripId).future);
+      final allActivities = await ref.read(
+        tripActivitiesProvider(widget.current.tripId).future,
+      );
       final service = ref.read(aiSuggestionsServiceProvider);
       final alts = await service.suggestAlternatives(
         current: widget.current,
         trip: trip,
         travelerType: trip.travelerType ?? profile?['traveler_type'] as String?,
-        interests: (trip.interests != null && trip.interests!.isNotEmpty) ? trip.interests! : interests,
+        interests: (trip.interests != null && trip.interests!.isNotEmpty)
+            ? trip.interests!
+            : interests,
         allActivities: allActivities,
       );
       if (!mounted) return;
@@ -70,14 +78,22 @@ class _AlternativesSheetState extends ConsumerState<_AlternativesSheet> {
         _loading = false;
       });
     } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _loading = false;
+        });
+      }
     }
   }
 
   Future<PlaceInfo> _placeInfoFor(ActivitySuggestion alt) {
     return _placeCache.putIfAbsent(alt.title, () {
       final cache = ref.read(placesCacheServiceProvider);
-      return cache.findInfo(title: alt.title, destination: _trip?.destination ?? '');
+      return cache.findInfo(
+        title: alt.title,
+        destination: _trip?.destination ?? '',
+      );
     });
   }
 
@@ -85,23 +101,29 @@ class _AlternativesSheetState extends ConsumerState<_AlternativesSheet> {
     setState(() => _applying = true);
     try {
       final client = ref.read(supabaseProvider);
-      await client.from('trip_activities').update({
-        'title': alt.title,
-        'detail': alt.detail,
-        'tag': alt.tag,
-        'duration_minutes': alt.durationMinutes,
-        'price_estimate': alt.priceEstimate,
-        // reset des champs calculés : on laisse Gemini les régénérer plus tard
-        'description': null,
-        'latitude': null,
-        'longitude': null,
-      }).eq('id', widget.current.id);
+      await client
+          .from('trip_activities')
+          .update({
+            'title': alt.title,
+            'detail': alt.detail,
+            'tag': alt.tag,
+            'duration_minutes': alt.durationMinutes,
+            'price_estimate': alt.priceEstimate,
+            // reset des champs calculés : on laisse Gemini les régénérer plus tard
+            'description': null,
+            'latitude': null,
+            'longitude': null,
+          })
+          .eq('id', widget.current.id);
       ref.invalidate(tripActivitiesProvider(widget.current.tripId));
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur : $e'), backgroundColor: AppColors.error),
+          SnackBar(
+            content: Text('Erreur : $e'),
+            backgroundColor: AppColors.error,
+          ),
         );
       }
     } finally {
@@ -116,7 +138,14 @@ class _AlternativesSheetState extends ConsumerState<_AlternativesSheet> {
       child: Column(
         children: [
           const SizedBox(height: 10),
-          Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2))),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.border,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
           const SizedBox(height: 12),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -126,9 +155,24 @@ class _AlternativesSheetState extends ConsumerState<_AlternativesSheet> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('🔄 Alternatives IA', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      Text(
+                        '🔄 Alternatives IA',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
                       const SizedBox(height: 2),
-                      Text('Remplace "${widget.current.title}" par une autre option.', style: TextStyle(fontSize: 12, color: AppColors.textSecondary), maxLines: 2, overflow: TextOverflow.ellipsis),
+                      Text(
+                        'Remplace "${widget.current.title}" par une autre option.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ],
                   ),
                 ),
@@ -158,7 +202,10 @@ class _AlternativesSheetState extends ConsumerState<_AlternativesSheet> {
             SizedBox(height: 12),
             CircularProgressIndicator(strokeWidth: 2.5),
             SizedBox(height: 8),
-            Text('Je cherche des alternatives…', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+            Text(
+              'Je cherche des alternatives…',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
           ],
         ),
       );
@@ -166,7 +213,10 @@ class _AlternativesSheetState extends ConsumerState<_AlternativesSheet> {
     if (_error != null) {
       return Padding(
         padding: const EdgeInsets.all(20),
-        child: Text('Erreur : $_error', style: TextStyle(color: AppColors.error)),
+        child: Text(
+          'Erreur : $_error',
+          style: TextStyle(color: AppColors.error),
+        ),
       );
     }
     if (_alternatives.isEmpty) {
@@ -197,7 +247,12 @@ class _AlternativesSheetState extends ConsumerState<_AlternativesSheet> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Thumbnail
-                      _Thumbnail(photoUrl: info?.photos.isNotEmpty == true ? info!.photos.first.url : null, loading: loading),
+                      _Thumbnail(
+                        photoUrl: info?.photos.isNotEmpty == true
+                            ? info!.photos.first.url
+                            : null,
+                        loading: loading,
+                      ),
                       // Infos
                       Expanded(
                         child: Padding(
@@ -205,21 +260,53 @@ class _AlternativesSheetState extends ConsumerState<_AlternativesSheet> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(a.title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                              Text(
+                                a.title,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
                               if (a.detail != null && a.detail!.isNotEmpty) ...[
                                 const SizedBox(height: 2),
-                                Text(a.detail!, style: TextStyle(fontSize: 11, color: AppColors.textSecondary), maxLines: 2, overflow: TextOverflow.ellipsis),
+                                Text(
+                                  a.detail!,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ],
                               if (info?.rating != null) ...[
                                 const SizedBox(height: 4),
                                 Row(
                                   children: [
-                                    const Icon(Icons.star, size: 14, color: Color(0xFFF59E0B)),
+                                    const Icon(
+                                      Icons.star,
+                                      size: 14,
+                                      color: Color(0xFFF59E0B),
+                                    ),
                                     const SizedBox(width: 2),
-                                    Text(info!.rating!.toStringAsFixed(1), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                                    Text(
+                                      info!.rating!.toStringAsFixed(1),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                    ),
                                     if (info.ratingsCount != null) ...[
                                       const SizedBox(width: 4),
-                                      Text('(${info.ratingsCount} avis)', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                                      Text(
+                                        '(${info.ratingsCount} avis)',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
                                     ],
                                   ],
                                 ),
@@ -229,12 +316,30 @@ class _AlternativesSheetState extends ConsumerState<_AlternativesSheet> {
                                 spacing: 6,
                                 runSpacing: 4,
                                 children: [
-                                  _pill(a.tag, AppColors.primary, AppColors.primaryLight),
-                                  if (a.durationMinutes != null) _pill('⏱ ${formatDuration(a.durationMinutes)}', AppColors.textSecondary, const Color(0xFFF3F4F6)),
+                                  _pill(
+                                    a.tag,
+                                    AppColors.primary,
+                                    AppColors.primaryLight,
+                                  ),
+                                  if (a.durationMinutes != null)
+                                    _pill(
+                                      '⏱ ${formatDuration(a.durationMinutes)}',
+                                      AppColors.textSecondary,
+                                      const Color(0xFFF3F4F6),
+                                    ),
                                   if (info?.priceLevelLabel != null)
-                                    _pill(info!.priceLevelLabel!, AppColors.textSecondary, const Color(0xFFF3F4F6))
-                                  else if (a.priceEstimate != null && a.priceEstimate!.isNotEmpty)
-                                    ConvertedPricePill(rawPrice: a.priceEstimate, color: AppColors.textSecondary, bg: const Color(0xFFF3F4F6)),
+                                    _pill(
+                                      info!.priceLevelLabel!,
+                                      AppColors.textSecondary,
+                                      const Color(0xFFF3F4F6),
+                                    )
+                                  else if (a.priceEstimate != null &&
+                                      a.priceEstimate!.isNotEmpty)
+                                    ConvertedPricePill(
+                                      rawPrice: a.priceEstimate,
+                                      color: AppColors.textSecondary,
+                                      bg: const Color(0xFFF3F4F6),
+                                    ),
                                 ],
                               ),
                             ],
@@ -250,7 +355,14 @@ class _AlternativesSheetState extends ConsumerState<_AlternativesSheet> {
                       child: ElevatedButton(
                         onPressed: _applying ? null : () => _apply(a),
                         child: _applying
-                            ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            ? const SizedBox(
+                                height: 16,
+                                width: 16,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
                             : const Text('Remplacer par celle-ci'),
                       ),
                     ),
@@ -266,8 +378,14 @@ class _AlternativesSheetState extends ConsumerState<_AlternativesSheet> {
 
   Widget _pill(String label, Color color, Color bg) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-    decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(4)),
-    child: Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: color)),
+    decoration: BoxDecoration(
+      color: bg,
+      borderRadius: BorderRadius.circular(4),
+    ),
+    child: Text(
+      label,
+      style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: color),
+    ),
   );
 }
 
@@ -281,27 +399,36 @@ class _Thumbnail extends StatelessWidget {
     const size = 90.0;
     if (photoUrl != null) {
       return SizedBox(
-        width: size, height: size,
+        width: size,
+        height: size,
         child: CachedNetworkImage(
           imageUrl: photoUrl!,
           fit: BoxFit.cover,
-          placeholder: (_, __) => Container(color: AppColors.primaryLight),
-          errorWidget: (_, __, ___) => _fallback(),
+          placeholder: (_, _) => Container(color: AppColors.primaryLight),
+          errorWidget: (_, _, _) => _fallback(),
         ),
       );
     }
     if (loading) {
       return Container(
-        width: size, height: size,
+        width: size,
+        height: size,
         color: AppColors.primaryLight,
-        child: const Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))),
+        child: const Center(
+          child: SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
       );
     }
     return _fallback();
   }
 
   Widget _fallback() => Container(
-    width: 90, height: 90,
+    width: 90,
+    height: 90,
     color: const Color(0xFFF3F4F6),
     child: Icon(Icons.image_outlined, size: 28, color: AppColors.textSecondary),
   );
