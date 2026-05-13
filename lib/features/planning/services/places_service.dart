@@ -213,12 +213,28 @@ class PlacesService {
     String placeId,
     String kind,
   })>{
+    // Lisbon
     'lisbon': (description: 'Lisbonne, Portugal', mainText: 'Lisbonne', placeId: 'lunao:lisbon', kind: 'city'),
     'lisbonne': (description: 'Lisbonne, Portugal', mainText: 'Lisbonne', placeId: 'lunao:lisbon', kind: 'city'),
     'lisboa': (description: 'Lisbonne, Portugal', mainText: 'Lisbonne', placeId: 'lunao:lisbon', kind: 'city'),
     'lisbon portugal': (description: 'Lisbonne, Portugal', mainText: 'Lisbonne', placeId: 'lunao:lisbon', kind: 'city'),
     'lisbonne portugal': (description: 'Lisbonne, Portugal', mainText: 'Lisbonne', placeId: 'lunao:lisbon', kind: 'city'),
     'lisboa portugal': (description: 'Lisbonne, Portugal', mainText: 'Lisbonne', placeId: 'lunao:lisbon', kind: 'city'),
+    // Paris
+    'paris': (description: 'Paris, France', mainText: 'Paris', placeId: 'lunao:paris', kind: 'city'),
+    'paris france': (description: 'Paris, France', mainText: 'Paris', placeId: 'lunao:paris', kind: 'city'),
+    // Rome
+    'rome': (description: 'Rome, Italie', mainText: 'Rome', placeId: 'lunao:rome', kind: 'city'),
+    'roma': (description: 'Rome, Italie', mainText: 'Rome', placeId: 'lunao:rome', kind: 'city'),
+    'rome italy': (description: 'Rome, Italie', mainText: 'Rome', placeId: 'lunao:rome', kind: 'city'),
+    'rome italie': (description: 'Rome, Italie', mainText: 'Rome', placeId: 'lunao:rome', kind: 'city'),
+    'roma italia': (description: 'Rome, Italie', mainText: 'Rome', placeId: 'lunao:rome', kind: 'city'),
+    // Barcelona
+    'barcelona': (description: 'Barcelone, Espagne', mainText: 'Barcelone', placeId: 'lunao:barcelona', kind: 'city'),
+    'barcelone': (description: 'Barcelone, Espagne', mainText: 'Barcelone', placeId: 'lunao:barcelona', kind: 'city'),
+    'barca': (description: 'Barcelone, Espagne', mainText: 'Barcelone', placeId: 'lunao:barcelona', kind: 'city'),
+    'barcelona spain': (description: 'Barcelone, Espagne', mainText: 'Barcelone', placeId: 'lunao:barcelona', kind: 'city'),
+    'barcelona espagne': (description: 'Barcelone, Espagne', mainText: 'Barcelone', placeId: 'lunao:barcelona', kind: 'city'),
   };
 
   static const _lunaoCities = <String, ({
@@ -226,12 +242,28 @@ class PlacesService {
     String mainText,
     String placeId,
   })>{
+    // Lisbon
     'lisbon': (description: 'Lisbonne, Portugal', mainText: 'Lisbonne', placeId: 'lunao:lisbon'),
     'lisbonne': (description: 'Lisbonne, Portugal', mainText: 'Lisbonne', placeId: 'lunao:lisbon'),
     'lisboa': (description: 'Lisbonne, Portugal', mainText: 'Lisbonne', placeId: 'lunao:lisbon'),
     'lisbon portugal': (description: 'Lisbonne, Portugal', mainText: 'Lisbonne', placeId: 'lunao:lisbon'),
     'lisbonne portugal': (description: 'Lisbonne, Portugal', mainText: 'Lisbonne', placeId: 'lunao:lisbon'),
     'lisboa portugal': (description: 'Lisbonne, Portugal', mainText: 'Lisbonne', placeId: 'lunao:lisbon'),
+    // Paris
+    'paris': (description: 'Paris, France', mainText: 'Paris', placeId: 'lunao:paris'),
+    'paris france': (description: 'Paris, France', mainText: 'Paris', placeId: 'lunao:paris'),
+    // Rome
+    'rome': (description: 'Rome, Italie', mainText: 'Rome', placeId: 'lunao:rome'),
+    'roma': (description: 'Rome, Italie', mainText: 'Rome', placeId: 'lunao:rome'),
+    'rome italy': (description: 'Rome, Italie', mainText: 'Rome', placeId: 'lunao:rome'),
+    'rome italie': (description: 'Rome, Italie', mainText: 'Rome', placeId: 'lunao:rome'),
+    'roma italia': (description: 'Rome, Italie', mainText: 'Rome', placeId: 'lunao:rome'),
+    // Barcelona
+    'barcelona': (description: 'Barcelone, Espagne', mainText: 'Barcelone', placeId: 'lunao:barcelona'),
+    'barcelone': (description: 'Barcelone, Espagne', mainText: 'Barcelone', placeId: 'lunao:barcelona'),
+    'barca': (description: 'Barcelone, Espagne', mainText: 'Barcelone', placeId: 'lunao:barcelona'),
+    'barcelona spain': (description: 'Barcelone, Espagne', mainText: 'Barcelone', placeId: 'lunao:barcelona'),
+    'barcelona espagne': (description: 'Barcelone, Espagne', mainText: 'Barcelone', placeId: 'lunao:barcelona'),
   };
 
   static ({String description, String mainText, String placeId, String kind})?
@@ -1067,7 +1099,15 @@ class PlacesService {
   /// pour ne pas re-payer à chaque ouverture du dialog d'étape.
   Future<String?> getCountryCodeFromPlaceId(String placeId) async {
     // API-0.6b — Lunao synthetic placeIds carry embedded country codes.
-    if (placeId == 'lunao:lisbon') return 'pt';
+    // POI-2.2 — Multi-city pack: map city placeIds to country codes.
+    const lunaoCityCountryCodes = <String, String>{
+      'lunao:lisbon': 'pt',
+      'lunao:paris': 'fr',
+      'lunao:rome': 'it',
+      'lunao:barcelona': 'es',
+    };
+    final cityCode = lunaoCityCountryCodes[placeId];
+    if (cityCode != null) return cityCode;
     if (placeId.startsWith('lunao:country:')) {
       return placeId.substring('lunao:country:'.length).toLowerCase();
     }

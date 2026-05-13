@@ -17,9 +17,22 @@ void main() {
       expect(DestinationKeyMapper.map('Lisboa'), 'lisbon');
     });
 
+    test('maps paris/rome/barcelona aliases to their keys', () {
+      expect(DestinationKeyMapper.map('paris'), 'paris');
+      expect(DestinationKeyMapper.map('Paris'), 'paris');
+      expect(DestinationKeyMapper.map('paris france'), 'paris');
+      expect(DestinationKeyMapper.map('rome'), 'rome');
+      expect(DestinationKeyMapper.map('Rome'), 'rome');
+      expect(DestinationKeyMapper.map('roma'), 'rome');
+      expect(DestinationKeyMapper.map('rome italy'), 'rome');
+      expect(DestinationKeyMapper.map('barcelona'), 'barcelona');
+      expect(DestinationKeyMapper.map('Barcelona'), 'barcelona');
+      expect(DestinationKeyMapper.map('barcelone'), 'barcelona');
+      expect(DestinationKeyMapper.map('barca'), 'barcelona');
+    });
+
     test('returns null for unknown destinations', () {
       expect(DestinationKeyMapper.map('tokyo'), isNull);
-      expect(DestinationKeyMapper.map('paris'), isNull);
       expect(DestinationKeyMapper.map(''), isNull);
     });
   });

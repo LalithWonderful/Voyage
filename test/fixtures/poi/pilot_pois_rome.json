@@ -1,0 +1,1449 @@
+{
+  "_comment": "POI-2.2 — Pilot fixture Rome. ~25 high-quality POIs. Manually curated, no scraping. Coordinates approximate.",
+  "sources": [
+    {
+      "source_id": "e633b5b8-82d9-5518-9054-546b69245772",
+      "name": "Lunao Pilot Rome",
+      "source_type": "editorial",
+      "trust_level": 5,
+      "is_active": true
+    }
+  ],
+  "pois": [
+    {
+      "poi_id": "17047729-dbf4-5027-be2e-5abb28137cca",
+      "destination_key": "rome",
+      "name": "Colosseum",
+      "normalized_name": "colosseum",
+      "category": "monument",
+      "subcategory": "amphitheatre",
+      "lat": 41.8902,
+      "lng": 12.4922,
+      "address": "Piazza del Colosseo, 1, 00184 Roma RM",
+      "country_code": "IT",
+      "zone_name": "Colosseo",
+      "official_url": "https://www.colosseum.it",
+      "source_primary_id": "e633b5b8-82d9-5518-9054-546b69245772",
+      "editorial_score": 99,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Colosseum",
+          "alias_normalized": "colosseum",
+          "is_canonical": true
+        },
+        {
+          "alias": "Colosseo",
+          "alias_normalized": "colosseo",
+          "is_canonical": false
+        },
+        {
+          "alias": "Flavian Amphitheatre",
+          "alias_normalized": "flavian amphitheatre",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 100
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "unesco",
+          "tag_category": "vibe",
+          "confidence": 100
+        }
+      ]
+    },
+    {
+      "poi_id": "dbf9c972-f8a8-5637-bd22-bd0ff660b8e5",
+      "destination_key": "rome",
+      "name": "Vatican Museums",
+      "normalized_name": "vatican museums",
+      "category": "museum",
+      "subcategory": "art_museum",
+      "lat": 41.9029,
+      "lng": 12.4545,
+      "address": "Viale Vaticano, 00165 Roma RM",
+      "country_code": "IT",
+      "zone_name": "Vaticano",
+      "official_url": "https://www.museivaticani.va",
+      "source_primary_id": "e633b5b8-82d9-5518-9054-546b69245772",
+      "editorial_score": 97,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 180,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Vatican Museums",
+          "alias_normalized": "vatican museums",
+          "is_canonical": true
+        },
+        {
+          "alias": "Musei Vaticani",
+          "alias_normalized": "musei vaticani",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 100
+        },
+        {
+          "tag": "religious",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "renaissance",
+          "tag_category": "vibe",
+          "confidence": 95
+        }
+      ]
+    },
+    {
+      "poi_id": "415e6ea6-4da8-5209-98c6-ba9647c8a3cf",
+      "destination_key": "rome",
+      "name": "St. Peter's Basilica",
+      "normalized_name": "st. peter's basilica",
+      "category": "monument",
+      "subcategory": "basilica",
+      "lat": 41.9022,
+      "lng": 12.4539,
+      "address": "Piazza San Pietro, 00120 Città del Vaticano",
+      "country_code": "IT",
+      "zone_name": "Vaticano",
+      "official_url": "https://www.vatican.va",
+      "source_primary_id": "e633b5b8-82d9-5518-9054-546b69245772",
+      "editorial_score": 96,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "St. Peter's Basilica",
+          "alias_normalized": "st. peter's basilica",
+          "is_canonical": true
+        },
+        {
+          "alias": "Basilica di San Pietro",
+          "alias_normalized": "basilica di san pietro",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "religious",
+          "tag_category": "vibe",
+          "confidence": 100
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 98
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        },
+        {
+          "tag": "baroque",
+          "tag_category": "vibe",
+          "confidence": 95
+        }
+      ]
+    },
+    {
+      "poi_id": "81c7191d-e275-5433-9cc3-ad2482098153",
+      "destination_key": "rome",
+      "name": "Pantheon",
+      "normalized_name": "pantheon",
+      "category": "monument",
+      "subcategory": "temple",
+      "lat": 41.8986,
+      "lng": 12.4768,
+      "address": "Piazza della Rotonda, 00186 Roma RM",
+      "country_code": "IT",
+      "zone_name": "Centro Storico",
+      "official_url": "https://www.pantheonroma.com",
+      "source_primary_id": "e633b5b8-82d9-5518-9054-546b69245772",
+      "editorial_score": 95,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 45,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Pantheon",
+          "alias_normalized": "pantheon",
+          "is_canonical": true
+        },
+        {
+          "alias": "Pantheon Rome",
+          "alias_normalized": "pantheon rome",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 100
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "engineering",
+          "tag_category": "vibe",
+          "confidence": 90
+        }
+      ]
+    },
+    {
+      "poi_id": "42894235-d160-51d3-8a6f-5226062e8e0f",
+      "destination_key": "rome",
+      "name": "Trevi Fountain",
+      "normalized_name": "trevi fountain",
+      "category": "monument",
+      "subcategory": "fountain",
+      "lat": 41.9009,
+      "lng": 12.4833,
+      "address": "Piazza di Trevi, 00187 Roma RM",
+      "country_code": "IT",
+      "zone_name": "Trevi",
+      "official_url": null,
+      "source_primary_id": "e633b5b8-82d9-5518-9054-546b69245772",
+      "editorial_score": 93,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 30,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "Trevi Fountain",
+          "alias_normalized": "trevi fountain",
+          "is_canonical": true
+        },
+        {
+          "alias": "Fontana di Trevi",
+          "alias_normalized": "fontana di trevi",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "baroque",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "romantic",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "c9f64491-593a-5f2b-a985-f5dc5519a5c0",
+      "destination_key": "rome",
+      "name": "Roman Forum",
+      "normalized_name": "roman forum",
+      "category": "monument",
+      "subcategory": "archaeological_site",
+      "lat": 41.8925,
+      "lng": 12.4853,
+      "address": "Via della Salara Vecchia, 5/6, 00186 Roma RM",
+      "country_code": "IT",
+      "zone_name": "Foro Romano",
+      "official_url": "https://www.parcoarcheologiacolosseo.it",
+      "source_primary_id": "e633b5b8-82d9-5518-9054-546b69245772",
+      "editorial_score": 94,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Roman Forum",
+          "alias_normalized": "roman forum",
+          "is_canonical": true
+        },
+        {
+          "alias": "Foro Romano",
+          "alias_normalized": "foro romano",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 100
+        },
+        {
+          "tag": "archaeology",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "walking",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "83a60913-99af-5280-9d3a-66419c977895",
+      "destination_key": "rome",
+      "name": "Sistine Chapel",
+      "normalized_name": "sistine chapel",
+      "category": "museum",
+      "subcategory": "religious_art",
+      "lat": 41.9031,
+      "lng": 12.4545,
+      "address": "Viale Vaticano, 00165 Roma RM",
+      "country_code": "IT",
+      "zone_name": "Vaticano",
+      "official_url": "https://www.museivaticani.va",
+      "source_primary_id": "e633b5b8-82d9-5518-9054-546b69245772",
+      "editorial_score": 96,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 45,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Sistine Chapel",
+          "alias_normalized": "sistine chapel",
+          "is_canonical": true
+        },
+        {
+          "alias": "Cappella Sistina",
+          "alias_normalized": "cappella sistina",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 100
+        },
+        {
+          "tag": "michelangelo",
+          "tag_category": "vibe",
+          "confidence": 100
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "religious",
+          "tag_category": "vibe",
+          "confidence": 95
+        }
+      ]
+    },
+    {
+      "poi_id": "e510b02f-e75e-5e47-bce8-faff8ef7fd47",
+      "destination_key": "rome",
+      "name": "Spanish Steps",
+      "normalized_name": "spanish steps",
+      "category": "must_see",
+      "subcategory": "monumental_staircase",
+      "lat": 41.9058,
+      "lng": 12.4823,
+      "address": "Piazza di Spagna, 00187 Roma RM",
+      "country_code": "IT",
+      "zone_name": "Spagna",
+      "official_url": null,
+      "source_primary_id": "e633b5b8-82d9-5518-9054-546b69245772",
+      "editorial_score": 87,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 30,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "Spanish Steps",
+          "alias_normalized": "spanish steps",
+          "is_canonical": true
+        },
+        {
+          "alias": "Scalinata di Trinità dei Monti",
+          "alias_normalized": "scalinata di trinità dei monti",
+          "is_canonical": false
+        },
+        {
+          "alias": "Piazza di Spagna",
+          "alias_normalized": "piazza di spagna",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "baroque",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "romantic",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "shopping",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ]
+    },
+    {
+      "poi_id": "bd1ea3c9-3840-508f-8416-5e8e9f4b9ca3",
+      "destination_key": "rome",
+      "name": "Piazza Navona",
+      "normalized_name": "piazza navona",
+      "category": "must_see",
+      "subcategory": "historic_square",
+      "lat": 41.8991,
+      "lng": 12.4731,
+      "address": "Piazza Navona, 00186 Roma RM",
+      "country_code": "IT",
+      "zone_name": "Navona",
+      "official_url": null,
+      "source_primary_id": "e633b5b8-82d9-5518-9054-546b69245772",
+      "editorial_score": 88,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 45,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "Piazza Navona",
+          "alias_normalized": "piazza navona",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "baroque",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "open_space",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "street_artists",
+          "tag_category": "vibe",
+          "confidence": 75
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        }
+      ]
+    },
+    {
+      "poi_id": "b1ba5372-1ea2-57db-bb08-b36018d00d84",
+      "destination_key": "rome",
+      "name": "Castel Sant'Angelo",
+      "normalized_name": "castel sant'angelo",
+      "category": "monument",
+      "subcategory": "castle",
+      "lat": 41.9031,
+      "lng": 12.4665,
+      "address": "Lungotevere Castello, 50, 00193 Roma RM",
+      "country_code": "IT",
+      "zone_name": "Prati",
+      "official_url": "https://www.castelsantangelo.beniculturali.it",
+      "source_primary_id": "e633b5b8-82d9-5518-9054-546b69245772",
+      "editorial_score": 89,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Castel Sant'Angelo",
+          "alias_normalized": "castel sant'angelo",
+          "is_canonical": true
+        },
+        {
+          "alias": "Mausoleum of Hadrian",
+          "alias_normalized": "mausoleum of hadrian",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "44d21f93-90ff-5b4c-84d3-c271d485304c",
+      "destination_key": "rome",
+      "name": "Villa Borghese",
+      "normalized_name": "villa borghese",
+      "category": "park",
+      "subcategory": "urban_park",
+      "lat": 41.9119,
+      "lng": 12.4762,
+      "address": "Piazzale Napoleone I, 00197 Roma RM",
+      "country_code": "IT",
+      "zone_name": "Parioli",
+      "official_url": null,
+      "source_primary_id": "e633b5b8-82d9-5518-9054-546b69245772",
+      "editorial_score": 86,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 120,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "Villa Borghese",
+          "alias_normalized": "villa borghese",
+          "is_canonical": true
+        },
+        {
+          "alias": "Borghese Gardens",
+          "alias_normalized": "borghese gardens",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "relaxing",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "family",
+          "tag_category": "audience",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        }
+      ]
+    },
+    {
+      "poi_id": "3380e1d8-ec4b-567b-a9cc-051728310ed1",
+      "destination_key": "rome",
+      "name": "Galleria Borghese",
+      "normalized_name": "galleria borghese",
+      "category": "museum",
+      "subcategory": "art_museum",
+      "lat": 41.9142,
+      "lng": 12.4921,
+      "address": "Piazzale Scipione Borghese, 5, 00197 Roma RM",
+      "country_code": "IT",
+      "zone_name": "Parioli",
+      "official_url": "https://www.galleriaborghese.it",
+      "source_primary_id": "e633b5b8-82d9-5518-9054-546b69245772",
+      "editorial_score": 91,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Galleria Borghese",
+          "alias_normalized": "galleria borghese",
+          "is_canonical": true
+        },
+        {
+          "alias": "Borghese Gallery",
+          "alias_normalized": "borghese gallery",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "baroque",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "bernini",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ]
+    },
+    {
+      "poi_id": "fe4e1251-d40e-5860-a894-13eef18e29f1",
+      "destination_key": "rome",
+      "name": "Trastevere",
+      "normalized_name": "trastevere",
+      "category": "neighborhood",
+      "subcategory": "historic_quarter",
+      "lat": 41.8894,
+      "lng": 12.4667,
+      "address": "Trastevere, 00153 Roma RM",
+      "country_code": "IT",
+      "zone_name": "Trastevere",
+      "official_url": null,
+      "source_primary_id": "e633b5b8-82d9-5518-9054-546b69245772",
+      "editorial_score": 85,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 180,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "Trastevere",
+          "alias_normalized": "trastevere",
+          "is_canonical": true
+        },
+        {
+          "alias": "Rione Trastevere",
+          "alias_normalized": "rione trastevere",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "authentic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "nightlife",
+          "tag_category": "activity_type",
+          "confidence": 85
+        },
+        {
+          "tag": "local_cuisine",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "walking",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ]
+    },
+    {
+      "poi_id": "abe00690-e33f-5e1a-ab42-9ee880cf3b04",
+      "destination_key": "rome",
+      "name": "Campo de' Fiori",
+      "normalized_name": "campo de' fiori",
+      "category": "market",
+      "subcategory": "food_market",
+      "lat": 41.8956,
+      "lng": 12.4721,
+      "address": "Piazza Campo de' Fiori, 00186 Roma RM",
+      "country_code": "IT",
+      "zone_name": "Regola",
+      "official_url": null,
+      "source_primary_id": "e633b5b8-82d9-5518-9054-546b69245772",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 60,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "Campo de' Fiori",
+          "alias_normalized": "campo de' fiori",
+          "is_canonical": true
+        },
+        {
+          "alias": "Campo de Fiori",
+          "alias_normalized": "campo de fiori",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local_cuisine",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "market",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "ce68c187-e9b4-512c-89fc-3453c7e14fe5",
+      "destination_key": "rome",
+      "name": "Palatine Hill",
+      "normalized_name": "palatine hill",
+      "category": "monument",
+      "subcategory": "archaeological_site",
+      "lat": 41.8884,
+      "lng": 12.4873,
+      "address": "Via di San Gregorio, 30, 00186 Roma RM",
+      "country_code": "IT",
+      "zone_name": "Palatino",
+      "official_url": "https://www.parcoarcheologiacolosseo.it",
+      "source_primary_id": "e633b5b8-82d9-5518-9054-546b69245772",
+      "editorial_score": 88,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Palatine Hill",
+          "alias_normalized": "palatine hill",
+          "is_canonical": true
+        },
+        {
+          "alias": "Palatino",
+          "alias_normalized": "palatino",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "archaeology",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "8106b9c6-d8ee-5c87-ae71-847f798f379a",
+      "destination_key": "rome",
+      "name": "Capitoline Museums",
+      "normalized_name": "capitoline museums",
+      "category": "museum",
+      "subcategory": "art_museum",
+      "lat": 41.8929,
+      "lng": 12.4825,
+      "address": "Piazza del Campidoglio, 1, 00186 Roma RM",
+      "country_code": "IT",
+      "zone_name": "Campidoglio",
+      "official_url": "https://www.museicapitolini.org",
+      "source_primary_id": "e633b5b8-82d9-5518-9054-546b69245772",
+      "editorial_score": 87,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Capitoline Museums",
+          "alias_normalized": "capitoline museums",
+          "is_canonical": true
+        },
+        {
+          "alias": "Musei Capitolini",
+          "alias_normalized": "musei capitolini",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "ancient",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "sculpture",
+          "tag_category": "vibe",
+          "confidence": 90
+        }
+      ]
+    },
+    {
+      "poi_id": "d2e9d25a-3101-55b4-9c73-dba66180b012",
+      "destination_key": "rome",
+      "name": "Appian Way",
+      "normalized_name": "appian way",
+      "category": "local_experience",
+      "subcategory": "ancient_road",
+      "lat": 41.8436,
+      "lng": 12.5515,
+      "address": "Via Appia Antica, 00178 Roma RM",
+      "country_code": "IT",
+      "zone_name": "Appia Antica",
+      "official_url": "https://www.parcoappiaantica.it",
+      "source_primary_id": "e633b5b8-82d9-5518-9054-546b69245772",
+      "editorial_score": 83,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 180,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "Appian Way",
+          "alias_normalized": "appian way",
+          "is_canonical": true
+        },
+        {
+          "alias": "Via Appia Antica",
+          "alias_normalized": "via appia antica",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "walking",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "cycling",
+          "tag_category": "activity_type",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        }
+      ]
+    },
+    {
+      "poi_id": "cb478186-4086-5935-9c6c-53113c93665b",
+      "destination_key": "rome",
+      "name": "Basilica di Santa Maria Maggiore",
+      "normalized_name": "basilica di santa maria maggiore",
+      "category": "monument",
+      "subcategory": "basilica",
+      "lat": 41.8976,
+      "lng": 12.4984,
+      "address": "Piazza di S. Maria Maggiore, 00100 Roma RM",
+      "country_code": "IT",
+      "zone_name": "Esquilino",
+      "official_url": "https://www.vaticano.com",
+      "source_primary_id": "e633b5b8-82d9-5518-9054-546b69245772",
+      "editorial_score": 84,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 45,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Basilica di Santa Maria Maggiore",
+          "alias_normalized": "basilica di santa maria maggiore",
+          "is_canonical": true
+        },
+        {
+          "alias": "Santa Maria Maggiore",
+          "alias_normalized": "santa maria maggiore",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "religious",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "mosaic",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "24d66879-1318-5e96-b961-0bcbd50bfe1e",
+      "destination_key": "rome",
+      "name": "Piazza del Popolo",
+      "normalized_name": "piazza del popolo",
+      "category": "must_see",
+      "subcategory": "historic_square",
+      "lat": 41.9107,
+      "lng": 12.4763,
+      "address": "Piazza del Popolo, 00187 Roma RM",
+      "country_code": "IT",
+      "zone_name": "Flaminio",
+      "official_url": null,
+      "source_primary_id": "e633b5b8-82d9-5518-9054-546b69245772",
+      "editorial_score": 84,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 30,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "Piazza del Popolo",
+          "alias_normalized": "piazza del popolo",
+          "is_canonical": true
+        },
+        {
+          "alias": "People's Square",
+          "alias_normalized": "people's square",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "open_space",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "obelisk",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "cc4657c1-2df1-52d7-9685-099f8e2b3abf",
+      "destination_key": "rome",
+      "name": "Villa Farnesina",
+      "normalized_name": "villa farnesina",
+      "category": "museum",
+      "subcategory": "historic_villa",
+      "lat": 41.8941,
+      "lng": 12.4676,
+      "address": "Via della Scala, 23, 00153 Roma RM",
+      "country_code": "IT",
+      "zone_name": "Trastevere",
+      "official_url": "https://www.villafarnesina.it",
+      "source_primary_id": "e633b5b8-82d9-5518-9054-546b69245772",
+      "editorial_score": 79,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Villa Farnesina",
+          "alias_normalized": "villa farnesina",
+          "is_canonical": true
+        },
+        {
+          "alias": "Villa Farnesina Rome",
+          "alias_normalized": "villa farnesina rome",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "renaissance",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "gardens",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 75
+        }
+      ]
+    },
+    {
+      "poi_id": "a82b5349-e406-5f0f-b082-28124eb83aec",
+      "destination_key": "rome",
+      "name": "Catacombs of San Callisto",
+      "normalized_name": "catacombs of san callisto",
+      "category": "monument",
+      "subcategory": "catacomb",
+      "lat": 41.8588,
+      "lng": 12.5106,
+      "address": "Via Appia Antica, 110/126, 00179 Roma RM",
+      "country_code": "IT",
+      "zone_name": "Appio Latino",
+      "official_url": "https://www.catacombe.roma.it",
+      "source_primary_id": "e633b5b8-82d9-5518-9054-546b69245772",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Catacombs of San Callisto",
+          "alias_normalized": "catacombs of san callisto",
+          "is_canonical": true
+        },
+        {
+          "alias": "Catacombe di San Callisto",
+          "alias_normalized": "catacombe di san callisto",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "religious",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "underground",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "guided_tour",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ]
+    },
+    {
+      "poi_id": "02fee759-a5fc-5387-baec-f2a206082962",
+      "destination_key": "rome",
+      "name": "Gianicolo",
+      "normalized_name": "gianicolo",
+      "category": "viewpoint",
+      "subcategory": "panoramic_viewpoint",
+      "lat": 41.8947,
+      "lng": 12.4614,
+      "address": "Piazza Garibaldi, 00165 Roma RM",
+      "country_code": "IT",
+      "zone_name": "Trastevere",
+      "official_url": null,
+      "source_primary_id": "e633b5b8-82d9-5518-9054-546b69245772",
+      "editorial_score": 85,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 45,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "Gianicolo",
+          "alias_normalized": "gianicolo",
+          "is_canonical": true
+        },
+        {
+          "alias": "Janiculum Hill",
+          "alias_normalized": "janiculum hill",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "sunset",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ]
+    },
+    {
+      "poi_id": "d1593afc-b5c9-5085-8f40-e8b8b7cc44f9",
+      "destination_key": "rome",
+      "name": "Testaccio",
+      "normalized_name": "testaccio",
+      "category": "neighborhood",
+      "subcategory": "food_quarter",
+      "lat": 41.8756,
+      "lng": 12.4753,
+      "address": "Testaccio, 00153 Roma RM",
+      "country_code": "IT",
+      "zone_name": "Testaccio",
+      "official_url": null,
+      "source_primary_id": "e633b5b8-82d9-5518-9054-546b69245772",
+      "editorial_score": 80,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 120,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "Testaccio",
+          "alias_normalized": "testaccio",
+          "is_canonical": true
+        },
+        {
+          "alias": "Monte Testaccio",
+          "alias_normalized": "monte testaccio",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local_cuisine",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "nightlife",
+          "tag_category": "activity_type",
+          "confidence": 85
+        },
+        {
+          "tag": "authentic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "food",
+          "tag_category": "activity_type",
+          "confidence": 95
+        }
+      ]
+    },
+    {
+      "poi_id": "ba858e94-df07-5fb9-bc73-5386444b0c56",
+      "destination_key": "rome",
+      "name": "MAXXI Museum",
+      "normalized_name": "maxxi museum",
+      "category": "museum",
+      "subcategory": "contemporary_art_museum",
+      "lat": 41.9282,
+      "lng": 12.4665,
+      "address": "Via Guido Reni, 4A, 00196 Roma RM",
+      "country_code": "IT",
+      "zone_name": "Flaminio",
+      "official_url": "https://www.maxxi.art",
+      "source_primary_id": "e633b5b8-82d9-5518-9054-546b69245772",
+      "editorial_score": 81,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "MAXXI Museum",
+          "alias_normalized": "maxxi museum",
+          "is_canonical": true
+        },
+        {
+          "alias": "MAXXI",
+          "alias_normalized": "maxxi",
+          "is_canonical": false
+        },
+        {
+          "alias": "National Museum of 21st Century Arts",
+          "alias_normalized": "national museum of 21st century arts",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "contemporary_art",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "modern",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "5f9ed363-ca2e-56f5-8aeb-c9f0fa902c50",
+      "destination_key": "rome",
+      "name": "Baths of Caracalla",
+      "normalized_name": "baths of caracalla",
+      "category": "monument",
+      "subcategory": "ancient_baths",
+      "lat": 41.879,
+      "lng": 12.4926,
+      "address": "Viale delle Terme di Caracalla, 52, 00153 Roma RM",
+      "country_code": "IT",
+      "zone_name": "Celio",
+      "official_url": "https://www.coopculture.it",
+      "source_primary_id": "e633b5b8-82d9-5518-9054-546b69245772",
+      "editorial_score": 86,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Baths of Caracalla",
+          "alias_normalized": "baths of caracalla",
+          "is_canonical": true
+        },
+        {
+          "alias": "Terme di Caracalla",
+          "alias_normalized": "terme di caracalla",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "ancient",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 95
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1434 @@
+{
+  "_comment": "POI-2.2 — Pilot fixture Paris. ~25 high-quality POIs. Manually curated, no scraping. Coordinates approximate.",
+  "sources": [
+    {
+      "source_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+      "name": "Lunao Pilot Paris",
+      "source_type": "editorial",
+      "trust_level": 5,
+      "is_active": true
+    }
+  ],
+  "pois": [
+    {
+      "poi_id": "7b1a28f4-b143-5fae-b180-96a5bebe418b",
+      "destination_key": "paris",
+      "name": "Eiffel Tower",
+      "normalized_name": "eiffel tower",
+      "category": "monument",
+      "subcategory": "tower",
+      "lat": 48.8584,
+      "lng": 2.2945,
+      "address": "Champ de Mars, 5 Av. Anatole France, 75007 Paris",
+      "country_code": "FR",
+      "zone_name": "7th Arrondissement",
+      "official_url": "https://www.toureiffel.paris",
+      "source_primary_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+      "editorial_score": 98,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Eiffel Tower",
+          "alias_normalized": "eiffel tower",
+          "is_canonical": true
+        },
+        {
+          "alias": "Tour Eiffel",
+          "alias_normalized": "tour eiffel",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 98
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ]
+    },
+    {
+      "poi_id": "bf68af7e-846d-5833-83bc-907c4d5b0240",
+      "destination_key": "paris",
+      "name": "Louvre Museum",
+      "normalized_name": "louvre museum",
+      "category": "museum",
+      "subcategory": "art_museum",
+      "lat": 48.8606,
+      "lng": 2.3376,
+      "address": "Rue de Rivoli, 75001 Paris",
+      "country_code": "FR",
+      "zone_name": "1st Arrondissement",
+      "official_url": "https://www.louvre.fr",
+      "source_primary_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+      "editorial_score": 97,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 180,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Louvre Museum",
+          "alias_normalized": "louvre museum",
+          "is_canonical": true
+        },
+        {
+          "alias": "Musée du Louvre",
+          "alias_normalized": "musée du louvre",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 100
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "family",
+          "tag_category": "audience",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "79a3bd60-80ba-57ef-8af0-29db7394bfbb",
+      "destination_key": "paris",
+      "name": "Notre-Dame Cathedral",
+      "normalized_name": "notre-dame cathedral",
+      "category": "monument",
+      "subcategory": "cathedral",
+      "lat": 48.853,
+      "lng": 2.3499,
+      "address": "6 Parvis Notre-Dame – Pl. Jean-Paul II, 75004 Paris",
+      "country_code": "FR",
+      "zone_name": "Île de la Cité",
+      "official_url": "https://www.notredamedeparis.fr",
+      "source_primary_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+      "editorial_score": 96,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Notre-Dame Cathedral",
+          "alias_normalized": "notre-dame cathedral",
+          "is_canonical": true
+        },
+        {
+          "alias": "Cathédrale Notre-Dame de Paris",
+          "alias_normalized": "cathédrale notre-dame de paris",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 98
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "gothic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "c3b52b13-c0a8-573d-8020-b689923bd937",
+      "destination_key": "paris",
+      "name": "Sacré-Cœur",
+      "normalized_name": "sacré-cœur",
+      "category": "monument",
+      "subcategory": "basilica",
+      "lat": 48.8867,
+      "lng": 2.3431,
+      "address": "35 Rue du Chevalier de la Barre, 75018 Paris",
+      "country_code": "FR",
+      "zone_name": "Montmartre",
+      "official_url": "https://www.sacre-coeur-montmartre.com",
+      "source_primary_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+      "editorial_score": 92,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Sacré-Cœur",
+          "alias_normalized": "sacré-cœur",
+          "is_canonical": true
+        },
+        {
+          "alias": "Basilica of the Sacré-Cœur",
+          "alias_normalized": "basilica of the sacré-cœur",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 75
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ]
+    },
+    {
+      "poi_id": "70a03a89-79c0-5148-b101-f7b270c3397a",
+      "destination_key": "paris",
+      "name": "Musée d'Orsay",
+      "normalized_name": "musée d'orsay",
+      "category": "museum",
+      "subcategory": "art_museum",
+      "lat": 48.8599,
+      "lng": 2.3266,
+      "address": "1 Rue de la Légion d'Honneur, 75007 Paris",
+      "country_code": "FR",
+      "zone_name": "7th Arrondissement",
+      "official_url": "https://www.musee-orsay.fr",
+      "source_primary_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+      "editorial_score": 93,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 150,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Musée d'Orsay",
+          "alias_normalized": "musée d'orsay",
+          "is_canonical": true
+        },
+        {
+          "alias": "Orsay Museum",
+          "alias_normalized": "orsay museum",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 98
+        },
+        {
+          "tag": "impressionism",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "quiet",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "6d2ce2fe-08f8-5e67-89e6-4fffe06d1bef",
+      "destination_key": "paris",
+      "name": "Arc de Triomphe",
+      "normalized_name": "arc de triomphe",
+      "category": "monument",
+      "subcategory": "triumphal_arch",
+      "lat": 48.8738,
+      "lng": 2.295,
+      "address": "Pl. Charles de Gaulle, 75008 Paris",
+      "country_code": "FR",
+      "zone_name": "8th Arrondissement",
+      "official_url": "https://www.paris-arc-de-triomphe.fr",
+      "source_primary_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+      "editorial_score": 91,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Arc de Triomphe",
+          "alias_normalized": "arc de triomphe",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ]
+    },
+    {
+      "poi_id": "e6efaebc-8c2f-5f2d-a60f-06ca66695849",
+      "destination_key": "paris",
+      "name": "Jardin du Luxembourg",
+      "normalized_name": "jardin du luxembourg",
+      "category": "park",
+      "subcategory": "formal_garden",
+      "lat": 48.8462,
+      "lng": 2.3372,
+      "address": "75006 Paris",
+      "country_code": "FR",
+      "zone_name": "6th Arrondissement",
+      "official_url": "https://www.senat.fr/visite/jardin.html",
+      "source_primary_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+      "editorial_score": 89,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "Jardin du Luxembourg",
+          "alias_normalized": "jardin du luxembourg",
+          "is_canonical": true
+        },
+        {
+          "alias": "Luxembourg Gardens",
+          "alias_normalized": "luxembourg gardens",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "relaxing",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "family",
+          "tag_category": "audience",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        }
+      ]
+    },
+    {
+      "poi_id": "282f57c5-240f-5460-a4c8-21119e0756d4",
+      "destination_key": "paris",
+      "name": "Montmartre",
+      "normalized_name": "montmartre",
+      "category": "neighborhood",
+      "subcategory": "historic_quarter",
+      "lat": 48.8867,
+      "lng": 2.3431,
+      "address": "Montmartre, 75018 Paris",
+      "country_code": "FR",
+      "zone_name": "Montmartre",
+      "official_url": null,
+      "source_primary_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+      "editorial_score": 90,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 180,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "Montmartre",
+          "alias_normalized": "montmartre",
+          "is_canonical": true
+        },
+        {
+          "alias": "Butte Montmartre",
+          "alias_normalized": "butte montmartre",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "artistic",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "walking",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "b8eb1f31-ec4a-530b-b574-dfa3cfbdd070",
+      "destination_key": "paris",
+      "name": "Champs-Élysées",
+      "normalized_name": "champs-élysées",
+      "category": "neighborhood",
+      "subcategory": "avenue",
+      "lat": 48.8698,
+      "lng": 2.3209,
+      "address": "Av. des Champs-Élysées, 75008 Paris",
+      "country_code": "FR",
+      "zone_name": "8th Arrondissement",
+      "official_url": null,
+      "source_primary_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+      "editorial_score": 86,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 120,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "Champs-Élysées",
+          "alias_normalized": "champs-élysées",
+          "is_canonical": true
+        },
+        {
+          "alias": "Avenue des Champs-Élysées",
+          "alias_normalized": "avenue des champs-élysées",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "shopping",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "luxury",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "walking",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 70
+        }
+      ]
+    },
+    {
+      "poi_id": "81fe4e4d-b15e-52cf-b0b3-5ce56f24ca14",
+      "destination_key": "paris",
+      "name": "Père Lachaise Cemetery",
+      "normalized_name": "père lachaise cemetery",
+      "category": "monument",
+      "subcategory": "cemetery",
+      "lat": 48.8614,
+      "lng": 2.393,
+      "address": "16 Rue du Repos, 75020 Paris",
+      "country_code": "FR",
+      "zone_name": "20th Arrondissement",
+      "official_url": "https://www.pere-lachaise.com",
+      "source_primary_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+      "editorial_score": 85,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 120,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "Père Lachaise Cemetery",
+          "alias_normalized": "père lachaise cemetery",
+          "is_canonical": true
+        },
+        {
+          "alias": "Cimetière du Père-Lachaise",
+          "alias_normalized": "cimetière du père-lachaise",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "walking",
+          "tag_category": "activity_type",
+          "confidence": 85
+        },
+        {
+          "tag": "quiet",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 75
+        }
+      ]
+    },
+    {
+      "poi_id": "8ac0c348-452f-53d4-82ac-c7c4e401d6b8",
+      "destination_key": "paris",
+      "name": "Centre Pompidou",
+      "normalized_name": "centre pompidou",
+      "category": "museum",
+      "subcategory": "modern_art_museum",
+      "lat": 48.8606,
+      "lng": 2.3522,
+      "address": "Place Georges-Pompidou, 75004 Paris",
+      "country_code": "FR",
+      "zone_name": "4th Arrondissement",
+      "official_url": "https://www.centrepompidou.fr",
+      "source_primary_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+      "editorial_score": 88,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Centre Pompidou",
+          "alias_normalized": "centre pompidou",
+          "is_canonical": true
+        },
+        {
+          "alias": "Beaubourg",
+          "alias_normalized": "beaubourg",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "modern_art",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "rainy_day",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "17aeca6e-a067-5556-ba43-1a296efd6eb9",
+      "destination_key": "paris",
+      "name": "Sainte-Chapelle",
+      "normalized_name": "sainte-chapelle",
+      "category": "monument",
+      "subcategory": "chapel",
+      "lat": 48.8554,
+      "lng": 2.345,
+      "address": "8 Boulevard du Palais, 75001 Paris",
+      "country_code": "FR",
+      "zone_name": "Île de la Cité",
+      "official_url": "https://www.sainte-chapelle.fr",
+      "source_primary_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+      "editorial_score": 92,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 45,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Sainte-Chapelle",
+          "alias_normalized": "sainte-chapelle",
+          "is_canonical": true
+        },
+        {
+          "alias": "Holy Chapel",
+          "alias_normalized": "holy chapel",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "gothic",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "stained_glass",
+          "tag_category": "vibe",
+          "confidence": 98
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 95
+        }
+      ]
+    },
+    {
+      "poi_id": "888189a2-49fd-5a7c-af2e-f95ec691244c",
+      "destination_key": "paris",
+      "name": "Musée de l'Orangerie",
+      "normalized_name": "musée de l'orangerie",
+      "category": "museum",
+      "subcategory": "art_museum",
+      "lat": 48.8638,
+      "lng": 2.3227,
+      "address": "Jardin des Tuileries, 75001 Paris",
+      "country_code": "FR",
+      "zone_name": "1st Arrondissement",
+      "official_url": "https://www.musee-orangerie.fr",
+      "source_primary_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+      "editorial_score": 87,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Musée de l'Orangerie",
+          "alias_normalized": "musée de l'orangerie",
+          "is_canonical": true
+        },
+        {
+          "alias": "Orangerie Museum",
+          "alias_normalized": "orangerie museum",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "impressionism",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "quiet",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "c62ed47d-d7a0-58b8-b84e-6c4c7f8060ef",
+      "destination_key": "paris",
+      "name": "Les Invalides",
+      "normalized_name": "les invalides",
+      "category": "monument",
+      "subcategory": "historic_complex",
+      "lat": 48.8565,
+      "lng": 2.3128,
+      "address": "129 Rue de Grenelle, 75007 Paris",
+      "country_code": "FR",
+      "zone_name": "7th Arrondissement",
+      "official_url": "https://www.musee-armee.fr",
+      "source_primary_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+      "editorial_score": 86,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Les Invalides",
+          "alias_normalized": "les invalides",
+          "is_canonical": true
+        },
+        {
+          "alias": "Hôtel des Invalides",
+          "alias_normalized": "hôtel des invalides",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "military",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "c4952db5-94d2-56c0-b561-369aef653a00",
+      "destination_key": "paris",
+      "name": "Panthéon",
+      "normalized_name": "panthéon",
+      "category": "monument",
+      "subcategory": "mausoleum",
+      "lat": 48.8462,
+      "lng": 2.3458,
+      "address": "Pl. du Panthéon, 75005 Paris",
+      "country_code": "FR",
+      "zone_name": "5th Arrondissement",
+      "official_url": "https://www.paris-pantheon.fr",
+      "source_primary_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+      "editorial_score": 88,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Panthéon",
+          "alias_normalized": "panthéon",
+          "is_canonical": true
+        },
+        {
+          "alias": "Panthéon Paris",
+          "alias_normalized": "panthéon paris",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "necropolis",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ]
+    },
+    {
+      "poi_id": "197d9a23-decc-509c-9b9f-5d25063a9385",
+      "destination_key": "paris",
+      "name": "Place de la Concorde",
+      "normalized_name": "place de la concorde",
+      "category": "must_see",
+      "subcategory": "historic_square",
+      "lat": 48.8656,
+      "lng": 2.3212,
+      "address": "Pl. de la Concorde, 75008 Paris",
+      "country_code": "FR",
+      "zone_name": "8th Arrondissement",
+      "official_url": null,
+      "source_primary_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+      "editorial_score": 85,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 30,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "Place de la Concorde",
+          "alias_normalized": "place de la concorde",
+          "is_canonical": true
+        },
+        {
+          "alias": "Concorde Square",
+          "alias_normalized": "concorde square",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "open_space",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        }
+      ]
+    },
+    {
+      "poi_id": "144659fa-4f13-5ac2-92cb-d0acfef69407",
+      "destination_key": "paris",
+      "name": "Le Marais",
+      "normalized_name": "le marais",
+      "category": "neighborhood",
+      "subcategory": "historic_quarter",
+      "lat": 48.857,
+      "lng": 2.3585,
+      "address": "Le Marais, 75003-75004 Paris",
+      "country_code": "FR",
+      "zone_name": "3rd & 4th Arrondissement",
+      "official_url": null,
+      "source_primary_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+      "editorial_score": 87,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 180,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "Le Marais",
+          "alias_normalized": "le marais",
+          "is_canonical": true
+        },
+        {
+          "alias": "The Marais",
+          "alias_normalized": "the marais",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "shopping",
+          "tag_category": "activity_type",
+          "confidence": 85
+        },
+        {
+          "tag": "nightlife",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "lgbtq_friendly",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "dc0bcf98-83a9-5955-82f1-8eb947e87106",
+      "destination_key": "paris",
+      "name": "Marché Bastille",
+      "normalized_name": "marché bastille",
+      "category": "market",
+      "subcategory": "food_market",
+      "lat": 48.8531,
+      "lng": 2.3691,
+      "address": "Boulevard Richard Lenoir, 75011 Paris",
+      "country_code": "FR",
+      "zone_name": "11th Arrondissement",
+      "official_url": null,
+      "source_primary_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+      "editorial_score": 78,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 60,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "Marché Bastille",
+          "alias_normalized": "marché bastille",
+          "is_canonical": true
+        },
+        {
+          "alias": "Bastille Market",
+          "alias_normalized": "bastille market",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local_cuisine",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "food",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "walking",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "authentic",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "1a117fb0-8e54-5b0a-a356-f4fdf4174c35",
+      "destination_key": "paris",
+      "name": "Canal Saint-Martin",
+      "normalized_name": "canal saint-martin",
+      "category": "local_experience",
+      "subcategory": "waterway",
+      "lat": 48.8708,
+      "lng": 2.3664,
+      "address": "Canal Saint-Martin, 75010 Paris",
+      "country_code": "FR",
+      "zone_name": "10th Arrondissement",
+      "official_url": null,
+      "source_primary_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "Canal Saint-Martin",
+          "alias_normalized": "canal saint-martin",
+          "is_canonical": true
+        },
+        {
+          "alias": "Saint-Martin Canal",
+          "alias_normalized": "saint-martin canal",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "bohemian",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "walking",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "picnic",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "3eff29f3-9e56-587e-87f1-f1c08d32b2bc",
+      "destination_key": "paris",
+      "name": "Parc des Buttes-Chaumont",
+      "normalized_name": "parc des buttes-chaumont",
+      "category": "park",
+      "subcategory": "landscape_park",
+      "lat": 48.8809,
+      "lng": 2.3828,
+      "address": "1 Rue Botzaris, 75019 Paris",
+      "country_code": "FR",
+      "zone_name": "19th Arrondissement",
+      "official_url": null,
+      "source_primary_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+      "editorial_score": 81,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "Parc des Buttes-Chaumont",
+          "alias_normalized": "parc des buttes-chaumont",
+          "is_canonical": true
+        },
+        {
+          "alias": "Buttes-Chaumont Park",
+          "alias_normalized": "buttes-chaumont park",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "hills",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "family",
+          "tag_category": "audience",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ]
+    },
+    {
+      "poi_id": "9a3fa12e-8491-5c99-9d5a-41ffd5b0131d",
+      "destination_key": "paris",
+      "name": "Shakespeare and Company",
+      "normalized_name": "shakespeare and company",
+      "category": "local_experience",
+      "subcategory": "bookstore",
+      "lat": 48.8526,
+      "lng": 2.3471,
+      "address": "37 Rue de la Bûcherie, 75005 Paris",
+      "country_code": "FR",
+      "zone_name": "5th Arrondissement",
+      "official_url": "https://shakespeareandcompany.com",
+      "source_primary_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+      "editorial_score": 79,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 45,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "Shakespeare and Company",
+          "alias_normalized": "shakespeare and company",
+          "is_canonical": true
+        },
+        {
+          "alias": "Shakespeare & Co",
+          "alias_normalized": "shakespeare & co",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "literary",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "quiet",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "ee23543f-3e98-5aaf-a8ef-3c2f60e4daa8",
+      "destination_key": "paris",
+      "name": "Musée Rodin",
+      "normalized_name": "musée rodin",
+      "category": "museum",
+      "subcategory": "sculpture_museum",
+      "lat": 48.8553,
+      "lng": 2.3158,
+      "address": "77 Rue de Varenne, 75007 Paris",
+      "country_code": "FR",
+      "zone_name": "7th Arrondissement",
+      "official_url": "https://www.musee-rodin.fr",
+      "source_primary_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+      "editorial_score": 86,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Musée Rodin",
+          "alias_normalized": "musée rodin",
+          "is_canonical": true
+        },
+        {
+          "alias": "Rodin Museum",
+          "alias_normalized": "rodin museum",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "sculpture",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "gardens",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 75
+        }
+      ]
+    },
+    {
+      "poi_id": "401290f1-0914-5107-87f7-6c57aa299e76",
+      "destination_key": "paris",
+      "name": "Galeries Lafayette",
+      "normalized_name": "galeries lafayette",
+      "category": "shopping",
+      "subcategory": "department_store",
+      "lat": 48.8733,
+      "lng": 2.3326,
+      "address": "40 Boulevard Haussmann, 75009 Paris",
+      "country_code": "FR",
+      "zone_name": "9th Arrondissement",
+      "official_url": "https://haussmann.galerieslafayette.com",
+      "source_primary_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+      "editorial_score": 80,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 60,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "Galeries Lafayette",
+          "alias_normalized": "galeries lafayette",
+          "is_canonical": true
+        },
+        {
+          "alias": "Galeries Lafayette Haussmann",
+          "alias_normalized": "galeries lafayette haussmann",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "shopping",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "luxury",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ]
+    },
+    {
+      "poi_id": "9e085ad5-f6c1-5859-9881-3f2f202c0f66",
+      "destination_key": "paris",
+      "name": "Cité des Sciences et de l'Industrie",
+      "normalized_name": "cité des sciences et de l'industrie",
+      "category": "family",
+      "subcategory": "science_center",
+      "lat": 48.8956,
+      "lng": 2.3879,
+      "address": "30 Av. Corentin Cariou, 75019 Paris",
+      "country_code": "FR",
+      "zone_name": "19th Arrondissement",
+      "official_url": "https://www.cite-sciences.fr",
+      "source_primary_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+      "editorial_score": 83,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 150,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Cité des Sciences et de l'Industrie",
+          "alias_normalized": "cité des sciences et de l'industrie",
+          "is_canonical": true
+        },
+        {
+          "alias": "Cité des Sciences",
+          "alias_normalized": "cité des sciences",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "educational",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "family",
+          "tag_category": "audience",
+          "confidence": 100
+        },
+        {
+          "tag": "interactive",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        }
+      ]
+    },
+    {
+      "poi_id": "9b7ba820-4f14-5a26-9b4a-ae273c003458",
+      "destination_key": "paris",
+      "name": "Palais Garnier",
+      "normalized_name": "palais garnier",
+      "category": "monument",
+      "subcategory": "opera_house",
+      "lat": 48.872,
+      "lng": 2.3316,
+      "address": "Pl. de l'Opéra, 75009 Paris",
+      "country_code": "FR",
+      "zone_name": "9th Arrondissement",
+      "official_url": "https://www.operadeparis.fr",
+      "source_primary_id": "7a0ecea2-d1ce-53c5-b81f-35dcf96283d1",
+      "editorial_score": 89,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Palais Garnier",
+          "alias_normalized": "palais garnier",
+          "is_canonical": true
+        },
+        {
+          "alias": "Opéra Garnier",
+          "alias_normalized": "opéra garnier",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "baroque",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        },
+        {
+          "tag": "music",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ]
+    }
+  ]
+}

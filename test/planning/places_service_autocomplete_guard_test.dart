@@ -258,6 +258,92 @@ void main() {
       expect(code, 'fr');
     });
 
+    // ─── POI-2.2 — Multi-city pack tests ───
+
+    test('autocompleteDestinations returns Lunao Paris for "pari"', () async {
+      final results = await service.autocompleteDestinations('pari');
+      expect(results.length, 1);
+      expect(results.first.mainText, 'Paris');
+      expect(results.first.placeId, 'lunao:paris');
+      expect(results.first.kind, 'city');
+    });
+
+    test('autocompleteDestinations returns Lunao Paris for "paris"', () async {
+      final results = await service.autocompleteDestinations('paris');
+      expect(results.length, 1);
+      expect(results.first.mainText, 'Paris');
+      expect(results.first.placeId, 'lunao:paris');
+      expect(results.first.kind, 'city');
+    });
+
+    test('autocompleteDestinations returns Lunao Rome for "rome"', () async {
+      final results = await service.autocompleteDestinations('rome');
+      expect(results.length, 1);
+      expect(results.first.mainText, 'Rome');
+      expect(results.first.placeId, 'lunao:rome');
+      expect(results.first.kind, 'city');
+    });
+
+    test('autocompleteDestinations returns Lunao Rome for "roma"', () async {
+      final results = await service.autocompleteDestinations('roma');
+      expect(results.length, 1);
+      expect(results.first.mainText, 'Rome');
+      expect(results.first.placeId, 'lunao:rome');
+      expect(results.first.kind, 'city');
+    });
+
+    test('autocompleteDestinations returns Lunao Barcelona for "barc"', () async {
+      final results = await service.autocompleteDestinations('barc');
+      expect(results.length, 1);
+      expect(results.first.mainText, 'Barcelone');
+      expect(results.first.placeId, 'lunao:barcelona');
+      expect(results.first.kind, 'city');
+    });
+
+    test('autocompleteDestinations returns Lunao Barcelona for "barcelona"', () async {
+      final results = await service.autocompleteDestinations('barcelona');
+      expect(results.length, 1);
+      expect(results.first.mainText, 'Barcelone');
+      expect(results.first.placeId, 'lunao:barcelona');
+      expect(results.first.kind, 'city');
+    });
+
+    test('autocompleteCities returns Lunao Paris for "pari"', () async {
+      final results = await service.autocompleteCities('pari');
+      expect(results.length, 1);
+      expect(results.first.mainText, 'Paris');
+      expect(results.first.placeId, 'lunao:paris');
+    });
+
+    test('autocompleteCities returns Lunao Rome for "rome"', () async {
+      final results = await service.autocompleteCities('rome');
+      expect(results.length, 1);
+      expect(results.first.mainText, 'Rome');
+      expect(results.first.placeId, 'lunao:rome');
+    });
+
+    test('autocompleteCities returns Lunao Barcelona for "barc"', () async {
+      final results = await service.autocompleteCities('barc');
+      expect(results.length, 1);
+      expect(results.first.mainText, 'Barcelone');
+      expect(results.first.placeId, 'lunao:barcelona');
+    });
+
+    test('getCountryCodeFromPlaceId resolves lunao:paris locally', () async {
+      final code = await service.getCountryCodeFromPlaceId('lunao:paris');
+      expect(code, 'fr');
+    });
+
+    test('getCountryCodeFromPlaceId resolves lunao:rome locally', () async {
+      final code = await service.getCountryCodeFromPlaceId('lunao:rome');
+      expect(code, 'it');
+    });
+
+    test('getCountryCodeFromPlaceId resolves lunao:barcelona locally', () async {
+      final code = await service.getCountryCodeFromPlaceId('lunao:barcelona');
+      expect(code, 'es');
+    });
+
     test('getCountryCodeFromPlaceId returns null for unknown synthetic id', () async {
       final code = await service.getCountryCodeFromPlaceId('lunao:unknown');
       expect(code, isNull);

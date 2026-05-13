@@ -1,0 +1,1459 @@
+{
+  "_comment": "POI-2.2 — Pilot fixture Barcelona. ~25 high-quality POIs. Manually curated, no scraping. Coordinates approximate.",
+  "sources": [
+    {
+      "source_id": "53627054-221a-59d9-af11-0e7e7e59f0aa",
+      "name": "Lunao Pilot Barcelona",
+      "source_type": "editorial",
+      "trust_level": 5,
+      "is_active": true
+    }
+  ],
+  "pois": [
+    {
+      "poi_id": "d28e980d-1882-5f7b-8263-ea9d6f87e2bb",
+      "destination_key": "barcelona",
+      "name": "Sagrada Família",
+      "normalized_name": "sagrada família",
+      "category": "monument",
+      "subcategory": "basilica",
+      "lat": 41.4036,
+      "lng": 2.1744,
+      "address": "C/ de Mallorca, 401, 08013 Barcelona",
+      "country_code": "ES",
+      "zone_name": "Eixample",
+      "official_url": "https://www.sagradafamilia.org",
+      "source_primary_id": "53627054-221a-59d9-af11-0e7e7e59f0aa",
+      "editorial_score": 98,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Sagrada Família",
+          "alias_normalized": "sagrada família",
+          "is_canonical": true
+        },
+        {
+          "alias": "Basílica de la Sagrada Família",
+          "alias_normalized": "basílica de la sagrada família",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "gaudi",
+          "tag_category": "vibe",
+          "confidence": 100
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 100
+        },
+        {
+          "tag": "unesco",
+          "tag_category": "vibe",
+          "confidence": 100
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "da74851e-f797-5170-a81a-3f10920feb43",
+      "destination_key": "barcelona",
+      "name": "Park Güell",
+      "normalized_name": "park güell",
+      "category": "park",
+      "subcategory": "gaudi_park",
+      "lat": 41.4145,
+      "lng": 2.1527,
+      "address": "08024 Barcelona",
+      "country_code": "ES",
+      "zone_name": "Gràcia",
+      "official_url": "https://www.parkguell.barcelona",
+      "source_primary_id": "53627054-221a-59d9-af11-0e7e7e59f0aa",
+      "editorial_score": 94,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Park Güell",
+          "alias_normalized": "park güell",
+          "is_canonical": true
+        },
+        {
+          "alias": "Parc Güell",
+          "alias_normalized": "parc güell",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "gaudi",
+          "tag_category": "vibe",
+          "confidence": 100
+        },
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ]
+    },
+    {
+      "poi_id": "c7e09bb1-27fe-5551-a757-2564866c2092",
+      "destination_key": "barcelona",
+      "name": "La Rambla",
+      "normalized_name": "la rambla",
+      "category": "neighborhood",
+      "subcategory": "pedestrian_street",
+      "lat": 41.3809,
+      "lng": 2.1732,
+      "address": "La Rambla, 08002 Barcelona",
+      "country_code": "ES",
+      "zone_name": "Ciutat Vella",
+      "official_url": null,
+      "source_primary_id": "53627054-221a-59d9-af11-0e7e7e59f0aa",
+      "editorial_score": 85,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 60,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "La Rambla",
+          "alias_normalized": "la rambla",
+          "is_canonical": true
+        },
+        {
+          "alias": "Las Ramblas",
+          "alias_normalized": "las ramblas",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "walking",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "street_performers",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "touristy",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ]
+    },
+    {
+      "poi_id": "d098b7f5-7b82-5c72-bb61-af9b2a8a5a5c",
+      "destination_key": "barcelona",
+      "name": "Casa Batlló",
+      "normalized_name": "casa batlló",
+      "category": "monument",
+      "subcategory": "modernist_building",
+      "lat": 41.3916,
+      "lng": 2.1649,
+      "address": "Passeig de Gràcia, 43, 08007 Barcelona",
+      "country_code": "ES",
+      "zone_name": "Eixample",
+      "official_url": "https://www.casabatllo.es",
+      "source_primary_id": "53627054-221a-59d9-af11-0e7e7e59f0aa",
+      "editorial_score": 92,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Casa Batlló",
+          "alias_normalized": "casa batlló",
+          "is_canonical": true
+        },
+        {
+          "alias": "House of Bones",
+          "alias_normalized": "house of bones",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "gaudi",
+          "tag_category": "vibe",
+          "confidence": 100
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "modernism",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "556e6eea-cf2c-5cfd-ace9-95530a9eee9f",
+      "destination_key": "barcelona",
+      "name": "La Boqueria",
+      "normalized_name": "la boqueria",
+      "category": "market",
+      "subcategory": "food_market",
+      "lat": 41.3818,
+      "lng": 2.1715,
+      "address": "La Rambla, 91, 08001 Barcelona",
+      "country_code": "ES",
+      "zone_name": "Ciutat Vella",
+      "official_url": "https://www.boqueria.barcelona",
+      "source_primary_id": "53627054-221a-59d9-af11-0e7e7e59f0aa",
+      "editorial_score": 87,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 60,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "La Boqueria",
+          "alias_normalized": "la boqueria",
+          "is_canonical": true
+        },
+        {
+          "alias": "Mercat de la Boqueria",
+          "alias_normalized": "mercat de la boqueria",
+          "is_canonical": false
+        },
+        {
+          "alias": "Mercat de Sant Josep",
+          "alias_normalized": "mercat de sant josep",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local_cuisine",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "market",
+          "tag_category": "activity_type",
+          "confidence": 100
+        },
+        {
+          "tag": "food",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "colorful",
+          "tag_category": "vibe",
+          "confidence": 90
+        }
+      ]
+    },
+    {
+      "poi_id": "75599bba-b2f3-56d6-8bbd-e51401b77e81",
+      "destination_key": "barcelona",
+      "name": "Camp Nou",
+      "normalized_name": "camp nou",
+      "category": "monument",
+      "subcategory": "stadium",
+      "lat": 41.3809,
+      "lng": 2.1228,
+      "address": "C. d'Arístides Maillol, 12, 08028 Barcelona",
+      "country_code": "ES",
+      "zone_name": "Les Corts",
+      "official_url": "https://www.fcbarcelona.com",
+      "source_primary_id": "53627054-221a-59d9-af11-0e7e7e59f0aa",
+      "editorial_score": 88,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Camp Nou",
+          "alias_normalized": "camp nou",
+          "is_canonical": true
+        },
+        {
+          "alias": "Spotify Camp Nou",
+          "alias_normalized": "spotify camp nou",
+          "is_canonical": false
+        },
+        {
+          "alias": "Estadi Camp Nou",
+          "alias_normalized": "estadi camp nou",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "sports",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "football",
+          "tag_category": "vibe",
+          "confidence": 100
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 60
+        },
+        {
+          "tag": "tour",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ]
+    },
+    {
+      "poi_id": "698599e0-f834-54e8-bf69-77aac7f968f0",
+      "destination_key": "barcelona",
+      "name": "Picasso Museum",
+      "normalized_name": "picasso museum",
+      "category": "museum",
+      "subcategory": "art_museum",
+      "lat": 41.3852,
+      "lng": 2.1809,
+      "address": "Carrer de Montcada, 15-23, 08003 Barcelona",
+      "country_code": "ES",
+      "zone_name": "Ciutat Vella",
+      "official_url": "https://www.bcn.cat/museupicasso",
+      "source_primary_id": "53627054-221a-59d9-af11-0e7e7e59f0aa",
+      "editorial_score": 87,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Picasso Museum",
+          "alias_normalized": "picasso museum",
+          "is_canonical": true
+        },
+        {
+          "alias": "Museu Picasso",
+          "alias_normalized": "museu picasso",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "picasso",
+          "tag_category": "vibe",
+          "confidence": 100
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "quiet",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "a66819fb-12cb-58e2-9226-42cff9ee88b1",
+      "destination_key": "barcelona",
+      "name": "Gothic Quarter",
+      "normalized_name": "gothic quarter",
+      "category": "neighborhood",
+      "subcategory": "historic_quarter",
+      "lat": 41.3833,
+      "lng": 2.1761,
+      "address": "Gothic Quarter, 08002 Barcelona",
+      "country_code": "ES",
+      "zone_name": "Ciutat Vella",
+      "official_url": null,
+      "source_primary_id": "53627054-221a-59d9-af11-0e7e7e59f0aa",
+      "editorial_score": 86,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 150,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "Gothic Quarter",
+          "alias_normalized": "gothic quarter",
+          "is_canonical": true
+        },
+        {
+          "alias": "Barri Gòtic",
+          "alias_normalized": "barri gòtic",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "medieval",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "walking",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "cathedral",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "e00f8171-cf98-55ed-bb65-b93c02eba610",
+      "destination_key": "barcelona",
+      "name": "Montjuïc",
+      "normalized_name": "montjuïc",
+      "category": "viewpoint",
+      "subcategory": "urban_mountain",
+      "lat": 41.3644,
+      "lng": 2.158,
+      "address": "Montjuïc, 08038 Barcelona",
+      "country_code": "ES",
+      "zone_name": "Sants-Montjuïc",
+      "official_url": null,
+      "source_primary_id": "53627054-221a-59d9-af11-0e7e7e59f0aa",
+      "editorial_score": 88,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 180,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "Montjuïc",
+          "alias_normalized": "montjuïc",
+          "is_canonical": true
+        },
+        {
+          "alias": "Montjuic",
+          "alias_normalized": "montjuic",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "castle",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "5360b670-7cbb-5292-b0ac-d66ae9622d3c",
+      "destination_key": "barcelona",
+      "name": "Casa Milà",
+      "normalized_name": "casa milà",
+      "category": "monument",
+      "subcategory": "modernist_building",
+      "lat": 41.3952,
+      "lng": 2.1619,
+      "address": "Passeig de Gràcia, 92, 08008 Barcelona",
+      "country_code": "ES",
+      "zone_name": "Eixample",
+      "official_url": "https://www.lapedrera.com",
+      "source_primary_id": "53627054-221a-59d9-af11-0e7e7e59f0aa",
+      "editorial_score": 91,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 75,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Casa Milà",
+          "alias_normalized": "casa milà",
+          "is_canonical": true
+        },
+        {
+          "alias": "La Pedrera",
+          "alias_normalized": "la pedrera",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "gaudi",
+          "tag_category": "vibe",
+          "confidence": 100
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "modernism",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "rooftop",
+          "tag_category": "vibe",
+          "confidence": 90
+        }
+      ]
+    },
+    {
+      "poi_id": "9bb4bb38-3822-50cc-a6ba-edae28ddf32d",
+      "destination_key": "barcelona",
+      "name": "Hospital de Sant Pau",
+      "normalized_name": "hospital de sant pau",
+      "category": "monument",
+      "subcategory": "modernist_complex",
+      "lat": 41.4137,
+      "lng": 2.1745,
+      "address": "Carrer de Sant Antoni Maria Claret, 167, 08025 Barcelona",
+      "country_code": "ES",
+      "zone_name": "Sant Martí",
+      "official_url": "https://www.santpaubarcelona.org",
+      "source_primary_id": "53627054-221a-59d9-af11-0e7e7e59f0aa",
+      "editorial_score": 84,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Hospital de Sant Pau",
+          "alias_normalized": "hospital de sant pau",
+          "is_canonical": true
+        },
+        {
+          "alias": "Recinte Modernista de Sant Pau",
+          "alias_normalized": "recinte modernista de sant pau",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "modernism",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "unesco",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 75
+        }
+      ]
+    },
+    {
+      "poi_id": "10310178-3701-5c39-8921-8135d2271b01",
+      "destination_key": "barcelona",
+      "name": "Palau de la Música Catalana",
+      "normalized_name": "palau de la música catalana",
+      "category": "monument",
+      "subcategory": "concert_hall",
+      "lat": 41.3876,
+      "lng": 2.1754,
+      "address": "C/ Palau de la Música, 4-6, 08003 Barcelona",
+      "country_code": "ES",
+      "zone_name": "Ciutat Vella",
+      "official_url": "https://www.palaumusica.cat",
+      "source_primary_id": "53627054-221a-59d9-af11-0e7e7e59f0aa",
+      "editorial_score": 89,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Palau de la Música Catalana",
+          "alias_normalized": "palau de la música catalana",
+          "is_canonical": true
+        },
+        {
+          "alias": "Palau de la Música",
+          "alias_normalized": "palau de la música",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "modernism",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "music",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "c710ae61-448f-50ac-9cb0-613438619c86",
+      "destination_key": "barcelona",
+      "name": "Tibidabo",
+      "normalized_name": "tibidabo",
+      "category": "viewpoint",
+      "subcategory": "mountain_amusement",
+      "lat": 41.4225,
+      "lng": 2.1188,
+      "address": "Plaça del Tibidabo, 3-4, 08035 Barcelona",
+      "country_code": "ES",
+      "zone_name": "Sarrià-Sant Gervasi",
+      "official_url": "https://www.tibidabo.cat",
+      "source_primary_id": "53627054-221a-59d9-af11-0e7e7e59f0aa",
+      "editorial_score": 83,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 150,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Tibidabo",
+          "alias_normalized": "tibidabo",
+          "is_canonical": true
+        },
+        {
+          "alias": "Tibidabo Amusement Park",
+          "alias_normalized": "tibidabo amusement park",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "family",
+          "tag_category": "audience",
+          "confidence": 95
+        },
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "amusement_park",
+          "tag_category": "activity_type",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ]
+    },
+    {
+      "poi_id": "1b69ee2a-e78a-551a-889d-75fdcbb9fbce",
+      "destination_key": "barcelona",
+      "name": "Mercado de Sant Antoni",
+      "normalized_name": "mercado de sant antoni",
+      "category": "market",
+      "subcategory": "food_market",
+      "lat": 41.3796,
+      "lng": 2.1621,
+      "address": "Carrer del Comte d'Urgell, 1, 08011 Barcelona",
+      "country_code": "ES",
+      "zone_name": "Eixample",
+      "official_url": "https://www.mercatsantantoni.com",
+      "source_primary_id": "53627054-221a-59d9-af11-0e7e7e59f0aa",
+      "editorial_score": 78,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 60,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Mercado de Sant Antoni",
+          "alias_normalized": "mercado de sant antoni",
+          "is_canonical": true
+        },
+        {
+          "alias": "Mercat de Sant Antoni",
+          "alias_normalized": "mercat de sant antoni",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local_cuisine",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "market",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "authentic",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "food",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ]
+    },
+    {
+      "poi_id": "eb82c811-7697-540e-885e-6cf0c4da31e1",
+      "destination_key": "barcelona",
+      "name": "Barceloneta Beach",
+      "normalized_name": "barceloneta beach",
+      "category": "beach",
+      "subcategory": "urban_beach",
+      "lat": 41.3784,
+      "lng": 2.1925,
+      "address": "Barceloneta, 08003 Barcelona",
+      "country_code": "ES",
+      "zone_name": "Ciutat Vella",
+      "official_url": null,
+      "source_primary_id": "53627054-221a-59d9-af11-0e7e7e59f0aa",
+      "editorial_score": 80,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 120,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "Barceloneta Beach",
+          "alias_normalized": "barceloneta beach",
+          "is_canonical": true
+        },
+        {
+          "alias": "Platja de la Barceloneta",
+          "alias_normalized": "platja de la barceloneta",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "sea",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "sunbathing",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "swimming",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "463b416b-0a5b-5be3-a817-d3ab7eae8edb",
+      "destination_key": "barcelona",
+      "name": "Fundació Joan Miró",
+      "normalized_name": "fundació joan miró",
+      "category": "museum",
+      "subcategory": "art_museum",
+      "lat": 41.3686,
+      "lng": 2.1597,
+      "address": "Parc de Montjuïc, s/n, 08038 Barcelona",
+      "country_code": "ES",
+      "zone_name": "Sants-Montjuïc",
+      "official_url": "https://www.fmirobcn.org",
+      "source_primary_id": "53627054-221a-59d9-af11-0e7e7e59f0aa",
+      "editorial_score": 85,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Fundació Joan Miró",
+          "alias_normalized": "fundació joan miró",
+          "is_canonical": true
+        },
+        {
+          "alias": "Joan Miró Foundation",
+          "alias_normalized": "joan miró foundation",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "surrealism",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "quiet",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "8e896e46-bdc9-5ed2-9a6b-60418f4592db",
+      "destination_key": "barcelona",
+      "name": "El Born",
+      "normalized_name": "el born",
+      "category": "neighborhood",
+      "subcategory": "trendy_quarter",
+      "lat": 41.3847,
+      "lng": 2.1827,
+      "address": "El Born, 08003 Barcelona",
+      "country_code": "ES",
+      "zone_name": "Ciutat Vella",
+      "official_url": null,
+      "source_primary_id": "53627054-221a-59d9-af11-0e7e7e59f0aa",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 120,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "El Born",
+          "alias_normalized": "el born",
+          "is_canonical": true
+        },
+        {
+          "alias": "La Ribera",
+          "alias_normalized": "la ribera",
+          "is_canonical": false
+        },
+        {
+          "alias": "Born",
+          "alias_normalized": "born",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "trendy",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "nightlife",
+          "tag_category": "activity_type",
+          "confidence": 85
+        },
+        {
+          "tag": "shopping",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "tapas",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "4cbb9f3b-1dc0-5d01-b141-5dfcb24709a2",
+      "destination_key": "barcelona",
+      "name": "Gràcia",
+      "normalized_name": "gràcia",
+      "category": "neighborhood",
+      "subcategory": "village_quarter",
+      "lat": 41.3996,
+      "lng": 2.1577,
+      "address": "Gràcia, 08012 Barcelona",
+      "country_code": "ES",
+      "zone_name": "Gràcia",
+      "official_url": null,
+      "source_primary_id": "53627054-221a-59d9-af11-0e7e7e59f0aa",
+      "editorial_score": 79,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 120,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "Gràcia",
+          "alias_normalized": "gràcia",
+          "is_canonical": true
+        },
+        {
+          "alias": "Vila de Gràcia",
+          "alias_normalized": "vila de gràcia",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "bohemian",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "plazas",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "walking",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "98d1880f-78e9-5945-93de-b31df47a4634",
+      "destination_key": "barcelona",
+      "name": "Bunkers del Carmel",
+      "normalized_name": "bunkers del carmel",
+      "category": "viewpoint",
+      "subcategory": "urban_viewpoint",
+      "lat": 41.4206,
+      "lng": 2.1536,
+      "address": "Carrer de Marià Labèrnia, s/n, 08032 Barcelona",
+      "country_code": "ES",
+      "zone_name": "Horta-Guinardó",
+      "official_url": null,
+      "source_primary_id": "53627054-221a-59d9-af11-0e7e7e59f0aa",
+      "editorial_score": 84,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 45,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "Bunkers del Carmel",
+          "alias_normalized": "bunkers del carmel",
+          "is_canonical": true
+        },
+        {
+          "alias": "Bunkers of Carmel",
+          "alias_normalized": "bunkers of carmel",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "sunset",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ]
+    },
+    {
+      "poi_id": "217ae161-aafc-5341-95ce-7d15d3983e2c",
+      "destination_key": "barcelona",
+      "name": "MNAC",
+      "normalized_name": "mnac",
+      "category": "museum",
+      "subcategory": "national_museum",
+      "lat": 41.3688,
+      "lng": 2.1538,
+      "address": "Palau Nacional, Parc de Montjuïc, s/n, 08038 Barcelona",
+      "country_code": "ES",
+      "zone_name": "Sants-Montjuïc",
+      "official_url": "https://www.museunacional.cat",
+      "source_primary_id": "53627054-221a-59d9-af11-0e7e7e59f0aa",
+      "editorial_score": 86,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "MNAC",
+          "alias_normalized": "mnac",
+          "is_canonical": true
+        },
+        {
+          "alias": "Museu Nacional d'Art de Catalunya",
+          "alias_normalized": "museu nacional d'art de catalunya",
+          "is_canonical": false
+        },
+        {
+          "alias": "National Art Museum of Catalonia",
+          "alias_normalized": "national art museum of catalonia",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "romanesque",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "be29b221-bf59-52bc-a919-5c7c3aeab618",
+      "destination_key": "barcelona",
+      "name": "Poble Espanyol",
+      "normalized_name": "poble espanyol",
+      "category": "local_experience",
+      "subcategory": "architectural_village",
+      "lat": 41.3689,
+      "lng": 2.1486,
+      "address": "Av. Francesc Ferrer i Guàrdia, 13, 08038 Barcelona",
+      "country_code": "ES",
+      "zone_name": "Sants-Montjuïc",
+      "official_url": "https://www.poble-espanyol.com",
+      "source_primary_id": "53627054-221a-59d9-af11-0e7e7e59f0aa",
+      "editorial_score": 76,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Poble Espanyol",
+          "alias_normalized": "poble espanyol",
+          "is_canonical": true
+        },
+        {
+          "alias": "Spanish Village",
+          "alias_normalized": "spanish village",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "crafts",
+          "tag_category": "activity_type",
+          "confidence": 85
+        },
+        {
+          "tag": "indoor_outdoor",
+          "tag_category": "activity_type",
+          "confidence": 75
+        },
+        {
+          "tag": "family",
+          "tag_category": "audience",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "c438da7d-0349-5ae8-b0aa-edb29b27654c",
+      "destination_key": "barcelona",
+      "name": "Aquarium Barcelona",
+      "normalized_name": "aquarium barcelona",
+      "category": "family",
+      "subcategory": "aquarium",
+      "lat": 41.3763,
+      "lng": 2.1848,
+      "address": "Moll d'Espanya, del Port Vell, s/n, 08039 Barcelona",
+      "country_code": "ES",
+      "zone_name": "Ciutat Vella",
+      "official_url": "https://www.aquariumbcn.com",
+      "source_primary_id": "53627054-221a-59d9-af11-0e7e7e59f0aa",
+      "editorial_score": 80,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Aquarium Barcelona",
+          "alias_normalized": "aquarium barcelona",
+          "is_canonical": true
+        },
+        {
+          "alias": "L'Aquàrium Barcelona",
+          "alias_normalized": "l'aquàrium barcelona",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "family",
+          "tag_category": "audience",
+          "confidence": 100
+        },
+        {
+          "tag": "marine",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "educational",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "c7e7ac4d-5db1-5ac1-8839-4b213f0e1de0",
+      "destination_key": "barcelona",
+      "name": "Magic Fountain of Montjuïc",
+      "normalized_name": "magic fountain of montjuïc",
+      "category": "must_see",
+      "subcategory": "fountain_show",
+      "lat": 41.3712,
+      "lng": 2.1517,
+      "address": "Plaça de Carles Buïgas, 1, 08038 Barcelona",
+      "country_code": "ES",
+      "zone_name": "Sants-Montjuïc",
+      "official_url": null,
+      "source_primary_id": "53627054-221a-59d9-af11-0e7e7e59f0aa",
+      "editorial_score": 85,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 45,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "Magic Fountain of Montjuïc",
+          "alias_normalized": "magic fountain of montjuïc",
+          "is_canonical": true
+        },
+        {
+          "alias": "Font Màgica de Montjuïc",
+          "alias_normalized": "font màgica de montjuïc",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "night_show",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "lights",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "music",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ]
+    },
+    {
+      "poi_id": "5c9ba093-37b7-5c92-9272-926e5baf6728",
+      "destination_key": "barcelona",
+      "name": "Parc de la Ciutadella",
+      "normalized_name": "parc de la ciutadella",
+      "category": "park",
+      "subcategory": "urban_park",
+      "lat": 41.3881,
+      "lng": 2.1873,
+      "address": "Passeig de Picasso, 21, 08003 Barcelona",
+      "country_code": "ES",
+      "zone_name": "Ciutat Vella",
+      "official_url": null,
+      "source_primary_id": "53627054-221a-59d9-af11-0e7e7e59f0aa",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": null,
+      "aliases": [
+        {
+          "alias": "Parc de la Ciutadella",
+          "alias_normalized": "parc de la ciutadella",
+          "is_canonical": true
+        },
+        {
+          "alias": "Ciutadella Park",
+          "alias_normalized": "ciutadella park",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "lake",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "family",
+          "tag_category": "audience",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        }
+      ]
+    },
+    {
+      "poi_id": "935ee821-696c-53bc-955a-236a035faf4d",
+      "destination_key": "barcelona",
+      "name": "Casa Amatller",
+      "normalized_name": "casa amatller",
+      "category": "monument",
+      "subcategory": "modernist_building",
+      "lat": 41.3914,
+      "lng": 2.1648,
+      "address": "Passeig de Gràcia, 41, 08007 Barcelona",
+      "country_code": "ES",
+      "zone_name": "Eixample",
+      "official_url": "https://www.amatller.org",
+      "source_primary_id": "53627054-221a-59d9-af11-0e7e7e59f0aa",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 45,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Casa Amatller",
+          "alias_normalized": "casa amatller",
+          "is_canonical": true
+        },
+        {
+          "alias": "Amatller House",
+          "alias_normalized": "amatller house",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "modernism",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "chocolate",
+          "tag_category": "vibe",
+          "confidence": 75
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 75
+        }
+      ]
+    }
+  ]
+}
