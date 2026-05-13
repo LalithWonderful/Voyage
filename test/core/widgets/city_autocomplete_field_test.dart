@@ -117,5 +117,19 @@ void main() {
         expect(find.text('France'), findsOneWidget);
       },
     );
+
+    testWidgets(
+      'typing "bali" with acceptAnyDestination shows Lunao Bali suggestion',
+      (tester) async {
+        await tester.pumpWidget(buildField(acceptAnyDestination: true));
+        await tester.pumpAndSettle();
+
+        final field = find.byType(TextField);
+        await tester.enterText(field, 'bali');
+        await tester.pump(const Duration(milliseconds: 400));
+
+        expect(find.text('Bali'), findsOneWidget);
+      },
+    );
   });
 }

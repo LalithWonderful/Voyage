@@ -140,7 +140,7 @@ class _CityAutocompleteFieldState extends ConsumerState<CityAutocompleteField> {
                 ))
             .toList();
       }
-    } catch (e, st) {
+    } catch (e) {
       // Silently ignore autocomplete errors so the widget behaves like a plain
       // TextField when the service is unavailable.
     }

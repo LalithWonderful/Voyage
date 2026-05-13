@@ -364,6 +364,40 @@ class PlacesService {
     return null;
   }
 
+  // API-0.6c — Local region list prevents Google fallback for popular regions.
+  static const _lunaoRegions = <String, ({
+    String description,
+    String mainText,
+    String placeId,
+    String kind,
+  })>{
+    'bali': (description: 'Bali, Indonésie', mainText: 'Bali', placeId: 'lunao:region:id:bali', kind: 'region'),
+    'bali indonesie': (description: 'Bali, Indonésie', mainText: 'Bali', placeId: 'lunao:region:id:bali', kind: 'region'),
+    'bali indonésie': (description: 'Bali, Indonésie', mainText: 'Bali', placeId: 'lunao:region:id:bali', kind: 'region'),
+    'toscane': (description: 'Toscane, Italie', mainText: 'Toscane', placeId: 'lunao:region:it:toscane', kind: 'region'),
+    'tuscany': (description: 'Toscane, Italie', mainText: 'Toscane', placeId: 'lunao:region:it:toscane', kind: 'region'),
+    'andalousie': (description: 'Andalousie, Espagne', mainText: 'Andalousie', placeId: 'lunao:region:es:andalousie', kind: 'region'),
+    'andalusia': (description: 'Andalousie, Espagne', mainText: 'Andalousie', placeId: 'lunao:region:es:andalousie', kind: 'region'),
+    'île-de-france': (description: 'Île-de-France, France', mainText: 'Île-de-France', placeId: 'lunao:region:fr:idf', kind: 'region'),
+    'ile-de-france': (description: 'Île-de-France, France', mainText: 'Île-de-France', placeId: 'lunao:region:fr:idf', kind: 'region'),
+    'ile de france': (description: 'Île-de-France, France', mainText: 'Île-de-France', placeId: 'lunao:region:fr:idf', kind: 'region'),
+    'provence': (description: 'Provence, France', mainText: 'Provence', placeId: 'lunao:region:fr:provence', kind: 'region'),
+    'provence alpes cote d azur': (description: 'Provence, France', mainText: 'Provence', placeId: 'lunao:region:fr:provence', kind: 'region'),
+    'sicile': (description: 'Sicile, Italie', mainText: 'Sicile', placeId: 'lunao:region:it:sicile', kind: 'region'),
+    'sicily': (description: 'Sicile, Italie', mainText: 'Sicile', placeId: 'lunao:region:it:sicile', kind: 'region'),
+  };
+
+  static ({String description, String mainText, String placeId, String kind})?
+  _matchLunaoRegion(String normalized) {
+    final exact = _lunaoRegions[normalized];
+    if (exact != null) return exact;
+    if (normalized.length < 4) return null;
+    for (final entry in _lunaoRegions.entries) {
+      if (entry.key.startsWith(normalized)) return entry.value;
+    }
+    return null;
+  }
+
   void _assertGooglePlacesAllowed(String operation) {
     _guards.assertAllowed(LiveApiFamily.googlePlaces, operation: operation);
   }
@@ -720,6 +754,19 @@ class PlacesService {
       return [country];
     }
 
+    // API-0.6c — Region-first: local list prevents Google fallback
+    final region = _matchLunaoRegion(normalized);
+    if (region != null) {
+      // ignore: avoid_print
+      print(
+        '[autocomplete] source=lunao '
+        'query="$normalized" '
+        'context=destination '
+        'results=1',
+      );
+      return [region];
+    }
+
     // API-0.6a — guard: min-length, cache, timeout, error safety
     return _autocompleteGuard.execute(
       query: query,
@@ -1023,6 +1070,13 @@ class PlacesService {
     if (placeId == 'lunao:lisbon') return 'pt';
     if (placeId.startsWith('lunao:country:')) {
       return placeId.substring('lunao:country:'.length).toLowerCase();
+    }
+    // API-0.6c — Lunao region placeIds: lunao:region:<cc>:<key>
+    if (placeId.startsWith('lunao:region:')) {
+      final parts = placeId.split(':');
+      if (parts.length >= 3 && parts[2].length == 2) {
+        return parts[2].toLowerCase();
+      }
     }
 
     final key = _apiKey;

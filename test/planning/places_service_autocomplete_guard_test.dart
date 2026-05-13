@@ -198,6 +198,66 @@ void main() {
       expect(code, 'us');
     });
 
+    // ─── API-0.6c — Region-first tests ───
+
+    test('autocompleteDestinations returns Lunao Bali for "bali"', () async {
+      final results = await service.autocompleteDestinations('bali');
+      expect(results.length, 1);
+      expect(results.first.mainText, 'Bali');
+      expect(results.first.placeId, 'lunao:region:id:bali');
+      expect(results.first.kind, 'region');
+    });
+
+    test('autocompleteDestinations returns Lunao Toscane for "tosc"', () async {
+      final results = await service.autocompleteDestinations('tosc');
+      expect(results.length, 1);
+      expect(results.first.mainText, 'Toscane');
+      expect(results.first.placeId, 'lunao:region:it:toscane');
+      expect(results.first.kind, 'region');
+    });
+
+    test('autocompleteDestinations returns Lunao Andalousie for "andal"', () async {
+      final results = await service.autocompleteDestinations('andal');
+      expect(results.length, 1);
+      expect(results.first.mainText, 'Andalousie');
+      expect(results.first.placeId, 'lunao:region:es:andalousie');
+      expect(results.first.kind, 'region');
+    });
+
+    test('autocompleteDestinations returns Lunao Provence for "proven"', () async {
+      final results = await service.autocompleteDestinations('proven');
+      expect(results.length, 1);
+      expect(results.first.mainText, 'Provence');
+      expect(results.first.placeId, 'lunao:region:fr:provence');
+      expect(results.first.kind, 'region');
+    });
+
+    test('autocompleteDestinations returns Lunao Sicile for "sicil"', () async {
+      final results = await service.autocompleteDestinations('sicil');
+      expect(results.length, 1);
+      expect(results.first.mainText, 'Sicile');
+      expect(results.first.placeId, 'lunao:region:it:sicile');
+      expect(results.first.kind, 'region');
+    });
+
+    test('autocompleteDestinations returns Lunao Île-de-France for "ile-d"', () async {
+      final results = await service.autocompleteDestinations('ile-d');
+      expect(results.length, 1);
+      expect(results.first.mainText, 'Île-de-France');
+      expect(results.first.placeId, 'lunao:region:fr:idf');
+      expect(results.first.kind, 'region');
+    });
+
+    test('getCountryCodeFromPlaceId resolves lunao:region:it:toscane locally', () async {
+      final code = await service.getCountryCodeFromPlaceId('lunao:region:it:toscane');
+      expect(code, 'it');
+    });
+
+    test('getCountryCodeFromPlaceId resolves lunao:region:fr:provence locally', () async {
+      final code = await service.getCountryCodeFromPlaceId('lunao:region:fr:provence');
+      expect(code, 'fr');
+    });
+
     test('getCountryCodeFromPlaceId returns null for unknown synthetic id', () async {
       final code = await service.getCountryCodeFromPlaceId('lunao:unknown');
       expect(code, isNull);
