@@ -469,9 +469,15 @@ class _TripDetailState extends ConsumerState<_TripDetail> {
       if (!mounted) return;
       closeLoader();
       router.go('/trips/${trip.id}/planning');
-    } on LiveApiBlockedException catch (_) {
+    } on LiveApiBlockedException catch (e) {
+      final familyLabel = e.family == LiveApiFamily.gemini
+          ? 'le service IA (Gemini)'
+          : 'les services de géolocalisation (Google Maps)';
       showInfo(
-        '✓ Étapes créées. Génération indisponible : les services de géolocalisation ou Gemini sont désactivés. Réessaie depuis « Générer mon planning ».',
+        '✓ Étapes créées. Génération indisponible : $familyLabel est désactivé. '
+        'Pour les destinations couvertes (Lisbonne, Paris, Rome, Barcelone), '
+        'le mode Auto utilise les POIs Lunao sans appel externe. '
+        'Réessaie depuis « Générer mon planning ».',
       );
     } on TimeoutException catch (_) {
       showInfo(

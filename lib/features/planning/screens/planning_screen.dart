@@ -731,8 +731,15 @@ class PlanningScreen extends ConsumerWidget {
           );
           ref.invalidate(tripActivitiesProvider(tripId));
           ref.invalidate(tripTransportsProvider(tripId));
-        } on LiveApiBlockedException catch (_) {
-          showError('Suggestion indisponible : les services de géolocalisation ou Gemini sont désactivés.');
+        } on LiveApiBlockedException catch (e) {
+          final familyLabel = e.family == LiveApiFamily.gemini
+              ? 'le service IA (Gemini)'
+              : 'les services de géolocalisation (Google Maps)';
+          showError(
+            'Suggestion indisponible : $familyLabel est désactivé. '
+            'En mode Co-pilote, Gemini est nécessaire. En mode Auto, '
+            'les destinations couvertes par Lunao utilisent nos POIs sans appel externe.',
+          );
         } on TimeoutException catch (_) {
           showError('La génération a mis trop de temps à répondre. Vérifie ta connexion et réessaie.');
         } catch (e) {
@@ -889,8 +896,16 @@ class PlanningScreen extends ConsumerWidget {
       );
       ref.invalidate(tripActivitiesProvider(tripId));
       ref.invalidate(tripTransportsProvider(tripId));
-    } on LiveApiBlockedException catch (_) {
-      showError('Suggestion indisponible : les services de géolocalisation ou Gemini sont désactivés.');
+    } on LiveApiBlockedException catch (e) {
+      final familyLabel = e.family == LiveApiFamily.gemini
+          ? 'le service IA (Gemini)'
+          : 'les services de géolocalisation (Google Maps)';
+      showError(
+        'Suggestion indisponible : $familyLabel est désactivé. '
+        'Pour les destinations couvertes (Lisbonne, Paris, Rome, Barcelone), '
+        'le mode Auto utilise les POIs Lunao sans appel externe. '
+        'Les destinations non couvertes nécessitent Google Maps.',
+      );
     } on TimeoutException catch (_) {
       showError('La génération a mis trop de temps à répondre. Vérifie ta connexion et réessaie.');
     } catch (e) {

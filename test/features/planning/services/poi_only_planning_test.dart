@@ -27,6 +27,24 @@ class _FakeGeocodingService extends GeocodingService {
   }
 }
 
+class _ThrowingGeocodingService extends GeocodingService {
+  _ThrowingGeocodingService()
+    : super(
+        guards: const LiveApiGuards(
+          allowGooglePlaces: false,
+          allowGoogleGeocoding: false,
+        ),
+      );
+
+  @override
+  Future<GeocodingResult?> geocode(String query, {String? regionHint}) async {
+    throw LiveApiBlockedException(
+      family: LiveApiFamily.googleGeocoding,
+      operation: 'GeocodingService.geocode',
+    );
+  }
+}
+
 class _RecordingPlacesNearbyService extends PlacesNearbyService {
   var searchNearbyCalls = 0;
   var searchTextCalls = 0;
@@ -413,5 +431,185 @@ void main() {
       expect(placeIds, contains('poi:poi-eiffel'));
       expect(placeIds, contains('poi:poi-orsay'));
     });
+
+    test(
+      'covered destination with enough POIs works even when geocoding is blocked',
+      () async {
+        final trip = _buildTrip(
+          destination: 'Paris',
+          startDate: DateTime.utc(2026, 6, 1),
+          endDate: DateTime.utc(2026, 6, 3),
+        );
+        final pois = <Poi>[
+          _buildPoi(
+            poiId: 'poi-1',
+            destinationKey: 'paris',
+            name: 'Louvre',
+            lat: 48.8606,
+            lng: 2.3376,
+            editorialScore: 100,
+          ),
+          _buildPoi(
+            poiId: 'poi-2',
+            destinationKey: 'paris',
+            name: 'Tour Eiffel',
+            lat: 48.8584,
+            lng: 2.2945,
+            editorialScore: 100,
+          ),
+          _buildPoi(
+            poiId: 'poi-3',
+            destinationKey: 'paris',
+            name: 'Musée d\'Orsay',
+            lat: 48.8599,
+            lng: 2.3266,
+            editorialScore: 90,
+          ),
+          _buildPoi(
+            poiId: 'poi-4',
+            destinationKey: 'paris',
+            name: 'Notre-Dame',
+            lat: 48.8530,
+            lng: 2.3499,
+            editorialScore: 95,
+          ),
+          _buildPoi(
+            poiId: 'poi-5',
+            destinationKey: 'paris',
+            name: 'Sacré-Cœur',
+            lat: 48.8867,
+            lng: 2.3431,
+            editorialScore: 85,
+          ),
+          _buildPoi(
+            poiId: 'poi-6',
+            destinationKey: 'paris',
+            name: 'Centre Pompidou',
+            lat: 48.8606,
+            lng: 2.3522,
+            editorialScore: 80,
+          ),
+        ];
+        final poiRepo = FakePoiRepository(pois: pois);
+        final geocoder = _ThrowingGeocodingService();
+        final placesService = _RecordingPlacesNearbyService(throwIfCalled: true);
+
+        // POI-first should bypass geocoding entirely and not throw.
+        final pool = await gatherCandidatesForTrip(
+          trip: trip,
+          hotels: [],
+          geocoder: geocoder,
+          nearbyService: placesService,
+          poiRepository: poiRepo,
+        );
+
+        expect(placesService.searchNearbyCalls, equals(0));
+        expect(placesService.searchTextCalls, equals(0));
+        expect(pool, isNotEmpty);
+        expect(pool.length, equals(3));
+
+        // Centre should be the POI centroid, not from geocoding.
+        for (final dayCandidates in pool) {
+          expect(dayCandidates.center.source, equals('poi_centroid'));
+        }
+      },
+    );
+
+    test(
+      'covered destination with blocked geocoding and empty POIs falls back and throws',
+      () async {
+        final trip = _buildTrip(
+          destination: 'Paris',
+          startDate: DateTime.utc(2026, 6, 1),
+          endDate: DateTime.utc(2026, 6, 3),
+        );
+        final poiRepo = FakePoiRepository(pois: []);
+        final geocoder = _ThrowingGeocodingService();
+        final placesService = _RecordingPlacesNearbyService(throwIfCalled: false);
+
+        // POI-first fails (0 POIs), falls back to geocoding, which throws.
+        expect(
+          () => gatherCandidatesForTrip(
+            trip: trip,
+            hotels: [],
+            geocoder: geocoder,
+            nearbyService: placesService,
+            poiRepository: poiRepo,
+          ),
+          throwsA(isA<LiveApiBlockedException>()),
+        );
+      },
+    );
+
+    test(
+      'geocoding is never called for covered destination with enough POIs',
+      () async {
+        final trip = _buildTrip(
+          destination: 'Paris',
+          startDate: DateTime.utc(2026, 6, 1),
+          endDate: DateTime.utc(2026, 6, 2),
+        );
+        final pois = <Poi>[
+          _buildPoi(
+            poiId: 'poi-1',
+            destinationKey: 'paris',
+            name: 'Louvre',
+            lat: 48.8606,
+            lng: 2.3376,
+            editorialScore: 100,
+          ),
+          _buildPoi(
+            poiId: 'poi-2',
+            destinationKey: 'paris',
+            name: 'Tour Eiffel',
+            lat: 48.8584,
+            lng: 2.2945,
+            editorialScore: 100,
+          ),
+          _buildPoi(
+            poiId: 'poi-3',
+            destinationKey: 'paris',
+            name: 'Musée d\'Orsay',
+            lat: 48.8599,
+            lng: 2.3266,
+            editorialScore: 90,
+          ),
+          _buildPoi(
+            poiId: 'poi-4',
+            destinationKey: 'paris',
+            name: 'Notre-Dame',
+            lat: 48.8530,
+            lng: 2.3499,
+            editorialScore: 95,
+          ),
+          _buildPoi(
+            poiId: 'poi-5',
+            destinationKey: 'paris',
+            name: 'Sacré-Cœur',
+            lat: 48.8867,
+            lng: 2.3431,
+            editorialScore: 85,
+          ),
+        ];
+        final poiRepo = FakePoiRepository(pois: pois);
+
+        // Use a geocoder that would throw if called.
+        final geocoder = _ThrowingGeocodingService();
+        final placesService = _RecordingPlacesNearbyService(throwIfCalled: true);
+
+        final pool = await gatherCandidatesForTrip(
+          trip: trip,
+          hotels: [],
+          geocoder: geocoder,
+          nearbyService: placesService,
+          poiRepository: poiRepo,
+        );
+
+        // If geocoding were called, it would have thrown.
+        // Success means geocoding was bypassed.
+        expect(pool, isNotEmpty);
+        expect(pool.length, equals(2));
+      },
+    );
   });
 }
