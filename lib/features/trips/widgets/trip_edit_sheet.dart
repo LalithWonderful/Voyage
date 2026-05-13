@@ -1007,6 +1007,21 @@ class _TripEditSheetState extends ConsumerState<_TripEditSheet> {
       );
       return;
     }
+    // Garde précoce : tant que Google Places est désactivé (régime no-live
+    // par défaut + base POI Lunao en cours), on n'ouvre même pas le loader.
+    // Évite tout risque de spinner bloquant et prépare la bascule future vers
+    // les coordonnées POI Lunao sans appel live.
+    if (!LiveApiGuards.fromEnvironment().allowGooglePlaces) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Optimisation indisponible pour le moment. '
+            'Cette fonction sera réactivée avec la base POI Lunao.',
+          ),
+        ),
+      );
+      return;
+    }
     // Loader bloquant pendant le géocodage, avec bouton Annuler explicite,
     // timeout 10s par appel et try/catch global. Le flag `cancelled` est levé
     // par le bouton + guards `if (cancelled) return;` après chaque await ; les
