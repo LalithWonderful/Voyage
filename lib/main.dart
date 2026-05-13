@@ -9,6 +9,9 @@ import 'package:voyage/core/theme/app_theme.dart';
 import 'package:voyage/core/widgets/connectivity_listener.dart';
 import 'package:voyage/core/router/app_router.dart';
 import 'package:voyage/features/auth/providers/auth_provider.dart';
+import 'package:voyage/features/poi/data/live_poi_supabase_client.dart';
+import 'package:voyage/features/poi/data/supabase_poi_repository.dart';
+import 'package:voyage/features/poi/providers/poi_repository_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,7 +21,21 @@ void main() async {
     authOptions: const FlutterAuthClientOptions(authFlowType: AuthFlowType.pkce),
   );
   await NotificationService.instance.init();
-  runApp(const ProviderScope(child: VoyageApp()));
+
+  // POI-2.4 — Branchement du repository POI live pour que les destinations
+  // couvertes (lisbon, paris, rome, barcelona) puissent planifier sans
+  // appeler Google Places.
+  final poiClient = LivePoiSupabaseClient(Supabase.instance.client);
+  final poiRepository = SupabasePoiRepository(poiClient);
+
+  runApp(
+    ProviderScope(
+      overrides: [
+        poiRepositoryProvider.overrideWithValue(poiRepository),
+      ],
+      child: const VoyageApp(),
+    ),
+  );
 }
 
 class VoyageApp extends ConsumerStatefulWidget {
