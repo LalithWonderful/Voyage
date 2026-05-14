@@ -1,0 +1,793 @@
+{
+  "_comment": "POI-2.x — Pilot fixture Dubai. ~17 high-quality POIs. Manually curated, no scraping. Coordinates approximate.",
+  "sources": [
+    {
+      "source_id": "14f51f40-d3c1-59d1-8325-8309e250ee9d",
+      "name": "Lunao Pilot Dubai",
+      "source_type": "editorial",
+      "trust_level": 5,
+      "is_active": true
+    }
+  ],
+  "pois": [
+    {
+      "poi_id": "45a732c7-517d-5024-9679-db90f452f18e",
+      "destination_key": "dubai",
+      "name": "Burj Khalifa",
+      "normalized_name": "burj khalifa",
+      "category": "viewpoint",
+      "lat": 25.1972,
+      "lng": 55.2744,
+      "address": null,
+      "country_code": "AE",
+      "zone_name": "Downtown Dubai",
+      "source_primary_id": "14f51f40-d3c1-59d1-8325-8309e250ee9d",
+      "editorial_score": 98,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 45,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Burj Khalifa",
+          "alias_normalized": "burj khalifa",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "skyscraper"
+    },
+    {
+      "poi_id": "faabb2bd-ea0c-58b3-a3ce-d1fc24c975cb",
+      "destination_key": "dubai",
+      "name": "Dubai Mall",
+      "normalized_name": "dubai mall",
+      "category": "shopping",
+      "lat": 25.1972,
+      "lng": 55.2792,
+      "address": null,
+      "country_code": "AE",
+      "zone_name": "Downtown Dubai",
+      "source_primary_id": "14f51f40-d3c1-59d1-8325-8309e250ee9d",
+      "editorial_score": 92,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Dubai Mall",
+          "alias_normalized": "dubai mall",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "culture",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 70
+        }
+      ],
+      "subcategory": "mall"
+    },
+    {
+      "poi_id": "ea3e0436-6b77-561e-85d0-b81347a96d58",
+      "destination_key": "dubai",
+      "name": "Palm Jumeirah",
+      "normalized_name": "palm jumeirah",
+      "category": "neighborhood",
+      "lat": 25.1172,
+      "lng": 55.1383,
+      "address": null,
+      "country_code": "AE",
+      "zone_name": "Palm Jumeirah",
+      "source_primary_id": "14f51f40-d3c1-59d1-8325-8309e250ee9d",
+      "editorial_score": 90,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Palm Jumeirah",
+          "alias_normalized": "palm jumeirah",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "island"
+    },
+    {
+      "poi_id": "abd1b8b7-6f9f-5aae-a4dc-82f9e7118553",
+      "destination_key": "dubai",
+      "name": "Burj Al Arab",
+      "normalized_name": "burj al arab",
+      "category": "monument",
+      "lat": 25.1413,
+      "lng": 55.1853,
+      "address": null,
+      "country_code": "AE",
+      "zone_name": "Jumeirah",
+      "source_primary_id": "14f51f40-d3c1-59d1-8325-8309e250ee9d",
+      "editorial_score": 91,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Burj Al Arab",
+          "alias_normalized": "burj al arab",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "hotel"
+    },
+    {
+      "poi_id": "4f7601af-5fb9-5ff2-8339-e8d970c94f71",
+      "destination_key": "dubai",
+      "name": "Dubai Marina",
+      "normalized_name": "dubai marina",
+      "category": "neighborhood",
+      "lat": 25.0772,
+      "lng": 55.1334,
+      "address": null,
+      "country_code": "AE",
+      "zone_name": "Dubai Marina",
+      "source_primary_id": "14f51f40-d3c1-59d1-8325-8309e250ee9d",
+      "editorial_score": 86,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Dubai Marina",
+          "alias_normalized": "dubai marina",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "modern",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "895101a3-c138-5c2f-8b04-285d5078e532",
+      "destination_key": "dubai",
+      "name": "Gold Souk",
+      "normalized_name": "gold souk",
+      "category": "market",
+      "lat": 25.2693,
+      "lng": 55.2966,
+      "address": null,
+      "country_code": "AE",
+      "zone_name": "Deira",
+      "source_primary_id": "14f51f40-d3c1-59d1-8325-8309e250ee9d",
+      "editorial_score": 85,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Gold Souk",
+          "alias_normalized": "gold souk",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "food",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "shopping",
+          "tag_category": "activity_type",
+          "confidence": 70
+        }
+      ],
+      "subcategory": "gold_market"
+    },
+    {
+      "poi_id": "d3bfe4ed-b043-5db6-9964-e3dbd291b9bf",
+      "destination_key": "dubai",
+      "name": "Jumeirah Mosque",
+      "normalized_name": "jumeirah mosque",
+      "category": "monument",
+      "lat": 25.2376,
+      "lng": 55.2606,
+      "address": null,
+      "country_code": "AE",
+      "zone_name": "Jumeirah",
+      "source_primary_id": "14f51f40-d3c1-59d1-8325-8309e250ee9d",
+      "editorial_score": 84,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Jumeirah Mosque",
+          "alias_normalized": "jumeirah mosque",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "islamic",
+          "tag_category": "vibe",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "mosque"
+    },
+    {
+      "poi_id": "c6ebbbf2-672f-575e-8bd4-ccd9a7751250",
+      "destination_key": "dubai",
+      "name": "Dubai Frame",
+      "normalized_name": "dubai frame",
+      "category": "viewpoint",
+      "lat": 25.2357,
+      "lng": 55.2966,
+      "address": null,
+      "country_code": "AE",
+      "zone_name": "Zabeel Park",
+      "source_primary_id": "14f51f40-d3c1-59d1-8325-8309e250ee9d",
+      "editorial_score": 83,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 45,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Dubai Frame",
+          "alias_normalized": "dubai frame",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "frame"
+    },
+    {
+      "poi_id": "50c4ec8f-c06b-5755-b955-b2e32e3d32d9",
+      "destination_key": "dubai",
+      "name": "Global Village",
+      "normalized_name": "global village",
+      "category": "local_experience",
+      "lat": 25.0708,
+      "lng": 55.3077,
+      "address": null,
+      "country_code": "AE",
+      "zone_name": "Sheikh Mohammed Bin Zayed Road",
+      "source_primary_id": "14f51f40-d3c1-59d1-8325-8309e250ee9d",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Global Village",
+          "alias_normalized": "global village",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "interactive",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "festival"
+    },
+    {
+      "poi_id": "abcd5117-19d3-546c-be7d-b2ab4a787553",
+      "destination_key": "dubai",
+      "name": "Miracle Garden",
+      "normalized_name": "miracle garden",
+      "category": "park",
+      "lat": 25.0608,
+      "lng": 55.2444,
+      "address": null,
+      "country_code": "AE",
+      "zone_name": "Dubailand",
+      "source_primary_id": "14f51f40-d3c1-59d1-8325-8309e250ee9d",
+      "editorial_score": 81,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Miracle Garden",
+          "alias_normalized": "miracle garden",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "flower_garden"
+    },
+    {
+      "poi_id": "da3e1fe1-5a78-5e18-a5a4-d70a5a13f50c",
+      "destination_key": "dubai",
+      "name": "Desert Safari",
+      "normalized_name": "desert safari",
+      "category": "local_experience",
+      "lat": 24.8,
+      "lng": 55.3,
+      "address": null,
+      "country_code": "AE",
+      "zone_name": "Dubai Desert Conservation Reserve",
+      "source_primary_id": "14f51f40-d3c1-59d1-8325-8309e250ee9d",
+      "editorial_score": 87,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Desert Safari",
+          "alias_normalized": "desert safari",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "interactive",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "safari"
+    },
+    {
+      "poi_id": "1b885877-ec28-52d7-a993-93dc4a72aec6",
+      "destination_key": "dubai",
+      "name": "Atlantis The Palm",
+      "normalized_name": "atlantis the palm",
+      "category": "monument",
+      "lat": 25.1304,
+      "lng": 55.1171,
+      "address": null,
+      "country_code": "AE",
+      "zone_name": "Palm Jumeirah",
+      "source_primary_id": "14f51f40-d3c1-59d1-8325-8309e250ee9d",
+      "editorial_score": 85,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Atlantis The Palm",
+          "alias_normalized": "atlantis the palm",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "resort"
+    },
+    {
+      "poi_id": "342c8b74-77fd-509f-a750-2c9d31b84dc2",
+      "destination_key": "dubai",
+      "name": "Dubai Creek",
+      "normalized_name": "dubai creek",
+      "category": "neighborhood",
+      "lat": 25.2631,
+      "lng": 55.308,
+      "address": null,
+      "country_code": "AE",
+      "zone_name": "Deira",
+      "source_primary_id": "14f51f40-d3c1-59d1-8325-8309e250ee9d",
+      "editorial_score": 84,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Dubai Creek",
+          "alias_normalized": "dubai creek",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "traditional",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "7b2f2df4-8dd7-51ae-8e56-84c2f6d938e7",
+      "destination_key": "dubai",
+      "name": "Deira",
+      "normalized_name": "deira",
+      "category": "neighborhood",
+      "lat": 25.2654,
+      "lng": 55.3088,
+      "address": null,
+      "country_code": "AE",
+      "zone_name": "Deira",
+      "source_primary_id": "14f51f40-d3c1-59d1-8325-8309e250ee9d",
+      "editorial_score": 83,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Deira",
+          "alias_normalized": "deira",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "souks",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "59ed3731-a1ea-5f63-9688-c197ee4d15ee",
+      "destination_key": "dubai",
+      "name": "La Mer Beach",
+      "normalized_name": "la mer beach",
+      "category": "park",
+      "lat": 25.235,
+      "lng": 55.26,
+      "address": null,
+      "country_code": "AE",
+      "zone_name": "Jumeirah",
+      "source_primary_id": "14f51f40-d3c1-59d1-8325-8309e250ee9d",
+      "editorial_score": 80,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "La Mer Beach",
+          "alias_normalized": "la mer beach",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "beach"
+    },
+    {
+      "poi_id": "d68eb869-5609-55ea-8cba-0cc58b0bc3c1",
+      "destination_key": "dubai",
+      "name": "IMG Worlds of Adventure",
+      "normalized_name": "img worlds of adventure",
+      "category": "family",
+      "lat": 25.0821,
+      "lng": 55.3163,
+      "address": null,
+      "country_code": "AE",
+      "zone_name": "City of Arabia",
+      "source_primary_id": "14f51f40-d3c1-59d1-8325-8309e250ee9d",
+      "editorial_score": 79,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "IMG Worlds of Adventure",
+          "alias_normalized": "img worlds of adventure",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "culture",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 70
+        }
+      ],
+      "subcategory": "theme_park"
+    },
+    {
+      "poi_id": "52b6549b-cd06-57ec-84bd-46cc02f9b37c",
+      "destination_key": "dubai",
+      "name": "Dubai Opera",
+      "normalized_name": "dubai opera",
+      "category": "monument",
+      "lat": 25.1954,
+      "lng": 55.2752,
+      "address": null,
+      "country_code": "AE",
+      "zone_name": "Downtown Dubai",
+      "source_primary_id": "14f51f40-d3c1-59d1-8325-8309e250ee9d",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Dubai Opera",
+          "alias_normalized": "dubai opera",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "opera_house"
+    }
+  ]
+}

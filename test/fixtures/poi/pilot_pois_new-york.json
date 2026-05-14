@@ -1,0 +1,963 @@
+{
+  "_comment": "POI-2.x — Pilot fixture New-York. ~20 high-quality POIs. Manually curated, no scraping. Coordinates approximate.",
+  "sources": [
+    {
+      "source_id": "ef60b2be-49a9-5cf2-a0ea-1fb76e319d7f",
+      "name": "Lunao Pilot New-York",
+      "source_type": "editorial",
+      "trust_level": 5,
+      "is_active": true
+    }
+  ],
+  "pois": [
+    {
+      "poi_id": "897b5835-85a4-5cfe-9071-ce07a865cfec",
+      "destination_key": "new-york",
+      "name": "Statue of Liberty",
+      "normalized_name": "statue of liberty",
+      "category": "monument",
+      "lat": 40.6892,
+      "lng": -74.0445,
+      "address": null,
+      "country_code": "US",
+      "zone_name": "Liberty Island",
+      "source_primary_id": "ef60b2be-49a9-5cf2-a0ea-1fb76e319d7f",
+      "editorial_score": 97,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Statue of Liberty",
+          "alias_normalized": "statue of liberty",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "statue"
+    },
+    {
+      "poi_id": "b6392d44-5d17-52ac-9790-28d65ecfb5c2",
+      "destination_key": "new-york",
+      "name": "Central Park",
+      "normalized_name": "central park",
+      "category": "park",
+      "lat": 40.7829,
+      "lng": -73.9654,
+      "address": null,
+      "country_code": "US",
+      "zone_name": "Manhattan",
+      "source_primary_id": "ef60b2be-49a9-5cf2-a0ea-1fb76e319d7f",
+      "editorial_score": 95,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Central Park",
+          "alias_normalized": "central park",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "urban_park"
+    },
+    {
+      "poi_id": "3632133f-fb33-5908-82ff-296424569905",
+      "destination_key": "new-york",
+      "name": "Empire State Building",
+      "normalized_name": "empire state building",
+      "category": "viewpoint",
+      "lat": 40.7484,
+      "lng": -73.9857,
+      "address": null,
+      "country_code": "US",
+      "zone_name": "Midtown",
+      "source_primary_id": "ef60b2be-49a9-5cf2-a0ea-1fb76e319d7f",
+      "editorial_score": 94,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 45,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Empire State Building",
+          "alias_normalized": "empire state building",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "skyscraper"
+    },
+    {
+      "poi_id": "55217a39-1502-5161-9836-0c983c1f43dd",
+      "destination_key": "new-york",
+      "name": "Times Square",
+      "normalized_name": "times square",
+      "category": "neighborhood",
+      "lat": 40.758,
+      "lng": -73.9855,
+      "address": null,
+      "country_code": "US",
+      "zone_name": "Midtown",
+      "source_primary_id": "ef60b2be-49a9-5cf2-a0ea-1fb76e319d7f",
+      "editorial_score": 93,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Times Square",
+          "alias_normalized": "times square",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "neon",
+          "tag_category": "vibe",
+          "confidence": 90
+        }
+      ]
+    },
+    {
+      "poi_id": "b6c0dec9-187a-56c5-b227-eda7d1be116c",
+      "destination_key": "new-york",
+      "name": "Brooklyn Bridge",
+      "normalized_name": "brooklyn bridge",
+      "category": "monument",
+      "lat": 40.7061,
+      "lng": -73.9969,
+      "address": null,
+      "country_code": "US",
+      "zone_name": "Brooklyn",
+      "source_primary_id": "ef60b2be-49a9-5cf2-a0ea-1fb76e319d7f",
+      "editorial_score": 92,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Brooklyn Bridge",
+          "alias_normalized": "brooklyn bridge",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "bridge"
+    },
+    {
+      "poi_id": "c2e1c3ab-f0bf-5477-9443-1fda3e33c57a",
+      "destination_key": "new-york",
+      "name": "Metropolitan Museum",
+      "normalized_name": "metropolitan museum",
+      "category": "museum",
+      "lat": 40.7794,
+      "lng": -73.9632,
+      "address": null,
+      "country_code": "US",
+      "zone_name": "Upper East Side",
+      "source_primary_id": "ef60b2be-49a9-5cf2-a0ea-1fb76e319d7f",
+      "editorial_score": 91,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Metropolitan Museum",
+          "alias_normalized": "metropolitan museum",
+          "is_canonical": true
+        },
+        {
+          "alias": "The Met",
+          "alias_normalized": "the met",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "art_museum"
+    },
+    {
+      "poi_id": "6e63609d-85d0-58dc-b0d5-7343aacbb0b8",
+      "destination_key": "new-york",
+      "name": "9/11 Memorial",
+      "normalized_name": "9/11 memorial",
+      "category": "monument",
+      "lat": 40.7115,
+      "lng": -74.0123,
+      "address": null,
+      "country_code": "US",
+      "zone_name": "Financial District",
+      "source_primary_id": "ef60b2be-49a9-5cf2-a0ea-1fb76e319d7f",
+      "editorial_score": 90,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "9/11 Memorial",
+          "alias_normalized": "9/11 memorial",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "memorial"
+    },
+    {
+      "poi_id": "90cee4e7-ae86-5e07-8e28-1b43738030b1",
+      "destination_key": "new-york",
+      "name": "One World Trade Center",
+      "normalized_name": "one world trade center",
+      "category": "viewpoint",
+      "lat": 40.7127,
+      "lng": -74.0134,
+      "address": null,
+      "country_code": "US",
+      "zone_name": "Financial District",
+      "source_primary_id": "ef60b2be-49a9-5cf2-a0ea-1fb76e319d7f",
+      "editorial_score": 89,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 45,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "One World Trade Center",
+          "alias_normalized": "one world trade center",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "skyscraper"
+    },
+    {
+      "poi_id": "22e4fcd5-27fa-5096-be4e-e2bd90ef9c24",
+      "destination_key": "new-york",
+      "name": "High Line",
+      "normalized_name": "high line",
+      "category": "park",
+      "lat": 40.748,
+      "lng": -74.0048,
+      "address": null,
+      "country_code": "US",
+      "zone_name": "Chelsea",
+      "source_primary_id": "ef60b2be-49a9-5cf2-a0ea-1fb76e319d7f",
+      "editorial_score": 88,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "High Line",
+          "alias_normalized": "high line",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "elevated_park"
+    },
+    {
+      "poi_id": "2820a7a5-4cf7-5444-ab47-a2549a7bfabe",
+      "destination_key": "new-york",
+      "name": "Grand Central Terminal",
+      "normalized_name": "grand central terminal",
+      "category": "monument",
+      "lat": 40.7527,
+      "lng": -73.9772,
+      "address": null,
+      "country_code": "US",
+      "zone_name": "Midtown",
+      "source_primary_id": "ef60b2be-49a9-5cf2-a0ea-1fb76e319d7f",
+      "editorial_score": 87,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Grand Central Terminal",
+          "alias_normalized": "grand central terminal",
+          "is_canonical": true
+        },
+        {
+          "alias": "Grand Central",
+          "alias_normalized": "grand central",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "train_station"
+    },
+    {
+      "poi_id": "c43f3a4d-018c-5ab8-bd54-d430c654e088",
+      "destination_key": "new-york",
+      "name": "Rockefeller Center",
+      "normalized_name": "rockefeller center",
+      "category": "monument",
+      "lat": 40.7587,
+      "lng": -73.9787,
+      "address": null,
+      "country_code": "US",
+      "zone_name": "Midtown",
+      "source_primary_id": "ef60b2be-49a9-5cf2-a0ea-1fb76e319d7f",
+      "editorial_score": 86,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Rockefeller Center",
+          "alias_normalized": "rockefeller center",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "complex"
+    },
+    {
+      "poi_id": "22e2c0fb-206b-56a0-a559-9e9a409a15ea",
+      "destination_key": "new-york",
+      "name": "Fifth Avenue",
+      "normalized_name": "fifth avenue",
+      "category": "neighborhood",
+      "lat": 40.748,
+      "lng": -73.985,
+      "address": null,
+      "country_code": "US",
+      "zone_name": "Midtown",
+      "source_primary_id": "ef60b2be-49a9-5cf2-a0ea-1fb76e319d7f",
+      "editorial_score": 85,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Fifth Avenue",
+          "alias_normalized": "fifth avenue",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "shopping",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ]
+    },
+    {
+      "poi_id": "62aba3be-d5be-5e10-b48f-11e4995b4763",
+      "destination_key": "new-york",
+      "name": "Broadway",
+      "normalized_name": "broadway",
+      "category": "neighborhood",
+      "lat": 40.759,
+      "lng": -73.9845,
+      "address": null,
+      "country_code": "US",
+      "zone_name": "Theater District",
+      "source_primary_id": "ef60b2be-49a9-5cf2-a0ea-1fb76e319d7f",
+      "editorial_score": 84,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Broadway",
+          "alias_normalized": "broadway",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "theatre",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ]
+    },
+    {
+      "poi_id": "255fd494-44a0-5fb6-a44c-0656e69e6ae1",
+      "destination_key": "new-york",
+      "name": "MoMA",
+      "normalized_name": "moma",
+      "category": "museum",
+      "lat": 40.7614,
+      "lng": -73.9776,
+      "address": null,
+      "country_code": "US",
+      "zone_name": "Midtown",
+      "source_primary_id": "ef60b2be-49a9-5cf2-a0ea-1fb76e319d7f",
+      "editorial_score": 86,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "MoMA",
+          "alias_normalized": "moma",
+          "is_canonical": true
+        },
+        {
+          "alias": "Museum of Modern Art",
+          "alias_normalized": "museum of modern art",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "art_museum"
+    },
+    {
+      "poi_id": "36f6d83b-b03b-56d4-ad58-4da5012680b8",
+      "destination_key": "new-york",
+      "name": "Coney Island",
+      "normalized_name": "coney island",
+      "category": "neighborhood",
+      "lat": 40.5755,
+      "lng": -73.9707,
+      "address": null,
+      "country_code": "US",
+      "zone_name": "Brooklyn",
+      "source_primary_id": "ef60b2be-49a9-5cf2-a0ea-1fb76e319d7f",
+      "editorial_score": 80,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Coney Island",
+          "alias_normalized": "coney island",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "beach",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ]
+    },
+    {
+      "poi_id": "6e6b08b9-14e1-5143-acf4-e6606d02bf39",
+      "destination_key": "new-york",
+      "name": "Natural History Museum",
+      "normalized_name": "natural history museum",
+      "category": "museum",
+      "lat": 40.7813,
+      "lng": -73.974,
+      "address": null,
+      "country_code": "US",
+      "zone_name": "Upper West Side",
+      "source_primary_id": "ef60b2be-49a9-5cf2-a0ea-1fb76e319d7f",
+      "editorial_score": 85,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Natural History Museum",
+          "alias_normalized": "natural history museum",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "natural_history_museum"
+    },
+    {
+      "poi_id": "ecaa6bc8-37ef-5b65-962f-36c7d7fd97b1",
+      "destination_key": "new-york",
+      "name": "Central Park Zoo",
+      "normalized_name": "central park zoo",
+      "category": "family",
+      "lat": 40.7678,
+      "lng": -73.9718,
+      "address": null,
+      "country_code": "US",
+      "zone_name": "Central Park",
+      "source_primary_id": "ef60b2be-49a9-5cf2-a0ea-1fb76e319d7f",
+      "editorial_score": 81,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Central Park Zoo",
+          "alias_normalized": "central park zoo",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "culture",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 70
+        }
+      ],
+      "subcategory": "zoo"
+    },
+    {
+      "poi_id": "d3ea7a90-5332-560c-bcb1-beb125231ba6",
+      "destination_key": "new-york",
+      "name": "Top of the Rock",
+      "normalized_name": "top of the rock",
+      "category": "viewpoint",
+      "lat": 40.7591,
+      "lng": -73.9795,
+      "address": null,
+      "country_code": "US",
+      "zone_name": "Midtown",
+      "source_primary_id": "ef60b2be-49a9-5cf2-a0ea-1fb76e319d7f",
+      "editorial_score": 87,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 45,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Top of the Rock",
+          "alias_normalized": "top of the rock",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "observation_deck"
+    },
+    {
+      "poi_id": "a76b7e0e-cca1-5f11-a134-376db924fdac",
+      "destination_key": "new-york",
+      "name": "Wall Street",
+      "normalized_name": "wall street",
+      "category": "neighborhood",
+      "lat": 40.7074,
+      "lng": -74.0113,
+      "address": null,
+      "country_code": "US",
+      "zone_name": "Financial District",
+      "source_primary_id": "ef60b2be-49a9-5cf2-a0ea-1fb76e319d7f",
+      "editorial_score": 83,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Wall Street",
+          "alias_normalized": "wall street",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "0d81467b-c24d-5f11-82b0-196a2e1928c6",
+      "destination_key": "new-york",
+      "name": "Greenwich Village",
+      "normalized_name": "greenwich village",
+      "category": "neighborhood",
+      "lat": 40.7336,
+      "lng": -74.0027,
+      "address": null,
+      "country_code": "US",
+      "zone_name": "Manhattan",
+      "source_primary_id": "ef60b2be-49a9-5cf2-a0ea-1fb76e319d7f",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Greenwich Village",
+          "alias_normalized": "greenwich village",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "bohemian",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ]
+    }
+  ]
+}

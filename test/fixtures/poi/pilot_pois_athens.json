@@ -1,0 +1,716 @@
+{
+  "_comment": "POI-2.x — Pilot fixture Athens. ~15 high-quality POIs. Manually curated, no scraping. Coordinates approximate.",
+  "sources": [
+    {
+      "source_id": "c02ba547-534c-5fe7-87e0-b7db1bf0eff2",
+      "name": "Lunao Pilot Athens",
+      "source_type": "editorial",
+      "trust_level": 5,
+      "is_active": true
+    }
+  ],
+  "pois": [
+    {
+      "poi_id": "34bea9d2-5552-50eb-ab3e-4dcd3cbade9e",
+      "destination_key": "athens",
+      "name": "Acropolis",
+      "normalized_name": "acropolis",
+      "category": "monument",
+      "lat": 37.9715,
+      "lng": 23.7257,
+      "address": null,
+      "country_code": "GR",
+      "zone_name": "Acropolis",
+      "source_primary_id": "c02ba547-534c-5fe7-87e0-b7db1bf0eff2",
+      "editorial_score": 98,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Acropolis",
+          "alias_normalized": "acropolis",
+          "is_canonical": true
+        },
+        {
+          "alias": "Akropolis",
+          "alias_normalized": "akropolis",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "citadel"
+    },
+    {
+      "poi_id": "9dfb1cfb-01ca-5426-8041-253d81c6c4a4",
+      "destination_key": "athens",
+      "name": "Parthenon",
+      "normalized_name": "parthenon",
+      "category": "monument",
+      "lat": 37.9715,
+      "lng": 23.7267,
+      "address": null,
+      "country_code": "GR",
+      "zone_name": "Acropolis",
+      "source_primary_id": "c02ba547-534c-5fe7-87e0-b7db1bf0eff2",
+      "editorial_score": 97,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Parthenon",
+          "alias_normalized": "parthenon",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "temple"
+    },
+    {
+      "poi_id": "01da5a36-ac2e-5f40-9b21-b03cc260969a",
+      "destination_key": "athens",
+      "name": "Acropolis Museum",
+      "normalized_name": "acropolis museum",
+      "category": "museum",
+      "lat": 37.9685,
+      "lng": 23.7285,
+      "address": null,
+      "country_code": "GR",
+      "zone_name": "Makrygianni",
+      "source_primary_id": "c02ba547-534c-5fe7-87e0-b7db1bf0eff2",
+      "editorial_score": 94,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Acropolis Museum",
+          "alias_normalized": "acropolis museum",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "archaeological_museum"
+    },
+    {
+      "poi_id": "265a3768-0957-52e5-9b18-9d6230c1b789",
+      "destination_key": "athens",
+      "name": "Plaka",
+      "normalized_name": "plaka",
+      "category": "neighborhood",
+      "lat": 37.9725,
+      "lng": 23.73,
+      "address": null,
+      "country_code": "GR",
+      "zone_name": "Plaka",
+      "source_primary_id": "c02ba547-534c-5fe7-87e0-b7db1bf0eff2",
+      "editorial_score": 90,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Plaka",
+          "alias_normalized": "plaka",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "79179d32-be9f-59df-af46-abe660979fcf",
+      "destination_key": "athens",
+      "name": "Ancient Agora",
+      "normalized_name": "ancient agora",
+      "category": "monument",
+      "lat": 37.9745,
+      "lng": 23.723,
+      "address": null,
+      "country_code": "GR",
+      "zone_name": "Monastiraki",
+      "source_primary_id": "c02ba547-534c-5fe7-87e0-b7db1bf0eff2",
+      "editorial_score": 88,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Ancient Agora",
+          "alias_normalized": "ancient agora",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "ruins"
+    },
+    {
+      "poi_id": "66ee0ad3-4473-583e-b6b3-3513f121cb2f",
+      "destination_key": "athens",
+      "name": "Temple of Olympian Zeus",
+      "normalized_name": "temple of olympian zeus",
+      "category": "monument",
+      "lat": 37.9693,
+      "lng": 23.7331,
+      "address": null,
+      "country_code": "GR",
+      "zone_name": "Syntagma",
+      "source_primary_id": "c02ba547-534c-5fe7-87e0-b7db1bf0eff2",
+      "editorial_score": 87,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Temple of Olympian Zeus",
+          "alias_normalized": "temple of olympian zeus",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "temple"
+    },
+    {
+      "poi_id": "856db47c-b2a3-59fb-bbe1-392217fc3d48",
+      "destination_key": "athens",
+      "name": "National Archaeological Museum",
+      "normalized_name": "national archaeological museum",
+      "category": "museum",
+      "lat": 37.9888,
+      "lng": 23.7325,
+      "address": null,
+      "country_code": "GR",
+      "zone_name": "Exarcheia",
+      "source_primary_id": "c02ba547-534c-5fe7-87e0-b7db1bf0eff2",
+      "editorial_score": 86,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "National Archaeological Museum",
+          "alias_normalized": "national archaeological museum",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "archaeological_museum"
+    },
+    {
+      "poi_id": "25b43e9d-60f0-54f5-acad-78b3d02cf661",
+      "destination_key": "athens",
+      "name": "Monastiraki",
+      "normalized_name": "monastiraki",
+      "category": "neighborhood",
+      "lat": 37.9765,
+      "lng": 23.725,
+      "address": null,
+      "country_code": "GR",
+      "zone_name": "Monastiraki",
+      "source_primary_id": "c02ba547-534c-5fe7-87e0-b7db1bf0eff2",
+      "editorial_score": 85,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Monastiraki",
+          "alias_normalized": "monastiraki",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "flea_market",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "450f82e7-5b10-5732-af69-de2ec21dcfcc",
+      "destination_key": "athens",
+      "name": "Syntagma Square",
+      "normalized_name": "syntagma square",
+      "category": "monument",
+      "lat": 37.9755,
+      "lng": 23.7348,
+      "address": null,
+      "country_code": "GR",
+      "zone_name": "Syntagma",
+      "source_primary_id": "c02ba547-534c-5fe7-87e0-b7db1bf0eff2",
+      "editorial_score": 84,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Syntagma Square",
+          "alias_normalized": "syntagma square",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "square"
+    },
+    {
+      "poi_id": "abf3cbae-e09d-5cbb-9f0c-7a578c5d1bf6",
+      "destination_key": "athens",
+      "name": "Mount Lycabettus",
+      "normalized_name": "mount lycabettus",
+      "category": "viewpoint",
+      "lat": 37.9819,
+      "lng": 23.7432,
+      "address": null,
+      "country_code": "GR",
+      "zone_name": "Kolonaki",
+      "source_primary_id": "c02ba547-534c-5fe7-87e0-b7db1bf0eff2",
+      "editorial_score": 83,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 45,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Mount Lycabettus",
+          "alias_normalized": "mount lycabettus",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "hill"
+    },
+    {
+      "poi_id": "9b2c1c30-6b56-52d4-8d83-8d0b8110f499",
+      "destination_key": "athens",
+      "name": "Kerameikos",
+      "normalized_name": "kerameikos",
+      "category": "monument",
+      "lat": 37.978,
+      "lng": 23.718,
+      "address": null,
+      "country_code": "GR",
+      "zone_name": "Kerameikos",
+      "source_primary_id": "c02ba547-534c-5fe7-87e0-b7db1bf0eff2",
+      "editorial_score": 81,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Kerameikos",
+          "alias_normalized": "kerameikos",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "cemetery"
+    },
+    {
+      "poi_id": "9918d0d8-7e33-5595-a117-3a3b293c6cb9",
+      "destination_key": "athens",
+      "name": "Panathenaic Stadium",
+      "normalized_name": "panathenaic stadium",
+      "category": "monument",
+      "lat": 37.9684,
+      "lng": 23.7414,
+      "address": null,
+      "country_code": "GR",
+      "zone_name": "Pangrati",
+      "source_primary_id": "c02ba547-534c-5fe7-87e0-b7db1bf0eff2",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Panathenaic Stadium",
+          "alias_normalized": "panathenaic stadium",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "stadium"
+    },
+    {
+      "poi_id": "0bd6d3af-6130-503e-b081-57326e5f0d1b",
+      "destination_key": "athens",
+      "name": "Erechtheion",
+      "normalized_name": "erechtheion",
+      "category": "monument",
+      "lat": 37.9722,
+      "lng": 23.7265,
+      "address": null,
+      "country_code": "GR",
+      "zone_name": "Acropolis",
+      "source_primary_id": "c02ba547-534c-5fe7-87e0-b7db1bf0eff2",
+      "editorial_score": 85,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Erechtheion",
+          "alias_normalized": "erechtheion",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "temple"
+    },
+    {
+      "poi_id": "dc83c4c4-0395-5045-b9fa-20d99cd271a0",
+      "destination_key": "athens",
+      "name": "Benaki Museum",
+      "normalized_name": "benaki museum",
+      "category": "museum",
+      "lat": 37.9757,
+      "lng": 23.7396,
+      "address": null,
+      "country_code": "GR",
+      "zone_name": "Kolonaki",
+      "source_primary_id": "c02ba547-534c-5fe7-87e0-b7db1bf0eff2",
+      "editorial_score": 80,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Benaki Museum",
+          "alias_normalized": "benaki museum",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "art_museum"
+    },
+    {
+      "poi_id": "ac5bb255-20d6-589d-9fb7-41067bb77e2a",
+      "destination_key": "athens",
+      "name": "Psiri",
+      "normalized_name": "psiri",
+      "category": "neighborhood",
+      "lat": 37.978,
+      "lng": 23.724,
+      "address": null,
+      "country_code": "GR",
+      "zone_name": "Psiri",
+      "source_primary_id": "c02ba547-534c-5fe7-87e0-b7db1bf0eff2",
+      "editorial_score": 79,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Psiri",
+          "alias_normalized": "psiri",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "nightlife",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ]
+    }
+  ]
+}

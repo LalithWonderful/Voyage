@@ -1,0 +1,981 @@
+{
+  "_comment": "POI-2.x — Pilot fixture Istanbul. ~20 high-quality POIs. Manually curated, no scraping. Coordinates approximate.",
+  "sources": [
+    {
+      "source_id": "b2c19aa1-93b2-571b-ad24-fe25e81e2280",
+      "name": "Lunao Pilot Istanbul",
+      "source_type": "editorial",
+      "trust_level": 5,
+      "is_active": true
+    }
+  ],
+  "pois": [
+    {
+      "poi_id": "d7eeb1b7-c292-5009-b1ed-ae39600eb5e6",
+      "destination_key": "istanbul",
+      "name": "Hagia Sophia",
+      "normalized_name": "hagia sophia",
+      "category": "monument",
+      "lat": 41.0085,
+      "lng": 28.9802,
+      "address": null,
+      "country_code": "TR",
+      "zone_name": "Sultanahmet",
+      "source_primary_id": "b2c19aa1-93b2-571b-ad24-fe25e81e2280",
+      "editorial_score": 98,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Hagia Sophia",
+          "alias_normalized": "hagia sophia",
+          "is_canonical": true
+        },
+        {
+          "alias": "Ayasofya",
+          "alias_normalized": "ayasofya",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "islamic",
+          "tag_category": "vibe",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "mosque",
+      "official_url": "https://ayasofyacamii.gov.tr"
+    },
+    {
+      "poi_id": "0de76a93-1093-5fe6-ae01-d515147a978a",
+      "destination_key": "istanbul",
+      "name": "Blue Mosque",
+      "normalized_name": "blue mosque",
+      "category": "monument",
+      "lat": 41.0054,
+      "lng": 28.9768,
+      "address": null,
+      "country_code": "TR",
+      "zone_name": "Sultanahmet",
+      "source_primary_id": "b2c19aa1-93b2-571b-ad24-fe25e81e2280",
+      "editorial_score": 96,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Blue Mosque",
+          "alias_normalized": "blue mosque",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "islamic",
+          "tag_category": "vibe",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "mosque"
+    },
+    {
+      "poi_id": "b479a9b3-5f40-5a5b-be05-082d480ee685",
+      "destination_key": "istanbul",
+      "name": "Topkapi Palace",
+      "normalized_name": "topkapi palace",
+      "category": "monument",
+      "lat": 41.0115,
+      "lng": 28.9833,
+      "address": null,
+      "country_code": "TR",
+      "zone_name": "Sultanahmet",
+      "source_primary_id": "b2c19aa1-93b2-571b-ad24-fe25e81e2280",
+      "editorial_score": 95,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Topkapi Palace",
+          "alias_normalized": "topkapi palace",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "royal",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "palace",
+      "official_url": "https://topkapisarayi.gov.tr"
+    },
+    {
+      "poi_id": "8e77b57a-70af-5a67-9ce1-0ee15bbb7f25",
+      "destination_key": "istanbul",
+      "name": "Grand Bazaar",
+      "normalized_name": "grand bazaar",
+      "category": "market",
+      "lat": 41.0107,
+      "lng": 28.968,
+      "address": null,
+      "country_code": "TR",
+      "zone_name": "Fatih",
+      "source_primary_id": "b2c19aa1-93b2-571b-ad24-fe25e81e2280",
+      "editorial_score": 92,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Grand Bazaar",
+          "alias_normalized": "grand bazaar",
+          "is_canonical": true
+        },
+        {
+          "alias": "Kapali Carsi",
+          "alias_normalized": "kapali carsi",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "food",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "shopping",
+          "tag_category": "activity_type",
+          "confidence": 70
+        }
+      ],
+      "subcategory": "bazaar"
+    },
+    {
+      "poi_id": "52787c1a-c672-523b-a7f1-b0518c4826d1",
+      "destination_key": "istanbul",
+      "name": "Basilica Cistern",
+      "normalized_name": "basilica cistern",
+      "category": "monument",
+      "lat": 41.0083,
+      "lng": 28.9779,
+      "address": null,
+      "country_code": "TR",
+      "zone_name": "Sultanahmet",
+      "source_primary_id": "b2c19aa1-93b2-571b-ad24-fe25e81e2280",
+      "editorial_score": 88,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Basilica Cistern",
+          "alias_normalized": "basilica cistern",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "cistern",
+      "official_url": "https://yerebatansarayi.com"
+    },
+    {
+      "poi_id": "ecfdda61-b42e-5859-8461-0c088569711f",
+      "destination_key": "istanbul",
+      "name": "Galata Tower",
+      "normalized_name": "galata tower",
+      "category": "viewpoint",
+      "lat": 41.0256,
+      "lng": 28.9742,
+      "address": null,
+      "country_code": "TR",
+      "zone_name": "Beyoglu",
+      "source_primary_id": "b2c19aa1-93b2-571b-ad24-fe25e81e2280",
+      "editorial_score": 87,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 45,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Galata Tower",
+          "alias_normalized": "galata tower",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "tower"
+    },
+    {
+      "poi_id": "aa495137-e6d1-509c-9bc2-b17ca56172be",
+      "destination_key": "istanbul",
+      "name": "Dolmabahce Palace",
+      "normalized_name": "dolmabahce palace",
+      "category": "monument",
+      "lat": 41.0391,
+      "lng": 29.0005,
+      "address": null,
+      "country_code": "TR",
+      "zone_name": "Besiktas",
+      "source_primary_id": "b2c19aa1-93b2-571b-ad24-fe25e81e2280",
+      "editorial_score": 86,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Dolmabahce Palace",
+          "alias_normalized": "dolmabahce palace",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "royal",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "palace"
+    },
+    {
+      "poi_id": "d51e2f59-64d7-548d-b025-c8cfe19b4ec9",
+      "destination_key": "istanbul",
+      "name": "Spice Bazaar",
+      "normalized_name": "spice bazaar",
+      "category": "market",
+      "lat": 41.0165,
+      "lng": 28.9703,
+      "address": null,
+      "country_code": "TR",
+      "zone_name": "Eminonu",
+      "source_primary_id": "b2c19aa1-93b2-571b-ad24-fe25e81e2280",
+      "editorial_score": 84,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Spice Bazaar",
+          "alias_normalized": "spice bazaar",
+          "is_canonical": true
+        },
+        {
+          "alias": "Misir Carsisi",
+          "alias_normalized": "misir carsisi",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "food",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "shopping",
+          "tag_category": "activity_type",
+          "confidence": 70
+        }
+      ],
+      "subcategory": "bazaar"
+    },
+    {
+      "poi_id": "80ab57fc-1612-5267-99df-de0699329c73",
+      "destination_key": "istanbul",
+      "name": "Bosphorus Cruise",
+      "normalized_name": "bosphorus cruise",
+      "category": "local_experience",
+      "lat": 41.021,
+      "lng": 29.003,
+      "address": null,
+      "country_code": "TR",
+      "zone_name": "Bosphorus",
+      "source_primary_id": "b2c19aa1-93b2-571b-ad24-fe25e81e2280",
+      "editorial_score": 85,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Bosphorus Cruise",
+          "alias_normalized": "bosphorus cruise",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "interactive",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "scenic",
+          "tag_category": "vibe",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "cruise"
+    },
+    {
+      "poi_id": "e57699e4-f433-54f5-af3b-9e7959b5a9d0",
+      "destination_key": "istanbul",
+      "name": "Suleymaniye Mosque",
+      "normalized_name": "suleymaniye mosque",
+      "category": "monument",
+      "lat": 41.016,
+      "lng": 28.9637,
+      "address": null,
+      "country_code": "TR",
+      "zone_name": "Fatih",
+      "source_primary_id": "b2c19aa1-93b2-571b-ad24-fe25e81e2280",
+      "editorial_score": 83,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Suleymaniye Mosque",
+          "alias_normalized": "suleymaniye mosque",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "islamic",
+          "tag_category": "vibe",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "mosque"
+    },
+    {
+      "poi_id": "382809a1-f885-5d23-bce1-cd53b83eb485",
+      "destination_key": "istanbul",
+      "name": "Chora Church",
+      "normalized_name": "chora church",
+      "category": "monument",
+      "lat": 41.0314,
+      "lng": 28.9391,
+      "address": null,
+      "country_code": "TR",
+      "zone_name": "Edirnekapi",
+      "source_primary_id": "b2c19aa1-93b2-571b-ad24-fe25e81e2280",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Chora Church",
+          "alias_normalized": "chora church",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "church",
+      "official_url": "https://choramuseum.com"
+    },
+    {
+      "poi_id": "0f42f347-dbac-59d3-9b3f-1569d4afa9aa",
+      "destination_key": "istanbul",
+      "name": "Istiklal Street",
+      "normalized_name": "istiklal street",
+      "category": "neighborhood",
+      "lat": 41.0347,
+      "lng": 28.9776,
+      "address": null,
+      "country_code": "TR",
+      "zone_name": "Beyoglu",
+      "source_primary_id": "b2c19aa1-93b2-571b-ad24-fe25e81e2280",
+      "editorial_score": 80,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Istiklal Street",
+          "alias_normalized": "istiklal street",
+          "is_canonical": true
+        },
+        {
+          "alias": "Istiklal Caddesi",
+          "alias_normalized": "istiklal caddesi",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "f5ac3c47-bca7-5f59-8e12-00dd67c0b3b0",
+      "destination_key": "istanbul",
+      "name": "Taksim Square",
+      "normalized_name": "taksim square",
+      "category": "monument",
+      "lat": 41.0369,
+      "lng": 28.9864,
+      "address": null,
+      "country_code": "TR",
+      "zone_name": "Beyoglu",
+      "source_primary_id": "b2c19aa1-93b2-571b-ad24-fe25e81e2280",
+      "editorial_score": 78,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Taksim Square",
+          "alias_normalized": "taksim square",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "square"
+    },
+    {
+      "poi_id": "3d024d43-ed4d-51f6-a9d7-5eebcd6421fe",
+      "destination_key": "istanbul",
+      "name": "Princes Islands",
+      "normalized_name": "princes islands",
+      "category": "park",
+      "lat": 40.8768,
+      "lng": 29.0936,
+      "address": null,
+      "country_code": "TR",
+      "zone_name": "Sea of Marmara",
+      "source_primary_id": "b2c19aa1-93b2-571b-ad24-fe25e81e2280",
+      "editorial_score": 76,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Princes Islands",
+          "alias_normalized": "princes islands",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "island"
+    },
+    {
+      "poi_id": "50fca8cc-5c41-54de-ac84-d94966fb9740",
+      "destination_key": "istanbul",
+      "name": "Rumeli Fortress",
+      "normalized_name": "rumeli fortress",
+      "category": "monument",
+      "lat": 41.0951,
+      "lng": 29.0562,
+      "address": null,
+      "country_code": "TR",
+      "zone_name": "Sariyer",
+      "source_primary_id": "b2c19aa1-93b2-571b-ad24-fe25e81e2280",
+      "editorial_score": 75,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Rumeli Fortress",
+          "alias_normalized": "rumeli fortress",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "fortress"
+    },
+    {
+      "poi_id": "c5aec436-7455-53dd-85bc-2a5dfa7bc49c",
+      "destination_key": "istanbul",
+      "name": "Maiden's Tower",
+      "normalized_name": "maiden's tower",
+      "category": "monument",
+      "lat": 41.0211,
+      "lng": 29.0041,
+      "address": null,
+      "country_code": "TR",
+      "zone_name": "Uskudar",
+      "source_primary_id": "b2c19aa1-93b2-571b-ad24-fe25e81e2280",
+      "editorial_score": 79,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Maiden's Tower",
+          "alias_normalized": "maiden's tower",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "tower"
+    },
+    {
+      "poi_id": "742ea5bb-f17f-57f7-9e23-936c141f0c3a",
+      "destination_key": "istanbul",
+      "name": "Archaeological Museum",
+      "normalized_name": "archaeological museum",
+      "category": "museum",
+      "lat": 41.011,
+      "lng": 28.9816,
+      "address": null,
+      "country_code": "TR",
+      "zone_name": "Sultanahmet",
+      "source_primary_id": "b2c19aa1-93b2-571b-ad24-fe25e81e2280",
+      "editorial_score": 81,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Archaeological Museum",
+          "alias_normalized": "archaeological museum",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "history_museum"
+    },
+    {
+      "poi_id": "060a38c5-de6d-5464-9888-dd557ee3ac53",
+      "destination_key": "istanbul",
+      "name": "Pierre Loti Hill",
+      "normalized_name": "pierre loti hill",
+      "category": "viewpoint",
+      "lat": 41.048,
+      "lng": 28.9355,
+      "address": null,
+      "country_code": "TR",
+      "zone_name": "Eyup",
+      "source_primary_id": "b2c19aa1-93b2-571b-ad24-fe25e81e2280",
+      "editorial_score": 74,
+      "touristic_importance": 2,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 45,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Pierre Loti Hill",
+          "alias_normalized": "pierre loti hill",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "hill"
+    },
+    {
+      "poi_id": "6118c43c-b4e5-5c96-a455-247e026cf2b7",
+      "destination_key": "istanbul",
+      "name": "Ortakoy",
+      "normalized_name": "ortakoy",
+      "category": "neighborhood",
+      "lat": 41.0473,
+      "lng": 29.0271,
+      "address": null,
+      "country_code": "TR",
+      "zone_name": "Besiktas",
+      "source_primary_id": "b2c19aa1-93b2-571b-ad24-fe25e81e2280",
+      "editorial_score": 77,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Ortakoy",
+          "alias_normalized": "ortakoy",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "77904a05-6dda-54e8-b11a-506491c28f70",
+      "destination_key": "istanbul",
+      "name": "Emirgan Park",
+      "normalized_name": "emirgan park",
+      "category": "park",
+      "lat": 41.1056,
+      "lng": 29.0558,
+      "address": null,
+      "country_code": "TR",
+      "zone_name": "Sariyer",
+      "source_primary_id": "b2c19aa1-93b2-571b-ad24-fe25e81e2280",
+      "editorial_score": 73,
+      "touristic_importance": 2,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Emirgan Park",
+          "alias_normalized": "emirgan park",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "garden"
+    }
+  ]
+}

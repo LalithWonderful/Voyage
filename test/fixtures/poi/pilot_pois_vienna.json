@@ -1,0 +1,720 @@
+{
+  "_comment": "POI-2.x — Pilot fixture Vienna. ~15 high-quality POIs. Manually curated, no scraping. Coordinates approximate.",
+  "sources": [
+    {
+      "source_id": "f5163b24-2438-5ebc-add8-dfae30fab016",
+      "name": "Lunao Pilot Vienna",
+      "source_type": "editorial",
+      "trust_level": 5,
+      "is_active": true
+    }
+  ],
+  "pois": [
+    {
+      "poi_id": "fff8733f-9e3f-5383-bfb9-4e5e8ee78c55",
+      "destination_key": "vienna",
+      "name": "Schonbrunn Palace",
+      "normalized_name": "schonbrunn palace",
+      "category": "monument",
+      "lat": 48.1845,
+      "lng": 16.3119,
+      "address": null,
+      "country_code": "AT",
+      "zone_name": "Hietzing",
+      "source_primary_id": "f5163b24-2438-5ebc-add8-dfae30fab016",
+      "editorial_score": 96,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Schonbrunn Palace",
+          "alias_normalized": "schonbrunn palace",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "royal",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "palace",
+      "official_url": "https://www.schoenbrunn.at"
+    },
+    {
+      "poi_id": "5827cf5f-bc27-5035-923d-5084a0b98a3e",
+      "destination_key": "vienna",
+      "name": "Hofburg",
+      "normalized_name": "hofburg",
+      "category": "monument",
+      "lat": 48.2077,
+      "lng": 16.3645,
+      "address": null,
+      "country_code": "AT",
+      "zone_name": "Innere Stadt",
+      "source_primary_id": "f5163b24-2438-5ebc-add8-dfae30fab016",
+      "editorial_score": 93,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Hofburg",
+          "alias_normalized": "hofburg",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "royal",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "palace"
+    },
+    {
+      "poi_id": "76fb6e1b-ebd3-5cdb-b287-3ef17a4458e8",
+      "destination_key": "vienna",
+      "name": "St. Stephen's Cathedral",
+      "normalized_name": "st. stephen's cathedral",
+      "category": "monument",
+      "lat": 48.2085,
+      "lng": 16.3731,
+      "address": null,
+      "country_code": "AT",
+      "zone_name": "Innere Stadt",
+      "source_primary_id": "f5163b24-2438-5ebc-add8-dfae30fab016",
+      "editorial_score": 92,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "St. Stephen's Cathedral",
+          "alias_normalized": "st. stephen's cathedral",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "gothic",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "cathedral"
+    },
+    {
+      "poi_id": "6028bd1e-0804-5870-bd22-2c26f1ffebf9",
+      "destination_key": "vienna",
+      "name": "Belvedere",
+      "normalized_name": "belvedere",
+      "category": "museum",
+      "lat": 48.1914,
+      "lng": 16.3808,
+      "address": null,
+      "country_code": "AT",
+      "zone_name": "Landstrasse",
+      "source_primary_id": "f5163b24-2438-5ebc-add8-dfae30fab016",
+      "editorial_score": 90,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Belvedere",
+          "alias_normalized": "belvedere",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "art_museum",
+      "official_url": "https://www.belvedere.at"
+    },
+    {
+      "poi_id": "dfc0a281-de4c-587d-bd5a-c601c672d814",
+      "destination_key": "vienna",
+      "name": "Kunsthistorisches Museum",
+      "normalized_name": "kunsthistorisches museum",
+      "category": "museum",
+      "lat": 48.2037,
+      "lng": 16.3616,
+      "address": null,
+      "country_code": "AT",
+      "zone_name": "Innere Stadt",
+      "source_primary_id": "f5163b24-2438-5ebc-add8-dfae30fab016",
+      "editorial_score": 88,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Kunsthistorisches Museum",
+          "alias_normalized": "kunsthistorisches museum",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "art_museum"
+    },
+    {
+      "poi_id": "625f2975-6725-5138-9642-cd8f4e7a0f08",
+      "destination_key": "vienna",
+      "name": "Prater",
+      "normalized_name": "prater",
+      "category": "park",
+      "lat": 48.217,
+      "lng": 16.3958,
+      "address": null,
+      "country_code": "AT",
+      "zone_name": "Leopoldstadt",
+      "source_primary_id": "f5163b24-2438-5ebc-add8-dfae30fab016",
+      "editorial_score": 85,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Prater",
+          "alias_normalized": "prater",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "amusement_park"
+    },
+    {
+      "poi_id": "0b314360-24c7-54d5-a2aa-5874fb0c342c",
+      "destination_key": "vienna",
+      "name": "Naschmarkt",
+      "normalized_name": "naschmarkt",
+      "category": "market",
+      "lat": 48.1984,
+      "lng": 16.3632,
+      "address": null,
+      "country_code": "AT",
+      "zone_name": "Mariahilf",
+      "source_primary_id": "f5163b24-2438-5ebc-add8-dfae30fab016",
+      "editorial_score": 84,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Naschmarkt",
+          "alias_normalized": "naschmarkt",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "food",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "shopping",
+          "tag_category": "activity_type",
+          "confidence": 70
+        }
+      ],
+      "subcategory": "food_market"
+    },
+    {
+      "poi_id": "be097211-0787-5948-8599-1fcc36d34f0a",
+      "destination_key": "vienna",
+      "name": "Spanish Riding School",
+      "normalized_name": "spanish riding school",
+      "category": "local_experience",
+      "lat": 48.2069,
+      "lng": 16.3665,
+      "address": null,
+      "country_code": "AT",
+      "zone_name": "Innere Stadt",
+      "source_primary_id": "f5163b24-2438-5ebc-add8-dfae30fab016",
+      "editorial_score": 83,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Spanish Riding School",
+          "alias_normalized": "spanish riding school",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "interactive",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "performance"
+    },
+    {
+      "poi_id": "3660427e-6306-5ec2-b841-bbf241ee0c2b",
+      "destination_key": "vienna",
+      "name": "Vienna State Opera",
+      "normalized_name": "vienna state opera",
+      "category": "monument",
+      "lat": 48.2033,
+      "lng": 16.3691,
+      "address": null,
+      "country_code": "AT",
+      "zone_name": "Innere Stadt",
+      "source_primary_id": "f5163b24-2438-5ebc-add8-dfae30fab016",
+      "editorial_score": 86,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Vienna State Opera",
+          "alias_normalized": "vienna state opera",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "opera_house"
+    },
+    {
+      "poi_id": "f1910bb3-050a-58af-98cf-d22a99f5b9b5",
+      "destination_key": "vienna",
+      "name": "Ringstrasse",
+      "normalized_name": "ringstrasse",
+      "category": "neighborhood",
+      "lat": 48.2047,
+      "lng": 16.366,
+      "address": null,
+      "country_code": "AT",
+      "zone_name": "Innere Stadt",
+      "source_primary_id": "f5163b24-2438-5ebc-add8-dfae30fab016",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Ringstrasse",
+          "alias_normalized": "ringstrasse",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "ea7d7011-b52f-5683-b84d-465c3d11e7c2",
+      "destination_key": "vienna",
+      "name": "Hundertwasserhaus",
+      "normalized_name": "hundertwasserhaus",
+      "category": "monument",
+      "lat": 48.2073,
+      "lng": 16.3934,
+      "address": null,
+      "country_code": "AT",
+      "zone_name": "Landstrasse",
+      "source_primary_id": "f5163b24-2438-5ebc-add8-dfae30fab016",
+      "editorial_score": 81,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Hundertwasserhaus",
+          "alias_normalized": "hundertwasserhaus",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "house"
+    },
+    {
+      "poi_id": "3caefde1-6a29-54a7-b1ca-d83c7eaba0ef",
+      "destination_key": "vienna",
+      "name": "Karlskirche",
+      "normalized_name": "karlskirche",
+      "category": "monument",
+      "lat": 48.1984,
+      "lng": 16.3717,
+      "address": null,
+      "country_code": "AT",
+      "zone_name": "Wieden",
+      "source_primary_id": "f5163b24-2438-5ebc-add8-dfae30fab016",
+      "editorial_score": 80,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Karlskirche",
+          "alias_normalized": "karlskirche",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "church"
+    },
+    {
+      "poi_id": "0148a9e4-250f-5b3d-b6f7-17094a82d9ab",
+      "destination_key": "vienna",
+      "name": "Albertina",
+      "normalized_name": "albertina",
+      "category": "museum",
+      "lat": 48.2047,
+      "lng": 16.3679,
+      "address": null,
+      "country_code": "AT",
+      "zone_name": "Innere Stadt",
+      "source_primary_id": "f5163b24-2438-5ebc-add8-dfae30fab016",
+      "editorial_score": 79,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Albertina",
+          "alias_normalized": "albertina",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "art_museum"
+    },
+    {
+      "poi_id": "a762fdf2-552c-5b89-b8bb-ae125fce96f8",
+      "destination_key": "vienna",
+      "name": "Demel",
+      "normalized_name": "demel",
+      "category": "local_experience",
+      "lat": 48.2085,
+      "lng": 16.3668,
+      "address": null,
+      "country_code": "AT",
+      "zone_name": "Innere Stadt",
+      "source_primary_id": "f5163b24-2438-5ebc-add8-dfae30fab016",
+      "editorial_score": 77,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Demel",
+          "alias_normalized": "demel",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "interactive",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "food",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "cafe"
+    },
+    {
+      "poi_id": "c522655d-c79c-52ee-ab2f-ad74b4a1f7e1",
+      "destination_key": "vienna",
+      "name": "Central Cemetery",
+      "normalized_name": "central cemetery",
+      "category": "park",
+      "lat": 48.151,
+      "lng": 16.439,
+      "address": null,
+      "country_code": "AT",
+      "zone_name": "Simmering",
+      "source_primary_id": "f5163b24-2438-5ebc-add8-dfae30fab016",
+      "editorial_score": 75,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Central Cemetery",
+          "alias_normalized": "central cemetery",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "cemetery"
+    }
+  ]
+}

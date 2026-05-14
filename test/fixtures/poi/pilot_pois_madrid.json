@@ -1,0 +1,718 @@
+{
+  "_comment": "POI-2.x — Pilot fixture Madrid. ~15 high-quality POIs. Manually curated, no scraping. Coordinates approximate.",
+  "sources": [
+    {
+      "source_id": "c938e816-b1f4-5c0b-8490-8af22ba6b62e",
+      "name": "Lunao Pilot Madrid",
+      "source_type": "editorial",
+      "trust_level": 5,
+      "is_active": true
+    }
+  ],
+  "pois": [
+    {
+      "poi_id": "dca3effc-73f3-542a-9987-859c1bd1583b",
+      "destination_key": "madrid",
+      "name": "Prado Museum",
+      "normalized_name": "prado museum",
+      "category": "museum",
+      "lat": 40.4138,
+      "lng": -3.6921,
+      "address": null,
+      "country_code": "ES",
+      "zone_name": "Paseo del Prado",
+      "source_primary_id": "c938e816-b1f4-5c0b-8490-8af22ba6b62e",
+      "editorial_score": 95,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Prado Museum",
+          "alias_normalized": "prado museum",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "art_museum",
+      "official_url": "https://www.museodelprado.es"
+    },
+    {
+      "poi_id": "87137cf4-c0b3-5868-b0a5-8d3bfb26d79e",
+      "destination_key": "madrid",
+      "name": "Royal Palace",
+      "normalized_name": "royal palace",
+      "category": "monument",
+      "lat": 40.418,
+      "lng": -3.7143,
+      "address": null,
+      "country_code": "ES",
+      "zone_name": "Palacio",
+      "source_primary_id": "c938e816-b1f4-5c0b-8490-8af22ba6b62e",
+      "editorial_score": 94,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Royal Palace",
+          "alias_normalized": "royal palace",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "royal",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "palace",
+      "official_url": "https://www.patrimonionacional.es"
+    },
+    {
+      "poi_id": "7ff0127e-2ab1-5b45-9ce3-c48e4329ec52",
+      "destination_key": "madrid",
+      "name": "Retiro Park",
+      "normalized_name": "retiro park",
+      "category": "park",
+      "lat": 40.4153,
+      "lng": -3.6844,
+      "address": null,
+      "country_code": "ES",
+      "zone_name": "Retiro",
+      "source_primary_id": "c938e816-b1f4-5c0b-8490-8af22ba6b62e",
+      "editorial_score": 91,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Retiro Park",
+          "alias_normalized": "retiro park",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "urban_park"
+    },
+    {
+      "poi_id": "361e720a-ad99-57ff-a552-a832d5c98250",
+      "destination_key": "madrid",
+      "name": "Plaza Mayor",
+      "normalized_name": "plaza mayor",
+      "category": "monument",
+      "lat": 40.4155,
+      "lng": -3.7074,
+      "address": null,
+      "country_code": "ES",
+      "zone_name": "Sol",
+      "source_primary_id": "c938e816-b1f4-5c0b-8490-8af22ba6b62e",
+      "editorial_score": 89,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Plaza Mayor",
+          "alias_normalized": "plaza mayor",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "square"
+    },
+    {
+      "poi_id": "42ac5ea1-63b9-5ffc-b8cb-cf827c81349c",
+      "destination_key": "madrid",
+      "name": "Puerta del Sol",
+      "normalized_name": "puerta del sol",
+      "category": "monument",
+      "lat": 40.4169,
+      "lng": -3.7035,
+      "address": null,
+      "country_code": "ES",
+      "zone_name": "Sol",
+      "source_primary_id": "c938e816-b1f4-5c0b-8490-8af22ba6b62e",
+      "editorial_score": 88,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Puerta del Sol",
+          "alias_normalized": "puerta del sol",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "square"
+    },
+    {
+      "poi_id": "2fbfb4a9-d8d8-5176-8c3e-ae542adc50f5",
+      "destination_key": "madrid",
+      "name": "Reina Sofia",
+      "normalized_name": "reina sofia",
+      "category": "museum",
+      "lat": 40.4086,
+      "lng": -3.6944,
+      "address": null,
+      "country_code": "ES",
+      "zone_name": "Atocha",
+      "source_primary_id": "c938e816-b1f4-5c0b-8490-8af22ba6b62e",
+      "editorial_score": 87,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Reina Sofia",
+          "alias_normalized": "reina sofia",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "art_museum"
+    },
+    {
+      "poi_id": "37c8f3b7-f893-5aa6-b819-63d2f7972839",
+      "destination_key": "madrid",
+      "name": "Thyssen-Bornemisza",
+      "normalized_name": "thyssen-bornemisza",
+      "category": "museum",
+      "lat": 40.416,
+      "lng": -3.695,
+      "address": null,
+      "country_code": "ES",
+      "zone_name": "Paseo del Prado",
+      "source_primary_id": "c938e816-b1f4-5c0b-8490-8af22ba6b62e",
+      "editorial_score": 85,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Thyssen-Bornemisza",
+          "alias_normalized": "thyssen-bornemisza",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "art_museum"
+    },
+    {
+      "poi_id": "de0ca5d1-9830-546f-80ce-191e82586910",
+      "destination_key": "madrid",
+      "name": "Gran Via",
+      "normalized_name": "gran via",
+      "category": "neighborhood",
+      "lat": 40.4203,
+      "lng": -3.7058,
+      "address": null,
+      "country_code": "ES",
+      "zone_name": "Gran Via",
+      "source_primary_id": "c938e816-b1f4-5c0b-8490-8af22ba6b62e",
+      "editorial_score": 84,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Gran Via",
+          "alias_normalized": "gran via",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "4e091096-1adb-5bd4-8b04-7299e64f3909",
+      "destination_key": "madrid",
+      "name": "Santiago Bernabeu",
+      "normalized_name": "santiago bernabeu",
+      "category": "monument",
+      "lat": 40.453,
+      "lng": -3.6883,
+      "address": null,
+      "country_code": "ES",
+      "zone_name": "Chamartin",
+      "source_primary_id": "c938e816-b1f4-5c0b-8490-8af22ba6b62e",
+      "editorial_score": 83,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Santiago Bernabeu",
+          "alias_normalized": "santiago bernabeu",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "stadium"
+    },
+    {
+      "poi_id": "43aa6075-32b8-52fa-a9fd-45f672088a9e",
+      "destination_key": "madrid",
+      "name": "Plaza de Espana",
+      "normalized_name": "plaza de espana",
+      "category": "monument",
+      "lat": 40.423,
+      "lng": -3.712,
+      "address": null,
+      "country_code": "ES",
+      "zone_name": "Moncloa",
+      "source_primary_id": "c938e816-b1f4-5c0b-8490-8af22ba6b62e",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Plaza de Espana",
+          "alias_normalized": "plaza de espana",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "square"
+    },
+    {
+      "poi_id": "6a752dd5-5da6-5fe4-9b61-77b0405b0420",
+      "destination_key": "madrid",
+      "name": "Mercado San Miguel",
+      "normalized_name": "mercado san miguel",
+      "category": "market",
+      "lat": 40.4154,
+      "lng": -3.7091,
+      "address": null,
+      "country_code": "ES",
+      "zone_name": "Sol",
+      "source_primary_id": "c938e816-b1f4-5c0b-8490-8af22ba6b62e",
+      "editorial_score": 81,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Mercado San Miguel",
+          "alias_normalized": "mercado san miguel",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "food",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "shopping",
+          "tag_category": "activity_type",
+          "confidence": 70
+        }
+      ],
+      "subcategory": "food_market"
+    },
+    {
+      "poi_id": "284874a1-82e4-5bcf-8812-e9b67c2448c6",
+      "destination_key": "madrid",
+      "name": "El Rastro",
+      "normalized_name": "el rastro",
+      "category": "market",
+      "lat": 40.4084,
+      "lng": -3.7072,
+      "address": null,
+      "country_code": "ES",
+      "zone_name": "La Latina",
+      "source_primary_id": "c938e816-b1f4-5c0b-8490-8af22ba6b62e",
+      "editorial_score": 80,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "El Rastro",
+          "alias_normalized": "el rastro",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "food",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "shopping",
+          "tag_category": "activity_type",
+          "confidence": 70
+        }
+      ],
+      "subcategory": "flea_market"
+    },
+    {
+      "poi_id": "2726e791-62a9-5214-9191-14f536078242",
+      "destination_key": "madrid",
+      "name": "Debod Temple",
+      "normalized_name": "debod temple",
+      "category": "monument",
+      "lat": 40.424,
+      "lng": -3.7178,
+      "address": null,
+      "country_code": "ES",
+      "zone_name": "Moncloa",
+      "source_primary_id": "c938e816-b1f4-5c0b-8490-8af22ba6b62e",
+      "editorial_score": 79,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Debod Temple",
+          "alias_normalized": "debod temple",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "temple"
+    },
+    {
+      "poi_id": "a098c2cf-b7ce-5c33-a55f-4f9ad67c903d",
+      "destination_key": "madrid",
+      "name": "Chueca",
+      "normalized_name": "chueca",
+      "category": "neighborhood",
+      "lat": 40.422,
+      "lng": -3.699,
+      "address": null,
+      "country_code": "ES",
+      "zone_name": "Justicia",
+      "source_primary_id": "c938e816-b1f4-5c0b-8490-8af22ba6b62e",
+      "editorial_score": 77,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Chueca",
+          "alias_normalized": "chueca",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "lgbtq",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "f6374d58-cdf2-5f04-93de-0beb10b5862f",
+      "destination_key": "madrid",
+      "name": "Lavapies",
+      "normalized_name": "lavapies",
+      "category": "neighborhood",
+      "lat": 40.4085,
+      "lng": -3.701,
+      "address": null,
+      "country_code": "ES",
+      "zone_name": "Embajadores",
+      "source_primary_id": "c938e816-b1f4-5c0b-8490-8af22ba6b62e",
+      "editorial_score": 76,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Lavapies",
+          "alias_normalized": "lavapies",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "multicultural",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ]
+    }
+  ]
+}

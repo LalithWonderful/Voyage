@@ -1,0 +1,742 @@
+{
+  "_comment": "POI-2.x — Pilot fixture Venice. ~15 high-quality POIs. Manually curated, no scraping. Coordinates approximate.",
+  "sources": [
+    {
+      "source_id": "acca50ca-7385-50d1-9bd2-a40181ba2db4",
+      "name": "Lunao Pilot Venice",
+      "source_type": "editorial",
+      "trust_level": 5,
+      "is_active": true
+    }
+  ],
+  "pois": [
+    {
+      "poi_id": "d6a6b38f-e555-5f03-8498-e8de4267839b",
+      "destination_key": "venice",
+      "name": "St. Mark's Square",
+      "normalized_name": "st. mark's square",
+      "category": "monument",
+      "lat": 45.4341,
+      "lng": 12.3388,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "San Marco",
+      "source_primary_id": "acca50ca-7385-50d1-9bd2-a40181ba2db4",
+      "editorial_score": 96,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "St. Mark's Square",
+          "alias_normalized": "st. mark's square",
+          "is_canonical": true
+        },
+        {
+          "alias": "Piazza San Marco",
+          "alias_normalized": "piazza san marco",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "square"
+    },
+    {
+      "poi_id": "8908a4ef-69a2-5aab-bd40-d6fd27b8274a",
+      "destination_key": "venice",
+      "name": "Doge's Palace",
+      "normalized_name": "doge's palace",
+      "category": "monument",
+      "lat": 45.4337,
+      "lng": 12.3402,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "San Marco",
+      "source_primary_id": "acca50ca-7385-50d1-9bd2-a40181ba2db4",
+      "editorial_score": 95,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Doge's Palace",
+          "alias_normalized": "doge's palace",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "royal",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "palace"
+    },
+    {
+      "poi_id": "4ffecc23-e83b-534f-bb76-ce245f506560",
+      "destination_key": "venice",
+      "name": "Rialto Bridge",
+      "normalized_name": "rialto bridge",
+      "category": "monument",
+      "lat": 45.4381,
+      "lng": 12.3358,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "San Polo",
+      "source_primary_id": "acca50ca-7385-50d1-9bd2-a40181ba2db4",
+      "editorial_score": 93,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Rialto Bridge",
+          "alias_normalized": "rialto bridge",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "bridge"
+    },
+    {
+      "poi_id": "f37df5d8-7855-5439-b8bf-d57c788d2e30",
+      "destination_key": "venice",
+      "name": "Grand Canal",
+      "normalized_name": "grand canal",
+      "category": "neighborhood",
+      "lat": 45.4408,
+      "lng": 12.321,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "Venice",
+      "source_primary_id": "acca50ca-7385-50d1-9bd2-a40181ba2db4",
+      "editorial_score": 91,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Grand Canal",
+          "alias_normalized": "grand canal",
+          "is_canonical": true
+        },
+        {
+          "alias": "Canal Grande",
+          "alias_normalized": "canal grande",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "af3a3284-0c49-5fa0-b9a8-8af55f633c23",
+      "destination_key": "venice",
+      "name": "St. Mark's Basilica",
+      "normalized_name": "st. mark's basilica",
+      "category": "monument",
+      "lat": 45.4345,
+      "lng": 12.3396,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "San Marco",
+      "source_primary_id": "acca50ca-7385-50d1-9bd2-a40181ba2db4",
+      "editorial_score": 94,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "St. Mark's Basilica",
+          "alias_normalized": "st. mark's basilica",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "basilica"
+    },
+    {
+      "poi_id": "480ffad5-1876-571b-bfe1-1098f30b5f0c",
+      "destination_key": "venice",
+      "name": "Bridge of Sighs",
+      "normalized_name": "bridge of sighs",
+      "category": "monument",
+      "lat": 45.4339,
+      "lng": 12.3408,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "San Marco",
+      "source_primary_id": "acca50ca-7385-50d1-9bd2-a40181ba2db4",
+      "editorial_score": 88,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Bridge of Sighs",
+          "alias_normalized": "bridge of sighs",
+          "is_canonical": true
+        },
+        {
+          "alias": "Ponte dei Sospiri",
+          "alias_normalized": "ponte dei sospiri",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "bridge"
+    },
+    {
+      "poi_id": "5c2693df-bc0e-5dcf-9978-c618de3a14a0",
+      "destination_key": "venice",
+      "name": "Burano",
+      "normalized_name": "burano",
+      "category": "neighborhood",
+      "lat": 45.4853,
+      "lng": 12.4169,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "Burano",
+      "source_primary_id": "acca50ca-7385-50d1-9bd2-a40181ba2db4",
+      "editorial_score": 86,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Burano",
+          "alias_normalized": "burano",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "colorful",
+          "tag_category": "vibe",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "island"
+    },
+    {
+      "poi_id": "993a5a01-b3a3-5330-89d9-446a823cbdad",
+      "destination_key": "venice",
+      "name": "Murano",
+      "normalized_name": "murano",
+      "category": "neighborhood",
+      "lat": 45.4585,
+      "lng": 12.3527,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "Murano",
+      "source_primary_id": "acca50ca-7385-50d1-9bd2-a40181ba2db4",
+      "editorial_score": 85,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Murano",
+          "alias_normalized": "murano",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "glass",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "island"
+    },
+    {
+      "poi_id": "28001274-6cdf-5944-9e65-3e89b11683c9",
+      "destination_key": "venice",
+      "name": "Peggy Guggenheim",
+      "normalized_name": "peggy guggenheim",
+      "category": "museum",
+      "lat": 45.4308,
+      "lng": 12.3315,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "Dorsoduro",
+      "source_primary_id": "acca50ca-7385-50d1-9bd2-a40181ba2db4",
+      "editorial_score": 84,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Peggy Guggenheim",
+          "alias_normalized": "peggy guggenheim",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "art_museum"
+    },
+    {
+      "poi_id": "9bd3d134-3907-5753-aef7-7918ad47867d",
+      "destination_key": "venice",
+      "name": "Basilica di Santa Maria della Salute",
+      "normalized_name": "basilica di santa maria della salute",
+      "category": "monument",
+      "lat": 45.4311,
+      "lng": 12.335,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "Dorsoduro",
+      "source_primary_id": "acca50ca-7385-50d1-9bd2-a40181ba2db4",
+      "editorial_score": 83,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Basilica di Santa Maria della Salute",
+          "alias_normalized": "basilica di santa maria della salute",
+          "is_canonical": true
+        },
+        {
+          "alias": "La Salute",
+          "alias_normalized": "la salute",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "basilica"
+    },
+    {
+      "poi_id": "81ef81b1-f97a-5d62-be06-c93936bdaad6",
+      "destination_key": "venice",
+      "name": "Teatro La Fenice",
+      "normalized_name": "teatro la fenice",
+      "category": "monument",
+      "lat": 45.4337,
+      "lng": 12.3335,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "San Marco",
+      "source_primary_id": "acca50ca-7385-50d1-9bd2-a40181ba2db4",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Teatro La Fenice",
+          "alias_normalized": "teatro la fenice",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "opera_house"
+    },
+    {
+      "poi_id": "51ab09e2-395b-53b2-ad78-2e0f64d4d362",
+      "destination_key": "venice",
+      "name": "Jewish Ghetto",
+      "normalized_name": "jewish ghetto",
+      "category": "neighborhood",
+      "lat": 45.444,
+      "lng": 12.3265,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "Cannaregio",
+      "source_primary_id": "acca50ca-7385-50d1-9bd2-a40181ba2db4",
+      "editorial_score": 81,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Jewish Ghetto",
+          "alias_normalized": "jewish ghetto",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "0f140ced-fcd0-5519-9c05-9fed0fb006c7",
+      "destination_key": "venice",
+      "name": "Lido",
+      "normalized_name": "lido",
+      "category": "park",
+      "lat": 45.406,
+      "lng": 12.36,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "Lido di Venezia",
+      "source_primary_id": "acca50ca-7385-50d1-9bd2-a40181ba2db4",
+      "editorial_score": 80,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Lido",
+          "alias_normalized": "lido",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "beach"
+    },
+    {
+      "poi_id": "06d09e8a-def5-5bb5-997a-8cb048f69d0f",
+      "destination_key": "venice",
+      "name": "Ca' d'Oro",
+      "normalized_name": "ca' d'oro",
+      "category": "monument",
+      "lat": 45.4402,
+      "lng": 12.334,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "Cannaregio",
+      "source_primary_id": "acca50ca-7385-50d1-9bd2-a40181ba2db4",
+      "editorial_score": 79,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Ca' d'Oro",
+          "alias_normalized": "ca' d'oro",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "royal",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "palace"
+    },
+    {
+      "poi_id": "d72919bf-ef7e-55d3-b54e-9d0ac33cf60c",
+      "destination_key": "venice",
+      "name": "Frari Basilica",
+      "normalized_name": "frari basilica",
+      "category": "monument",
+      "lat": 45.4373,
+      "lng": 12.3264,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "San Polo",
+      "source_primary_id": "acca50ca-7385-50d1-9bd2-a40181ba2db4",
+      "editorial_score": 78,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Frari Basilica",
+          "alias_normalized": "frari basilica",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "basilica"
+    }
+  ]
+}

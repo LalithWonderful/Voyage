@@ -1,0 +1,923 @@
+{
+  "_comment": "POI-2.x — Pilot fixture Tokyo. ~19 high-quality POIs. Manually curated, no scraping. Coordinates approximate.",
+  "sources": [
+    {
+      "source_id": "85edcc69-3689-5986-90ef-95992b9d7b58",
+      "name": "Lunao Pilot Tokyo",
+      "source_type": "editorial",
+      "trust_level": 5,
+      "is_active": true
+    }
+  ],
+  "pois": [
+    {
+      "poi_id": "3c0c540b-5904-57a5-92f1-b38fbb00cc82",
+      "destination_key": "tokyo",
+      "name": "Senso-ji",
+      "normalized_name": "senso-ji",
+      "category": "monument",
+      "lat": 35.7148,
+      "lng": 139.7967,
+      "address": null,
+      "country_code": "JP",
+      "zone_name": "Asakusa",
+      "source_primary_id": "85edcc69-3689-5986-90ef-95992b9d7b58",
+      "editorial_score": 95,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Senso-ji",
+          "alias_normalized": "senso-ji",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "temple"
+    },
+    {
+      "poi_id": "ef0f0b8b-8549-5d98-a489-e6553721e912",
+      "destination_key": "tokyo",
+      "name": "Meiji Shrine",
+      "normalized_name": "meiji shrine",
+      "category": "monument",
+      "lat": 35.6764,
+      "lng": 139.6993,
+      "address": null,
+      "country_code": "JP",
+      "zone_name": "Shibuya",
+      "source_primary_id": "85edcc69-3689-5986-90ef-95992b9d7b58",
+      "editorial_score": 93,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Meiji Shrine",
+          "alias_normalized": "meiji shrine",
+          "is_canonical": true
+        },
+        {
+          "alias": "Meiji Jingu",
+          "alias_normalized": "meiji jingu",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "shrine"
+    },
+    {
+      "poi_id": "73d8e818-a86e-5e13-9d5d-66b8b0387d51",
+      "destination_key": "tokyo",
+      "name": "Tokyo Tower",
+      "normalized_name": "tokyo tower",
+      "category": "viewpoint",
+      "lat": 35.6586,
+      "lng": 139.7454,
+      "address": null,
+      "country_code": "JP",
+      "zone_name": "Minato",
+      "source_primary_id": "85edcc69-3689-5986-90ef-95992b9d7b58",
+      "editorial_score": 90,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 45,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Tokyo Tower",
+          "alias_normalized": "tokyo tower",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "tower"
+    },
+    {
+      "poi_id": "2b1a3cc9-c568-5f51-aaa9-ce3d78ec4494",
+      "destination_key": "tokyo",
+      "name": "Tokyo Skytree",
+      "normalized_name": "tokyo skytree",
+      "category": "viewpoint",
+      "lat": 35.71,
+      "lng": 139.8107,
+      "address": null,
+      "country_code": "JP",
+      "zone_name": "Sumida",
+      "source_primary_id": "85edcc69-3689-5986-90ef-95992b9d7b58",
+      "editorial_score": 89,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 45,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Tokyo Skytree",
+          "alias_normalized": "tokyo skytree",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "tower"
+    },
+    {
+      "poi_id": "e595c0da-fe28-50dd-a43b-a224423c1f89",
+      "destination_key": "tokyo",
+      "name": "Shibuya Crossing",
+      "normalized_name": "shibuya crossing",
+      "category": "photo_spot",
+      "lat": 35.6595,
+      "lng": 139.7004,
+      "address": null,
+      "country_code": "JP",
+      "zone_name": "Shibuya",
+      "source_primary_id": "85edcc69-3689-5986-90ef-95992b9d7b58",
+      "editorial_score": 88,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 30,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Shibuya Crossing",
+          "alias_normalized": "shibuya crossing",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "iconic",
+          "tag_category": "vibe",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "crossing"
+    },
+    {
+      "poi_id": "6db6ce16-8ae5-5838-bbb8-4fd24e2da0c6",
+      "destination_key": "tokyo",
+      "name": "Imperial Palace",
+      "normalized_name": "imperial palace",
+      "category": "monument",
+      "lat": 35.6852,
+      "lng": 139.7528,
+      "address": null,
+      "country_code": "JP",
+      "zone_name": "Chiyoda",
+      "source_primary_id": "85edcc69-3689-5986-90ef-95992b9d7b58",
+      "editorial_score": 87,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Imperial Palace",
+          "alias_normalized": "imperial palace",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "royal",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "palace"
+    },
+    {
+      "poi_id": "0f9c7995-6f67-5044-8190-996080f23638",
+      "destination_key": "tokyo",
+      "name": "Tsukiji Outer Market",
+      "normalized_name": "tsukiji outer market",
+      "category": "market",
+      "lat": 35.6654,
+      "lng": 139.7707,
+      "address": null,
+      "country_code": "JP",
+      "zone_name": "Chuo",
+      "source_primary_id": "85edcc69-3689-5986-90ef-95992b9d7b58",
+      "editorial_score": 86,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Tsukiji Outer Market",
+          "alias_normalized": "tsukiji outer market",
+          "is_canonical": true
+        },
+        {
+          "alias": "Tsukiji Market",
+          "alias_normalized": "tsukiji market",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "food",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "shopping",
+          "tag_category": "activity_type",
+          "confidence": 70
+        }
+      ],
+      "subcategory": "food_market"
+    },
+    {
+      "poi_id": "8f26c168-c982-5336-ae6e-bb848d9f1dca",
+      "destination_key": "tokyo",
+      "name": "Akihabara",
+      "normalized_name": "akihabara",
+      "category": "neighborhood",
+      "lat": 35.6984,
+      "lng": 139.7731,
+      "address": null,
+      "country_code": "JP",
+      "zone_name": "Chiyoda",
+      "source_primary_id": "85edcc69-3689-5986-90ef-95992b9d7b58",
+      "editorial_score": 84,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Akihabara",
+          "alias_normalized": "akihabara",
+          "is_canonical": true
+        },
+        {
+          "alias": "Electric Town",
+          "alias_normalized": "electric town",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "b5a607b9-af21-5dc5-8119-94b2d41f3798",
+      "destination_key": "tokyo",
+      "name": "Ueno Park",
+      "normalized_name": "ueno park",
+      "category": "park",
+      "lat": 35.715,
+      "lng": 139.7735,
+      "address": null,
+      "country_code": "JP",
+      "zone_name": "Taito",
+      "source_primary_id": "85edcc69-3689-5986-90ef-95992b9d7b58",
+      "editorial_score": 83,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Ueno Park",
+          "alias_normalized": "ueno park",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "urban_park"
+    },
+    {
+      "poi_id": "42c0cce0-52a4-5a5c-90b8-fbb116bd4ce0",
+      "destination_key": "tokyo",
+      "name": "Harajuku",
+      "normalized_name": "harajuku",
+      "category": "neighborhood",
+      "lat": 35.6715,
+      "lng": 139.7031,
+      "address": null,
+      "country_code": "JP",
+      "zone_name": "Shibuya",
+      "source_primary_id": "85edcc69-3689-5986-90ef-95992b9d7b58",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Harajuku",
+          "alias_normalized": "harajuku",
+          "is_canonical": true
+        },
+        {
+          "alias": "Takeshita Street",
+          "alias_normalized": "takeshita street",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "5b0f4dda-c885-5d09-870f-df6ed38b62bf",
+      "destination_key": "tokyo",
+      "name": "Ginza",
+      "normalized_name": "ginza",
+      "category": "neighborhood",
+      "lat": 35.6722,
+      "lng": 139.7745,
+      "address": null,
+      "country_code": "JP",
+      "zone_name": "Chuo",
+      "source_primary_id": "85edcc69-3689-5986-90ef-95992b9d7b58",
+      "editorial_score": 81,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Ginza",
+          "alias_normalized": "ginza",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "luxury",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "20eccdf1-7378-5b19-9827-21411c8e069a",
+      "destination_key": "tokyo",
+      "name": "Roppongi Hills",
+      "normalized_name": "roppongi hills",
+      "category": "viewpoint",
+      "lat": 35.6605,
+      "lng": 139.7292,
+      "address": null,
+      "country_code": "JP",
+      "zone_name": "Minato",
+      "source_primary_id": "85edcc69-3689-5986-90ef-95992b9d7b58",
+      "editorial_score": 80,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 45,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Roppongi Hills",
+          "alias_normalized": "roppongi hills",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "observation_deck"
+    },
+    {
+      "poi_id": "af07f10c-35fc-5899-b2ce-e0cfb7a4bdfe",
+      "destination_key": "tokyo",
+      "name": "Odaiba",
+      "normalized_name": "odaiba",
+      "category": "neighborhood",
+      "lat": 35.6274,
+      "lng": 139.7747,
+      "address": null,
+      "country_code": "JP",
+      "zone_name": "Minato",
+      "source_primary_id": "85edcc69-3689-5986-90ef-95992b9d7b58",
+      "editorial_score": 79,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Odaiba",
+          "alias_normalized": "odaiba",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "modern",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "305c4994-5d28-56a0-9ca5-2957b51bf983",
+      "destination_key": "tokyo",
+      "name": "Shinjuku Gyoen",
+      "normalized_name": "shinjuku gyoen",
+      "category": "park",
+      "lat": 35.6852,
+      "lng": 139.71,
+      "address": null,
+      "country_code": "JP",
+      "zone_name": "Shinjuku",
+      "source_primary_id": "85edcc69-3689-5986-90ef-95992b9d7b58",
+      "editorial_score": 78,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Shinjuku Gyoen",
+          "alias_normalized": "shinjuku gyoen",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "garden"
+    },
+    {
+      "poi_id": "2cc98b3d-574d-5e10-a9d8-966dbde4fc8f",
+      "destination_key": "tokyo",
+      "name": "teamLab Borderless",
+      "normalized_name": "teamlab borderless",
+      "category": "museum",
+      "lat": 35.649,
+      "lng": 139.788,
+      "address": null,
+      "country_code": "JP",
+      "zone_name": "Odaiba",
+      "source_primary_id": "85edcc69-3689-5986-90ef-95992b9d7b58",
+      "editorial_score": 85,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "teamLab Borderless",
+          "alias_normalized": "teamlab borderless",
+          "is_canonical": true
+        },
+        {
+          "alias": "teamLab",
+          "alias_normalized": "teamlab",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "digital_museum"
+    },
+    {
+      "poi_id": "8862bed7-43df-574b-bb2c-32fa4e984507",
+      "destination_key": "tokyo",
+      "name": "Sumida River Cruise",
+      "normalized_name": "sumida river cruise",
+      "category": "local_experience",
+      "lat": 35.715,
+      "lng": 139.8,
+      "address": null,
+      "country_code": "JP",
+      "zone_name": "Sumida",
+      "source_primary_id": "85edcc69-3689-5986-90ef-95992b9d7b58",
+      "editorial_score": 77,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Sumida River Cruise",
+          "alias_normalized": "sumida river cruise",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "interactive",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "scenic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "cruise"
+    },
+    {
+      "poi_id": "17544165-8b19-59c6-a2ec-581f808c0335",
+      "destination_key": "tokyo",
+      "name": "Yanaka",
+      "normalized_name": "yanaka",
+      "category": "neighborhood",
+      "lat": 35.728,
+      "lng": 139.765,
+      "address": null,
+      "country_code": "JP",
+      "zone_name": "Taito",
+      "source_primary_id": "85edcc69-3689-5986-90ef-95992b9d7b58",
+      "editorial_score": 75,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Yanaka",
+          "alias_normalized": "yanaka",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "traditional",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "3dd57d14-0ea7-51d9-8745-5e1c86a98c06",
+      "destination_key": "tokyo",
+      "name": "Nezu Shrine",
+      "normalized_name": "nezu shrine",
+      "category": "monument",
+      "lat": 35.7202,
+      "lng": 139.7658,
+      "address": null,
+      "country_code": "JP",
+      "zone_name": "Bunkyo",
+      "source_primary_id": "85edcc69-3689-5986-90ef-95992b9d7b58",
+      "editorial_score": 76,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Nezu Shrine",
+          "alias_normalized": "nezu shrine",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "shrine"
+    },
+    {
+      "poi_id": "9f564b35-eb9a-528e-bad5-1cdcd7b8366a",
+      "destination_key": "tokyo",
+      "name": "Shibuya Sky",
+      "normalized_name": "shibuya sky",
+      "category": "viewpoint",
+      "lat": 35.6588,
+      "lng": 139.7014,
+      "address": null,
+      "country_code": "JP",
+      "zone_name": "Shibuya",
+      "source_primary_id": "85edcc69-3689-5986-90ef-95992b9d7b58",
+      "editorial_score": 84,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 45,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Shibuya Sky",
+          "alias_normalized": "shibuya sky",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "observation_deck"
+    }
+  ]
+}

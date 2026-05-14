@@ -1,4 +1,5 @@
 # Active cities — fixtures available and importable
+# POI-2.9: expanded to 23 priority cities (~15-20 POIs each)
 london
 amsterdam
 paris
@@ -6,10 +7,47 @@ rome
 barcelona
 lisbon
 marrakech
+istanbul
+cairo
+bangkok
+tokyo
+singapore
+madrid
+vienna
+prague
+berlin
+dublin
+edinburgh
+athens
+venice
+florence
+new-york
+dubai
 
-# Backlog - fixtures missing
-# istanbul
-# cairo
-# bangkok
-# tokyo
-# singapore
+# Backlog - fixtures missing or incomplete
+# munich
+# brussels
+# bruges
+# copenhagen
+# stockholm
+# oslo
+# helsinki
+# naples
+# porto
+# seville
+# granada
+# valencia
+# nice
+# lyon
+# marseille
+# bordeaux
+# strasbourg
+# los-angeles
+# san-francisco
+# las-vegas
+# miami
+# washington-dc
+# chicago
+# montreal
+# quebec-city
+# seoul

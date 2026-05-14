@@ -10,7 +10,39 @@ import 'package:voyage/features/poi/tools/poi_fixture_validator.dart';
 
 void main() {
   group('POI Multi-City Fixture Dry-Run', () {
-    for (final city in ['paris', 'rome', 'barcelona', 'london', 'amsterdam', 'marrakech']) {
+    // All cities with pilot fixtures.
+    // POI count ranges: legacy cities 20-26, new cities 15-26, lisbon 10 (legacy).
+    final cityRanges = <String, List<int>>{
+      'paris': [20, 26],
+      'rome': [20, 26],
+      'barcelona': [20, 26],
+      'london': [20, 26],
+      'amsterdam': [20, 26],
+      'marrakech': [20, 26],
+      'lisbon': [10, 15],
+      // New fixtures (POI-2.9 priority expansion)
+      'istanbul': [15, 26],
+      'cairo': [15, 26],
+      'bangkok': [15, 26],
+      'tokyo': [15, 26],
+      'singapore': [15, 26],
+      'madrid': [15, 26],
+      'vienna': [15, 26],
+      'prague': [15, 26],
+      'berlin': [15, 26],
+      'dublin': [15, 26],
+      'edinburgh': [15, 26],
+      'athens': [15, 26],
+      'venice': [15, 26],
+      'florence': [15, 26],
+      'new-york': [15, 26],
+      'dubai': [15, 26],
+    };
+
+    for (final city in cityRanges.keys) {
+      final minPois = cityRanges[city]![0];
+      final maxPois = cityRanges[city]![1];
+
       group(city, () {
         late Map<String, dynamic> fixtureJson;
         late PoiDryRunReport report;
@@ -55,11 +87,11 @@ void main() {
           expect(report.stats.sourceCount, equals(1));
         });
 
-        test('fixture contains expected POI count (20-26)', () {
+        test('fixture contains expected POI count ($minPois-$maxPois)', () {
           expect(
             report.stats.poiCount,
-            allOf(greaterThanOrEqualTo(20), lessThanOrEqualTo(26)),
-            reason: 'Expected 20-26 POIs for $city',
+            allOf(greaterThanOrEqualTo(minPois), lessThanOrEqualTo(maxPois)),
+            reason: 'Expected $minPois-$maxPois POIs for $city',
           );
         });
 

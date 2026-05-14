@@ -77,17 +77,64 @@ test/fixtures/poi/pilot_pois_<city>.json
 
 Villes actives actuelles (7) : `london`, `amsterdam`, `paris`, `rome`, `barcelona`, `lisbon`, `marrakech`.
 
-Backlog commenté actuel (5) : `istanbul`, `cairo`, `bangkok`, `tokyo`, `singapore`.
+### Current active cities (23)
 
-Les villes sans fixture doivent rester commentées dans la section `# Backlog` jusqu'à génération et validation de leur fixture.
+| City | Fixture | POIs |
+|------|---------|------|
+| london | ✅ | 26 |
+| amsterdam | ✅ | 26 |
+| paris | ✅ | 25 |
+| rome | ✅ | 25 |
+| barcelona | ✅ | 25 |
+| lisbon | ✅ | 10 |
+| marrakech | ✅ | 26 |
+| istanbul | ✅ | 20 |
+| cairo | ✅ | 15 |
+| bangkok | ✅ | 18 |
+| tokyo | ✅ | 19 |
+| singapore | ✅ | 18 |
+| madrid | ✅ | 15 |
+| vienna | ✅ | 15 |
+| prague | ✅ | 15 |
+| berlin | ✅ | 15 |
+| dublin | ✅ | 15 |
+| edinburgh | ✅ | 15 |
+| athens | ✅ | 15 |
+| venice | ✅ | 15 |
+| florence | ✅ | 15 |
+| new-york | ✅ | 20 |
+| dubai | ✅ | 17 |
 
-## Activation d'une ville backlog
+### Current backlog (27)
 
-1. Générer ou mettre à jour la fixture de la ville.
-2. Valider la fixture avec `dart tool/poi/validate_new_fixtures.dart`.
-3. Décommenter la ville dans `tool/poi/import_city_list.txt`.
-4. Lancer l'import batch.
-5. Vérifier que l'import a réussi et que la ville est saine.
+| City | Fixture |
+|------|---------|
+| munich | ❌ |
+| brussels | ❌ |
+| bruges | ❌ |
+| copenhagen | ❌ |
+| stockholm | ❌ |
+| oslo | ❌ |
+| helsinki | ❌ |
+| naples | ❌ |
+| porto | ❌ |
+| seville | ❌ |
+| granada | ❌ |
+| valencia | ❌ |
+| nice | ❌ |
+| lyon | ❌ |
+| marseille | ❌ |
+| bordeaux | ❌ |
+| strasbourg | ❌ |
+| los-angeles | ❌ |
+| san-francisco | ❌ |
+| las-vegas | ❌ |
+| miami | ❌ |
+| washington-dc | ❌ |
+| chicago | ❌ |
+| montreal | ❌ |
+| quebec-city | ❌ |
+| seoul | ❌ |
 
 ## Dépannage
 
@@ -135,3 +182,18 @@ Soit générer la fixture (pipeline OSM/Overpass — voir `docs/poi/poi_1_1_osm_
 ## Worktrees agents — interdit
 
 **Ne pas lancer ce script depuis un worktree agent** (par exemple `Voyage-claude`, `Voyage-kimi`, etc.) si `.secrets.local` n'y est pas présent. Le secret ne doit pas être dupliqué dans les worktrees agents. Les imports POI réels se font uniquement depuis le worktree principal `/Users/lalith/Projets/Voyage`.
+
+## Activation d'une ville backlog
+
+1. Generate or update the fixture for the new city.
+2. Validate the fixture with `dart tool/poi/validate_new_fixtures.dart`.
+3. Uncomment the city line in `tool/poi/import_city_list.txt`.
+4. Run the batch import.
+5. Verify the import succeeded and the city is healthy.
+
+## Security
+
+- `.secrets.local` must never be committed.
+- The script never prints `SUPABASE_SECRET_KEY`.
+- Real imports must only run from `/Users/lalith/Projets/Voyage`.
+- Do not copy `.secrets.local` into agent worktrees.

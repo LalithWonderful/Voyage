@@ -1,0 +1,704 @@
+{
+  "_comment": "POI-2.x — Pilot fixture Prague. ~15 high-quality POIs. Manually curated, no scraping. Coordinates approximate.",
+  "sources": [
+    {
+      "source_id": "1762a32d-c3f0-5a72-8279-70dfe59a8a95",
+      "name": "Lunao Pilot Prague",
+      "source_type": "editorial",
+      "trust_level": 5,
+      "is_active": true
+    }
+  ],
+  "pois": [
+    {
+      "poi_id": "7a02be7f-0ada-5f39-8bef-d51cfa372f75",
+      "destination_key": "prague",
+      "name": "Prague Castle",
+      "normalized_name": "prague castle",
+      "category": "monument",
+      "lat": 50.0911,
+      "lng": 14.4015,
+      "address": null,
+      "country_code": "CZ",
+      "zone_name": "Hradcany",
+      "source_primary_id": "1762a32d-c3f0-5a72-8279-70dfe59a8a95",
+      "editorial_score": 97,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Prague Castle",
+          "alias_normalized": "prague castle",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "castle",
+      "official_url": "https://www.hrad.cz"
+    },
+    {
+      "poi_id": "245c95f4-a756-5916-a0e5-5f87618d483e",
+      "destination_key": "prague",
+      "name": "Charles Bridge",
+      "normalized_name": "charles bridge",
+      "category": "monument",
+      "lat": 50.0865,
+      "lng": 14.4114,
+      "address": null,
+      "country_code": "CZ",
+      "zone_name": "Mala Strana",
+      "source_primary_id": "1762a32d-c3f0-5a72-8279-70dfe59a8a95",
+      "editorial_score": 95,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Charles Bridge",
+          "alias_normalized": "charles bridge",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "bridge"
+    },
+    {
+      "poi_id": "f6c751f8-68ba-5fae-9b3a-695286a00bdb",
+      "destination_key": "prague",
+      "name": "Old Town Square",
+      "normalized_name": "old town square",
+      "category": "monument",
+      "lat": 50.0875,
+      "lng": 14.4212,
+      "address": null,
+      "country_code": "CZ",
+      "zone_name": "Stare Mesto",
+      "source_primary_id": "1762a32d-c3f0-5a72-8279-70dfe59a8a95",
+      "editorial_score": 93,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Old Town Square",
+          "alias_normalized": "old town square",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "square"
+    },
+    {
+      "poi_id": "e5ac6232-a601-5c30-8de5-355f6284fabc",
+      "destination_key": "prague",
+      "name": "Astronomical Clock",
+      "normalized_name": "astronomical clock",
+      "category": "monument",
+      "lat": 50.087,
+      "lng": 14.4207,
+      "address": null,
+      "country_code": "CZ",
+      "zone_name": "Stare Mesto",
+      "source_primary_id": "1762a32d-c3f0-5a72-8279-70dfe59a8a95",
+      "editorial_score": 89,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Astronomical Clock",
+          "alias_normalized": "astronomical clock",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "clock"
+    },
+    {
+      "poi_id": "3b772b14-bc88-5cbb-8796-e6f5e9f8256f",
+      "destination_key": "prague",
+      "name": "St. Vitus Cathedral",
+      "normalized_name": "st. vitus cathedral",
+      "category": "monument",
+      "lat": 50.0909,
+      "lng": 14.4005,
+      "address": null,
+      "country_code": "CZ",
+      "zone_name": "Hradcany",
+      "source_primary_id": "1762a32d-c3f0-5a72-8279-70dfe59a8a95",
+      "editorial_score": 91,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "St. Vitus Cathedral",
+          "alias_normalized": "st. vitus cathedral",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "gothic",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "cathedral"
+    },
+    {
+      "poi_id": "1830d88b-9b7e-5e40-bc22-e6eb67db23cc",
+      "destination_key": "prague",
+      "name": "Jewish Quarter",
+      "normalized_name": "jewish quarter",
+      "category": "neighborhood",
+      "lat": 50.09,
+      "lng": 14.418,
+      "address": null,
+      "country_code": "CZ",
+      "zone_name": "Josefov",
+      "source_primary_id": "1762a32d-c3f0-5a72-8279-70dfe59a8a95",
+      "editorial_score": 85,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Jewish Quarter",
+          "alias_normalized": "jewish quarter",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "330f5647-dc26-528f-aa30-0a45d31cad6d",
+      "destination_key": "prague",
+      "name": "Wenceslas Square",
+      "normalized_name": "wenceslas square",
+      "category": "monument",
+      "lat": 50.0809,
+      "lng": 14.428,
+      "address": null,
+      "country_code": "CZ",
+      "zone_name": "Nove Mesto",
+      "source_primary_id": "1762a32d-c3f0-5a72-8279-70dfe59a8a95",
+      "editorial_score": 84,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Wenceslas Square",
+          "alias_normalized": "wenceslas square",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "square"
+    },
+    {
+      "poi_id": "bc192907-22a1-543c-a044-8d64fada1bcf",
+      "destination_key": "prague",
+      "name": "Lennon Wall",
+      "normalized_name": "lennon wall",
+      "category": "photo_spot",
+      "lat": 50.0863,
+      "lng": 14.4068,
+      "address": null,
+      "country_code": "CZ",
+      "zone_name": "Mala Strana",
+      "source_primary_id": "1762a32d-c3f0-5a72-8279-70dfe59a8a95",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 30,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Lennon Wall",
+          "alias_normalized": "lennon wall",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "iconic",
+          "tag_category": "vibe",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "wall"
+    },
+    {
+      "poi_id": "10a3378c-2111-5be2-8b7b-a47842a2625a",
+      "destination_key": "prague",
+      "name": "Vysehrad",
+      "normalized_name": "vysehrad",
+      "category": "park",
+      "lat": 50.0642,
+      "lng": 14.4208,
+      "address": null,
+      "country_code": "CZ",
+      "zone_name": "Vysehrad",
+      "source_primary_id": "1762a32d-c3f0-5a72-8279-70dfe59a8a95",
+      "editorial_score": 81,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Vysehrad",
+          "alias_normalized": "vysehrad",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "fortress"
+    },
+    {
+      "poi_id": "c1a4dd6f-23e0-542d-bdf0-0d6e8a6ee691",
+      "destination_key": "prague",
+      "name": "Petrin Hill",
+      "normalized_name": "petrin hill",
+      "category": "park",
+      "lat": 50.0833,
+      "lng": 14.395,
+      "address": null,
+      "country_code": "CZ",
+      "zone_name": "Mala Strana",
+      "source_primary_id": "1762a32d-c3f0-5a72-8279-70dfe59a8a95",
+      "editorial_score": 80,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Petrin Hill",
+          "alias_normalized": "petrin hill",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "hill"
+    },
+    {
+      "poi_id": "1b8a18d5-fee3-586b-b0be-47782a63b3c5",
+      "destination_key": "prague",
+      "name": "Dancing House",
+      "normalized_name": "dancing house",
+      "category": "monument",
+      "lat": 50.0755,
+      "lng": 14.414,
+      "address": null,
+      "country_code": "CZ",
+      "zone_name": "Nove Mesto",
+      "source_primary_id": "1762a32d-c3f0-5a72-8279-70dfe59a8a95",
+      "editorial_score": 79,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Dancing House",
+          "alias_normalized": "dancing house",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "house"
+    },
+    {
+      "poi_id": "ac1be723-b20f-577b-8df5-153172cfb27f",
+      "destination_key": "prague",
+      "name": "Kafka Museum",
+      "normalized_name": "kafka museum",
+      "category": "museum",
+      "lat": 50.088,
+      "lng": 14.41,
+      "address": null,
+      "country_code": "CZ",
+      "zone_name": "Mala Strana",
+      "source_primary_id": "1762a32d-c3f0-5a72-8279-70dfe59a8a95",
+      "editorial_score": 78,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Kafka Museum",
+          "alias_normalized": "kafka museum",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "literary_museum"
+    },
+    {
+      "poi_id": "3d6e9f40-0634-5de1-9713-158c9ab5d720",
+      "destination_key": "prague",
+      "name": "Kampa Island",
+      "normalized_name": "kampa island",
+      "category": "park",
+      "lat": 50.086,
+      "lng": 14.408,
+      "address": null,
+      "country_code": "CZ",
+      "zone_name": "Mala Strana",
+      "source_primary_id": "1762a32d-c3f0-5a72-8279-70dfe59a8a95",
+      "editorial_score": 77,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Kampa Island",
+          "alias_normalized": "kampa island",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "island"
+    },
+    {
+      "poi_id": "a9af26d3-3fb7-5d8b-994c-f8ad05e5362e",
+      "destination_key": "prague",
+      "name": "National Museum",
+      "normalized_name": "national museum",
+      "category": "museum",
+      "lat": 50.0793,
+      "lng": 14.4305,
+      "address": null,
+      "country_code": "CZ",
+      "zone_name": "Nove Mesto",
+      "source_primary_id": "1762a32d-c3f0-5a72-8279-70dfe59a8a95",
+      "editorial_score": 80,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "National Museum",
+          "alias_normalized": "national museum",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "history_museum"
+    },
+    {
+      "poi_id": "39771b5e-a46c-5720-95d8-624057e6fd8b",
+      "destination_key": "prague",
+      "name": "Strahov Monastery",
+      "normalized_name": "strahov monastery",
+      "category": "monument",
+      "lat": 50.086,
+      "lng": 14.389,
+      "address": null,
+      "country_code": "CZ",
+      "zone_name": "Hradcany",
+      "source_primary_id": "1762a32d-c3f0-5a72-8279-70dfe59a8a95",
+      "editorial_score": 76,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Strahov Monastery",
+          "alias_normalized": "strahov monastery",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "monastery"
+    }
+  ]
+}

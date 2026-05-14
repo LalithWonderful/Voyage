@@ -1,0 +1,730 @@
+{
+  "_comment": "POI-2.x — Pilot fixture Florence. ~15 high-quality POIs. Manually curated, no scraping. Coordinates approximate.",
+  "sources": [
+    {
+      "source_id": "7dc11736-2fad-5c09-9969-32efd9dd1278",
+      "name": "Lunao Pilot Florence",
+      "source_type": "editorial",
+      "trust_level": 5,
+      "is_active": true
+    }
+  ],
+  "pois": [
+    {
+      "poi_id": "ed2196af-709b-59a3-91ff-a57d745183bf",
+      "destination_key": "florence",
+      "name": "Duomo",
+      "normalized_name": "duomo",
+      "category": "monument",
+      "lat": 43.7731,
+      "lng": 11.256,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "Duomo",
+      "source_primary_id": "7dc11736-2fad-5c09-9969-32efd9dd1278",
+      "editorial_score": 97,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Duomo",
+          "alias_normalized": "duomo",
+          "is_canonical": true
+        },
+        {
+          "alias": "Santa Maria del Fiore",
+          "alias_normalized": "santa maria del fiore",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "gothic",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "cathedral"
+    },
+    {
+      "poi_id": "996ca3d8-b6ed-5710-bb0b-dffcf2a8855e",
+      "destination_key": "florence",
+      "name": "Uffizi Gallery",
+      "normalized_name": "uffizi gallery",
+      "category": "museum",
+      "lat": 43.7678,
+      "lng": 11.2553,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "Piazza della Signoria",
+      "source_primary_id": "7dc11736-2fad-5c09-9969-32efd9dd1278",
+      "editorial_score": 96,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Uffizi Gallery",
+          "alias_normalized": "uffizi gallery",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "art_museum",
+      "official_url": "https://www.uffizi.it"
+    },
+    {
+      "poi_id": "e174d0f8-fa42-5b59-a42b-0c9bc1a8da3c",
+      "destination_key": "florence",
+      "name": "Ponte Vecchio",
+      "normalized_name": "ponte vecchio",
+      "category": "monument",
+      "lat": 43.768,
+      "lng": 11.2531,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "Oltrarno",
+      "source_primary_id": "7dc11736-2fad-5c09-9969-32efd9dd1278",
+      "editorial_score": 95,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Ponte Vecchio",
+          "alias_normalized": "ponte vecchio",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "bridge"
+    },
+    {
+      "poi_id": "c504d5d9-bcca-56f3-9932-dbf741183225",
+      "destination_key": "florence",
+      "name": "Accademia Gallery",
+      "normalized_name": "accademia gallery",
+      "category": "museum",
+      "lat": 43.7768,
+      "lng": 11.259,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "San Marco",
+      "source_primary_id": "7dc11736-2fad-5c09-9969-32efd9dd1278",
+      "editorial_score": 92,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Accademia Gallery",
+          "alias_normalized": "accademia gallery",
+          "is_canonical": true
+        },
+        {
+          "alias": "Galleria dell'Accademia",
+          "alias_normalized": "galleria dell'accademia",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "art_museum"
+    },
+    {
+      "poi_id": "bbbf84f5-9818-5175-83a8-26dbe0571572",
+      "destination_key": "florence",
+      "name": "Palazzo Vecchio",
+      "normalized_name": "palazzo vecchio",
+      "category": "monument",
+      "lat": 43.7694,
+      "lng": 11.2558,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "Piazza della Signoria",
+      "source_primary_id": "7dc11736-2fad-5c09-9969-32efd9dd1278",
+      "editorial_score": 90,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Palazzo Vecchio",
+          "alias_normalized": "palazzo vecchio",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "royal",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "palace"
+    },
+    {
+      "poi_id": "e980bfcb-01be-5904-89e5-6c5b4cad281e",
+      "destination_key": "florence",
+      "name": "Piazza della Signoria",
+      "normalized_name": "piazza della signoria",
+      "category": "monument",
+      "lat": 43.7696,
+      "lng": 11.2558,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "Piazza della Signoria",
+      "source_primary_id": "7dc11736-2fad-5c09-9969-32efd9dd1278",
+      "editorial_score": 89,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Piazza della Signoria",
+          "alias_normalized": "piazza della signoria",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "square"
+    },
+    {
+      "poi_id": "5f4feff3-316b-5087-b4d2-db995b8f0d33",
+      "destination_key": "florence",
+      "name": "Boboli Gardens",
+      "normalized_name": "boboli gardens",
+      "category": "park",
+      "lat": 43.7629,
+      "lng": 11.2496,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "Oltrarno",
+      "source_primary_id": "7dc11736-2fad-5c09-9969-32efd9dd1278",
+      "editorial_score": 87,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Boboli Gardens",
+          "alias_normalized": "boboli gardens",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "garden"
+    },
+    {
+      "poi_id": "601142c5-8d6d-573d-9908-9dbbd02485de",
+      "destination_key": "florence",
+      "name": "Santa Croce",
+      "normalized_name": "santa croce",
+      "category": "monument",
+      "lat": 43.7686,
+      "lng": 11.2616,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "Santa Croce",
+      "source_primary_id": "7dc11736-2fad-5c09-9969-32efd9dd1278",
+      "editorial_score": 86,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Santa Croce",
+          "alias_normalized": "santa croce",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "basilica"
+    },
+    {
+      "poi_id": "427a03a9-c7a0-5d2a-b682-4454337d6a9f",
+      "destination_key": "florence",
+      "name": "San Lorenzo Market",
+      "normalized_name": "san lorenzo market",
+      "category": "market",
+      "lat": 43.7741,
+      "lng": 11.2538,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "San Lorenzo",
+      "source_primary_id": "7dc11736-2fad-5c09-9969-32efd9dd1278",
+      "editorial_score": 85,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "San Lorenzo Market",
+          "alias_normalized": "san lorenzo market",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "food",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "shopping",
+          "tag_category": "activity_type",
+          "confidence": 70
+        }
+      ],
+      "subcategory": "market"
+    },
+    {
+      "poi_id": "88f55b34-268e-5986-8649-69a821084fa7",
+      "destination_key": "florence",
+      "name": "Pitti Palace",
+      "normalized_name": "pitti palace",
+      "category": "monument",
+      "lat": 43.765,
+      "lng": 11.2498,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "Oltrarno",
+      "source_primary_id": "7dc11736-2fad-5c09-9969-32efd9dd1278",
+      "editorial_score": 84,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Pitti Palace",
+          "alias_normalized": "pitti palace",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "royal",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "palace"
+    },
+    {
+      "poi_id": "0981714b-0c88-584a-b907-faab96aff76d",
+      "destination_key": "florence",
+      "name": "Mercato Centrale",
+      "normalized_name": "mercato centrale",
+      "category": "market",
+      "lat": 43.7765,
+      "lng": 11.253,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "San Lorenzo",
+      "source_primary_id": "7dc11736-2fad-5c09-9969-32efd9dd1278",
+      "editorial_score": 83,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Mercato Centrale",
+          "alias_normalized": "mercato centrale",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "food",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "shopping",
+          "tag_category": "activity_type",
+          "confidence": 70
+        }
+      ],
+      "subcategory": "food_market"
+    },
+    {
+      "poi_id": "61ff67ff-0656-563b-9619-fb7c72bc1aa6",
+      "destination_key": "florence",
+      "name": "San Miniato al Monte",
+      "normalized_name": "san miniato al monte",
+      "category": "monument",
+      "lat": 43.7608,
+      "lng": 11.2643,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "San Miniato",
+      "source_primary_id": "7dc11736-2fad-5c09-9969-32efd9dd1278",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "San Miniato al Monte",
+          "alias_normalized": "san miniato al monte",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "basilica"
+    },
+    {
+      "poi_id": "e76efd5f-298e-53b7-8fef-9bd0a1d1c2f2",
+      "destination_key": "florence",
+      "name": "Piazzale Michelangelo",
+      "normalized_name": "piazzale michelangelo",
+      "category": "viewpoint",
+      "lat": 43.7628,
+      "lng": 11.265,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "Oltrarno",
+      "source_primary_id": "7dc11736-2fad-5c09-9969-32efd9dd1278",
+      "editorial_score": 88,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 45,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Piazzale Michelangelo",
+          "alias_normalized": "piazzale michelangelo",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "panorama"
+    },
+    {
+      "poi_id": "f766b208-ad35-5a4d-990a-c30911b5aff8",
+      "destination_key": "florence",
+      "name": "Bargello",
+      "normalized_name": "bargello",
+      "category": "museum",
+      "lat": 43.7706,
+      "lng": 11.2582,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "Duomo",
+      "source_primary_id": "7dc11736-2fad-5c09-9969-32efd9dd1278",
+      "editorial_score": 81,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Bargello",
+          "alias_normalized": "bargello",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "sculpture_museum"
+    },
+    {
+      "poi_id": "c6b73f82-3335-5ce9-bcf7-27e830e96926",
+      "destination_key": "florence",
+      "name": "Santo Spirito",
+      "normalized_name": "santo spirito",
+      "category": "monument",
+      "lat": 43.7665,
+      "lng": 11.2478,
+      "address": null,
+      "country_code": "IT",
+      "zone_name": "Oltrarno",
+      "source_primary_id": "7dc11736-2fad-5c09-9969-32efd9dd1278",
+      "editorial_score": 80,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Santo Spirito",
+          "alias_normalized": "santo spirito",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "basilica"
+    }
+  ]
+}

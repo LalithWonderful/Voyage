@@ -1,0 +1,721 @@
+{
+  "_comment": "POI-2.x — Pilot fixture Berlin. ~15 high-quality POIs. Manually curated, no scraping. Coordinates approximate.",
+  "sources": [
+    {
+      "source_id": "287e9e4c-3488-557d-8ef8-58a72e250c80",
+      "name": "Lunao Pilot Berlin",
+      "source_type": "editorial",
+      "trust_level": 5,
+      "is_active": true
+    }
+  ],
+  "pois": [
+    {
+      "poi_id": "43635094-d8d4-5fce-a3e1-b19bf60ac82b",
+      "destination_key": "berlin",
+      "name": "Brandenburg Gate",
+      "normalized_name": "brandenburg gate",
+      "category": "monument",
+      "lat": 52.5163,
+      "lng": 13.3777,
+      "address": null,
+      "country_code": "DE",
+      "zone_name": "Mitte",
+      "source_primary_id": "287e9e4c-3488-557d-8ef8-58a72e250c80",
+      "editorial_score": 96,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Brandenburg Gate",
+          "alias_normalized": "brandenburg gate",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "gate"
+    },
+    {
+      "poi_id": "987d61a5-8cb0-56fd-939d-60baef178f85",
+      "destination_key": "berlin",
+      "name": "Reichstag",
+      "normalized_name": "reichstag",
+      "category": "monument",
+      "lat": 52.5186,
+      "lng": 13.3761,
+      "address": null,
+      "country_code": "DE",
+      "zone_name": "Mitte",
+      "source_primary_id": "287e9e4c-3488-557d-8ef8-58a72e250c80",
+      "editorial_score": 94,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Reichstag",
+          "alias_normalized": "reichstag",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "parliament"
+    },
+    {
+      "poi_id": "54b61d27-95df-550a-9460-662705f33600",
+      "destination_key": "berlin",
+      "name": "Berlin Wall Memorial",
+      "normalized_name": "berlin wall memorial",
+      "category": "monument",
+      "lat": 52.5351,
+      "lng": 13.3903,
+      "address": null,
+      "country_code": "DE",
+      "zone_name": "Mitte",
+      "source_primary_id": "287e9e4c-3488-557d-8ef8-58a72e250c80",
+      "editorial_score": 92,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Berlin Wall Memorial",
+          "alias_normalized": "berlin wall memorial",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "memorial"
+    },
+    {
+      "poi_id": "500edc7b-1221-5601-826d-2f592e10b76d",
+      "destination_key": "berlin",
+      "name": "Museum Island",
+      "normalized_name": "museum island",
+      "category": "museum",
+      "lat": 52.5169,
+      "lng": 13.4016,
+      "address": null,
+      "country_code": "DE",
+      "zone_name": "Mitte",
+      "source_primary_id": "287e9e4c-3488-557d-8ef8-58a72e250c80",
+      "editorial_score": 91,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Museum Island",
+          "alias_normalized": "museum island",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "museum_complex"
+    },
+    {
+      "poi_id": "6ce6326b-423a-5d03-944b-4ba723163f87",
+      "destination_key": "berlin",
+      "name": "Checkpoint Charlie",
+      "normalized_name": "checkpoint charlie",
+      "category": "monument",
+      "lat": 52.5074,
+      "lng": 13.3904,
+      "address": null,
+      "country_code": "DE",
+      "zone_name": "Mitte",
+      "source_primary_id": "287e9e4c-3488-557d-8ef8-58a72e250c80",
+      "editorial_score": 88,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Checkpoint Charlie",
+          "alias_normalized": "checkpoint charlie",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "museum"
+    },
+    {
+      "poi_id": "16ce4d3f-198b-558e-a435-4a3e55d894ac",
+      "destination_key": "berlin",
+      "name": "Holocaust Memorial",
+      "normalized_name": "holocaust memorial",
+      "category": "monument",
+      "lat": 52.5139,
+      "lng": 13.3787,
+      "address": null,
+      "country_code": "DE",
+      "zone_name": "Mitte",
+      "source_primary_id": "287e9e4c-3488-557d-8ef8-58a72e250c80",
+      "editorial_score": 87,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Holocaust Memorial",
+          "alias_normalized": "holocaust memorial",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "memorial"
+    },
+    {
+      "poi_id": "2564ce17-d64e-57ae-8133-2f7b3ef702eb",
+      "destination_key": "berlin",
+      "name": "Potsdamer Platz",
+      "normalized_name": "potsdamer platz",
+      "category": "neighborhood",
+      "lat": 52.5096,
+      "lng": 13.376,
+      "address": null,
+      "country_code": "DE",
+      "zone_name": "Mitte",
+      "source_primary_id": "287e9e4c-3488-557d-8ef8-58a72e250c80",
+      "editorial_score": 84,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Potsdamer Platz",
+          "alias_normalized": "potsdamer platz",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "modern",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "4f5fc8c7-b954-5154-af15-204a5435211e",
+      "destination_key": "berlin",
+      "name": "East Side Gallery",
+      "normalized_name": "east side gallery",
+      "category": "monument",
+      "lat": 52.505,
+      "lng": 13.4397,
+      "address": null,
+      "country_code": "DE",
+      "zone_name": "Friedrichshain",
+      "source_primary_id": "287e9e4c-3488-557d-8ef8-58a72e250c80",
+      "editorial_score": 85,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "East Side Gallery",
+          "alias_normalized": "east side gallery",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "gallery"
+    },
+    {
+      "poi_id": "19d7ef77-5f92-52e5-9f29-d275e03f6860",
+      "destination_key": "berlin",
+      "name": "Tiergarten",
+      "normalized_name": "tiergarten",
+      "category": "park",
+      "lat": 52.5145,
+      "lng": 13.3501,
+      "address": null,
+      "country_code": "DE",
+      "zone_name": "Mitte",
+      "source_primary_id": "287e9e4c-3488-557d-8ef8-58a72e250c80",
+      "editorial_score": 83,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Tiergarten",
+          "alias_normalized": "tiergarten",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "urban_park"
+    },
+    {
+      "poi_id": "5a94a218-f62a-5460-a06e-43fe20b6efc3",
+      "destination_key": "berlin",
+      "name": "Charlottenburg Palace",
+      "normalized_name": "charlottenburg palace",
+      "category": "monument",
+      "lat": 52.5208,
+      "lng": 13.2953,
+      "address": null,
+      "country_code": "DE",
+      "zone_name": "Charlottenburg",
+      "source_primary_id": "287e9e4c-3488-557d-8ef8-58a72e250c80",
+      "editorial_score": 86,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Charlottenburg Palace",
+          "alias_normalized": "charlottenburg palace",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "royal",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "palace"
+    },
+    {
+      "poi_id": "b91097a6-7159-565e-bd42-3dcf70fc2f9a",
+      "destination_key": "berlin",
+      "name": "Alexanderplatz",
+      "normalized_name": "alexanderplatz",
+      "category": "monument",
+      "lat": 52.5219,
+      "lng": 13.4132,
+      "address": null,
+      "country_code": "DE",
+      "zone_name": "Mitte",
+      "source_primary_id": "287e9e4c-3488-557d-8ef8-58a72e250c80",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Alexanderplatz",
+          "alias_normalized": "alexanderplatz",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "square"
+    },
+    {
+      "poi_id": "eca21565-bd5f-50b7-bdc6-c25768f6a316",
+      "destination_key": "berlin",
+      "name": "Berlin Cathedral",
+      "normalized_name": "berlin cathedral",
+      "category": "monument",
+      "lat": 52.519,
+      "lng": 13.4011,
+      "address": null,
+      "country_code": "DE",
+      "zone_name": "Mitte",
+      "source_primary_id": "287e9e4c-3488-557d-8ef8-58a72e250c80",
+      "editorial_score": 84,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Berlin Cathedral",
+          "alias_normalized": "berlin cathedral",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "gothic",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "cathedral"
+    },
+    {
+      "poi_id": "2825fbbf-4e7a-5f94-9c46-cf9fb7161702",
+      "destination_key": "berlin",
+      "name": "Hackescher Markt",
+      "normalized_name": "hackescher markt",
+      "category": "neighborhood",
+      "lat": 52.5238,
+      "lng": 13.4025,
+      "address": null,
+      "country_code": "DE",
+      "zone_name": "Mitte",
+      "source_primary_id": "287e9e4c-3488-557d-8ef8-58a72e250c80",
+      "editorial_score": 80,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Hackescher Markt",
+          "alias_normalized": "hackescher markt",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "c4e9649f-534e-5dd0-ae19-a43f18c5b408",
+      "destination_key": "berlin",
+      "name": "Kreuzberg",
+      "normalized_name": "kreuzberg",
+      "category": "neighborhood",
+      "lat": 52.4983,
+      "lng": 13.391,
+      "address": null,
+      "country_code": "DE",
+      "zone_name": "Kreuzberg",
+      "source_primary_id": "287e9e4c-3488-557d-8ef8-58a72e250c80",
+      "editorial_score": 79,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Kreuzberg",
+          "alias_normalized": "kreuzberg",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "alternative",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "006d5e7d-24ed-58e7-a262-f796f4eceb01",
+      "destination_key": "berlin",
+      "name": "Tempelhof Field",
+      "normalized_name": "tempelhof field",
+      "category": "park",
+      "lat": 52.4733,
+      "lng": 13.405,
+      "address": null,
+      "country_code": "DE",
+      "zone_name": "Neukolln",
+      "source_primary_id": "287e9e4c-3488-557d-8ef8-58a72e250c80",
+      "editorial_score": 78,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Tempelhof Field",
+          "alias_normalized": "tempelhof field",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "airfield"
+    }
+  ]
+}

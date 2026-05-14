@@ -1,0 +1,717 @@
+{
+  "_comment": "POI-2.x — Pilot fixture Edinburgh. ~15 high-quality POIs. Manually curated, no scraping. Coordinates approximate.",
+  "sources": [
+    {
+      "source_id": "77e173e1-ee44-5e6c-8b39-a739ccf507b6",
+      "name": "Lunao Pilot Edinburgh",
+      "source_type": "editorial",
+      "trust_level": 5,
+      "is_active": true
+    }
+  ],
+  "pois": [
+    {
+      "poi_id": "aff52694-6c4e-5e35-85fd-dfb116fda261",
+      "destination_key": "edinburgh",
+      "name": "Edinburgh Castle",
+      "normalized_name": "edinburgh castle",
+      "category": "monument",
+      "lat": 55.9486,
+      "lng": -3.1999,
+      "address": null,
+      "country_code": "GB",
+      "zone_name": "Old Town",
+      "source_primary_id": "77e173e1-ee44-5e6c-8b39-a739ccf507b6",
+      "editorial_score": 96,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Edinburgh Castle",
+          "alias_normalized": "edinburgh castle",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "castle",
+      "official_url": "https://www.edinburghcastle.scot"
+    },
+    {
+      "poi_id": "829b6031-e666-59e2-b34f-db97ec9a8fe1",
+      "destination_key": "edinburgh",
+      "name": "Royal Mile",
+      "normalized_name": "royal mile",
+      "category": "neighborhood",
+      "lat": 55.95,
+      "lng": -3.19,
+      "address": null,
+      "country_code": "GB",
+      "zone_name": "Old Town",
+      "source_primary_id": "77e173e1-ee44-5e6c-8b39-a739ccf507b6",
+      "editorial_score": 94,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Royal Mile",
+          "alias_normalized": "royal mile",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "6f5b3a23-a39d-55f4-8400-6bbf4557f8d2",
+      "destination_key": "edinburgh",
+      "name": "Holyrood Palace",
+      "normalized_name": "holyrood palace",
+      "category": "monument",
+      "lat": 55.9524,
+      "lng": -3.1723,
+      "address": null,
+      "country_code": "GB",
+      "zone_name": "Holyrood",
+      "source_primary_id": "77e173e1-ee44-5e6c-8b39-a739ccf507b6",
+      "editorial_score": 91,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Holyrood Palace",
+          "alias_normalized": "holyrood palace",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "royal",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "palace"
+    },
+    {
+      "poi_id": "492f3ac7-d1f0-5b6d-93b5-ad108fde0b9b",
+      "destination_key": "edinburgh",
+      "name": "Arthur's Seat",
+      "normalized_name": "arthur's seat",
+      "category": "park",
+      "lat": 55.944,
+      "lng": -3.1618,
+      "address": null,
+      "country_code": "GB",
+      "zone_name": "Holyrood",
+      "source_primary_id": "77e173e1-ee44-5e6c-8b39-a739ccf507b6",
+      "editorial_score": 89,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Arthur's Seat",
+          "alias_normalized": "arthur's seat",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "hill"
+    },
+    {
+      "poi_id": "77eeff26-4f52-5e05-bf3f-d3c6883adb0a",
+      "destination_key": "edinburgh",
+      "name": "Calton Hill",
+      "normalized_name": "calton hill",
+      "category": "park",
+      "lat": 55.9553,
+      "lng": -3.1825,
+      "address": null,
+      "country_code": "GB",
+      "zone_name": "New Town",
+      "source_primary_id": "77e173e1-ee44-5e6c-8b39-a739ccf507b6",
+      "editorial_score": 86,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Calton Hill",
+          "alias_normalized": "calton hill",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "hill"
+    },
+    {
+      "poi_id": "da5c8f5a-dacf-5ac2-ab52-658451ebaacf",
+      "destination_key": "edinburgh",
+      "name": "National Museum",
+      "normalized_name": "national museum",
+      "category": "museum",
+      "lat": 55.947,
+      "lng": -3.1895,
+      "address": null,
+      "country_code": "GB",
+      "zone_name": "Old Town",
+      "source_primary_id": "77e173e1-ee44-5e6c-8b39-a739ccf507b6",
+      "editorial_score": 85,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "National Museum",
+          "alias_normalized": "national museum",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "history_museum"
+    },
+    {
+      "poi_id": "2cb5ce82-ed20-5fb6-b04a-fa4985cd19cc",
+      "destination_key": "edinburgh",
+      "name": "St. Giles' Cathedral",
+      "normalized_name": "st. giles' cathedral",
+      "category": "monument",
+      "lat": 55.9496,
+      "lng": -3.1909,
+      "address": null,
+      "country_code": "GB",
+      "zone_name": "Old Town",
+      "source_primary_id": "77e173e1-ee44-5e6c-8b39-a739ccf507b6",
+      "editorial_score": 84,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "St. Giles' Cathedral",
+          "alias_normalized": "st. giles' cathedral",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "gothic",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "cathedral"
+    },
+    {
+      "poi_id": "53fe586c-4ae4-5c78-81fe-268fa525bc86",
+      "destination_key": "edinburgh",
+      "name": "Princes Street",
+      "normalized_name": "princes street",
+      "category": "neighborhood",
+      "lat": 55.951,
+      "lng": -3.2,
+      "address": null,
+      "country_code": "GB",
+      "zone_name": "New Town",
+      "source_primary_id": "77e173e1-ee44-5e6c-8b39-a739ccf507b6",
+      "editorial_score": 83,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Princes Street",
+          "alias_normalized": "princes street",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "shopping",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "8a7b5a6c-8693-529f-87ad-b62bdb4a37f7",
+      "destination_key": "edinburgh",
+      "name": "Greyfriars Kirkyard",
+      "normalized_name": "greyfriars kirkyard",
+      "category": "monument",
+      "lat": 55.9469,
+      "lng": -3.1915,
+      "address": null,
+      "country_code": "GB",
+      "zone_name": "Old Town",
+      "source_primary_id": "77e173e1-ee44-5e6c-8b39-a739ccf507b6",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Greyfriars Kirkyard",
+          "alias_normalized": "greyfriars kirkyard",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "cemetery"
+    },
+    {
+      "poi_id": "c2fc3637-ab40-510c-9050-d8b4fd73c721",
+      "destination_key": "edinburgh",
+      "name": "Dean Village",
+      "normalized_name": "dean village",
+      "category": "neighborhood",
+      "lat": 55.952,
+      "lng": -3.215,
+      "address": null,
+      "country_code": "GB",
+      "zone_name": "Stockbridge",
+      "source_primary_id": "77e173e1-ee44-5e6c-8b39-a739ccf507b6",
+      "editorial_score": 81,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Dean Village",
+          "alias_normalized": "dean village",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "picturesque",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "2bfe764c-b22d-5d9d-a34a-72ee0087cb22",
+      "destination_key": "edinburgh",
+      "name": "Scott Monument",
+      "normalized_name": "scott monument",
+      "category": "monument",
+      "lat": 55.9524,
+      "lng": -3.1932,
+      "address": null,
+      "country_code": "GB",
+      "zone_name": "New Town",
+      "source_primary_id": "77e173e1-ee44-5e6c-8b39-a739ccf507b6",
+      "editorial_score": 80,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Scott Monument",
+          "alias_normalized": "scott monument",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "monument"
+    },
+    {
+      "poi_id": "8500b202-685d-538e-833b-7d49047a0a1d",
+      "destination_key": "edinburgh",
+      "name": "Edinburgh Zoo",
+      "normalized_name": "edinburgh zoo",
+      "category": "family",
+      "lat": 55.9422,
+      "lng": -3.2689,
+      "address": null,
+      "country_code": "GB",
+      "zone_name": "Corstorphine",
+      "source_primary_id": "77e173e1-ee44-5e6c-8b39-a739ccf507b6",
+      "editorial_score": 79,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Edinburgh Zoo",
+          "alias_normalized": "edinburgh zoo",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "culture",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 70
+        }
+      ],
+      "subcategory": "zoo"
+    },
+    {
+      "poi_id": "697784c4-8f65-5420-ba53-522db3f98f83",
+      "destination_key": "edinburgh",
+      "name": "Portobello Beach",
+      "normalized_name": "portobello beach",
+      "category": "park",
+      "lat": 55.953,
+      "lng": -3.113,
+      "address": null,
+      "country_code": "GB",
+      "zone_name": "Portobello",
+      "source_primary_id": "77e173e1-ee44-5e6c-8b39-a739ccf507b6",
+      "editorial_score": 78,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Portobello Beach",
+          "alias_normalized": "portobello beach",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "beach"
+    },
+    {
+      "poi_id": "7975130f-b48a-5c39-8bcf-230a4db5b0ac",
+      "destination_key": "edinburgh",
+      "name": "The Meadows",
+      "normalized_name": "the meadows",
+      "category": "park",
+      "lat": 55.94,
+      "lng": -3.19,
+      "address": null,
+      "country_code": "GB",
+      "zone_name": "Southside",
+      "source_primary_id": "77e173e1-ee44-5e6c-8b39-a739ccf507b6",
+      "editorial_score": 77,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "The Meadows",
+          "alias_normalized": "the meadows",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "urban_park"
+    },
+    {
+      "poi_id": "bc9db3d6-5d74-5473-8f45-bcf5137ed802",
+      "destination_key": "edinburgh",
+      "name": "Rosslyn Chapel",
+      "normalized_name": "rosslyn chapel",
+      "category": "monument",
+      "lat": 55.8556,
+      "lng": -3.16,
+      "address": null,
+      "country_code": "GB",
+      "zone_name": "Roslin",
+      "source_primary_id": "77e173e1-ee44-5e6c-8b39-a739ccf507b6",
+      "editorial_score": 80,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Rosslyn Chapel",
+          "alias_normalized": "rosslyn chapel",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "chapel"
+    }
+  ]
+}

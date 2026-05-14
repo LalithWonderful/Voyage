@@ -1,0 +1,735 @@
+{
+  "_comment": "POI-2.x — Pilot fixture Cairo. ~15 high-quality POIs. Manually curated, no scraping. Coordinates approximate.",
+  "sources": [
+    {
+      "source_id": "67053913-6e50-5643-8bdc-f46c8bb99b3a",
+      "name": "Lunao Pilot Cairo",
+      "source_type": "editorial",
+      "trust_level": 5,
+      "is_active": true
+    }
+  ],
+  "pois": [
+    {
+      "poi_id": "dec40fc6-f659-5646-b044-adeef2177282",
+      "destination_key": "cairo",
+      "name": "Pyramids of Giza",
+      "normalized_name": "pyramids of giza",
+      "category": "monument",
+      "lat": 29.9792,
+      "lng": 31.1342,
+      "address": null,
+      "country_code": "EG",
+      "zone_name": "Giza",
+      "source_primary_id": "67053913-6e50-5643-8bdc-f46c8bb99b3a",
+      "editorial_score": 99,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Pyramids of Giza",
+          "alias_normalized": "pyramids of giza",
+          "is_canonical": true
+        },
+        {
+          "alias": "Great Pyramids",
+          "alias_normalized": "great pyramids",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "pyramid"
+    },
+    {
+      "poi_id": "c3d299c7-0b70-5d12-b26a-9f332bde5f90",
+      "destination_key": "cairo",
+      "name": "Egyptian Museum",
+      "normalized_name": "egyptian museum",
+      "category": "museum",
+      "lat": 30.0478,
+      "lng": 31.2336,
+      "address": null,
+      "country_code": "EG",
+      "zone_name": "Tahrir Square",
+      "source_primary_id": "67053913-6e50-5643-8bdc-f46c8bb99b3a",
+      "editorial_score": 94,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Egyptian Museum",
+          "alias_normalized": "egyptian museum",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "history_museum"
+    },
+    {
+      "poi_id": "830d3e59-b505-5572-bb8c-b7b8dc3e0d6b",
+      "destination_key": "cairo",
+      "name": "Khan el-Khalili",
+      "normalized_name": "khan el-khalili",
+      "category": "market",
+      "lat": 30.0477,
+      "lng": 31.2622,
+      "address": null,
+      "country_code": "EG",
+      "zone_name": "Islamic Cairo",
+      "source_primary_id": "67053913-6e50-5643-8bdc-f46c8bb99b3a",
+      "editorial_score": 90,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Khan el-Khalili",
+          "alias_normalized": "khan el-khalili",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "food",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "shopping",
+          "tag_category": "activity_type",
+          "confidence": 70
+        }
+      ],
+      "subcategory": "bazaar"
+    },
+    {
+      "poi_id": "da707011-eb4e-5ce8-bbc5-60af27860bd0",
+      "destination_key": "cairo",
+      "name": "Citadel of Saladin",
+      "normalized_name": "citadel of saladin",
+      "category": "monument",
+      "lat": 30.0296,
+      "lng": 31.2611,
+      "address": null,
+      "country_code": "EG",
+      "zone_name": "Islamic Cairo",
+      "source_primary_id": "67053913-6e50-5643-8bdc-f46c8bb99b3a",
+      "editorial_score": 88,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Citadel of Saladin",
+          "alias_normalized": "citadel of saladin",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "fortress"
+    },
+    {
+      "poi_id": "f018a555-7ec2-5207-82f8-e58c6763c41a",
+      "destination_key": "cairo",
+      "name": "Coptic Cairo",
+      "normalized_name": "coptic cairo",
+      "category": "neighborhood",
+      "lat": 30.0058,
+      "lng": 31.2302,
+      "address": null,
+      "country_code": "EG",
+      "zone_name": "Old Cairo",
+      "source_primary_id": "67053913-6e50-5643-8bdc-f46c8bb99b3a",
+      "editorial_score": 84,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Coptic Cairo",
+          "alias_normalized": "coptic cairo",
+          "is_canonical": true
+        },
+        {
+          "alias": "Old Cairo",
+          "alias_normalized": "old cairo",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "f362d0ec-6f72-55a9-ac6a-9c3f7c671b8a",
+      "destination_key": "cairo",
+      "name": "Al-Azhar Mosque",
+      "normalized_name": "al-azhar mosque",
+      "category": "monument",
+      "lat": 30.0457,
+      "lng": 31.2627,
+      "address": null,
+      "country_code": "EG",
+      "zone_name": "Islamic Cairo",
+      "source_primary_id": "67053913-6e50-5643-8bdc-f46c8bb99b3a",
+      "editorial_score": 86,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Al-Azhar Mosque",
+          "alias_normalized": "al-azhar mosque",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "islamic",
+          "tag_category": "vibe",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "mosque"
+    },
+    {
+      "poi_id": "f1429839-a589-514a-8723-2e48277c377e",
+      "destination_key": "cairo",
+      "name": "Mosque of Muhammad Ali",
+      "normalized_name": "mosque of muhammad ali",
+      "category": "monument",
+      "lat": 30.0287,
+      "lng": 31.2593,
+      "address": null,
+      "country_code": "EG",
+      "zone_name": "Citadel",
+      "source_primary_id": "67053913-6e50-5643-8bdc-f46c8bb99b3a",
+      "editorial_score": 85,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Mosque of Muhammad Ali",
+          "alias_normalized": "mosque of muhammad ali",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "islamic",
+          "tag_category": "vibe",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "mosque"
+    },
+    {
+      "poi_id": "d1fcb044-5a68-5f14-8a78-2c76ff879e5f",
+      "destination_key": "cairo",
+      "name": "Nile Felucca Ride",
+      "normalized_name": "nile felucca ride",
+      "category": "local_experience",
+      "lat": 30.05,
+      "lng": 31.2333,
+      "address": null,
+      "country_code": "EG",
+      "zone_name": "Nile River",
+      "source_primary_id": "67053913-6e50-5643-8bdc-f46c8bb99b3a",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Nile Felucca Ride",
+          "alias_normalized": "nile felucca ride",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "interactive",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "scenic",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "boat_ride"
+    },
+    {
+      "poi_id": "23e9e51d-8f8b-54ee-a125-d27fa785e3fa",
+      "destination_key": "cairo",
+      "name": "Zamalek",
+      "normalized_name": "zamalek",
+      "category": "neighborhood",
+      "lat": 30.0588,
+      "lng": 31.214,
+      "address": null,
+      "country_code": "EG",
+      "zone_name": "Zamalek",
+      "source_primary_id": "67053913-6e50-5643-8bdc-f46c8bb99b3a",
+      "editorial_score": 78,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Zamalek",
+          "alias_normalized": "zamalek",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "e15c7d46-4149-5229-afef-603af586f359",
+      "destination_key": "cairo",
+      "name": "Cairo Tower",
+      "normalized_name": "cairo tower",
+      "category": "viewpoint",
+      "lat": 30.0459,
+      "lng": 31.2243,
+      "address": null,
+      "country_code": "EG",
+      "zone_name": "Zamalek",
+      "source_primary_id": "67053913-6e50-5643-8bdc-f46c8bb99b3a",
+      "editorial_score": 80,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 45,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Cairo Tower",
+          "alias_normalized": "cairo tower",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "tower"
+    },
+    {
+      "poi_id": "c0e8dbe0-d206-5498-bf3f-36c6237bb200",
+      "destination_key": "cairo",
+      "name": "Manial Palace",
+      "normalized_name": "manial palace",
+      "category": "monument",
+      "lat": 30.028,
+      "lng": 31.227,
+      "address": null,
+      "country_code": "EG",
+      "zone_name": "Roda Island",
+      "source_primary_id": "67053913-6e50-5643-8bdc-f46c8bb99b3a",
+      "editorial_score": 77,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Manial Palace",
+          "alias_normalized": "manial palace",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "royal",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "palace"
+    },
+    {
+      "poi_id": "dd14a841-d94e-5d8c-8804-c9387e4e8d76",
+      "destination_key": "cairo",
+      "name": "Al-Muizz Street",
+      "normalized_name": "al-muizz street",
+      "category": "neighborhood",
+      "lat": 30.0511,
+      "lng": 31.2614,
+      "address": null,
+      "country_code": "EG",
+      "zone_name": "Islamic Cairo",
+      "source_primary_id": "67053913-6e50-5643-8bdc-f46c8bb99b3a",
+      "editorial_score": 83,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Al-Muizz Street",
+          "alias_normalized": "al-muizz street",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "80524ec6-3d23-5e31-8149-d68ecbfee722",
+      "destination_key": "cairo",
+      "name": "Ibn Tulun Mosque",
+      "normalized_name": "ibn tulun mosque",
+      "category": "monument",
+      "lat": 30.029,
+      "lng": 31.2494,
+      "address": null,
+      "country_code": "EG",
+      "zone_name": "Islamic Cairo",
+      "source_primary_id": "67053913-6e50-5643-8bdc-f46c8bb99b3a",
+      "editorial_score": 76,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Ibn Tulun Mosque",
+          "alias_normalized": "ibn tulun mosque",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "islamic",
+          "tag_category": "vibe",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "mosque"
+    },
+    {
+      "poi_id": "4d0b0df9-7e20-59b2-abda-7b064c5aa8dc",
+      "destination_key": "cairo",
+      "name": "City of the Dead",
+      "normalized_name": "city of the dead",
+      "category": "neighborhood",
+      "lat": 30.04,
+      "lng": 31.27,
+      "address": null,
+      "country_code": "EG",
+      "zone_name": "Eastern Cairo",
+      "source_primary_id": "67053913-6e50-5643-8bdc-f46c8bb99b3a",
+      "editorial_score": 72,
+      "touristic_importance": 2,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "City of the Dead",
+          "alias_normalized": "city of the dead",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "c3db57b7-5549-56e2-81af-00cc9f27d6e8",
+      "destination_key": "cairo",
+      "name": "Wadi Degla",
+      "normalized_name": "wadi degla",
+      "category": "park",
+      "lat": 29.95,
+      "lng": 31.35,
+      "address": null,
+      "country_code": "EG",
+      "zone_name": "Maadi",
+      "source_primary_id": "67053913-6e50-5643-8bdc-f46c8bb99b3a",
+      "editorial_score": 71,
+      "touristic_importance": 2,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Wadi Degla",
+          "alias_normalized": "wadi degla",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        },
+        {
+          "tag": "hiking",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "nature_reserve"
+    }
+  ]
+}

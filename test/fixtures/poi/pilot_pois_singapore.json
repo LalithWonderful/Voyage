@@ -1,0 +1,842 @@
+{
+  "_comment": "POI-2.x — Pilot fixture Singapore. ~18 high-quality POIs. Manually curated, no scraping. Coordinates approximate.",
+  "sources": [
+    {
+      "source_id": "9a200b2b-8916-5ed2-ad17-131627fcd815",
+      "name": "Lunao Pilot Singapore",
+      "source_type": "editorial",
+      "trust_level": 5,
+      "is_active": true
+    }
+  ],
+  "pois": [
+    {
+      "poi_id": "4be7ac0e-168c-5fb0-ba0f-41d527be2a17",
+      "destination_key": "singapore",
+      "name": "Marina Bay Sands",
+      "normalized_name": "marina bay sands",
+      "category": "viewpoint",
+      "lat": 1.2834,
+      "lng": 103.8607,
+      "address": null,
+      "country_code": "SG",
+      "zone_name": "Marina Bay",
+      "source_primary_id": "9a200b2b-8916-5ed2-ad17-131627fcd815",
+      "editorial_score": 94,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 45,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Marina Bay Sands",
+          "alias_normalized": "marina bay sands",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "resort"
+    },
+    {
+      "poi_id": "cfad43f2-eb1f-59da-a815-876898f10485",
+      "destination_key": "singapore",
+      "name": "Gardens by the Bay",
+      "normalized_name": "gardens by the bay",
+      "category": "park",
+      "lat": 1.2816,
+      "lng": 103.8636,
+      "address": null,
+      "country_code": "SG",
+      "zone_name": "Marina Bay",
+      "source_primary_id": "9a200b2b-8916-5ed2-ad17-131627fcd815",
+      "editorial_score": 93,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Gardens by the Bay",
+          "alias_normalized": "gardens by the bay",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "garden"
+    },
+    {
+      "poi_id": "423ae03d-fcb7-549c-abe2-965150b1f235",
+      "destination_key": "singapore",
+      "name": "Sentosa",
+      "normalized_name": "sentosa",
+      "category": "park",
+      "lat": 1.2494,
+      "lng": 103.8303,
+      "address": null,
+      "country_code": "SG",
+      "zone_name": "Sentosa",
+      "source_primary_id": "9a200b2b-8916-5ed2-ad17-131627fcd815",
+      "editorial_score": 90,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Sentosa",
+          "alias_normalized": "sentosa",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "island"
+    },
+    {
+      "poi_id": "214a5e14-d2ea-54fe-99e0-3acdf350d068",
+      "destination_key": "singapore",
+      "name": "Merlion Park",
+      "normalized_name": "merlion park",
+      "category": "photo_spot",
+      "lat": 1.2868,
+      "lng": 103.8545,
+      "address": null,
+      "country_code": "SG",
+      "zone_name": "Marina Bay",
+      "source_primary_id": "9a200b2b-8916-5ed2-ad17-131627fcd815",
+      "editorial_score": 88,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 30,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Merlion Park",
+          "alias_normalized": "merlion park",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "iconic",
+          "tag_category": "vibe",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "statue"
+    },
+    {
+      "poi_id": "88487709-8b44-56d6-b283-3755ec86a6c1",
+      "destination_key": "singapore",
+      "name": "Orchard Road",
+      "normalized_name": "orchard road",
+      "category": "neighborhood",
+      "lat": 1.3048,
+      "lng": 103.8318,
+      "address": null,
+      "country_code": "SG",
+      "zone_name": "Orchard",
+      "source_primary_id": "9a200b2b-8916-5ed2-ad17-131627fcd815",
+      "editorial_score": 85,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Orchard Road",
+          "alias_normalized": "orchard road",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "shopping",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ]
+    },
+    {
+      "poi_id": "774b503a-0e26-59e5-b962-9d81672e2137",
+      "destination_key": "singapore",
+      "name": "Singapore Zoo",
+      "normalized_name": "singapore zoo",
+      "category": "family",
+      "lat": 1.4043,
+      "lng": 103.793,
+      "address": null,
+      "country_code": "SG",
+      "zone_name": "Mandai",
+      "source_primary_id": "9a200b2b-8916-5ed2-ad17-131627fcd815",
+      "editorial_score": 86,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Singapore Zoo",
+          "alias_normalized": "singapore zoo",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "culture",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 70
+        }
+      ],
+      "subcategory": "zoo"
+    },
+    {
+      "poi_id": "19ccef4e-f2f6-5bd9-be43-d8798c15d63b",
+      "destination_key": "singapore",
+      "name": "Botanic Gardens",
+      "normalized_name": "botanic gardens",
+      "category": "park",
+      "lat": 1.3138,
+      "lng": 103.8159,
+      "address": null,
+      "country_code": "SG",
+      "zone_name": "Tanglin",
+      "source_primary_id": "9a200b2b-8916-5ed2-ad17-131627fcd815",
+      "editorial_score": 84,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Botanic Gardens",
+          "alias_normalized": "botanic gardens",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "botanical_garden"
+    },
+    {
+      "poi_id": "bfcdbc68-2e36-5beb-a6ed-b41af9a97f8e",
+      "destination_key": "singapore",
+      "name": "Chinatown",
+      "normalized_name": "chinatown",
+      "category": "neighborhood",
+      "lat": 1.2839,
+      "lng": 103.8435,
+      "address": null,
+      "country_code": "SG",
+      "zone_name": "Outram",
+      "source_primary_id": "9a200b2b-8916-5ed2-ad17-131627fcd815",
+      "editorial_score": 83,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Chinatown",
+          "alias_normalized": "chinatown",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "3ad9ff60-82c1-5e1b-96e5-c78807d60401",
+      "destination_key": "singapore",
+      "name": "Little India",
+      "normalized_name": "little india",
+      "category": "neighborhood",
+      "lat": 1.3066,
+      "lng": 103.8518,
+      "address": null,
+      "country_code": "SG",
+      "zone_name": "Rochor",
+      "source_primary_id": "9a200b2b-8916-5ed2-ad17-131627fcd815",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Little India",
+          "alias_normalized": "little india",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "fd4acd8d-0631-551d-8a48-1fc5bf35ab48",
+      "destination_key": "singapore",
+      "name": "Clarke Quay",
+      "normalized_name": "clarke quay",
+      "category": "neighborhood",
+      "lat": 1.2905,
+      "lng": 103.8467,
+      "address": null,
+      "country_code": "SG",
+      "zone_name": "Singapore River",
+      "source_primary_id": "9a200b2b-8916-5ed2-ad17-131627fcd815",
+      "editorial_score": 81,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Clarke Quay",
+          "alias_normalized": "clarke quay",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "nightlife",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "fda11b38-bc7c-5a83-ae3a-7f0449c432e9",
+      "destination_key": "singapore",
+      "name": "Raffles Hotel",
+      "normalized_name": "raffles hotel",
+      "category": "monument",
+      "lat": 1.2946,
+      "lng": 103.8544,
+      "address": null,
+      "country_code": "SG",
+      "zone_name": "Beach Road",
+      "source_primary_id": "9a200b2b-8916-5ed2-ad17-131627fcd815",
+      "editorial_score": 80,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Raffles Hotel",
+          "alias_normalized": "raffles hotel",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "hotel"
+    },
+    {
+      "poi_id": "b5a3c396-a717-54b5-8139-f91ec76abe05",
+      "destination_key": "singapore",
+      "name": "National Museum",
+      "normalized_name": "national museum",
+      "category": "museum",
+      "lat": 1.2966,
+      "lng": 103.8485,
+      "address": null,
+      "country_code": "SG",
+      "zone_name": "Stamford",
+      "source_primary_id": "9a200b2b-8916-5ed2-ad17-131627fcd815",
+      "editorial_score": 79,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "National Museum",
+          "alias_normalized": "national museum",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "history_museum"
+    },
+    {
+      "poi_id": "137ece2d-102d-59ea-ba8e-62334adaf64b",
+      "destination_key": "singapore",
+      "name": "Universal Studios",
+      "normalized_name": "universal studios",
+      "category": "family",
+      "lat": 1.254,
+      "lng": 103.8238,
+      "address": null,
+      "country_code": "SG",
+      "zone_name": "Sentosa",
+      "source_primary_id": "9a200b2b-8916-5ed2-ad17-131627fcd815",
+      "editorial_score": 83,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Universal Studios",
+          "alias_normalized": "universal studios",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "culture",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 70
+        }
+      ],
+      "subcategory": "theme_park"
+    },
+    {
+      "poi_id": "a25dc0f5-ab6f-5753-bb65-4d66d59cc4f6",
+      "destination_key": "singapore",
+      "name": "Singapore Flyer",
+      "normalized_name": "singapore flyer",
+      "category": "viewpoint",
+      "lat": 1.2895,
+      "lng": 103.8631,
+      "address": null,
+      "country_code": "SG",
+      "zone_name": "Marina Bay",
+      "source_primary_id": "9a200b2b-8916-5ed2-ad17-131627fcd815",
+      "editorial_score": 78,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 45,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Singapore Flyer",
+          "alias_normalized": "singapore flyer",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "observation_wheel"
+    },
+    {
+      "poi_id": "26d8a215-56f1-5695-ba15-ed5c382979db",
+      "destination_key": "singapore",
+      "name": "East Coast Park",
+      "normalized_name": "east coast park",
+      "category": "park",
+      "lat": 1.3,
+      "lng": 103.91,
+      "address": null,
+      "country_code": "SG",
+      "zone_name": "Marine Parade",
+      "source_primary_id": "9a200b2b-8916-5ed2-ad17-131627fcd815",
+      "editorial_score": 75,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "East Coast Park",
+          "alias_normalized": "east coast park",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "beach"
+    },
+    {
+      "poi_id": "d8e85f01-44fd-5117-9881-cfeb213668d9",
+      "destination_key": "singapore",
+      "name": "Haji Lane",
+      "normalized_name": "haji lane",
+      "category": "neighborhood",
+      "lat": 1.301,
+      "lng": 103.858,
+      "address": null,
+      "country_code": "SG",
+      "zone_name": "Kampong Glam",
+      "source_primary_id": "9a200b2b-8916-5ed2-ad17-131627fcd815",
+      "editorial_score": 77,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Haji Lane",
+          "alias_normalized": "haji lane",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "colorful",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "5b2de45a-fcc9-588a-905d-95bdf12c9e14",
+      "destination_key": "singapore",
+      "name": "Haw Par Villa",
+      "normalized_name": "haw par villa",
+      "category": "museum",
+      "lat": 1.2838,
+      "lng": 103.782,
+      "address": null,
+      "country_code": "SG",
+      "zone_name": "Pasir Panjang",
+      "source_primary_id": "9a200b2b-8916-5ed2-ad17-131627fcd815",
+      "editorial_score": 74,
+      "touristic_importance": 2,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Haw Par Villa",
+          "alias_normalized": "haw par villa",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "theme_park"
+    },
+    {
+      "poi_id": "d353d393-b1c8-5b05-97ec-50e7e7149924",
+      "destination_key": "singapore",
+      "name": "Pulau Ubin",
+      "normalized_name": "pulau ubin",
+      "category": "park",
+      "lat": 1.4125,
+      "lng": 103.957,
+      "address": null,
+      "country_code": "SG",
+      "zone_name": "North-Eastern Islands",
+      "source_primary_id": "9a200b2b-8916-5ed2-ad17-131627fcd815",
+      "editorial_score": 73,
+      "touristic_importance": 2,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Pulau Ubin",
+          "alias_normalized": "pulau ubin",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        },
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "island"
+    }
+  ]
+}

@@ -1,0 +1,721 @@
+{
+  "_comment": "POI-2.x — Pilot fixture Dublin. ~15 high-quality POIs. Manually curated, no scraping. Coordinates approximate.",
+  "sources": [
+    {
+      "source_id": "1f5f3406-fa10-5c64-a812-bb8bb95d087e",
+      "name": "Lunao Pilot Dublin",
+      "source_type": "editorial",
+      "trust_level": 5,
+      "is_active": true
+    }
+  ],
+  "pois": [
+    {
+      "poi_id": "e51b4d7c-027c-5ae9-a226-93c99349c4b7",
+      "destination_key": "dublin",
+      "name": "Trinity College",
+      "normalized_name": "trinity college",
+      "category": "monument",
+      "lat": 53.3441,
+      "lng": -6.2568,
+      "address": null,
+      "country_code": "IE",
+      "zone_name": "College Green",
+      "source_primary_id": "1f5f3406-fa10-5c64-a812-bb8bb95d087e",
+      "editorial_score": 91,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Trinity College",
+          "alias_normalized": "trinity college",
+          "is_canonical": true
+        },
+        {
+          "alias": "Trinity College Dublin",
+          "alias_normalized": "trinity college dublin",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "university"
+    },
+    {
+      "poi_id": "08ca9f47-5136-504d-9350-3128f7456672",
+      "destination_key": "dublin",
+      "name": "Guinness Storehouse",
+      "normalized_name": "guinness storehouse",
+      "category": "local_experience",
+      "lat": 53.3419,
+      "lng": -6.2865,
+      "address": null,
+      "country_code": "IE",
+      "zone_name": "Liberties",
+      "source_primary_id": "1f5f3406-fa10-5c64-a812-bb8bb95d087e",
+      "editorial_score": 90,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Guinness Storehouse",
+          "alias_normalized": "guinness storehouse",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "interactive",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "brewery"
+    },
+    {
+      "poi_id": "3e3ed611-06e8-5772-92f6-33812611a374",
+      "destination_key": "dublin",
+      "name": "Temple Bar",
+      "normalized_name": "temple bar",
+      "category": "neighborhood",
+      "lat": 53.3455,
+      "lng": -6.2633,
+      "address": null,
+      "country_code": "IE",
+      "zone_name": "Temple Bar",
+      "source_primary_id": "1f5f3406-fa10-5c64-a812-bb8bb95d087e",
+      "editorial_score": 88,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Temple Bar",
+          "alias_normalized": "temple bar",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "nightlife",
+          "tag_category": "vibe",
+          "confidence": 90
+        }
+      ]
+    },
+    {
+      "poi_id": "d3309f1b-9365-5210-bb37-7bbc203f0121",
+      "destination_key": "dublin",
+      "name": "St. Patrick's Cathedral",
+      "normalized_name": "st. patrick's cathedral",
+      "category": "monument",
+      "lat": 53.3395,
+      "lng": -6.2715,
+      "address": null,
+      "country_code": "IE",
+      "zone_name": "Patrick Street",
+      "source_primary_id": "1f5f3406-fa10-5c64-a812-bb8bb95d087e",
+      "editorial_score": 87,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "St. Patrick's Cathedral",
+          "alias_normalized": "st. patrick's cathedral",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "gothic",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "cathedral"
+    },
+    {
+      "poi_id": "e0d59019-8008-5d30-bfe5-8f8836122fb7",
+      "destination_key": "dublin",
+      "name": "Dublin Castle",
+      "normalized_name": "dublin castle",
+      "category": "monument",
+      "lat": 53.3429,
+      "lng": -6.2675,
+      "address": null,
+      "country_code": "IE",
+      "zone_name": "Dame Street",
+      "source_primary_id": "1f5f3406-fa10-5c64-a812-bb8bb95d087e",
+      "editorial_score": 86,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Dublin Castle",
+          "alias_normalized": "dublin castle",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "castle"
+    },
+    {
+      "poi_id": "f6e1b412-166b-52e7-87b6-909bafcd1b21",
+      "destination_key": "dublin",
+      "name": "Phoenix Park",
+      "normalized_name": "phoenix park",
+      "category": "park",
+      "lat": 53.3568,
+      "lng": -6.3298,
+      "address": null,
+      "country_code": "IE",
+      "zone_name": "Phoenix Park",
+      "source_primary_id": "1f5f3406-fa10-5c64-a812-bb8bb95d087e",
+      "editorial_score": 85,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Phoenix Park",
+          "alias_normalized": "phoenix park",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "urban_park"
+    },
+    {
+      "poi_id": "4fc25be5-163f-5fb8-a8bc-f904c0da6702",
+      "destination_key": "dublin",
+      "name": "Kilmainham Gaol",
+      "normalized_name": "kilmainham gaol",
+      "category": "monument",
+      "lat": 53.3419,
+      "lng": -6.3099,
+      "address": null,
+      "country_code": "IE",
+      "zone_name": "Kilmainham",
+      "source_primary_id": "1f5f3406-fa10-5c64-a812-bb8bb95d087e",
+      "editorial_score": 84,
+      "touristic_importance": 3,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Kilmainham Gaol",
+          "alias_normalized": "kilmainham gaol",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "prison"
+    },
+    {
+      "poi_id": "d6feb1d3-ed82-5c7e-aa71-79f518d5c978",
+      "destination_key": "dublin",
+      "name": "Ha'penny Bridge",
+      "normalized_name": "ha'penny bridge",
+      "category": "monument",
+      "lat": 53.3452,
+      "lng": -6.2634,
+      "address": null,
+      "country_code": "IE",
+      "zone_name": "Temple Bar",
+      "source_primary_id": "1f5f3406-fa10-5c64-a812-bb8bb95d087e",
+      "editorial_score": 83,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Ha'penny Bridge",
+          "alias_normalized": "ha'penny bridge",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "bridge"
+    },
+    {
+      "poi_id": "9cb652cd-8363-592f-9ce4-46224aa7c679",
+      "destination_key": "dublin",
+      "name": "Grafton Street",
+      "normalized_name": "grafton street",
+      "category": "neighborhood",
+      "lat": 53.3414,
+      "lng": -6.2597,
+      "address": null,
+      "country_code": "IE",
+      "zone_name": "South City Centre",
+      "source_primary_id": "1f5f3406-fa10-5c64-a812-bb8bb95d087e",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Grafton Street",
+          "alias_normalized": "grafton street",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "shopping",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "d93dd1c0-e826-5c4e-a865-203a3a416f8c",
+      "destination_key": "dublin",
+      "name": "Chester Beatty Library",
+      "normalized_name": "chester beatty library",
+      "category": "museum",
+      "lat": 53.3422,
+      "lng": -6.2674,
+      "address": null,
+      "country_code": "IE",
+      "zone_name": "Dame Street",
+      "source_primary_id": "1f5f3406-fa10-5c64-a812-bb8bb95d087e",
+      "editorial_score": 81,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Chester Beatty Library",
+          "alias_normalized": "chester beatty library",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "manuscript_museum"
+    },
+    {
+      "poi_id": "c4d2bd5a-cd88-55c0-93fe-107c13b02f63",
+      "destination_key": "dublin",
+      "name": "National Gallery",
+      "normalized_name": "national gallery",
+      "category": "museum",
+      "lat": 53.3409,
+      "lng": -6.2525,
+      "address": null,
+      "country_code": "IE",
+      "zone_name": "Merrion Square",
+      "source_primary_id": "1f5f3406-fa10-5c64-a812-bb8bb95d087e",
+      "editorial_score": 80,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "National Gallery",
+          "alias_normalized": "national gallery",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "art_museum"
+    },
+    {
+      "poi_id": "e51fbbfc-200b-5278-937f-9f3e65b3caa8",
+      "destination_key": "dublin",
+      "name": "St. Stephen's Green",
+      "normalized_name": "st. stephen's green",
+      "category": "park",
+      "lat": 53.3382,
+      "lng": -6.2592,
+      "address": null,
+      "country_code": "IE",
+      "zone_name": "South City Centre",
+      "source_primary_id": "1f5f3406-fa10-5c64-a812-bb8bb95d087e",
+      "editorial_score": 79,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "St. Stephen's Green",
+          "alias_normalized": "st. stephen's green",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "urban_park"
+    },
+    {
+      "poi_id": "225c1ef8-9efd-5a9e-b945-b0afbb5d8404",
+      "destination_key": "dublin",
+      "name": "Howth",
+      "normalized_name": "howth",
+      "category": "neighborhood",
+      "lat": 53.3875,
+      "lng": -6.0646,
+      "address": null,
+      "country_code": "IE",
+      "zone_name": "Howth",
+      "source_primary_id": "1f5f3406-fa10-5c64-a812-bb8bb95d087e",
+      "editorial_score": 77,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Howth",
+          "alias_normalized": "howth",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "seaside",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "6968e54e-8d69-5d28-9245-fbdc4c672243",
+      "destination_key": "dublin",
+      "name": "Powerscourt Estate",
+      "normalized_name": "powerscourt estate",
+      "category": "park",
+      "lat": 53.185,
+      "lng": -6.185,
+      "address": null,
+      "country_code": "IE",
+      "zone_name": "Enniskerry",
+      "source_primary_id": "1f5f3406-fa10-5c64-a812-bb8bb95d087e",
+      "editorial_score": 78,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Powerscourt Estate",
+          "alias_normalized": "powerscourt estate",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "estate"
+    },
+    {
+      "poi_id": "c52ca8c1-c683-577d-9b0b-32e9fb1b759a",
+      "destination_key": "dublin",
+      "name": "Book of Kells",
+      "normalized_name": "book of kells",
+      "category": "museum",
+      "lat": 53.3441,
+      "lng": -6.2568,
+      "address": null,
+      "country_code": "IE",
+      "zone_name": "College Green",
+      "source_primary_id": "1f5f3406-fa10-5c64-a812-bb8bb95d087e",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Book of Kells",
+          "alias_normalized": "book of kells",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "manuscript"
+    }
+  ]
+}

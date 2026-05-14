@@ -1,0 +1,850 @@
+{
+  "_comment": "POI-2.x — Pilot fixture Bangkok. ~18 high-quality POIs. Manually curated, no scraping. Coordinates approximate.",
+  "sources": [
+    {
+      "source_id": "be73cf9d-0ed8-52e1-842b-cce66834eb6a",
+      "name": "Lunao Pilot Bangkok",
+      "source_type": "editorial",
+      "trust_level": 5,
+      "is_active": true
+    }
+  ],
+  "pois": [
+    {
+      "poi_id": "b50d7660-edb1-55d3-9367-d0702850a870",
+      "destination_key": "bangkok",
+      "name": "Grand Palace",
+      "normalized_name": "grand palace",
+      "category": "monument",
+      "lat": 13.7501,
+      "lng": 100.4922,
+      "address": null,
+      "country_code": "TH",
+      "zone_name": "Phra Nakhon",
+      "source_primary_id": "be73cf9d-0ed8-52e1-842b-cce66834eb6a",
+      "editorial_score": 97,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Grand Palace",
+          "alias_normalized": "grand palace",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "royal",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "palace"
+    },
+    {
+      "poi_id": "82f2f71b-5a81-5f18-8b78-f8b38997b60e",
+      "destination_key": "bangkok",
+      "name": "Wat Phra Kaew",
+      "normalized_name": "wat phra kaew",
+      "category": "monument",
+      "lat": 13.7513,
+      "lng": 100.4927,
+      "address": null,
+      "country_code": "TH",
+      "zone_name": "Phra Nakhon",
+      "source_primary_id": "be73cf9d-0ed8-52e1-842b-cce66834eb6a",
+      "editorial_score": 96,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Wat Phra Kaew",
+          "alias_normalized": "wat phra kaew",
+          "is_canonical": true
+        },
+        {
+          "alias": "Temple of the Emerald Buddha",
+          "alias_normalized": "temple of the emerald buddha",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "temple"
+    },
+    {
+      "poi_id": "5617a324-363c-5e3d-b7c2-e2b68a13d252",
+      "destination_key": "bangkok",
+      "name": "Wat Pho",
+      "normalized_name": "wat pho",
+      "category": "monument",
+      "lat": 13.7466,
+      "lng": 100.4933,
+      "address": null,
+      "country_code": "TH",
+      "zone_name": "Phra Nakhon",
+      "source_primary_id": "be73cf9d-0ed8-52e1-842b-cce66834eb6a",
+      "editorial_score": 93,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Wat Pho",
+          "alias_normalized": "wat pho",
+          "is_canonical": true
+        },
+        {
+          "alias": "Temple of the Reclining Buddha",
+          "alias_normalized": "temple of the reclining buddha",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "temple"
+    },
+    {
+      "poi_id": "b0bcce45-f018-5a36-8eee-fbf01b25a084",
+      "destination_key": "bangkok",
+      "name": "Wat Arun",
+      "normalized_name": "wat arun",
+      "category": "monument",
+      "lat": 13.7437,
+      "lng": 100.4889,
+      "address": null,
+      "country_code": "TH",
+      "zone_name": "Thonburi",
+      "source_primary_id": "be73cf9d-0ed8-52e1-842b-cce66834eb6a",
+      "editorial_score": 91,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Wat Arun",
+          "alias_normalized": "wat arun",
+          "is_canonical": true
+        },
+        {
+          "alias": "Temple of Dawn",
+          "alias_normalized": "temple of dawn",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "temple"
+    },
+    {
+      "poi_id": "97e36116-0769-5aba-8068-3a370877adf8",
+      "destination_key": "bangkok",
+      "name": "Chatuchak Market",
+      "normalized_name": "chatuchak market",
+      "category": "market",
+      "lat": 13.7999,
+      "lng": 100.548,
+      "address": null,
+      "country_code": "TH",
+      "zone_name": "Chatuchak",
+      "source_primary_id": "be73cf9d-0ed8-52e1-842b-cce66834eb6a",
+      "editorial_score": 87,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Chatuchak Market",
+          "alias_normalized": "chatuchak market",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "food",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "shopping",
+          "tag_category": "activity_type",
+          "confidence": 70
+        }
+      ],
+      "subcategory": "weekend_market"
+    },
+    {
+      "poi_id": "19e31610-091c-54ce-94e7-cf5e33e7493d",
+      "destination_key": "bangkok",
+      "name": "Jim Thompson House",
+      "normalized_name": "jim thompson house",
+      "category": "museum",
+      "lat": 13.7494,
+      "lng": 100.5282,
+      "address": null,
+      "country_code": "TH",
+      "zone_name": "Siam",
+      "source_primary_id": "be73cf9d-0ed8-52e1-842b-cce66834eb6a",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Jim Thompson House",
+          "alias_normalized": "jim thompson house",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "house_museum"
+    },
+    {
+      "poi_id": "4cd45872-0b39-5675-973e-4526f921b16c",
+      "destination_key": "bangkok",
+      "name": "Chinatown",
+      "normalized_name": "chinatown",
+      "category": "neighborhood",
+      "lat": 13.739,
+      "lng": 100.514,
+      "address": null,
+      "country_code": "TH",
+      "zone_name": "Yaowarat",
+      "source_primary_id": "be73cf9d-0ed8-52e1-842b-cce66834eb6a",
+      "editorial_score": 85,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Chinatown",
+          "alias_normalized": "chinatown",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "6602e532-3645-5d01-85ba-b6122782e163",
+      "destination_key": "bangkok",
+      "name": "Khao San Road",
+      "normalized_name": "khao san road",
+      "category": "neighborhood",
+      "lat": 13.7589,
+      "lng": 100.4973,
+      "address": null,
+      "country_code": "TH",
+      "zone_name": "Banglamphu",
+      "source_primary_id": "be73cf9d-0ed8-52e1-842b-cce66834eb6a",
+      "editorial_score": 84,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Khao San Road",
+          "alias_normalized": "khao san road",
+          "is_canonical": true
+        },
+        {
+          "alias": "Khaosan",
+          "alias_normalized": "khaosan",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 70
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "038249ee-fb01-50b6-985e-a33e8db201ce",
+      "destination_key": "bangkok",
+      "name": "Lumphini Park",
+      "normalized_name": "lumphini park",
+      "category": "park",
+      "lat": 13.7308,
+      "lng": 100.5416,
+      "address": null,
+      "country_code": "TH",
+      "zone_name": "Pathum Wan",
+      "source_primary_id": "be73cf9d-0ed8-52e1-842b-cce66834eb6a",
+      "editorial_score": 80,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Lumphini Park",
+          "alias_normalized": "lumphini park",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "urban_park"
+    },
+    {
+      "poi_id": "754b45d8-53cc-5b71-b2f3-1b0db2957123",
+      "destination_key": "bangkok",
+      "name": "MBK Center",
+      "normalized_name": "mbk center",
+      "category": "shopping",
+      "lat": 13.7446,
+      "lng": 100.5303,
+      "address": null,
+      "country_code": "TH",
+      "zone_name": "Siam",
+      "source_primary_id": "be73cf9d-0ed8-52e1-842b-cce66834eb6a",
+      "editorial_score": 78,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "MBK Center",
+          "alias_normalized": "mbk center",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "culture",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 70
+        }
+      ],
+      "subcategory": "mall"
+    },
+    {
+      "poi_id": "7a10ba6a-d50c-5738-a854-38a0b37919d0",
+      "destination_key": "bangkok",
+      "name": "Erawan Shrine",
+      "normalized_name": "erawan shrine",
+      "category": "monument",
+      "lat": 13.744,
+      "lng": 100.5406,
+      "address": null,
+      "country_code": "TH",
+      "zone_name": "Ratchaprasong",
+      "source_primary_id": "be73cf9d-0ed8-52e1-842b-cce66834eb6a",
+      "editorial_score": 81,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Erawan Shrine",
+          "alias_normalized": "erawan shrine",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "shrine"
+    },
+    {
+      "poi_id": "81ed565d-a324-55d4-a727-bd08364c3aaf",
+      "destination_key": "bangkok",
+      "name": "Damnoen Saduak Floating Market",
+      "normalized_name": "damnoen saduak floating market",
+      "category": "market",
+      "lat": 13.518,
+      "lng": 99.9547,
+      "address": null,
+      "country_code": "TH",
+      "zone_name": "Ratchaburi",
+      "source_primary_id": "be73cf9d-0ed8-52e1-842b-cce66834eb6a",
+      "editorial_score": 83,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Damnoen Saduak Floating Market",
+          "alias_normalized": "damnoen saduak floating market",
+          "is_canonical": true
+        },
+        {
+          "alias": "Floating Market",
+          "alias_normalized": "floating market",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "food",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "shopping",
+          "tag_category": "activity_type",
+          "confidence": 70
+        }
+      ],
+      "subcategory": "floating_market"
+    },
+    {
+      "poi_id": "c3c79e7e-1e4d-5370-90cb-3990b5bfb610",
+      "destination_key": "bangkok",
+      "name": "Vimanmek Mansion",
+      "normalized_name": "vimanmek mansion",
+      "category": "monument",
+      "lat": 13.7697,
+      "lng": 100.5131,
+      "address": null,
+      "country_code": "TH",
+      "zone_name": "Dusit",
+      "source_primary_id": "be73cf9d-0ed8-52e1-842b-cce66834eb6a",
+      "editorial_score": 77,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Vimanmek Mansion",
+          "alias_normalized": "vimanmek mansion",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "mansion"
+    },
+    {
+      "poi_id": "db9a56cd-2f95-537b-8026-9b12d93102ae",
+      "destination_key": "bangkok",
+      "name": "Siam Paragon",
+      "normalized_name": "siam paragon",
+      "category": "shopping",
+      "lat": 13.7462,
+      "lng": 100.5347,
+      "address": null,
+      "country_code": "TH",
+      "zone_name": "Siam",
+      "source_primary_id": "be73cf9d-0ed8-52e1-842b-cce66834eb6a",
+      "editorial_score": 79,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Siam Paragon",
+          "alias_normalized": "siam paragon",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "culture",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 70
+        }
+      ],
+      "subcategory": "mall"
+    },
+    {
+      "poi_id": "e1d10283-984e-5efb-bb0c-406cfc8c368e",
+      "destination_key": "bangkok",
+      "name": "Golden Mount",
+      "normalized_name": "golden mount",
+      "category": "viewpoint",
+      "lat": 13.7539,
+      "lng": 100.5065,
+      "address": null,
+      "country_code": "TH",
+      "zone_name": "Pom Prap Sattru Phai",
+      "source_primary_id": "be73cf9d-0ed8-52e1-842b-cce66834eb6a",
+      "editorial_score": 80,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 45,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Golden Mount",
+          "alias_normalized": "golden mount",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "temple"
+    },
+    {
+      "poi_id": "9d32bfb1-7f6d-550b-b1a1-d96f5d489387",
+      "destination_key": "bangkok",
+      "name": "Safari World",
+      "normalized_name": "safari world",
+      "category": "family",
+      "lat": 13.868,
+      "lng": 100.688,
+      "address": null,
+      "country_code": "TH",
+      "zone_name": "Min Buri",
+      "source_primary_id": "be73cf9d-0ed8-52e1-842b-cce66834eb6a",
+      "editorial_score": 75,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Safari World",
+          "alias_normalized": "safari world",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "culture",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 70
+        }
+      ],
+      "subcategory": "zoo"
+    },
+    {
+      "poi_id": "99f7647a-d6e1-5ff8-8043-b78a8b8f775f",
+      "destination_key": "bangkok",
+      "name": "Asiatique",
+      "normalized_name": "asiatique",
+      "category": "local_experience",
+      "lat": 13.7048,
+      "lng": 100.5037,
+      "address": null,
+      "country_code": "TH",
+      "zone_name": "Charoen Krung",
+      "source_primary_id": "be73cf9d-0ed8-52e1-842b-cce66834eb6a",
+      "editorial_score": 76,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Asiatique",
+          "alias_normalized": "asiatique",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "interactive",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "night_market"
+    },
+    {
+      "poi_id": "b01aa2e0-19eb-548c-ad34-6da92f5e4e45",
+      "destination_key": "bangkok",
+      "name": "Wat Saket",
+      "normalized_name": "wat saket",
+      "category": "monument",
+      "lat": 13.7539,
+      "lng": 100.5065,
+      "address": null,
+      "country_code": "TH",
+      "zone_name": "Pom Prap Sattru Phai",
+      "source_primary_id": "be73cf9d-0ed8-52e1-842b-cce66834eb6a",
+      "editorial_score": 80,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Wat Saket",
+          "alias_normalized": "wat saket",
+          "is_canonical": true
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "temple"
+    }
+  ]
+}
