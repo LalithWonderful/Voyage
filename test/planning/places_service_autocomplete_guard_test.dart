@@ -348,5 +348,93 @@ void main() {
       final code = await service.getCountryCodeFromPlaceId('lunao:unknown');
       expect(code, isNull);
     });
+
+    // ─── POI-2.7 — Second multi-city pack tests ───
+
+    test('autocompleteDestinations returns Lunao London for "lond"', () async {
+      final results = await service.autocompleteDestinations('lond');
+      expect(results.length, 1);
+      expect(results.first.mainText, 'Londres');
+      expect(results.first.placeId, 'lunao:london');
+      expect(results.first.kind, 'city');
+    });
+
+    test('autocompleteDestinations returns Lunao London for "london"', () async {
+      final results = await service.autocompleteDestinations('london');
+      expect(results.length, 1);
+      expect(results.first.mainText, 'Londres');
+      expect(results.first.placeId, 'lunao:london');
+    });
+
+    test('autocompleteDestinations returns Lunao Amsterdam for "amster"', () async {
+      final results = await service.autocompleteDestinations('amster');
+      expect(results.length, 1);
+      expect(results.first.mainText, 'Amsterdam');
+      expect(results.first.placeId, 'lunao:amsterdam');
+    });
+
+    test('autocompleteDestinations returns Lunao Amsterdam for "amsterdam"', () async {
+      final results = await service.autocompleteDestinations('amsterdam');
+      expect(results.length, 1);
+      expect(results.first.mainText, 'Amsterdam');
+      expect(results.first.placeId, 'lunao:amsterdam');
+    });
+
+    test('autocompleteDestinations returns Lunao Marrakech for "marrak"', () async {
+      final results = await service.autocompleteDestinations('marrak');
+      expect(results.length, 1);
+      expect(results.first.mainText, 'Marrakech');
+      expect(results.first.placeId, 'lunao:marrakech');
+    });
+
+    test('autocompleteDestinations returns Lunao Marrakech for "marrakech"', () async {
+      final results = await service.autocompleteDestinations('marrakech');
+      expect(results.length, 1);
+      expect(results.first.mainText, 'Marrakech');
+      expect(results.first.placeId, 'lunao:marrakech');
+    });
+
+    test('autocompleteDestinations returns Lunao Marrakech for "marrakesh"', () async {
+      final results = await service.autocompleteDestinations('marrakesh');
+      expect(results.length, 1);
+      expect(results.first.mainText, 'Marrakech');
+      expect(results.first.placeId, 'lunao:marrakech');
+    });
+
+    test('autocompleteCities returns Lunao London for "lond"', () async {
+      final results = await service.autocompleteCities('lond');
+      expect(results.length, 1);
+      expect(results.first.mainText, 'Londres');
+      expect(results.first.placeId, 'lunao:london');
+    });
+
+    test('autocompleteCities returns Lunao Amsterdam for "amster"', () async {
+      final results = await service.autocompleteCities('amster');
+      expect(results.length, 1);
+      expect(results.first.mainText, 'Amsterdam');
+      expect(results.first.placeId, 'lunao:amsterdam');
+    });
+
+    test('autocompleteCities returns Lunao Marrakech for "marrak"', () async {
+      final results = await service.autocompleteCities('marrak');
+      expect(results.length, 1);
+      expect(results.first.mainText, 'Marrakech');
+      expect(results.first.placeId, 'lunao:marrakech');
+    });
+
+    test('getCountryCodeFromPlaceId resolves lunao:london locally', () async {
+      final code = await service.getCountryCodeFromPlaceId('lunao:london');
+      expect(code, 'gb');
+    });
+
+    test('getCountryCodeFromPlaceId resolves lunao:amsterdam locally', () async {
+      final code = await service.getCountryCodeFromPlaceId('lunao:amsterdam');
+      expect(code, 'nl');
+    });
+
+    test('getCountryCodeFromPlaceId resolves lunao:marrakech locally', () async {
+      final code = await service.getCountryCodeFromPlaceId('lunao:marrakech');
+      expect(code, 'ma');
+    });
   });
 }

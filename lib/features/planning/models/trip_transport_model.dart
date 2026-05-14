@@ -76,6 +76,7 @@ const transportModeEmojis = {
   'boat': '⛴️',
   'tuktuk': '🛺',
   'plane': '✈️',
+  'manual': '📝',
 };
 
 const transportModeLabels = {
@@ -94,6 +95,7 @@ const transportModeLabels = {
   'boat': 'Bateau',
   'tuktuk': 'Tuk-tuk',
   'plane': 'Avion',
+  'manual': 'Trajet à compléter',
 };
 
 String transportModeLabel(String mode) => transportModeLabels[mode] ?? mode;

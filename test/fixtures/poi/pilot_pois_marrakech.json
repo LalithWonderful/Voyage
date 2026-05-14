@@ -1,0 +1,1504 @@
+{
+  "_comment": "POI-2.7 — Pilot fixture Marrakech. ~25 high-quality POIs. Manually curated, no scraping. Coordinates approximate.",
+  "sources": [
+    {
+      "source_id": "117b9ed4-e80b-5065-b682-9916ba51bfb5",
+      "name": "Lunao Pilot Marrakech",
+      "source_type": "editorial",
+      "trust_level": 5,
+      "is_active": true
+    }
+  ],
+  "pois": [
+    {
+      "poi_id": "7fce71f6-1e92-5380-9a86-4058954ca59d",
+      "destination_key": "marrakech",
+      "name": "Jemaa el-Fnaa",
+      "normalized_name": "jemaa el-fnaa",
+      "category": "market",
+      "lat": 31.6258,
+      "lng": -7.9891,
+      "address": "Jemaa el-Fnaa, Marrakech 40000",
+      "country_code": "MA",
+      "zone_name": "Medina",
+      "official_url": null,
+      "source_primary_id": "117b9ed4-e80b-5065-b682-9916ba51bfb5",
+      "editorial_score": 97,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 120,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Jemaa el-Fnaa",
+          "alias_normalized": "jemaa el-fnaa",
+          "is_canonical": true
+        },
+        {
+          "alias": "Djemaa el-Fna",
+          "alias_normalized": "djemaa el-fna",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "iconic",
+          "tag_category": "vibe",
+          "confidence": 98
+        },
+        {
+          "tag": "food",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "nightlife",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 95
+        }
+      ],
+      "subcategory": "square"
+    },
+    {
+      "poi_id": "087dc9db-d702-5858-8996-861c88ea9840",
+      "destination_key": "marrakech",
+      "name": "Koutoubia Mosque",
+      "normalized_name": "koutoubia mosque",
+      "category": "monument",
+      "lat": 31.624,
+      "lng": -7.9935,
+      "address": "Avenue Mohammed V, Marrakech 40000",
+      "country_code": "MA",
+      "zone_name": "Medina",
+      "official_url": null,
+      "source_primary_id": "117b9ed4-e80b-5065-b682-9916ba51bfb5",
+      "editorial_score": 95,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 30,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Koutoubia Mosque",
+          "alias_normalized": "koutoubia mosque",
+          "is_canonical": true
+        },
+        {
+          "alias": "Kutubiyya Mosque",
+          "alias_normalized": "kutubiyya mosque",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "islamic",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "mosque"
+    },
+    {
+      "poi_id": "c2625f5d-5956-506c-a925-25a42504ad01",
+      "destination_key": "marrakech",
+      "name": "Bahia Palace",
+      "normalized_name": "bahia palace",
+      "category": "monument",
+      "lat": 31.6218,
+      "lng": -7.9815,
+      "address": "Rue Riad Zitoun el Jdid, Marrakech 40000",
+      "country_code": "MA",
+      "zone_name": "Medina",
+      "official_url": null,
+      "source_primary_id": "117b9ed4-e80b-5065-b682-9916ba51bfb5",
+      "editorial_score": 94,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Bahia Palace",
+          "alias_normalized": "bahia palace",
+          "is_canonical": true
+        },
+        {
+          "alias": "Palais de la Bahia",
+          "alias_normalized": "palais de la bahia",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "moroccan",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "gardens",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "palace"
+    },
+    {
+      "poi_id": "f05399ca-3ab5-5350-9574-2104a1d25331",
+      "destination_key": "marrakech",
+      "name": "Majorelle Garden",
+      "normalized_name": "majorelle garden",
+      "category": "park",
+      "lat": 31.6418,
+      "lng": -8.0028,
+      "address": "Rue Yves Saint Laurent, Marrakech 40000",
+      "country_code": "MA",
+      "zone_name": "Gueliz",
+      "official_url": "https://www.jardinmajorelle.com/",
+      "source_primary_id": "117b9ed4-e80b-5065-b682-9916ba51bfb5",
+      "editorial_score": 93,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Majorelle Garden",
+          "alias_normalized": "majorelle garden",
+          "is_canonical": true
+        },
+        {
+          "alias": "Jardin Majorelle",
+          "alias_normalized": "jardin majorelle",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "colorful",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "botanical_garden"
+    },
+    {
+      "poi_id": "c164f1ff-f0fa-5bce-95d4-14527c5b481e",
+      "destination_key": "marrakech",
+      "name": "Saadian Tombs",
+      "normalized_name": "saadian tombs",
+      "category": "monument",
+      "lat": 31.6175,
+      "lng": -7.9895,
+      "address": "Rue de la Kasbah, Marrakech 40000",
+      "country_code": "MA",
+      "zone_name": "Kasbah",
+      "official_url": null,
+      "source_primary_id": "117b9ed4-e80b-5065-b682-9916ba51bfb5",
+      "editorial_score": 92,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 45,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Saadian Tombs",
+          "alias_normalized": "saadian tombs",
+          "is_canonical": true
+        },
+        {
+          "alias": "Tombeaux Saadiens",
+          "alias_normalized": "tombeaux saadiens",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "moroccan",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 70
+        }
+      ],
+      "subcategory": "mausoleum"
+    },
+    {
+      "poi_id": "5ed3bed4-021d-58ee-82d6-9327979fe8b5",
+      "destination_key": "marrakech",
+      "name": "Marrakech Medina",
+      "normalized_name": "marrakech medina",
+      "category": "neighborhood",
+      "lat": 31.6295,
+      "lng": -7.9811,
+      "address": "Medina, Marrakech 40000",
+      "country_code": "MA",
+      "zone_name": "Medina",
+      "official_url": null,
+      "source_primary_id": "117b9ed4-e80b-5065-b682-9916ba51bfb5",
+      "editorial_score": 96,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 240,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Marrakech Medina",
+          "alias_normalized": "marrakech medina",
+          "is_canonical": true
+        },
+        {
+          "alias": "Old City",
+          "alias_normalized": "old city",
+          "is_canonical": false
+        },
+        {
+          "alias": "Medina of Marrakech",
+          "alias_normalized": "medina of marrakech",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "unesco",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "labyrinth",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "shopping",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 95
+        }
+      ]
+    },
+    {
+      "poi_id": "d799a1e0-c11c-5f23-9a3e-f883248d5375",
+      "destination_key": "marrakech",
+      "name": "El Badi Palace",
+      "normalized_name": "el badi palace",
+      "category": "monument",
+      "lat": 31.6181,
+      "lng": -7.9869,
+      "address": "Kasbah, Marrakech 40000",
+      "country_code": "MA",
+      "zone_name": "Kasbah",
+      "official_url": null,
+      "source_primary_id": "117b9ed4-e80b-5065-b682-9916ba51bfb5",
+      "editorial_score": 89,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "El Badi Palace",
+          "alias_normalized": "el badi palace",
+          "is_canonical": true
+        },
+        {
+          "alias": "Palais el Badi",
+          "alias_normalized": "palais el badi",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "ruins",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "ruins"
+    },
+    {
+      "poi_id": "c28e56de-0ae0-5e84-bf6e-695f03ecc896",
+      "destination_key": "marrakech",
+      "name": "Ben Youssef Madrasa",
+      "normalized_name": "ben youssef madrasa",
+      "category": "monument",
+      "lat": 31.6326,
+      "lng": -7.9869,
+      "address": "Place Ben Youssef, Marrakech 40000",
+      "country_code": "MA",
+      "zone_name": "Medina",
+      "official_url": null,
+      "source_primary_id": "117b9ed4-e80b-5065-b682-9916ba51bfb5",
+      "editorial_score": 90,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 45,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Ben Youssef Madrasa",
+          "alias_normalized": "ben youssef madrasa",
+          "is_canonical": true
+        },
+        {
+          "alias": "Medersa Ben Youssef",
+          "alias_normalized": "medersa ben youssef",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "islamic",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "madrasa"
+    },
+    {
+      "poi_id": "a2bdaf51-2b75-5b5f-81a7-7cf16b476dba",
+      "destination_key": "marrakech",
+      "name": "Menara Gardens",
+      "normalized_name": "menara gardens",
+      "category": "park",
+      "lat": 31.6186,
+      "lng": -8.0234,
+      "address": "Boulevard de la Menara, Marrakech 40000",
+      "country_code": "MA",
+      "zone_name": "Hivernage",
+      "official_url": null,
+      "source_primary_id": "117b9ed4-e80b-5065-b682-9916ba51bfb5",
+      "editorial_score": 85,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Menara Gardens",
+          "alias_normalized": "menara gardens",
+          "is_canonical": true
+        },
+        {
+          "alias": "Jardin de la Menara",
+          "alias_normalized": "jardin de la menara",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "olive_grove",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "garden"
+    },
+    {
+      "poi_id": "33bcc5c3-0ed8-5d7b-9879-f69e748240e7",
+      "destination_key": "marrakech",
+      "name": "Jardin Secret",
+      "normalized_name": "jardin secret",
+      "category": "park",
+      "lat": 31.6323,
+      "lng": -7.9861,
+      "address": "Rue Mouassine, Marrakech 40000",
+      "country_code": "MA",
+      "zone_name": "Medina",
+      "official_url": "https://www.lejardinsecretmarrakech.com/",
+      "source_primary_id": "117b9ed4-e80b-5065-b682-9916ba51bfb5",
+      "editorial_score": 84,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 45,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Jardin Secret",
+          "alias_normalized": "jardin secret",
+          "is_canonical": true
+        },
+        {
+          "alias": "The Secret Garden",
+          "alias_normalized": "the secret garden",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "islamic_garden",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "garden"
+    },
+    {
+      "poi_id": "9e579767-b5f4-54b7-b2f4-7a398192522a",
+      "destination_key": "marrakech",
+      "name": "Maison de la Photographie",
+      "normalized_name": "maison de la photographie",
+      "category": "museum",
+      "lat": 31.6315,
+      "lng": -7.9878,
+      "address": "46 Rue Bin Lafnadek, Marrakech 40000",
+      "country_code": "MA",
+      "zone_name": "Medina",
+      "official_url": "https://www.maisondelaphotographie.ma/",
+      "source_primary_id": "117b9ed4-e80b-5065-b682-9916ba51bfb5",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Maison de la Photographie",
+          "alias_normalized": "maison de la photographie",
+          "is_canonical": true
+        },
+        {
+          "alias": "Photography Museum",
+          "alias_normalized": "photography museum",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "intimate",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "photography_museum"
+    },
+    {
+      "poi_id": "89d6e571-c7aa-591a-8026-01a5ffd843fc",
+      "destination_key": "marrakech",
+      "name": "Dar Si Said Museum",
+      "normalized_name": "dar si said museum",
+      "category": "museum",
+      "lat": 31.6245,
+      "lng": -7.9845,
+      "address": "Riad Zitoun el Kedim, Marrakech 40000",
+      "country_code": "MA",
+      "zone_name": "Medina",
+      "official_url": null,
+      "source_primary_id": "117b9ed4-e80b-5065-b682-9916ba51bfb5",
+      "editorial_score": 81,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Dar Si Said Museum",
+          "alias_normalized": "dar si said museum",
+          "is_canonical": true
+        },
+        {
+          "alias": "Museum of Moroccan Arts",
+          "alias_normalized": "museum of moroccan arts",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "crafts",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "moroccan",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "craft_museum"
+    },
+    {
+      "poi_id": "39ff51b3-a8ad-5b4c-bc52-b6c4cec322dc",
+      "destination_key": "marrakech",
+      "name": "Souks",
+      "normalized_name": "souks",
+      "category": "market",
+      "lat": 31.6315,
+      "lng": -7.9885,
+      "address": "Medina, Marrakech 40000",
+      "country_code": "MA",
+      "zone_name": "Medina",
+      "official_url": null,
+      "source_primary_id": "117b9ed4-e80b-5065-b682-9916ba51bfb5",
+      "editorial_score": 91,
+      "touristic_importance": 4,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 180,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Souks",
+          "alias_normalized": "souks",
+          "is_canonical": true
+        },
+        {
+          "alias": "Marrakech Souks",
+          "alias_normalized": "marrakech souks",
+          "is_canonical": false
+        },
+        {
+          "alias": "Grand Bazaar",
+          "alias_normalized": "grand bazaar",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "shopping",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "colorful",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "haggling",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "bazaar"
+    },
+    {
+      "poi_id": "8bd52c01-5387-5706-bcbb-d8509ec99176",
+      "destination_key": "marrakech",
+      "name": "Mellah",
+      "normalized_name": "mellah",
+      "category": "neighborhood",
+      "lat": 31.6185,
+      "lng": -7.9835,
+      "address": "Mellah, Marrakech 40000",
+      "country_code": "MA",
+      "zone_name": "Medina",
+      "official_url": null,
+      "source_primary_id": "117b9ed4-e80b-5065-b682-9916ba51bfb5",
+      "editorial_score": 79,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 60,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Mellah",
+          "alias_normalized": "mellah",
+          "is_canonical": true
+        },
+        {
+          "alias": "Jewish Quarter",
+          "alias_normalized": "jewish quarter",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 75
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "b3ad92c0-6528-5225-b252-a38ef257c7e3",
+      "destination_key": "marrakech",
+      "name": "Agdal Gardens",
+      "normalized_name": "agdal gardens",
+      "category": "nature",
+      "lat": 31.61,
+      "lng": -7.995,
+      "address": "Agdal, Marrakech 40000",
+      "country_code": "MA",
+      "zone_name": "Agdal",
+      "official_url": null,
+      "source_primary_id": "117b9ed4-e80b-5065-b682-9916ba51bfb5",
+      "editorial_score": 80,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Agdal Gardens",
+          "alias_normalized": "agdal gardens",
+          "is_canonical": true
+        },
+        {
+          "alias": "Jardin Agdal",
+          "alias_normalized": "jardin agdal",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "orchard"
+    },
+    {
+      "poi_id": "7b79c45f-22a5-5e14-b65b-01dd36ab4f25",
+      "destination_key": "marrakech",
+      "name": "Royal Palace Marrakech",
+      "normalized_name": "royal palace marrakech",
+      "category": "monument",
+      "lat": 31.623,
+      "lng": -7.989,
+      "address": "Kasbah, Marrakech 40000",
+      "country_code": "MA",
+      "zone_name": "Kasbah",
+      "official_url": null,
+      "source_primary_id": "117b9ed4-e80b-5065-b682-9916ba51bfb5",
+      "editorial_score": 83,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 30,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Royal Palace Marrakech",
+          "alias_normalized": "royal palace marrakech",
+          "is_canonical": true
+        },
+        {
+          "alias": "Palais Royal",
+          "alias_normalized": "palais royal",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "royal",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 70
+        }
+      ],
+      "subcategory": "palace"
+    },
+    {
+      "poi_id": "258b09cd-f2f7-5e45-94b5-6b554be3cb93",
+      "destination_key": "marrakech",
+      "name": "Herborist of the Paradis",
+      "normalized_name": "herborist of the paradis",
+      "category": "local_experience",
+      "lat": 31.635,
+      "lng": -7.985,
+      "address": "Medina, Marrakech 40000",
+      "country_code": "MA",
+      "zone_name": "Medina",
+      "official_url": null,
+      "source_primary_id": "117b9ed4-e80b-5065-b682-9916ba51bfb5",
+      "editorial_score": 78,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Herborist of the Paradis",
+          "alias_normalized": "herborist of the paradis",
+          "is_canonical": true
+        },
+        {
+          "alias": "Herborist Workshop",
+          "alias_normalized": "herborist workshop",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "wellness",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "crafts",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "interactive",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "workshop"
+    },
+    {
+      "poi_id": "665ba7bb-f6c1-5f5e-8163-7cb36518dafb",
+      "destination_key": "marrakech",
+      "name": "Palmeraie",
+      "normalized_name": "palmeraie",
+      "category": "nature",
+      "lat": 31.65,
+      "lng": -7.95,
+      "address": "Palmeraie, Marrakech 40000",
+      "country_code": "MA",
+      "zone_name": "Palmeraie",
+      "official_url": null,
+      "source_primary_id": "117b9ed4-e80b-5065-b682-9916ba51bfb5",
+      "editorial_score": 76,
+      "touristic_importance": 2,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Palmeraie",
+          "alias_normalized": "palmeraie",
+          "is_canonical": true
+        },
+        {
+          "alias": "Palm Grove",
+          "alias_normalized": "palm grove",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "camel_ride",
+          "tag_category": "activity_type",
+          "confidence": 85
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "oasis"
+    },
+    {
+      "poi_id": "3c9b1942-8433-50b2-8a42-4ce46438d9f3",
+      "destination_key": "marrakech",
+      "name": "Cactus Thiemann",
+      "normalized_name": "cactus thiemann",
+      "category": "nature",
+      "lat": 31.72,
+      "lng": -7.98,
+      "address": "Route de Fès, Marrakech 40000",
+      "country_code": "MA",
+      "zone_name": "Palmeraie",
+      "official_url": null,
+      "source_primary_id": "117b9ed4-e80b-5065-b682-9916ba51bfb5",
+      "editorial_score": 74,
+      "touristic_importance": 2,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Cactus Thiemann",
+          "alias_normalized": "cactus thiemann",
+          "is_canonical": true
+        },
+        {
+          "alias": "Cactus Garden",
+          "alias_normalized": "cactus garden",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "unique",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "nursery"
+    },
+    {
+      "poi_id": "74985211-3416-513c-bcf0-e9e1e9c769a9",
+      "destination_key": "marrakech",
+      "name": "Musée Yves Saint Laurent",
+      "normalized_name": "musée yves saint laurent",
+      "category": "museum",
+      "lat": 31.6418,
+      "lng": -8.0028,
+      "address": "Rue Yves Saint Laurent, Marrakech 40000",
+      "country_code": "MA",
+      "zone_name": "Gueliz",
+      "official_url": "https://www.museeyslmarrakech.com/",
+      "source_primary_id": "117b9ed4-e80b-5065-b682-9916ba51bfb5",
+      "editorial_score": 86,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Musée Yves Saint Laurent",
+          "alias_normalized": "musée yves saint laurent",
+          "is_canonical": true
+        },
+        {
+          "alias": "YSL Museum",
+          "alias_normalized": "ysl museum",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "fashion",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "modern",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "fashion_museum"
+    },
+    {
+      "poi_id": "aec5aeb6-6d8a-52ea-acfd-d650d06e56b0",
+      "destination_key": "marrakech",
+      "name": "Terrasse La Medersa",
+      "normalized_name": "terrasse la medersa",
+      "category": "viewpoint",
+      "lat": 31.6326,
+      "lng": -7.9869,
+      "address": "Place Ben Youssef, Marrakech 40000",
+      "country_code": "MA",
+      "zone_name": "Medina",
+      "official_url": null,
+      "source_primary_id": "117b9ed4-e80b-5065-b682-9916ba51bfb5",
+      "editorial_score": 80,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Terrasse La Medersa",
+          "alias_normalized": "terrasse la medersa",
+          "is_canonical": true
+        },
+        {
+          "alias": "Medersa Rooftop",
+          "alias_normalized": "medersa rooftop",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "food",
+          "tag_category": "vibe",
+          "confidence": 75
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "rooftop"
+    },
+    {
+      "poi_id": "206e02cd-da41-550d-9fb3-8a93fdeb3e9d",
+      "destination_key": "marrakech",
+      "name": "Ensemble Artisanal",
+      "normalized_name": "ensemble artisanal",
+      "category": "shopping",
+      "lat": 31.63,
+      "lng": -7.99,
+      "address": "Avenue Mohammed V, Marrakech 40000",
+      "country_code": "MA",
+      "zone_name": "Gueliz",
+      "official_url": null,
+      "source_primary_id": "117b9ed4-e80b-5065-b682-9916ba51bfb5",
+      "editorial_score": 77,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 60,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Ensemble Artisanal",
+          "alias_normalized": "ensemble artisanal",
+          "is_canonical": true
+        },
+        {
+          "alias": "Artisan Market",
+          "alias_normalized": "artisan market",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "crafts",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "shopping",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 70
+        }
+      ],
+      "subcategory": "craft_market"
+    },
+    {
+      "poi_id": "8f85ba01-6736-5cbd-a085-0588698484c9",
+      "destination_key": "marrakech",
+      "name": "Cyber Park",
+      "normalized_name": "cyber park",
+      "category": "park",
+      "lat": 31.625,
+      "lng": -7.992,
+      "address": "Avenue Mohammed V, Marrakech 40000",
+      "country_code": "MA",
+      "zone_name": "Gueliz",
+      "official_url": null,
+      "source_primary_id": "117b9ed4-e80b-5065-b682-9916ba51bfb5",
+      "editorial_score": 75,
+      "touristic_importance": 2,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 45,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Cyber Park",
+          "alias_normalized": "cyber park",
+          "is_canonical": true
+        },
+        {
+          "alias": "Arsat Moulay Abdeslam",
+          "alias_normalized": "arsat moulay abdeslam",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "free",
+          "tag_category": "accessibility",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "urban_park"
+    },
+    {
+      "poi_id": "0b4ac5dc-6296-5821-8420-afbc077d1e7c",
+      "destination_key": "marrakech",
+      "name": "Marrakech Museum",
+      "normalized_name": "marrakech museum",
+      "category": "museum",
+      "lat": 31.632,
+      "lng": -7.9875,
+      "address": "Place Ben Youssef, Marrakech 40000",
+      "country_code": "MA",
+      "zone_name": "Medina",
+      "official_url": null,
+      "source_primary_id": "117b9ed4-e80b-5065-b682-9916ba51bfb5",
+      "editorial_score": 81,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Marrakech Museum",
+          "alias_normalized": "marrakech museum",
+          "is_canonical": true
+        },
+        {
+          "alias": "Musée de Marrakech",
+          "alias_normalized": "musée de marrakech",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "moroccan",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "history_museum"
+    },
+    {
+      "poi_id": "035e489f-49a9-50fa-8a75-a52185fd9d99",
+      "destination_key": "marrakech",
+      "name": "Koutoubia Gardens",
+      "normalized_name": "koutoubia gardens",
+      "category": "park",
+      "lat": 31.624,
+      "lng": -7.993,
+      "address": "Avenue Mohammed V, Marrakech 40000",
+      "country_code": "MA",
+      "zone_name": "Medina",
+      "official_url": null,
+      "source_primary_id": "117b9ed4-e80b-5065-b682-9916ba51bfb5",
+      "editorial_score": 78,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 30,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Koutoubia Gardens",
+          "alias_normalized": "koutoubia gardens",
+          "is_canonical": true
+        },
+        {
+          "alias": "Jardins de la Koutoubia",
+          "alias_normalized": "jardins de la koutoubia",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "free",
+          "tag_category": "accessibility",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "garden"
+    },
+    {
+      "poi_id": "173d9ff4-886f-5fac-844b-f9a022640444",
+      "destination_key": "marrakech",
+      "name": "Dar El Bacha",
+      "normalized_name": "dar el bacha",
+      "category": "monument",
+      "lat": 31.633,
+      "lng": -7.986,
+      "address": "Rue Dar el Bacha, Marrakech 40000",
+      "country_code": "MA",
+      "zone_name": "Medina",
+      "official_url": "https://www.darelbacha.ma/",
+      "source_primary_id": "117b9ed4-e80b-5065-b682-9916ba51bfb5",
+      "editorial_score": 84,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Dar El Bacha",
+          "alias_normalized": "dar el bacha",
+          "is_canonical": true
+        },
+        {
+          "alias": "Dar el Bacha Palace",
+          "alias_normalized": "dar el bacha palace",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "moroccan",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "palace"
+    }
+  ]
+}

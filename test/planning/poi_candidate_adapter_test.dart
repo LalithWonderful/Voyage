@@ -35,6 +35,28 @@ void main() {
       expect(DestinationKeyMapper.map('tokyo'), isNull);
       expect(DestinationKeyMapper.map(''), isNull);
     });
+
+    test('maps london/londres/london uk to "london"', () {
+      expect(DestinationKeyMapper.map('london'), 'london');
+      expect(DestinationKeyMapper.map('Londres'), 'london');
+      expect(DestinationKeyMapper.map('london uk'), 'london');
+      expect(DestinationKeyMapper.map('londres royaume uni'), 'london');
+    });
+
+    test('maps amsterdam/amsterdam netherlands to "amsterdam"', () {
+      expect(DestinationKeyMapper.map('amsterdam'), 'amsterdam');
+      expect(DestinationKeyMapper.map('Amsterdam'), 'amsterdam');
+      expect(DestinationKeyMapper.map('amsterdam netherlands'), 'amsterdam');
+      expect(DestinationKeyMapper.map('amsterdam pays bas'), 'amsterdam');
+    });
+
+    test('maps marrakech/marrakesh/marrakech maroc to "marrakech"', () {
+      expect(DestinationKeyMapper.map('marrakech'), 'marrakech');
+      expect(DestinationKeyMapper.map('Marrakech'), 'marrakech');
+      expect(DestinationKeyMapper.map('marrakesh'), 'marrakech');
+      expect(DestinationKeyMapper.map('marrakech maroc'), 'marrakech');
+      expect(DestinationKeyMapper.map('marrakesh morocco'), 'marrakech');
+    });
   });
 
   group('PoiCandidateAdapter', () {

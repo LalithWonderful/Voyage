@@ -235,6 +235,20 @@ class PlacesService {
     'barca': (description: 'Barcelone, Espagne', mainText: 'Barcelone', placeId: 'lunao:barcelona', kind: 'city'),
     'barcelona spain': (description: 'Barcelone, Espagne', mainText: 'Barcelone', placeId: 'lunao:barcelona', kind: 'city'),
     'barcelona espagne': (description: 'Barcelone, Espagne', mainText: 'Barcelone', placeId: 'lunao:barcelona', kind: 'city'),
+    // London
+    'london': (description: 'Londres, Royaume-Uni', mainText: 'Londres', placeId: 'lunao:london', kind: 'city'),
+    'londres': (description: 'Londres, Royaume-Uni', mainText: 'Londres', placeId: 'lunao:london', kind: 'city'),
+    'london uk': (description: 'Londres, Royaume-Uni', mainText: 'Londres', placeId: 'lunao:london', kind: 'city'),
+    'londres royaume uni': (description: 'Londres, Royaume-Uni', mainText: 'Londres', placeId: 'lunao:london', kind: 'city'),
+    // Amsterdam
+    'amsterdam': (description: 'Amsterdam, Pays-Bas', mainText: 'Amsterdam', placeId: 'lunao:amsterdam', kind: 'city'),
+    'amsterdam netherlands': (description: 'Amsterdam, Pays-Bas', mainText: 'Amsterdam', placeId: 'lunao:amsterdam', kind: 'city'),
+    'amsterdam pays bas': (description: 'Amsterdam, Pays-Bas', mainText: 'Amsterdam', placeId: 'lunao:amsterdam', kind: 'city'),
+    // Marrakech
+    'marrakech': (description: 'Marrakech, Maroc', mainText: 'Marrakech', placeId: 'lunao:marrakech', kind: 'city'),
+    'marrakesh': (description: 'Marrakech, Maroc', mainText: 'Marrakech', placeId: 'lunao:marrakech', kind: 'city'),
+    'marrakech maroc': (description: 'Marrakech, Maroc', mainText: 'Marrakech', placeId: 'lunao:marrakech', kind: 'city'),
+    'marrakesh morocco': (description: 'Marrakech, Maroc', mainText: 'Marrakech', placeId: 'lunao:marrakech', kind: 'city'),
   };
 
   static const _lunaoCities = <String, ({
@@ -264,6 +278,20 @@ class PlacesService {
     'barca': (description: 'Barcelone, Espagne', mainText: 'Barcelone', placeId: 'lunao:barcelona'),
     'barcelona spain': (description: 'Barcelone, Espagne', mainText: 'Barcelone', placeId: 'lunao:barcelona'),
     'barcelona espagne': (description: 'Barcelone, Espagne', mainText: 'Barcelone', placeId: 'lunao:barcelona'),
+    // London
+    'london': (description: 'Londres, Royaume-Uni', mainText: 'Londres', placeId: 'lunao:london'),
+    'londres': (description: 'Londres, Royaume-Uni', mainText: 'Londres', placeId: 'lunao:london'),
+    'london uk': (description: 'Londres, Royaume-Uni', mainText: 'Londres', placeId: 'lunao:london'),
+    'londres royaume uni': (description: 'Londres, Royaume-Uni', mainText: 'Londres', placeId: 'lunao:london'),
+    // Amsterdam
+    'amsterdam': (description: 'Amsterdam, Pays-Bas', mainText: 'Amsterdam', placeId: 'lunao:amsterdam'),
+    'amsterdam netherlands': (description: 'Amsterdam, Pays-Bas', mainText: 'Amsterdam', placeId: 'lunao:amsterdam'),
+    'amsterdam pays bas': (description: 'Amsterdam, Pays-Bas', mainText: 'Amsterdam', placeId: 'lunao:amsterdam'),
+    // Marrakech
+    'marrakech': (description: 'Marrakech, Maroc', mainText: 'Marrakech', placeId: 'lunao:marrakech'),
+    'marrakesh': (description: 'Marrakech, Maroc', mainText: 'Marrakech', placeId: 'lunao:marrakech'),
+    'marrakech maroc': (description: 'Marrakech, Maroc', mainText: 'Marrakech', placeId: 'lunao:marrakech'),
+    'marrakesh morocco': (description: 'Marrakech, Maroc', mainText: 'Marrakech', placeId: 'lunao:marrakech'),
   };
 
   static ({String description, String mainText, String placeId, String kind})?
@@ -1105,6 +1133,9 @@ class PlacesService {
       'lunao:paris': 'fr',
       'lunao:rome': 'it',
       'lunao:barcelona': 'es',
+      'lunao:london': 'gb',
+      'lunao:amsterdam': 'nl',
+      'lunao:marrakech': 'ma',
     };
     final cityCode = lunaoCityCountryCodes[placeId];
     if (cityCode != null) return cityCode;
