@@ -3,6 +3,7 @@
 // Checks Supabase DB state for a given destination after a POI import.
 // Lightweight abstraction over the query layer to keep tests simple.
 
+// ignore: depend_on_referenced_packages
 import 'package:supabase/supabase.dart';
 
 /// Minimal read-only interface for querying POI tables.
@@ -103,15 +104,15 @@ class PoiSupabaseImportChecker {
     final poiIds = poiRows.map((r) => r['poi_id'] as String).toSet();
 
     // ─── Child counts (client-side filter) ───
-    Future<int> _localChildCount(String table) async {
+    Future<int> localChildCount(String table) async {
       final rows = await _reader.select(table);
       return rows.where((r) => poiIds.contains(r['poi_id'])).length;
     }
 
-    final aliasCount = await _localChildCount('poi_aliases');
-    final linkCount = await _localChildCount('poi_source_links');
-    final tagCount = await _localChildCount('poi_tags');
-    final flagCount = await _localChildCount('poi_quality_flags');
+    final aliasCount = await localChildCount('poi_aliases');
+    final linkCount = await localChildCount('poi_source_links');
+    final tagCount = await localChildCount('poi_tags');
+    final flagCount = await localChildCount('poi_quality_flags');
 
     // ─── Anomaly detection ───
     final anomalies = <String>[];
@@ -208,11 +209,23 @@ class SupabasePoiImportCheckReader implements PoiImportCheckReader {
     Map<String, dynamic>? eqFilters,
   }) async {
     final columnsStr = columns.length == 1 ? columns.first : columns.join(',');
-    var query = _client.from(table).select(columnsStr);
-    eqFilters?.forEach((k, v) {
-      query = query.eq(k, v);
-    });
-    final resp = await query;
-    return List<Map<String, dynamic>>.from(resp);
+    final allRows = <Map<String, dynamic>>[];
+    var start = 0;
+    const pageSize = 1000;
+
+    while (true) {
+      var query = _client.from(table).select(columnsStr);
+      eqFilters?.forEach((k, v) {
+        query = query.eq(k, v);
+      });
+      final resp = await query.range(start, start + pageSize - 1);
+      final rows = List<Map<String, dynamic>>.from(resp);
+      if (rows.isEmpty) break;
+      allRows.addAll(rows);
+      if (rows.length < pageSize) break;
+      start += pageSize;
+    }
+
+    return allRows;
   }
 }
