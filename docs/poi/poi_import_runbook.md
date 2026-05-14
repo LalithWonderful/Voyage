@@ -69,7 +69,25 @@ Lit `tool/poi/import_city_list.txt` (lignes vides et `#` ignorées) et importe c
 
 ## Manifeste actuel
 
-`tool/poi/import_city_list.txt` liste 12 villes. Fixtures disponibles à la date du runbook : `london`, `amsterdam`, `paris`, `rome`, `barcelona`, `lisbon`, `marrakech`. Manquantes : `istanbul`, `cairo`, `bangkok`, `tokyo`, `singapore` — il faut générer leur fixture avant d'utiliser le manifeste complet, sinon le script s'arrête à la première ville sans fixture.
+`tool/poi/import_city_list.txt` doit garder actives uniquement les villes dont la fixture existe :
+
+```
+test/fixtures/poi/pilot_pois_<city>.json
+```
+
+Villes actives actuelles (7) : `london`, `amsterdam`, `paris`, `rome`, `barcelona`, `lisbon`, `marrakech`.
+
+Backlog commenté actuel (5) : `istanbul`, `cairo`, `bangkok`, `tokyo`, `singapore`.
+
+Les villes sans fixture doivent rester commentées dans la section `# Backlog` jusqu'à génération et validation de leur fixture.
+
+## Activation d'une ville backlog
+
+1. Générer ou mettre à jour la fixture de la ville.
+2. Valider la fixture avec `dart tool/poi/validate_new_fixtures.dart`.
+3. Décommenter la ville dans `tool/poi/import_city_list.txt`.
+4. Lancer l'import batch.
+5. Vérifier que l'import a réussi et que la ville est saine.
 
 ## Dépannage
 

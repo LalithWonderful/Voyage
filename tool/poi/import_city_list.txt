@@ -1,17 +1,15 @@
-# Europe
+# Active cities — fixtures available and importable
 london
 amsterdam
 paris
 rome
 barcelona
 lisbon
-
-# Afrique / Moyen-Orient
 marrakech
-istanbul
-cairo
 
-# Asie
-bangkok
-tokyo
-singapore
+# Backlog - fixtures missing
+# istanbul
+# cairo
+# bangkok
+# tokyo
+# singapore
