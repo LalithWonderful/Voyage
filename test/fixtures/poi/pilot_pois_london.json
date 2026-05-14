@@ -1,0 +1,1496 @@
+{
+  "_comment": "POI-2.7 — Pilot fixture London. ~25 high-quality POIs. Manually curated, no scraping. Coordinates approximate.",
+  "sources": [
+    {
+      "source_id": "a3359600-4a39-5b0a-9aa1-7ea44fe92c9e",
+      "name": "Lunao Pilot London",
+      "source_type": "editorial",
+      "trust_level": 5,
+      "is_active": true
+    }
+  ],
+  "pois": [
+    {
+      "poi_id": "329298b5-936f-51be-9edf-05983d49380b",
+      "destination_key": "london",
+      "name": "Tower of London",
+      "normalized_name": "tower of london",
+      "category": "monument",
+      "lat": 51.5081,
+      "lng": -0.0759,
+      "address": "Tower Hill, London EC3N 4AB",
+      "country_code": "GB",
+      "zone_name": "Tower Hamlets",
+      "official_url": "https://www.hrp.org.uk/tower-of-london/",
+      "source_primary_id": "a3359600-4a39-5b0a-9aa1-7ea44fe92c9e",
+      "editorial_score": 97,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 150,
+      "price_level": 3,
+      "aliases": [
+        {
+          "alias": "Tower of London",
+          "alias_normalized": "tower of london",
+          "is_canonical": true
+        },
+        {
+          "alias": "The Tower",
+          "alias_normalized": "the tower",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 98
+        },
+        {
+          "tag": "royal",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "family",
+          "tag_category": "audience",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "fortress"
+    },
+    {
+      "poi_id": "a7573a8d-f81d-54a3-934b-afc8745d0322",
+      "destination_key": "london",
+      "name": "British Museum",
+      "normalized_name": "british museum",
+      "category": "museum",
+      "lat": 51.5194,
+      "lng": -0.127,
+      "address": "Great Russell St, London WC1B 3DG",
+      "country_code": "GB",
+      "zone_name": "Bloomsbury",
+      "official_url": "https://www.britishmuseum.org/",
+      "source_primary_id": "a3359600-4a39-5b0a-9aa1-7ea44fe92c9e",
+      "editorial_score": 96,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 180,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "British Museum",
+          "alias_normalized": "british museum",
+          "is_canonical": true
+        },
+        {
+          "alias": "The British Museum",
+          "alias_normalized": "the british museum",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "family",
+          "tag_category": "audience",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "history_museum"
+    },
+    {
+      "poi_id": "64004189-38c0-50f4-a37d-d3f1116da5f5",
+      "destination_key": "london",
+      "name": "Buckingham Palace",
+      "normalized_name": "buckingham palace",
+      "category": "monument",
+      "lat": 51.5014,
+      "lng": -0.1419,
+      "address": "London SW1A 1AA",
+      "country_code": "GB",
+      "zone_name": "Westminster",
+      "official_url": "https://www.rct.uk/visit/buckingham-palace",
+      "source_primary_id": "a3359600-4a39-5b0a-9aa1-7ea44fe92c9e",
+      "editorial_score": 95,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 3,
+      "aliases": [
+        {
+          "alias": "Buckingham Palace",
+          "alias_normalized": "buckingham palace",
+          "is_canonical": true
+        },
+        {
+          "alias": "The Palace",
+          "alias_normalized": "the palace",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "royal",
+          "tag_category": "vibe",
+          "confidence": 98
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "palace"
+    },
+    {
+      "poi_id": "8c6b9d9a-f48d-59a3-8916-be62d9d62a2b",
+      "destination_key": "london",
+      "name": "Westminster Abbey",
+      "normalized_name": "westminster abbey",
+      "category": "monument",
+      "lat": 51.4993,
+      "lng": -0.1273,
+      "address": "20 Deans Yd, London SW1P 3PA",
+      "country_code": "GB",
+      "zone_name": "Westminster",
+      "official_url": "https://www.westminster-abbey.org/",
+      "source_primary_id": "a3359600-4a39-5b0a-9aa1-7ea44fe92c9e",
+      "editorial_score": 94,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Westminster Abbey",
+          "alias_normalized": "westminster abbey",
+          "is_canonical": true
+        },
+        {
+          "alias": "The Abbey",
+          "alias_normalized": "the abbey",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "gothic",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 98
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "cathedral"
+    },
+    {
+      "poi_id": "1cd317fa-44d8-54ba-b29a-f521ff432c5c",
+      "destination_key": "london",
+      "name": "Big Ben",
+      "normalized_name": "big ben",
+      "category": "monument",
+      "lat": 51.5007,
+      "lng": -0.1246,
+      "address": "London SW1A 0AA",
+      "country_code": "GB",
+      "zone_name": "Westminster",
+      "official_url": "https://www.parliament.uk/bigben",
+      "source_primary_id": "a3359600-4a39-5b0a-9aa1-7ea44fe92c9e",
+      "editorial_score": 93,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 30,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Big Ben",
+          "alias_normalized": "big ben",
+          "is_canonical": true
+        },
+        {
+          "alias": "Elizabeth Tower",
+          "alias_normalized": "elizabeth tower",
+          "is_canonical": false
+        },
+        {
+          "alias": "Houses of Parliament",
+          "alias_normalized": "houses of parliament",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "iconic",
+          "tag_category": "vibe",
+          "confidence": 99
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "clock_tower"
+    },
+    {
+      "poi_id": "708f1f3a-fbde-5558-8d92-8785cc67a296",
+      "destination_key": "london",
+      "name": "London Eye",
+      "normalized_name": "london eye",
+      "category": "viewpoint",
+      "lat": 51.5033,
+      "lng": -0.1195,
+      "address": "Riverside Building, County Hall, London SE1 7PB",
+      "country_code": "GB",
+      "zone_name": "Lambeth",
+      "official_url": "https://www.londoneye.com/",
+      "source_primary_id": "a3359600-4a39-5b0a-9aa1-7ea44fe92c9e",
+      "editorial_score": 92,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 45,
+      "price_level": 3,
+      "aliases": [
+        {
+          "alias": "London Eye",
+          "alias_normalized": "london eye",
+          "is_canonical": true
+        },
+        {
+          "alias": "The Eye",
+          "alias_normalized": "the eye",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 98
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "family",
+          "tag_category": "audience",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "observation_wheel"
+    },
+    {
+      "poi_id": "2bf6567b-b73b-5406-8a6b-fd7b4492c559",
+      "destination_key": "london",
+      "name": "Tate Modern",
+      "normalized_name": "tate modern",
+      "category": "museum",
+      "lat": 51.5076,
+      "lng": -0.0994,
+      "address": "Bankside, London SE1 9TG",
+      "country_code": "GB",
+      "zone_name": "Southwark",
+      "official_url": "https://www.tate.org.uk/visit/tate-modern",
+      "source_primary_id": "a3359600-4a39-5b0a-9aa1-7ea44fe92c9e",
+      "editorial_score": 90,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 120,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Tate Modern",
+          "alias_normalized": "tate modern",
+          "is_canonical": true
+        },
+        {
+          "alias": "Tate",
+          "alias_normalized": "tate",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 98
+        },
+        {
+          "tag": "contemporary",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "rainy_day",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "art_museum"
+    },
+    {
+      "poi_id": "443f3431-7163-5dd8-b2cc-b59f6e377d73",
+      "destination_key": "london",
+      "name": "Natural History Museum",
+      "normalized_name": "natural history museum",
+      "category": "museum",
+      "lat": 51.4967,
+      "lng": -0.1764,
+      "address": "Cromwell Rd, South Kensington, London SW7 5BD",
+      "country_code": "GB",
+      "zone_name": "Kensington",
+      "official_url": "https://www.nhm.ac.uk/",
+      "source_primary_id": "a3359600-4a39-5b0a-9aa1-7ea44fe92c9e",
+      "editorial_score": 91,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 150,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Natural History Museum",
+          "alias_normalized": "natural history museum",
+          "is_canonical": true
+        },
+        {
+          "alias": "NHM",
+          "alias_normalized": "nhm",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "science",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "family",
+          "tag_category": "audience",
+          "confidence": 98
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "rainy_day",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "science_museum"
+    },
+    {
+      "poi_id": "cfad4f7a-5c76-5834-835d-933d59757c15",
+      "destination_key": "london",
+      "name": "St Paul's Cathedral",
+      "normalized_name": "st paul's cathedral",
+      "category": "monument",
+      "lat": 51.5138,
+      "lng": -0.0984,
+      "address": "St. Paul's Churchyard, London EC4M 8AD",
+      "country_code": "GB",
+      "zone_name": "City of London",
+      "official_url": "https://www.stpauls.co.uk/",
+      "source_primary_id": "a3359600-4a39-5b0a-9aa1-7ea44fe92c9e",
+      "editorial_score": 89,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "St Paul's Cathedral",
+          "alias_normalized": "st paul's cathedral",
+          "is_canonical": true
+        },
+        {
+          "alias": "St Paul's",
+          "alias_normalized": "st paul's",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "baroque",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "cathedral"
+    },
+    {
+      "poi_id": "544dd93c-05f2-5b8d-8337-1f0b7d9dbb6a",
+      "destination_key": "london",
+      "name": "Tower Bridge",
+      "normalized_name": "tower bridge",
+      "category": "monument",
+      "lat": 51.5055,
+      "lng": -0.0754,
+      "address": "Tower Bridge Rd, London SE1 2UP",
+      "country_code": "GB",
+      "zone_name": "Southwark",
+      "official_url": "https://www.towerbridge.org.uk/",
+      "source_primary_id": "a3359600-4a39-5b0a-9aa1-7ea44fe92c9e",
+      "editorial_score": 88,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Tower Bridge",
+          "alias_normalized": "tower bridge",
+          "is_canonical": true
+        },
+        {
+          "alias": "The Bridge",
+          "alias_normalized": "the bridge",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "iconic",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "bridge"
+    },
+    {
+      "poi_id": "2e13c91d-e233-5fc5-873f-296ed66a8399",
+      "destination_key": "london",
+      "name": "Borough Market",
+      "normalized_name": "borough market",
+      "category": "market",
+      "lat": 51.5055,
+      "lng": -0.0909,
+      "address": "8 Southwark St, London SE1 1TL",
+      "country_code": "GB",
+      "zone_name": "Southwark",
+      "official_url": "https://boroughmarket.org.uk/",
+      "source_primary_id": "a3359600-4a39-5b0a-9aa1-7ea44fe92c9e",
+      "editorial_score": 87,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Borough Market",
+          "alias_normalized": "borough market",
+          "is_canonical": true
+        },
+        {
+          "alias": "The Arcade",
+          "alias_normalized": "the arcade",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "food",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 70
+        },
+        {
+          "tag": "family",
+          "tag_category": "audience",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "food_market"
+    },
+    {
+      "poi_id": "ed4d09d2-7734-5075-9dd5-5f97e6a16439",
+      "destination_key": "london",
+      "name": "Camden Market",
+      "normalized_name": "camden market",
+      "category": "market",
+      "lat": 51.5416,
+      "lng": -0.1465,
+      "address": "Camden Lock Place, London NW1 8AF",
+      "country_code": "GB",
+      "zone_name": "Camden",
+      "official_url": "https://www.camdenmarket.com/",
+      "source_primary_id": "a3359600-4a39-5b0a-9aa1-7ea44fe92c9e",
+      "editorial_score": 85,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 120,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Camden Market",
+          "alias_normalized": "camden market",
+          "is_canonical": true
+        },
+        {
+          "alias": "Camden Lock Market",
+          "alias_normalized": "camden lock market",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "alternative",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "shopping",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "food",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "flea_market"
+    },
+    {
+      "poi_id": "8ad0fc23-a80e-5e0b-b5f3-d6a23c17f97c",
+      "destination_key": "london",
+      "name": "Hyde Park",
+      "normalized_name": "hyde park",
+      "category": "park",
+      "lat": 51.508,
+      "lng": -0.1657,
+      "address": "London W2 2UH",
+      "country_code": "GB",
+      "zone_name": "Westminster",
+      "official_url": "https://www.royalparks.org.uk/parks/hyde-park",
+      "source_primary_id": "a3359600-4a39-5b0a-9aa1-7ea44fe92c9e",
+      "editorial_score": 84,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 120,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Hyde Park",
+          "alias_normalized": "hyde park",
+          "is_canonical": true
+        },
+        {
+          "alias": "The Serpentine",
+          "alias_normalized": "the serpentine",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "family",
+          "tag_category": "audience",
+          "confidence": 90
+        },
+        {
+          "tag": "free",
+          "tag_category": "accessibility",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "urban_park"
+    },
+    {
+      "poi_id": "62e82388-b231-532b-a0c9-e2cf81dd004b",
+      "destination_key": "london",
+      "name": "Kensington Gardens",
+      "normalized_name": "kensington gardens",
+      "category": "park",
+      "lat": 51.5073,
+      "lng": -0.1795,
+      "address": "London W2 2UH",
+      "country_code": "GB",
+      "zone_name": "Kensington",
+      "official_url": "https://www.royalparks.org.uk/parks/kensington-gardens",
+      "source_primary_id": "a3359600-4a39-5b0a-9aa1-7ea44fe92c9e",
+      "editorial_score": 83,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Kensington Gardens",
+          "alias_normalized": "kensington gardens",
+          "is_canonical": true
+        },
+        {
+          "alias": "The Gardens",
+          "alias_normalized": "the gardens",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "family",
+          "tag_category": "audience",
+          "confidence": 85
+        },
+        {
+          "tag": "free",
+          "tag_category": "accessibility",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "garden"
+    },
+    {
+      "poi_id": "426859bb-d2bb-5d84-9e00-f9f4bb8af9ba",
+      "destination_key": "london",
+      "name": "Greenwich",
+      "normalized_name": "greenwich",
+      "category": "neighborhood",
+      "lat": 51.4769,
+      "lng": -0.0005,
+      "address": "London SE10",
+      "country_code": "GB",
+      "zone_name": "Greenwich",
+      "official_url": "https://www.royalgreenwich.gov.uk/",
+      "source_primary_id": "a3359600-4a39-5b0a-9aa1-7ea44fe92c9e",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 180,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Greenwich",
+          "alias_normalized": "greenwich",
+          "is_canonical": true
+        },
+        {
+          "alias": "Royal Greenwich",
+          "alias_normalized": "royal greenwich",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "maritime",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        },
+        {
+          "tag": "family",
+          "tag_category": "audience",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "b9da93db-8cd3-53ff-bfb9-723d9b728e1b",
+      "destination_key": "london",
+      "name": "Notting Hill",
+      "normalized_name": "notting hill",
+      "category": "neighborhood",
+      "lat": 51.5113,
+      "lng": -0.2053,
+      "address": "London W11",
+      "country_code": "GB",
+      "zone_name": "Kensington",
+      "official_url": null,
+      "source_primary_id": "a3359600-4a39-5b0a-9aa1-7ea44fe92c9e",
+      "editorial_score": 81,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 120,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Notting Hill",
+          "alias_normalized": "notting hill",
+          "is_canonical": true
+        },
+        {
+          "alias": "Portobello Road",
+          "alias_normalized": "portobello road",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "colorful",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "shopping",
+          "tag_category": "activity_type",
+          "confidence": 85
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "7cc7d74c-a80c-5a6c-94ab-327b737e3c40",
+      "destination_key": "london",
+      "name": "Soho",
+      "normalized_name": "soho",
+      "category": "neighborhood",
+      "lat": 51.5136,
+      "lng": -0.1367,
+      "address": "London W1D",
+      "country_code": "GB",
+      "zone_name": "Westminster",
+      "official_url": null,
+      "source_primary_id": "a3359600-4a39-5b0a-9aa1-7ea44fe92c9e",
+      "editorial_score": 80,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": false,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 120,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Soho",
+          "alias_normalized": "soho",
+          "is_canonical": true
+        },
+        {
+          "alias": "Soho District",
+          "alias_normalized": "soho district",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nightlife",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "theatre",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "food",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "lgbtq",
+          "tag_category": "vibe",
+          "confidence": 85
+        }
+      ]
+    },
+    {
+      "poi_id": "49dc9d2c-1865-5f4d-b118-fcb59cd90b79",
+      "destination_key": "london",
+      "name": "Covent Garden",
+      "normalized_name": "covent garden",
+      "category": "neighborhood",
+      "lat": 51.5117,
+      "lng": -0.124,
+      "address": "London WC2E",
+      "country_code": "GB",
+      "zone_name": "Westminster",
+      "official_url": null,
+      "source_primary_id": "a3359600-4a39-5b0a-9aa1-7ea44fe92c9e",
+      "editorial_score": 79,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Covent Garden",
+          "alias_normalized": "covent garden",
+          "is_canonical": true
+        },
+        {
+          "alias": "The Piazza",
+          "alias_normalized": "the piazza",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "theatre",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "shopping",
+          "tag_category": "activity_type",
+          "confidence": 85
+        },
+        {
+          "tag": "street_performers",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ]
+    },
+    {
+      "poi_id": "24df0d8b-82dd-5cc5-953f-a8cf1b84d4de",
+      "destination_key": "london",
+      "name": "Churchill War Rooms",
+      "normalized_name": "churchill war rooms",
+      "category": "museum",
+      "lat": 51.5022,
+      "lng": -0.1294,
+      "address": "Clive Steps, King Charles St, London SW1A 2AQ",
+      "country_code": "GB",
+      "zone_name": "Westminster",
+      "official_url": "https://www.iwm.org.uk/visits/churchill-war-rooms",
+      "source_primary_id": "a3359600-4a39-5b0a-9aa1-7ea44fe92c9e",
+      "editorial_score": 88,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Churchill War Rooms",
+          "alias_normalized": "churchill war rooms",
+          "is_canonical": true
+        },
+        {
+          "alias": "Cabinet War Rooms",
+          "alias_normalized": "cabinet war rooms",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "wwii",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "rainy_day",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "history_museum"
+    },
+    {
+      "poi_id": "34a33109-8887-5351-be10-f9d374a153ce",
+      "destination_key": "london",
+      "name": "Victoria and Albert Museum",
+      "normalized_name": "victoria and albert museum",
+      "category": "museum",
+      "lat": 51.4966,
+      "lng": -0.1722,
+      "address": "Cromwell Rd, London SW7 2RL",
+      "country_code": "GB",
+      "zone_name": "Kensington",
+      "official_url": "https://www.vam.ac.uk/",
+      "source_primary_id": "a3359600-4a39-5b0a-9aa1-7ea44fe92c9e",
+      "editorial_score": 89,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 150,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Victoria and Albert Museum",
+          "alias_normalized": "victoria and albert museum",
+          "is_canonical": true
+        },
+        {
+          "alias": "V&A",
+          "alias_normalized": "v&a",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "design",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "rainy_day",
+          "tag_category": "activity_type",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "art_museum"
+    },
+    {
+      "poi_id": "c4c4d5a2-d8ef-5a38-bafb-57e1d37efff5",
+      "destination_key": "london",
+      "name": "Shakespeare's Globe",
+      "normalized_name": "shakespeare's globe",
+      "category": "monument",
+      "lat": 51.5081,
+      "lng": -0.0972,
+      "address": "21 New Globe Walk, London SE1 9DT",
+      "country_code": "GB",
+      "zone_name": "Southwark",
+      "official_url": "https://www.shakespearesglobe.com/",
+      "source_primary_id": "a3359600-4a39-5b0a-9aa1-7ea44fe92c9e",
+      "editorial_score": 86,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Shakespeare's Globe",
+          "alias_normalized": "shakespeare's globe",
+          "is_canonical": true
+        },
+        {
+          "alias": "The Globe",
+          "alias_normalized": "the globe",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "theatre",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "culture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "local_experience",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "theatre"
+    },
+    {
+      "poi_id": "25ff7668-49c3-514e-818f-ff4bc9c2c1ac",
+      "destination_key": "london",
+      "name": "Platform 9 3/4",
+      "normalized_name": "platform 9 3/4",
+      "category": "photo_spot",
+      "lat": 51.532,
+      "lng": -0.124,
+      "address": "King's Cross Station, London N1 9AL",
+      "country_code": "GB",
+      "zone_name": "Camden",
+      "official_url": null,
+      "source_primary_id": "a3359600-4a39-5b0a-9aa1-7ea44fe92c9e",
+      "editorial_score": 78,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 30,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Platform 9 3/4",
+          "alias_normalized": "platform 9 3/4",
+          "is_canonical": true
+        },
+        {
+          "alias": "Kings Cross Platform 9 3/4",
+          "alias_normalized": "kings cross platform 9 3/4",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "harry_potter",
+          "tag_category": "vibe",
+          "confidence": 98
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "family",
+          "tag_category": "audience",
+          "confidence": 95
+        },
+        {
+          "tag": "free",
+          "tag_category": "accessibility",
+          "confidence": 90
+        }
+      ]
+    },
+    {
+      "poi_id": "a9038abd-d2e0-5a49-8d47-c2d24e9b4f93",
+      "destination_key": "london",
+      "name": "The Shard",
+      "normalized_name": "the shard",
+      "category": "viewpoint",
+      "lat": 51.5045,
+      "lng": -0.0865,
+      "address": "32 London Bridge St, London SE1 9SG",
+      "country_code": "GB",
+      "zone_name": "Southwark",
+      "official_url": "https://www.theviewfromtheshard.com/",
+      "source_primary_id": "a3359600-4a39-5b0a-9aa1-7ea44fe92c9e",
+      "editorial_score": 85,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 3,
+      "aliases": [
+        {
+          "alias": "The Shard",
+          "alias_normalized": "the shard",
+          "is_canonical": true
+        },
+        {
+          "alias": "Shard",
+          "alias_normalized": "shard",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 98
+        },
+        {
+          "tag": "modern",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "skyscraper"
+    },
+    {
+      "poi_id": "5853d39d-5ef7-5c7f-b9c9-a2b395ed5845",
+      "destination_key": "london",
+      "name": "Leadenhall Market",
+      "normalized_name": "leadenhall market",
+      "category": "market",
+      "lat": 51.5128,
+      "lng": -0.0834,
+      "address": "Gracechurch St, London EC3V 1LT",
+      "country_code": "GB",
+      "zone_name": "City of London",
+      "official_url": null,
+      "source_primary_id": "a3359600-4a39-5b0a-9aa1-7ea44fe92c9e",
+      "editorial_score": 76,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 45,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Leadenhall Market",
+          "alias_normalized": "leadenhall market",
+          "is_canonical": true
+        },
+        {
+          "alias": "The Market",
+          "alias_normalized": "the market",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "victorian",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "shopping",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "covered_market"
+    },
+    {
+      "poi_id": "8abeb4b0-6787-50dd-a8f7-3bdaea1bf21c",
+      "destination_key": "london",
+      "name": "Regent's Park",
+      "normalized_name": "regent's park",
+      "category": "park",
+      "lat": 51.5313,
+      "lng": -0.1569,
+      "address": "Chester Rd, London NW1 4NR",
+      "country_code": "GB",
+      "zone_name": "Westminster",
+      "official_url": "https://www.royalparks.org.uk/parks/the-regents-park",
+      "source_primary_id": "a3359600-4a39-5b0a-9aa1-7ea44fe92c9e",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 120,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Regent's Park",
+          "alias_normalized": "regent's park",
+          "is_canonical": true
+        },
+        {
+          "alias": "The Regent's Park",
+          "alias_normalized": "the regent's park",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "family",
+          "tag_category": "audience",
+          "confidence": 90
+        },
+        {
+          "tag": "free",
+          "tag_category": "accessibility",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "urban_park"
+    },
+    {
+      "poi_id": "86c5bc65-5890-5bff-9ffe-7f2464b1eb66",
+      "destination_key": "london",
+      "name": "National Gallery",
+      "normalized_name": "national gallery",
+      "category": "museum",
+      "lat": 51.5089,
+      "lng": -0.1283,
+      "address": "Trafalgar Square, London WC2N 5DN",
+      "country_code": "GB",
+      "zone_name": "Westminster",
+      "official_url": "https://www.nationalgallery.org.uk/",
+      "source_primary_id": "a3359600-4a39-5b0a-9aa1-7ea44fe92c9e",
+      "editorial_score": 90,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 120,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "National Gallery",
+          "alias_normalized": "national gallery",
+          "is_canonical": true
+        },
+        {
+          "alias": "The National Gallery",
+          "alias_normalized": "the national gallery",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "painting",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "free",
+          "tag_category": "accessibility",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "art_museum"
+    }
+  ]
+}

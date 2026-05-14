@@ -1,0 +1,1498 @@
+{
+  "_comment": "POI-2.7 — Pilot fixture Amsterdam. ~25 high-quality POIs. Manually curated, no scraping. Coordinates approximate.",
+  "sources": [
+    {
+      "source_id": "7ed4921b-7e33-5700-af8b-c73f07bcef79",
+      "name": "Lunao Pilot Amsterdam",
+      "source_type": "editorial",
+      "trust_level": 5,
+      "is_active": true
+    }
+  ],
+  "pois": [
+    {
+      "poi_id": "53adc655-5086-5cf0-8d9d-d06dda241cd9",
+      "destination_key": "amsterdam",
+      "name": "Rijksmuseum",
+      "normalized_name": "rijksmuseum",
+      "category": "museum",
+      "lat": 52.36,
+      "lng": 4.8852,
+      "address": "Museumstraat 1, 1071 XX Amsterdam",
+      "country_code": "NL",
+      "zone_name": "Museumplein",
+      "official_url": "https://www.rijksmuseum.nl/",
+      "source_primary_id": "7ed4921b-7e33-5700-af8b-c73f07bcef79",
+      "editorial_score": 97,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 180,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Rijksmuseum",
+          "alias_normalized": "rijksmuseum",
+          "is_canonical": true
+        },
+        {
+          "alias": "The Rijks",
+          "alias_normalized": "the rijks",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 98
+        },
+        {
+          "tag": "dutch_golden_age",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "family",
+          "tag_category": "audience",
+          "confidence": 85
+        }
+      ],
+      "subcategory": "art_museum"
+    },
+    {
+      "poi_id": "c13698c4-0288-50ad-8590-eff0845a0069",
+      "destination_key": "amsterdam",
+      "name": "Van Gogh Museum",
+      "normalized_name": "van gogh museum",
+      "category": "museum",
+      "lat": 52.3584,
+      "lng": 4.8811,
+      "address": "Museumplein 6, 1071 DJ Amsterdam",
+      "country_code": "NL",
+      "zone_name": "Museumplein",
+      "official_url": "https://www.vangoghmuseum.nl/",
+      "source_primary_id": "7ed4921b-7e33-5700-af8b-c73f07bcef79",
+      "editorial_score": 96,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 120,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Van Gogh Museum",
+          "alias_normalized": "van gogh museum",
+          "is_canonical": true
+        },
+        {
+          "alias": "Van Gogh",
+          "alias_normalized": "van gogh",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 98
+        },
+        {
+          "tag": "painting",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "family",
+          "tag_category": "audience",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "art_museum"
+    },
+    {
+      "poi_id": "b3949adb-6d47-5659-8619-e28c8c33472d",
+      "destination_key": "amsterdam",
+      "name": "Anne Frank House",
+      "normalized_name": "anne frank house",
+      "category": "museum",
+      "lat": 52.3752,
+      "lng": 4.8839,
+      "address": "Westermarkt 20, 1016 GV Amsterdam",
+      "country_code": "NL",
+      "zone_name": "Jordaan",
+      "official_url": "https://www.annefrank.org/",
+      "source_primary_id": "7ed4921b-7e33-5700-af8b-c73f07bcef79",
+      "editorial_score": 95,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Anne Frank House",
+          "alias_normalized": "anne frank house",
+          "is_canonical": true
+        },
+        {
+          "alias": "Anne Frank Huis",
+          "alias_normalized": "anne frank huis",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 98
+        },
+        {
+          "tag": "wwii",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "emotional",
+          "tag_category": "vibe",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "history_museum"
+    },
+    {
+      "poi_id": "063e0d28-bc93-59a2-ad3b-9dea1418fa86",
+      "destination_key": "amsterdam",
+      "name": "Dam Square",
+      "normalized_name": "dam square",
+      "category": "monument",
+      "lat": 52.3731,
+      "lng": 4.8924,
+      "address": "Dam, 1012 NP Amsterdam",
+      "country_code": "NL",
+      "zone_name": "Centrum",
+      "official_url": null,
+      "source_primary_id": "7ed4921b-7e33-5700-af8b-c73f07bcef79",
+      "editorial_score": 93,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 45,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Dam Square",
+          "alias_normalized": "dam square",
+          "is_canonical": true
+        },
+        {
+          "alias": "De Dam",
+          "alias_normalized": "de dam",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "free",
+          "tag_category": "accessibility",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "square"
+    },
+    {
+      "poi_id": "3559d576-0862-5312-b9ef-847471909fb6",
+      "destination_key": "amsterdam",
+      "name": "Jordaan",
+      "normalized_name": "jordaan",
+      "category": "neighborhood",
+      "lat": 52.3738,
+      "lng": 4.8808,
+      "address": "Amsterdam",
+      "country_code": "NL",
+      "zone_name": "Jordaan",
+      "official_url": null,
+      "source_primary_id": "7ed4921b-7e33-5700-af8b-c73f07bcef79",
+      "editorial_score": 91,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 180,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Jordaan",
+          "alias_normalized": "jordaan",
+          "is_canonical": true
+        },
+        {
+          "alias": "De Jordaan",
+          "alias_normalized": "de jordaan",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "charming",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "canals",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ]
+    },
+    {
+      "poi_id": "2d243cf9-7347-528a-abd4-f85c2d0a64c5",
+      "destination_key": "amsterdam",
+      "name": "Vondelpark",
+      "normalized_name": "vondelpark",
+      "category": "park",
+      "lat": 52.358,
+      "lng": 4.8686,
+      "address": "Amsterdam",
+      "country_code": "NL",
+      "zone_name": "Oud-Zuid",
+      "official_url": null,
+      "source_primary_id": "7ed4921b-7e33-5700-af8b-c73f07bcef79",
+      "editorial_score": 90,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 90,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Vondelpark",
+          "alias_normalized": "vondelpark",
+          "is_canonical": true
+        },
+        {
+          "alias": "The Vondel",
+          "alias_normalized": "the vondel",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "family",
+          "tag_category": "audience",
+          "confidence": 90
+        },
+        {
+          "tag": "free",
+          "tag_category": "accessibility",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "urban_park"
+    },
+    {
+      "poi_id": "ad234109-7adb-57fe-bbdd-44f53b5b5b87",
+      "destination_key": "amsterdam",
+      "name": "Canal Ring",
+      "normalized_name": "canal ring",
+      "category": "neighborhood",
+      "lat": 52.3676,
+      "lng": 4.9041,
+      "address": "Amsterdam",
+      "country_code": "NL",
+      "zone_name": "Centrum",
+      "official_url": "https://www.amsterdam.nl/",
+      "source_primary_id": "7ed4921b-7e33-5700-af8b-c73f07bcef79",
+      "editorial_score": 92,
+      "touristic_importance": 5,
+      "is_must_see": true,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 120,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Canal Ring",
+          "alias_normalized": "canal ring",
+          "is_canonical": true
+        },
+        {
+          "alias": "Grachtengordel",
+          "alias_normalized": "grachtengordel",
+          "is_canonical": false
+        },
+        {
+          "alias": "Amsterdam Canals",
+          "alias_normalized": "amsterdam canals",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "unesco",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "canals",
+          "tag_category": "vibe",
+          "confidence": 98
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        }
+      ]
+    },
+    {
+      "poi_id": "1893d7c8-134e-53c6-bdeb-cad78b70ff00",
+      "destination_key": "amsterdam",
+      "name": "Heineken Experience",
+      "normalized_name": "heineken experience",
+      "category": "local_experience",
+      "lat": 52.3578,
+      "lng": 4.8918,
+      "address": "Stadhouderskade 78, 1072 AE Amsterdam",
+      "country_code": "NL",
+      "zone_name": "De Pijp",
+      "official_url": "https://www.heinekenexperience.com/",
+      "source_primary_id": "7ed4921b-7e33-5700-af8b-c73f07bcef79",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": false,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 3,
+      "aliases": [
+        {
+          "alias": "Heineken Experience",
+          "alias_normalized": "heineken experience",
+          "is_canonical": true
+        },
+        {
+          "alias": "Heineken Brewery",
+          "alias_normalized": "heineken brewery",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "beer",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "interactive",
+          "tag_category": "activity_type",
+          "confidence": 85
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "nightlife",
+          "tag_category": "vibe",
+          "confidence": 70
+        }
+      ],
+      "subcategory": "brewery_tour"
+    },
+    {
+      "poi_id": "d8548214-a5c1-5740-ba2a-e851f6b902f3",
+      "destination_key": "amsterdam",
+      "name": "Royal Palace Amsterdam",
+      "normalized_name": "royal palace amsterdam",
+      "category": "monument",
+      "lat": 52.3732,
+      "lng": 4.8913,
+      "address": "Nieuwezijds Voorburgwal 147, 1012 RJ Amsterdam",
+      "country_code": "NL",
+      "zone_name": "Centrum",
+      "official_url": "https://www.paleisamsterdam.nl/",
+      "source_primary_id": "7ed4921b-7e33-5700-af8b-c73f07bcef79",
+      "editorial_score": 88,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Royal Palace Amsterdam",
+          "alias_normalized": "royal palace amsterdam",
+          "is_canonical": true
+        },
+        {
+          "alias": "Koninklijk Paleis",
+          "alias_normalized": "koninklijk paleis",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "royal",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "palace"
+    },
+    {
+      "poi_id": "fccc385b-597c-5bfe-beee-25a737d14da6",
+      "destination_key": "amsterdam",
+      "name": "NEMO Science Museum",
+      "normalized_name": "nemo science museum",
+      "category": "museum",
+      "lat": 52.3742,
+      "lng": 4.9123,
+      "address": "Oosterdok 2, 1011 VX Amsterdam",
+      "country_code": "NL",
+      "zone_name": "Centrum",
+      "official_url": "https://www.nemosciencemuseum.nl/",
+      "source_primary_id": "7ed4921b-7e33-5700-af8b-c73f07bcef79",
+      "editorial_score": 85,
+      "touristic_importance": 4,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 180,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "NEMO Science Museum",
+          "alias_normalized": "nemo science museum",
+          "is_canonical": true
+        },
+        {
+          "alias": "NEMO",
+          "alias_normalized": "nemo",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "science",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "interactive",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "family",
+          "tag_category": "audience",
+          "confidence": 98
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        }
+      ],
+      "subcategory": "science_museum"
+    },
+    {
+      "poi_id": "53898ca7-f4f8-590e-8e4f-61ed84393a15",
+      "destination_key": "amsterdam",
+      "name": "A'DAM Lookout",
+      "normalized_name": "a'dam lookout",
+      "category": "viewpoint",
+      "lat": 52.3844,
+      "lng": 4.9019,
+      "address": "Overhoeksplein 5, 1031 KS Amsterdam",
+      "country_code": "NL",
+      "zone_name": "Noord",
+      "official_url": "https://www.adamlookout.com/",
+      "source_primary_id": "7ed4921b-7e33-5700-af8b-c73f07bcef79",
+      "editorial_score": 84,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "A'DAM Lookout",
+          "alias_normalized": "a'dam lookout",
+          "is_canonical": true
+        },
+        {
+          "alias": "ADAM Tower",
+          "alias_normalized": "adam tower",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "panoramic_view",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "modern",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "family",
+          "tag_category": "audience",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "observation_deck"
+    },
+    {
+      "poi_id": "fb959155-6a01-5de0-9c22-c33bb832b5bf",
+      "destination_key": "amsterdam",
+      "name": "Begijnhof",
+      "normalized_name": "begijnhof",
+      "category": "monument",
+      "lat": 52.3692,
+      "lng": 4.8898,
+      "address": "Begijnhof 1, 1012 WG Amsterdam",
+      "country_code": "NL",
+      "zone_name": "Centrum",
+      "official_url": null,
+      "source_primary_id": "7ed4921b-7e33-5700-af8b-c73f07bcef79",
+      "editorial_score": 81,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 30,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Begijnhof",
+          "alias_normalized": "begijnhof",
+          "is_canonical": true
+        },
+        {
+          "alias": "The Begijnhof",
+          "alias_normalized": "the begijnhof",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "free",
+          "tag_category": "accessibility",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "courtyard"
+    },
+    {
+      "poi_id": "f990918d-3519-5e5e-b3b4-4cdd170c3e70",
+      "destination_key": "amsterdam",
+      "name": "Albert Cuyp Market",
+      "normalized_name": "albert cuyp market",
+      "category": "market",
+      "lat": 52.3559,
+      "lng": 4.8949,
+      "address": "Albert Cuypstraat, 1072 BD Amsterdam",
+      "country_code": "NL",
+      "zone_name": "De Pijp",
+      "official_url": null,
+      "source_primary_id": "7ed4921b-7e33-5700-af8b-c73f07bcef79",
+      "editorial_score": 83,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 60,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Albert Cuyp Market",
+          "alias_normalized": "albert cuyp market",
+          "is_canonical": true
+        },
+        {
+          "alias": "Cuyp Market",
+          "alias_normalized": "cuyp market",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "food",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "cheap",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "street_market"
+    },
+    {
+      "poi_id": "5e0ef0c0-fc85-5275-8f66-d6eb90dd4a26",
+      "destination_key": "amsterdam",
+      "name": "Flower Market",
+      "normalized_name": "flower market",
+      "category": "market",
+      "lat": 52.3669,
+      "lng": 4.8815,
+      "address": "Singel, 1012 DH Amsterdam",
+      "country_code": "NL",
+      "zone_name": "Centrum",
+      "official_url": null,
+      "source_primary_id": "7ed4921b-7e33-5700-af8b-c73f07bcef79",
+      "editorial_score": 80,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 45,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Flower Market",
+          "alias_normalized": "flower market",
+          "is_canonical": true
+        },
+        {
+          "alias": "Bloemenmarkt",
+          "alias_normalized": "bloemenmarkt",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "colorful",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "flower_market"
+    },
+    {
+      "poi_id": "94402c86-54b6-59f3-ba66-9a633044771f",
+      "destination_key": "amsterdam",
+      "name": "Rembrandt House Museum",
+      "normalized_name": "rembrandt house museum",
+      "category": "museum",
+      "lat": 52.3694,
+      "lng": 4.9012,
+      "address": "Jodenbreestraat 4, 1011 NK Amsterdam",
+      "country_code": "NL",
+      "zone_name": "Centrum",
+      "official_url": "https://www.rembrandthuis.nl/",
+      "source_primary_id": "7ed4921b-7e33-5700-af8b-c73f07bcef79",
+      "editorial_score": 86,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 60,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Rembrandt House Museum",
+          "alias_normalized": "rembrandt house museum",
+          "is_canonical": true
+        },
+        {
+          "alias": "Museum Het Rembrandthuis",
+          "alias_normalized": "museum het rembrandthuis",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        },
+        {
+          "tag": "intimate",
+          "tag_category": "vibe",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "art_museum"
+    },
+    {
+      "poi_id": "a4ddc106-db9c-58b6-9581-52aa8f7744d8",
+      "destination_key": "amsterdam",
+      "name": "ARTIS Amsterdam Zoo",
+      "normalized_name": "artis amsterdam zoo",
+      "category": "family",
+      "lat": 52.366,
+      "lng": 4.9164,
+      "address": "Plantage Kerklaan 38-40, 1018 CZ Amsterdam",
+      "country_code": "NL",
+      "zone_name": "Plantage",
+      "official_url": "https://www.artis.nl/",
+      "source_primary_id": "7ed4921b-7e33-5700-af8b-c73f07bcef79",
+      "editorial_score": 84,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 180,
+      "price_level": 3,
+      "aliases": [
+        {
+          "alias": "ARTIS Amsterdam Zoo",
+          "alias_normalized": "artis amsterdam zoo",
+          "is_canonical": true
+        },
+        {
+          "alias": "ARTIS",
+          "alias_normalized": "artis",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "animals",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "family",
+          "tag_category": "audience",
+          "confidence": 98
+        },
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "zoo"
+    },
+    {
+      "poi_id": "7d2b2209-3ad3-5d2b-9fc3-a2da83c28751",
+      "destination_key": "amsterdam",
+      "name": "Amsterdam Museum",
+      "normalized_name": "amsterdam museum",
+      "category": "museum",
+      "lat": 52.3699,
+      "lng": 4.8893,
+      "address": "Kalverstraat 92, 1012 PH Amsterdam",
+      "country_code": "NL",
+      "zone_name": "Centrum",
+      "official_url": "https://www.amsterdammuseum.nl/",
+      "source_primary_id": "7ed4921b-7e33-5700-af8b-c73f07bcef79",
+      "editorial_score": 83,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Amsterdam Museum",
+          "alias_normalized": "amsterdam museum",
+          "is_canonical": true
+        },
+        {
+          "alias": "Amsterdams Historisch Museum",
+          "alias_normalized": "amsterdams historisch museum",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        },
+        {
+          "tag": "rainy_day",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "history_museum"
+    },
+    {
+      "poi_id": "ea8c0b2d-57e0-5f81-b90a-4510b4483bde",
+      "destination_key": "amsterdam",
+      "name": "Westerkerk",
+      "normalized_name": "westerkerk",
+      "category": "monument",
+      "lat": 52.3745,
+      "lng": 4.8836,
+      "address": "Prinsengracht 281, 1016 GW Amsterdam",
+      "country_code": "NL",
+      "zone_name": "Jordaan",
+      "official_url": "https://www.westerkerk.nl/",
+      "source_primary_id": "7ed4921b-7e33-5700-af8b-c73f07bcef79",
+      "editorial_score": 82,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 45,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Westerkerk",
+          "alias_normalized": "westerkerk",
+          "is_canonical": true
+        },
+        {
+          "alias": "Western Church",
+          "alias_normalized": "western church",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "baroque",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "church"
+    },
+    {
+      "poi_id": "c3be4a05-c402-559e-a4e7-533fef1536a9",
+      "destination_key": "amsterdam",
+      "name": "De Pijp",
+      "normalized_name": "de pijp",
+      "category": "neighborhood",
+      "lat": 52.3539,
+      "lng": 4.8907,
+      "address": "Amsterdam",
+      "country_code": "NL",
+      "zone_name": "De Pijp",
+      "official_url": null,
+      "source_primary_id": "7ed4921b-7e33-5700-af8b-c73f07bcef79",
+      "editorial_score": 78,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 120,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "De Pijp",
+          "alias_normalized": "de pijp",
+          "is_canonical": true
+        },
+        {
+          "alias": "The Pipe",
+          "alias_normalized": "the pipe",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "local",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "food",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "nightlife",
+          "tag_category": "vibe",
+          "confidence": 75
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ]
+    },
+    {
+      "poi_id": "973233cd-3c8a-533d-abf3-13f24bec75c4",
+      "destination_key": "amsterdam",
+      "name": "Oude Kerk",
+      "normalized_name": "oude kerk",
+      "category": "monument",
+      "lat": 52.3744,
+      "lng": 4.8982,
+      "address": "Oudekerksplein 23, 1012 GX Amsterdam",
+      "country_code": "NL",
+      "zone_name": "Centrum",
+      "official_url": "https://www.oudekerk.nl/",
+      "source_primary_id": "7ed4921b-7e33-5700-af8b-c73f07bcef79",
+      "editorial_score": 81,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 45,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Oude Kerk",
+          "alias_normalized": "oude kerk",
+          "is_canonical": true
+        },
+        {
+          "alias": "Old Church",
+          "alias_normalized": "old church",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "gothic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "historic",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 75
+        }
+      ],
+      "subcategory": "church"
+    },
+    {
+      "poi_id": "d2612fb2-42c9-5c6e-9823-efbfd21b5c09",
+      "destination_key": "amsterdam",
+      "name": "Hortus Botanicus",
+      "normalized_name": "hortus botanicus",
+      "category": "park",
+      "lat": 52.3667,
+      "lng": 4.9078,
+      "address": "Plantage Middenlaan 2a, 1018 DD Amsterdam",
+      "country_code": "NL",
+      "zone_name": "Plantage",
+      "official_url": "https://www.dehortus.nl/",
+      "source_primary_id": "7ed4921b-7e33-5700-af8b-c73f07bcef79",
+      "editorial_score": 80,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Hortus Botanicus",
+          "alias_normalized": "hortus botanicus",
+          "is_canonical": true
+        },
+        {
+          "alias": "Amsterdam Botanical Garden",
+          "alias_normalized": "amsterdam botanical garden",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "peaceful",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 85
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 60
+        }
+      ],
+      "subcategory": "botanical_garden"
+    },
+    {
+      "poi_id": "0fe94759-40db-55fc-98af-acc857a45362",
+      "destination_key": "amsterdam",
+      "name": "Amsterdamse Bos",
+      "normalized_name": "amsterdamse bos",
+      "category": "nature",
+      "lat": 52.3261,
+      "lng": 4.838,
+      "address": "Amsterdamse Bos, 1182 DB Amstelveen",
+      "country_code": "NL",
+      "zone_name": "Amstelveen",
+      "official_url": null,
+      "source_primary_id": "7ed4921b-7e33-5700-af8b-c73f07bcef79",
+      "editorial_score": 77,
+      "touristic_importance": 2,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": false,
+      "is_free": true,
+      "typical_duration_minutes": 180,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Amsterdamse Bos",
+          "alias_normalized": "amsterdamse bos",
+          "is_canonical": true
+        },
+        {
+          "alias": "The Bos",
+          "alias_normalized": "the bos",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nature",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        },
+        {
+          "tag": "family",
+          "tag_category": "audience",
+          "confidence": 85
+        },
+        {
+          "tag": "free",
+          "tag_category": "accessibility",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "forest"
+    },
+    {
+      "poi_id": "5d43a8d2-af5d-53bd-b3e7-da22cad9fa99",
+      "destination_key": "amsterdam",
+      "name": "Eye Film Museum",
+      "normalized_name": "eye film museum",
+      "category": "museum",
+      "lat": 52.3844,
+      "lng": 4.9019,
+      "address": "IJpromenade 1, 1031 KT Amsterdam",
+      "country_code": "NL",
+      "zone_name": "Noord",
+      "official_url": "https://www.eyefilm.nl/",
+      "source_primary_id": "7ed4921b-7e33-5700-af8b-c73f07bcef79",
+      "editorial_score": 79,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Eye Film Museum",
+          "alias_normalized": "eye film museum",
+          "is_canonical": true
+        },
+        {
+          "alias": "EYE",
+          "alias_normalized": "eye",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "film",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "modern",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "cinema_museum"
+    },
+    {
+      "poi_id": "3bb99d31-4c1c-5a67-82ea-4b4fc6c6dff8",
+      "destination_key": "amsterdam",
+      "name": "Leidseplein",
+      "normalized_name": "leidseplein",
+      "category": "nightlife",
+      "lat": 52.3635,
+      "lng": 4.8827,
+      "address": "Leidseplein, 1017 PT Amsterdam",
+      "country_code": "NL",
+      "zone_name": "Centrum",
+      "official_url": null,
+      "source_primary_id": "7ed4921b-7e33-5700-af8b-c73f07bcef79",
+      "editorial_score": 76,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": false,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 60,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Leidseplein",
+          "alias_normalized": "leidseplein",
+          "is_canonical": true
+        },
+        {
+          "alias": "Leidse Square",
+          "alias_normalized": "leidse square",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "nightlife",
+          "tag_category": "vibe",
+          "confidence": 95
+        },
+        {
+          "tag": "theatre",
+          "tag_category": "activity_type",
+          "confidence": 80
+        },
+        {
+          "tag": "food",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 80
+        }
+      ],
+      "subcategory": "square"
+    },
+    {
+      "poi_id": "9e73c6aa-4987-57e1-846c-bda1b4467bca",
+      "destination_key": "amsterdam",
+      "name": "Magere Brug",
+      "normalized_name": "magere brug",
+      "category": "monument",
+      "lat": 52.3534,
+      "lng": 4.9013,
+      "address": "Magere Brug, 1018 EG Amsterdam",
+      "country_code": "NL",
+      "zone_name": "Amstel",
+      "official_url": null,
+      "source_primary_id": "7ed4921b-7e33-5700-af8b-c73f07bcef79",
+      "editorial_score": 78,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": true,
+      "typical_duration_minutes": 30,
+      "price_level": 1,
+      "aliases": [
+        {
+          "alias": "Magere Brug",
+          "alias_normalized": "magere brug",
+          "is_canonical": true
+        },
+        {
+          "alias": "Skinny Bridge",
+          "alias_normalized": "skinny bridge",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "romantic",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "architecture",
+          "tag_category": "vibe",
+          "confidence": 80
+        },
+        {
+          "tag": "photography",
+          "tag_category": "activity_type",
+          "confidence": 90
+        },
+        {
+          "tag": "outdoor",
+          "tag_category": "activity_type",
+          "confidence": 90
+        }
+      ],
+      "subcategory": "bridge"
+    },
+    {
+      "poi_id": "cc789a88-9fc6-5d76-aedf-a2d2778669b2",
+      "destination_key": "amsterdam",
+      "name": "Stedelijk Museum",
+      "normalized_name": "stedelijk museum",
+      "category": "museum",
+      "lat": 52.358,
+      "lng": 4.8798,
+      "address": "Museumplein 10, 1071 DJ Amsterdam",
+      "country_code": "NL",
+      "zone_name": "Museumplein",
+      "official_url": "https://www.stedelijk.nl/",
+      "source_primary_id": "7ed4921b-7e33-5700-af8b-c73f07bcef79",
+      "editorial_score": 85,
+      "touristic_importance": 3,
+      "is_must_see": false,
+      "is_family_friendly": true,
+      "is_rain_friendly": true,
+      "is_free": false,
+      "typical_duration_minutes": 90,
+      "price_level": 2,
+      "aliases": [
+        {
+          "alias": "Stedelijk Museum",
+          "alias_normalized": "stedelijk museum",
+          "is_canonical": true
+        },
+        {
+          "alias": "Stedelijk",
+          "alias_normalized": "stedelijk",
+          "is_canonical": false
+        }
+      ],
+      "tags": [
+        {
+          "tag": "art",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "modern",
+          "tag_category": "vibe",
+          "confidence": 90
+        },
+        {
+          "tag": "design",
+          "tag_category": "vibe",
+          "confidence": 85
+        },
+        {
+          "tag": "indoor",
+          "tag_category": "activity_type",
+          "confidence": 95
+        }
+      ],
+      "subcategory": "art_museum"
+    }
+  ]
+}

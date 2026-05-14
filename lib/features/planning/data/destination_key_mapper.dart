@@ -21,6 +21,20 @@ class DestinationKeyMapper {
     'barca': 'barcelona',
     'barcelona spain': 'barcelona',
     'barcelona espagne': 'barcelona',
+    // London
+    'london': 'london',
+    'londres': 'london',
+    'london uk': 'london',
+    'londres royaume uni': 'london',
+    // Amsterdam
+    'amsterdam': 'amsterdam',
+    'amsterdam netherlands': 'amsterdam',
+    'amsterdam pays bas': 'amsterdam',
+    // Marrakech
+    'marrakech': 'marrakech',
+    'marrakesh': 'marrakech',
+    'marrakech maroc': 'marrakech',
+    'marrakesh morocco': 'marrakech',
   };
 
   /// Retourne le destinationKey POI, ou null si la destination

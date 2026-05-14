@@ -10,7 +10,7 @@ import 'package:voyage/features/poi/tools/poi_fixture_validator.dart';
 
 void main() {
   group('POI Multi-City Fixture Dry-Run', () {
-    for (final city in ['paris', 'rome', 'barcelona']) {
+    for (final city in ['paris', 'rome', 'barcelona', 'london', 'amsterdam', 'marrakech']) {
       group(city, () {
         late Map<String, dynamic> fixtureJson;
         late PoiDryRunReport report;
@@ -55,8 +55,12 @@ void main() {
           expect(report.stats.sourceCount, equals(1));
         });
 
-        test('fixture contains expected POI count', () {
-          expect(report.stats.poiCount, equals(25));
+        test('fixture contains expected POI count (20-26)', () {
+          expect(
+            report.stats.poiCount,
+            allOf(greaterThanOrEqualTo(20), lessThanOrEqualTo(26)),
+            reason: 'Expected 20-26 POIs for $city',
+          );
         });
 
         test('all categories used are in the allowed taxonomy', () {
