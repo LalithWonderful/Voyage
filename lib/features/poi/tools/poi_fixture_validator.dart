@@ -447,6 +447,7 @@ class PoiFixtureValidator {
       } else if (tagsRaw is! List) {
         errors.add('$p: tags must be a list');
       } else {
+        final tagValuesInPoi = <String>{};
         for (var j = 0; j < tagsRaw.length; j++) {
           tagCount++;
           final tag = tagsRaw[j] as Map<String, dynamic>;
@@ -455,6 +456,11 @@ class PoiFixtureValidator {
           final tValue = _string(tag, 'tag');
           if (tValue == null || tValue.isEmpty) {
             errors.add('$tp: missing or empty tag');
+          } else if (!tagValuesInPoi.add(tValue)) {
+            errors.add(
+              '$tp: duplicate tag "$tValue" within POI '
+              '(would break upsert onConflict)',
+            );
           }
 
           final tCat = _string(tag, 'tag_category');

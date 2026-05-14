@@ -829,11 +829,6 @@
           "tag": "peaceful",
           "tag_category": "vibe",
           "confidence": 75
-        },
-        {
-          "tag": "nature",
-          "tag_category": "vibe",
-          "confidence": 85
         }
       ],
       "subcategory": "island"

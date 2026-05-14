@@ -236,6 +236,146 @@ void main() {
       expect(ids.toSet().length, equals(ids.length));
     });
 
+    test('duplicate tags within a POI are rejected by validator', () async {
+      const sourceId = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+      final badFixture = <String, dynamic>{
+        'sources': [
+          {
+            'source_id': sourceId,
+            'name': 'Test Source',
+            'source_type': 'editorial',
+            'trust_level': 5,
+            'is_active': true,
+          },
+        ],
+        'pois': [
+          {
+            'poi_id': '11111111-1111-1111-1111-111111111111',
+            'destination_key': 'testville',
+            'name': 'Bad POI',
+            'normalized_name': 'bad poi',
+            'category': 'museum',
+            'lat': 1.0,
+            'lng': 2.0,
+            'address': '1 Test St',
+            'country_code': 'TV',
+            'source_primary_id': sourceId,
+            'editorial_score': 80,
+            'touristic_importance': 3,
+            'is_must_see': false,
+            'aliases': [
+              {
+                'alias': 'Bad POI',
+                'alias_normalized': 'bad poi',
+                'is_canonical': true,
+              },
+            ],
+            'tags': [
+              {
+                'tag': 'indoor',
+                'tag_category': 'activity_type',
+                'confidence': 90,
+              },
+              {
+                'tag': 'indoor',
+                'tag_category': 'vibe',
+                'confidence': 80,
+              },
+            ],
+          },
+        ],
+      };
+
+      final report = await importer.run(badFixture);
+      expect(report.validationPassed, isFalse);
+      expect(report.canProceed, isFalse);
+      expect(
+        report.blockingErrors.any((e) => e.contains('duplicate tag')),
+        isTrue,
+        reason: 'Expected validator to reject duplicate tags within a POI',
+      );
+    });
+
+    test('duplicate (poi_id, tag) blocked by validator or staging (Postgres 21000)', () async {
+      const sourceId = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+      // Fixture with duplicate tags within a single POI.
+      // Either the validator (preferred) or the staging DB simulation
+      // must reject it before the real upsert hits Postgres.
+      final badFixture = <String, dynamic>{
+        'sources': [
+          {
+            'source_id': sourceId,
+            'name': 'Test Source',
+            'source_type': 'editorial',
+            'trust_level': 5,
+            'is_active': true,
+          },
+        ],
+        'pois': [
+          {
+            'poi_id': '11111111-1111-1111-1111-111111111111',
+            'destination_key': 'testville',
+            'name': 'Tricky POI',
+            'normalized_name': 'tricky poi',
+            'category': 'museum',
+            'lat': 1.0,
+            'lng': 2.0,
+            'address': '1 Test St',
+            'country_code': 'TV',
+            'source_primary_id': sourceId,
+            'editorial_score': 80,
+            'touristic_importance': 3,
+            'is_must_see': false,
+            'aliases': [
+              {
+                'alias': 'Tricky POI',
+                'alias_normalized': 'tricky poi',
+                'is_canonical': true,
+              },
+            ],
+            'tags': [
+              {
+                'tag': 'indoor',
+                'tag_category': 'activity_type',
+                'confidence': 90,
+              },
+              {
+                'tag': 'indoor',
+                'tag_category': 'activity_type',
+                'confidence': 85,
+              },
+            ],
+          },
+        ],
+      };
+
+      final report = await importer.run(badFixture);
+      expect(report.canProceed, isFalse);
+      // Validator catches it first; staging DB simulation is a backstop.
+      expect(
+        report.blockingErrors.any(
+          (e) =>
+              e.contains('duplicate tag') ||
+              e.contains('ON CONFLICT') ||
+              e.contains('upsert conflict'),
+        ),
+        isTrue,
+        reason: 'Expected validator or staging DB simulation to reject '
+            'duplicate tags that would cause Postgres 21000',
+      );
+    });
+
+    test('singapore pilot fixture passes clean validation and staging', () async {
+      final file = File('test/fixtures/poi/pilot_pois_singapore.json');
+      expect(file.existsSync(), isTrue);
+      final singaporeJson =
+          json.decode(file.readAsStringSync()) as Map<String, dynamic>;
+      final report = await importer.run(singaporeJson);
+      expect(report.validationPassed, isTrue);
+      expect(report.blockingErrors, isEmpty);
+      expect(report.canProceed, isTrue);
+    });
+
     test('quality flags empty for clean fixture', () async {
       final report = await importer.run(fixtureJson);
       expect(report.plan!.poiQualityFlags, isEmpty);

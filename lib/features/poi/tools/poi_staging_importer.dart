@@ -412,6 +412,53 @@ class PoiStagingImporter {
       }
     }
 
+    // Intra-batch unique constraints (would cause Postgres 21000 on upsert)
+    final aliasKeys = <String>{};
+    for (final alias in plan.poiAliases) {
+      final key = '${alias['poi_id']}|${alias['alias_normalized']}';
+      if (!aliasKeys.add(key)) {
+        errors.add(
+          'DB upsert conflict: duplicate (poi_id, alias_normalized) "$key" '
+          'within batch — would cause ON CONFLICT error (code 21000)',
+        );
+      }
+    }
+
+    final tagKeys = <String>{};
+    for (final tag in plan.poiTags) {
+      final key = '${tag['poi_id']}|${tag['tag']}';
+      if (!tagKeys.add(key)) {
+        errors.add(
+          'DB upsert conflict: duplicate (poi_id, tag) "$key" '
+          'within batch — would cause ON CONFLICT error (code 21000)',
+        );
+      }
+    }
+
+    final linkKeys = <String>{};
+    for (final link in plan.poiSourceLinks) {
+      final key =
+          '${link['poi_id']}|${link['source_id']}|${link['source_poi_identifier']}';
+      if (!linkKeys.add(key)) {
+        errors.add(
+          'DB upsert conflict: duplicate source_link "$key" '
+          'within batch — would cause ON CONFLICT error (code 21000)',
+        );
+      }
+    }
+
+    final flagKeys = <String>{};
+    for (final flag in plan.poiQualityFlags) {
+      final key =
+          '${flag['poi_id']}|${flag['flag_type']}|${flag['flag_reason']}';
+      if (!flagKeys.add(key)) {
+        errors.add(
+          'DB upsert conflict: duplicate quality flag "$key" '
+          'within batch — would cause ON CONFLICT error (code 21000)',
+        );
+      }
+    }
+
     // FK : aliases/tags/links → pois
     for (final alias in plan.poiAliases) {
       final pid = alias['poi_id'] as String;
