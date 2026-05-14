@@ -1,0 +1,17 @@
+# Europe
+london
+amsterdam
+paris
+rome
+barcelona
+lisbon
+
+# Afrique / Moyen-Orient
+marrakech
+istanbul
+cairo
+
+# Asie
+bangkok
+tokyo
+singapore
