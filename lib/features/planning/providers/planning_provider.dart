@@ -249,9 +249,11 @@ final placesCacheServiceProvider = Provider<PlacesCacheService>((ref) {
 });
 
 final placeLookupCacheServiceProvider = Provider<PlaceLookupCacheService>((ref) {
+  final places = ref.watch(placesServiceProvider);
   return PlaceLookupCacheService(
-    ref.watch(supabaseProvider),
-    ref.watch(placesServiceProvider),
+    SupabasePlaceLookupCacheStore(ref.watch(supabaseProvider)),
+    (placeId, {sessionToken}) =>
+        places.resolvePlaceCoords(placeId, sessionToken: sessionToken),
   );
 });
 

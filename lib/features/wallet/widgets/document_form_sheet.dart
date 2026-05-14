@@ -769,10 +769,15 @@ class _DocumentFormSheetState extends ConsumerState<_DocumentFormSheet> {
       }
       final cache = ref.read(placeLookupCacheServiceProvider);
       try {
+        // SAVE = action utilisateur explicite : on autorise l'escalade
+        // vers Place Details si miss/legacy. L'appel reste gouverné par
+        // `LiveApiGuards.googlePlaces` côté `PlacesService` (defense
+        // en profondeur). Cf. P0.5 `places_poi_refactor_checklist.md`.
         final resolved = await cache.resolveCoords(
           placeId: existingPlaceId,
           kind: kind,
           sessionToken: _sessionTokens[fieldKey],
+          allowLiveFallback: true,
         ).timeout(const Duration(seconds: 5));
         if (resolved != null) {
           meta[placeIdKey] = existingPlaceId;
